@@ -1,0 +1,4 @@
+patch_*
+*build*
+.vscode
+.idea
