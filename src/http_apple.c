@@ -66,6 +66,12 @@ int http_apple_config_apply(struct HttpTransportContext *ctx,
   if (!ctx || !config) return EINVAL;
   /* Copy relevant config or store a reference. Here we just copy. */
   /* In a real implementation, we'd deep copy or map to Apple settings. */
+  if (!config->verify_peer) {
+    ctx->config.verify_peer = 0;
+  } else {
+    ctx->config.verify_peer = 1;
+  }
+  ctx->config.cookie_jar = config->cookie_jar;
   return 0;
 }
 
@@ -129,7 +135,31 @@ int http_apple_send(struct HttpTransportContext *ctx,
     if (val) CFRelease(val);
   }
 
-  if (req->body && req->body_len > 0) {
+  if (req->read_chunk) {
+    CFMutableDataRef bodyData = CFDataCreateMutable(kCFAllocatorDefault, (CFIndex)req->expected_body_len);
+    if (!bodyData) {
+      CFRelease(requestRef);
+      return ENOMEM;
+    }
+    
+    while (1) {
+      UInt8 chunkBuf[8192];
+      size_t out_read = 0;
+      int cb_rc = req->read_chunk(req->read_chunk_user_data, chunkBuf, sizeof(chunkBuf), &out_read);
+      if (cb_rc != 0) {
+        CFRelease(bodyData);
+        CFRelease(requestRef);
+        return cb_rc;
+      }
+      if (out_read == 0)
+        break; /* EOF */
+        
+      CFDataAppendBytes(bodyData, chunkBuf, (CFIndex)out_read);
+    }
+    
+    CFHTTPMessageSetBody(requestRef, bodyData);
+    CFRelease(bodyData);
+  } else if (req->body && req->body_len > 0) {
     CFDataRef body = CFDataCreate(kCFAllocatorDefault, (const UInt8 *)req->body, (CFIndex)req->body_len);
     if (body) {
       CFHTTPMessageSetBody(requestRef, body);
@@ -140,6 +170,18 @@ int http_apple_send(struct HttpTransportContext *ctx,
   readStream = CFReadStreamCreateForHTTPRequest(kCFAllocatorDefault, requestRef);
   CFRelease(requestRef);
   if (!readStream) return ENOMEM;
+
+  if (!ctx->config.verify_peer) {
+    CFMutableDictionaryRef sslSettings = CFDictionaryCreateMutable(kCFAllocatorDefault, 0,
+                                                                   &kCFTypeDictionaryKeyCallBack,
+                                                                   &kCFTypeDictionaryValueCallBack);
+    if (sslSettings) {
+      CFDictionarySetValue(sslSettings, kCFStreamSSLValidatesCertificateChain, kCFBooleanFalse);
+      /* Apply to stream */
+      CFReadStreamSetProperty(readStream, kCFStreamPropertySSLSettings, sslSettings);
+      CFRelease(sslSettings);
+    }
+  }
 
   /* Since this is a synchronous call, we wait until it's done */
   if (!CFReadStreamOpen(readStream)) {
@@ -158,7 +200,17 @@ int http_apple_send(struct HttpTransportContext *ctx,
     } else if (bytesRead == 0) {
       break; /* EOF */
     }
-    CFDataAppendBytes((CFMutableDataRef)bodyData, buf, bytesRead);
+
+    if (req->on_chunk) {
+      int cb_rc = req->on_chunk(req->on_chunk_user_data, buf, (size_t)bytesRead);
+      if (cb_rc != 0) {
+        CFRelease(readStream);
+        if (bodyData) CFRelease(bodyData);
+        return cb_rc;
+      }
+    } else {
+      CFDataAppendBytes((CFMutableDataRef)bodyData, buf, bytesRead);
+    }
   }
 
   responseRef = (CFHTTPMessageRef)CFReadStreamCopyProperty(readStream, kCFStreamPropertyHTTPResponseHeader);

@@ -23,6 +23,8 @@ struct HttpTransportContext {
   JavaVM *jvm;
   jclass url_class;
   jclass http_conn_class;
+  int verify_peer;
+  int verify_host;
 };
 
 /**
@@ -72,6 +74,8 @@ int http_android_config_apply(struct HttpTransportContext *ctx,
                               const struct HttpConfig *config) {
   if (!ctx || !config) return EINVAL;
   /* Configuration (like timeouts) can be applied per-request in HttpURLConnection */
+  ctx->verify_peer = config->verify_peer;
+  ctx->verify_host = config->verify_host;
   return 0;
 }
 

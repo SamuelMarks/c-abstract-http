@@ -1,11 +1,15 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Download greatest.h
+# Fetch greatest.h via FetchContent
 include(FetchContent)
-file(DOWNLOAD "https://raw.githubusercontent.com/SamuelMarks/greatest/cmake-and-msvc/greatest.h"
-     "${CMAKE_CURRENT_BINARY_DIR}/greatest.h")
+FetchContent_Declare(
+  greatest
+  URL "https://raw.githubusercontent.com/SamuelMarks/greatest/refs/heads/cmake-and-msvc/greatest.h"
+  DOWNLOAD_NO_EXTRACT TRUE
+)
+FetchContent_MakeAvailable(greatest)
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${greatest_SOURCE_DIR})
 include_directories(../include)
 include_directories(../src)
 

@@ -22,23 +22,23 @@
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 
 /* clang-format off */
 /* windef.h must precede winbase.h to prevent DWORD redefinition errors */
 #include "win_compat_sym.h"
 #include <windef.h>
-
+#include <winnt.h>
 #include <winbase.h>
+#include <winnls.h>
+#include <winerror.h>
 /* clang-format on */
 
 #include <direct.h>
 #if !defined(_MSC_VER) || _MSC_VER >= 1900
 #include <fileapi.h>
 #endif
-#include <winerror.h>
+#endif
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 /* strtok_s is defined as a macro for strtok_r in fs.h if needed, or by system
  * headers */
 

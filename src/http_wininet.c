@@ -16,7 +16,10 @@
 
 /* clang-format off */
 #include "win_compat_sym.h"
-#include <windows.h>
+#include <windef.h>
+#include <winnt.h>
+#include <winbase.h>
+#include <winerror.h>
 #include <wininet.h>
 /* clang-format on */
 #pragma comment(lib, "wininet.lib")
@@ -101,6 +104,9 @@ typedef URL_COMPONENTSW URL_COMPONENTS;
 struct HttpTransportContext {
   HINTERNET hInternet;  /**< Root handle from InternetOpen */
   DWORD security_flags; /**< Flags to apply to requests (e.g. ignore cert) */
+  char *proxy_username;
+  char *proxy_password;
+  struct HttpCookieJar *cookie_jar;
 };
 
 /* --- Internal Helpers --- */
@@ -262,6 +268,9 @@ int http_wininet_context_init(struct HttpTransportContext **ctx) {
 
   (*ctx)->hInternet = hInternet;
   (*ctx)->security_flags = 0;
+  (*ctx)->proxy_username = NULL;
+  (*ctx)->proxy_password = NULL;
+  (*ctx)->cookie_jar = NULL;
 
   return 0;
 #else
@@ -291,23 +300,25 @@ void http_wininet_context_free(struct HttpTransportContext *ctx) {
 int http_wininet_config_apply(struct HttpTransportContext *ctx,
                               const struct HttpConfig *config) {
 #ifdef _WIN32
-  DWORD timeout;
+  DWORD timeout_connect, timeout_send, timeout_recv;
   CHECK_EINVAL(ctx);
   CHECK_EINVAL(ctx->hInternet);
   CHECK_EINVAL(config);
 
   /* Timeouts: WinInet uses milliseconds */
-  timeout = (DWORD)config->timeout_ms;
+  timeout_connect = (config->connect_timeout_ms > 0) ? (DWORD)config->connect_timeout_ms : (DWORD)config->timeout_ms;
+  timeout_send = (config->write_timeout_ms > 0) ? (DWORD)config->write_timeout_ms : (DWORD)config->timeout_ms;
+  timeout_recv = (config->read_timeout_ms > 0) ? (DWORD)config->read_timeout_ms : (DWORD)config->timeout_ms;
 
   /* Apply to logical handle (Connect, Send, Receive) */
   if (!InternetSetOption(ctx->hInternet, INTERNET_OPTION_CONNECT_TIMEOUT,
-                         &timeout, sizeof(timeout)))
+                         &timeout_connect, sizeof(timeout_connect)))
     return EIO;
-  if (!InternetSetOption(ctx->hInternet, INTERNET_OPTION_SEND_TIMEOUT, &timeout,
-                         sizeof(timeout)))
+  if (!InternetSetOption(ctx->hInternet, INTERNET_OPTION_SEND_TIMEOUT, &timeout_send,
+                         sizeof(timeout_send)))
     return EIO;
   if (!InternetSetOption(ctx->hInternet, INTERNET_OPTION_RECEIVE_TIMEOUT,
-                         &timeout, sizeof(timeout)))
+                         &timeout_recv, sizeof(timeout_recv)))
     return EIO;
 
   /* Cache Security Flags for HttpOpenRequest */
@@ -319,6 +330,11 @@ int http_wininet_config_apply(struct HttpTransportContext *ctx,
   if (!config->verify_host) {
     ctx->security_flags |= INTERNET_FLAG_IGNORE_CERT_CN_INVALID;
   }
+  if (!config->follow_redirects) {
+    ctx->security_flags |= INTERNET_FLAG_NO_AUTO_REDIRECT;
+  }
+  
+  ctx->cookie_jar = config->cookie_jar;
 
   return 0;
 #else
@@ -411,6 +427,20 @@ int http_wininet_send(struct HttpTransportContext *ctx,
     goto cleanup;
   }
 
+  /* Apply Proxy Credentials if using a proxy and configured */
+  if (ctx->proxy_username && ctx->proxy_password) {
+    if (!InternetSetOptionA(hConnect, INTERNET_OPTION_PROXY_USERNAME,
+                            ctx->proxy_username, (DWORD)strlen(ctx->proxy_username))) {
+      rc = EIO;
+      goto cleanup;
+    }
+    if (!InternetSetOptionA(hConnect, INTERNET_OPTION_PROXY_PASSWORD,
+                            ctx->proxy_password, (DWORD)strlen(ctx->proxy_password))) {
+      rc = EIO;
+      goto cleanup;
+    }
+  }
+
   /* 4. Open Request */
   if (urlComp.nScheme == INTERNET_SCHEME_HTTPS) {
     dwFlags |= INTERNET_FLAG_SECURE;
@@ -423,6 +453,24 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   if (!hRequest) {
     rc = EIO;
     goto cleanup;
+  }
+
+  /* Set cookies from jar before headers */
+  if (ctx->cookie_jar && ctx->cookie_jar->count > 0) {
+    size_t i;
+    for (i = 0; i < ctx->cookie_jar->count; ++i) {
+      char cbuf[4096];
+      wchar_t wcbuf[4096];
+      size_t written = 0;
+      /* format: Cookie: name=value */
+      sprintf_s(cbuf, sizeof(cbuf), "Cookie: %s=%s\r\n", 
+                ctx->cookie_jar->cookies[i].name, 
+                ctx->cookie_jar->cookies[i].value);
+      
+      if (ascii_to_wide(cbuf, wcbuf, 4096, &written) == 0) {
+        HttpAddRequestHeadersW(hRequest, wcbuf, (DWORD)-1L, HTTP_ADDREQ_FLAG_ADD);
+      }
+    }
   }
 
   /* 5. Headers */
@@ -441,19 +489,87 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   }
 
   /* 6. Send */
-  /* body is binary safe void*, no string conversion */
-  if (!HttpSendRequestW(hRequest, NULL, 0, req->body, (DWORD)req->body_len)) {
-    rc = EIO;
-    goto cleanup;
+  if (req->read_chunk) {
+    INTERNET_BUFFERSW ib;
+    memset(&ib, 0, sizeof(ib));
+    ib.dwStructSize = sizeof(ib);
+    ib.dwBufferTotal = (DWORD)req->expected_body_len;
+
+    if (!HttpSendRequestExW(hRequest, &ib, NULL, 0, 0)) {
+      rc = EIO;
+      goto cleanup;
+    }
+
+    while (1) {
+      char chunkBuf[8192];
+      size_t out_read = 0;
+      DWORD dwWritten = 0;
+      int cb_rc = req->read_chunk(req->read_chunk_user_data, chunkBuf, sizeof(chunkBuf), &out_read);
+      if (cb_rc != 0) {
+        rc = cb_rc;
+        goto cleanup;
+      }
+      if (out_read == 0)
+        break; /* EOF */
+
+      if (!InternetWriteFile(hRequest, chunkBuf, (DWORD)out_read, &dwWritten)) {
+        rc = EIO;
+        goto cleanup;
+      }
+    }
+
+    if (!HttpEndRequestW(hRequest, NULL, 0, 0)) {
+      rc = EIO;
+      goto cleanup;
+    }
+  } else {
+    /* body is binary safe void*, no string conversion */
+    if (!HttpSendRequestW(hRequest, NULL, 0, req->body, (DWORD)req->body_len)) {
+      rc = EIO;
+      goto cleanup;
+    }
   }
 
   /* 7. Query Info (Status Code) */
-  /* HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER requires output to define
-   * DWORD */
   if (!HttpQueryInfoW(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
                       &dwStatusCode, &dwSize, NULL)) {
     rc = EIO;
     goto cleanup;
+  }
+
+  /* Extract Set-Cookie into Jar */
+  if (ctx->cookie_jar) {
+    DWORD dwIndex = 0;
+    DWORD cbCookie = 0;
+    
+    HttpQueryInfoW(hRequest, HTTP_QUERY_SET_COOKIE,
+                   NULL, &cbCookie, &dwIndex);
+                   
+    while (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+      wchar_t *pwszCookie = (wchar_t*)malloc(cbCookie);
+      if (pwszCookie) {
+        if (HttpQueryInfoW(hRequest, HTTP_QUERY_SET_COOKIE,
+                           pwszCookie, &cbCookie, &dwIndex)) {
+          char cbuf[4096];
+          size_t cwritten = 0;
+          if (wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten) == 0) {
+            char *eq = strchr(cbuf, '=');
+            if (eq) {
+              *eq = '\0';
+              char *name = cbuf;
+              char *val = eq + 1;
+              char *semi = strchr(val, ';');
+              if (semi) *semi = '\0';
+              http_cookie_jar_set(ctx->cookie_jar, name, val);
+            }
+          }
+        }
+        free(pwszCookie);
+      }
+      cbCookie = 0;
+      HttpQueryInfoW(hRequest, HTTP_QUERY_SET_COOKIE,
+                     NULL, &cbCookie, &dwIndex);
+    }
   }
 
   /* 8. Read Response Body */
@@ -471,8 +587,14 @@ int http_wininet_send(struct HttpTransportContext *ctx,
     if (bytesRead == 0)
       break;
 
-    /* Append */
-    {
+    if (req->on_chunk) {
+      int cb_rc = req->on_chunk(req->on_chunk_user_data, readChunk, bytesRead);
+      if (cb_rc != 0) {
+        rc = cb_rc;
+        goto cleanup;
+      }
+    } else {
+      /* Append */
       char *new_buf = (char *)realloc(bodyBuf, bodySize + bytesRead + 1);
       if (!new_buf) {
         rc = ENOMEM;

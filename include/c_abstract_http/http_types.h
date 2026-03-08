@@ -17,6 +17,14 @@ extern "C" {
 
 #include <stddef.h>
 
+#ifndef NUM_FORMAT
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#define NUM_FORMAT "%Iu"
+#else
+#define NUM_FORMAT "%zu"
+#endif
+#endif
+
 
 
 /**
@@ -84,6 +92,25 @@ struct HttpParts {
 };
 
 /**
+ * @brief Callback function signature for receiving response body chunks.
+ * @param user_data User provided context pointer.
+ * @param chunk Pointer to the received data chunk.
+ * @param chunk_len Length of the received data chunk.
+ * @return 0 to continue reading, non-zero to abort the request.
+ */
+typedef int (*http_on_chunk_fn)(void *user_data, const void *chunk, size_t chunk_len);
+
+/**
+ * @brief Callback function signature for providing request body chunks (Streaming Uploads).
+ * @param user_data User provided context pointer.
+ * @param buf Buffer to fill with data.
+ * @param buf_len Maximum number of bytes to write to buf.
+ * @param out_read Pointer to store the number of bytes actually written. Set to 0 to indicate EOF.
+ * @return 0 on success, non-zero to abort the request.
+ */
+typedef int (*http_read_chunk_fn)(void *user_data, void *buf, size_t buf_len, size_t *out_read);
+
+/**
  * @brief Represents an outgoing HTTP request.
  */
 struct HttpRequest {
@@ -94,6 +121,12 @@ struct HttpRequest {
                  but flattened parts end up here) */
   size_t body_len;        /**< Length of raw body */
   struct HttpParts parts; /**< Multipart segments (if any) */
+  http_on_chunk_fn on_chunk; /**< Optional callback for streaming response bodies */
+  void *on_chunk_user_data;  /**< User data passed to the on_chunk callback */
+  
+  http_read_chunk_fn read_chunk; /**< Optional callback for streaming request bodies */
+  void *read_chunk_user_data;    /**< User data for the read_chunk callback */
+  size_t expected_body_len;      /**< Expected total upload size (set to 0 for unknown/chunked) */
 };
 
 /**
@@ -107,16 +140,45 @@ struct HttpResponse {
 };
 
 /**
+ * @brief Represents a single HTTP Cookie.
+ */
+struct HttpCookie {
+  char *name;      /**< Cookie name (allocated) */
+  char *value;     /**< Cookie value (allocated) */
+  char *domain;    /**< Domain attribute (allocated, optional) */
+  char *path;      /**< Path attribute (allocated, optional) */
+  long expires;    /**< Expiration timestamp (unix epoch), 0 if session cookie */
+  int secure;      /**< Secure flag (1 = true, 0 = false) */
+  int http_only;   /**< HttpOnly flag (1 = true, 0 = false) */
+};
+
+/**
+ * @brief Container for HTTP Cookies (Cookie Jar).
+ */
+struct HttpCookieJar {
+  struct HttpCookie *cookies; /**< Dynamic array of cookies */
+  size_t count;               /**< Number of cookies stored */
+  size_t capacity;            /**< Current array capacity */
+};
+
+/**
  * @brief Configuration settings for the HTTP Client.
  */
 struct HttpConfig {
-  long timeout_ms;  /**< Timeout in milliseconds */
+  long timeout_ms;         /**< General timeout in milliseconds */
+  long connect_timeout_ms; /**< Connect timeout in milliseconds (0 to use timeout_ms) */
+  long read_timeout_ms;    /**< Receive/Read timeout in milliseconds (0 to use timeout_ms) */
+  long write_timeout_ms;   /**< Send/Write timeout in milliseconds (0 to use timeout_ms) */
   int verify_peer;  /**< 1 to verify SSL peer, 0 to ignore */
   int verify_host;  /**< 1 to verify SSL host, 0 to ignore */
+  int follow_redirects; /**< 1 to automatically follow 3xx redirects, 0 to disable */
   char *user_agent; /**< Custom User-Agent string */
   char *proxy_url;  /**< Proxy URL (e.g. "http://10.0.0.1:8080") */
+  char *proxy_username; /**< Proxy basic auth username (optional) */
+  char *proxy_password; /**< Proxy basic auth password (optional) */
   int retry_count;  /**< Max retries on failure (default 0) */
   enum HttpRetryPolicy retry_policy; /**< Backoff strategy */
+  struct HttpCookieJar *cookie_jar; /**< Optional shared cookie jar for persistence across requests */
 };
 
 struct HttpTransportContext;
@@ -157,6 +219,54 @@ extern /**
  */
 int http_headers_add(struct HttpHeaders *headers,
                                          const char *key, const char *value);
+
+/**
+ * @brief Retrieves the value for a specific header key.
+ * @param headers The headers container.
+ * @param key The header key to search for (case-insensitive).
+ * @param out Pointer to store the found header value.
+ * @return 0 on success, ENOENT if not found, EINVAL on bad input.
+ */
+extern int http_headers_get(const struct HttpHeaders *headers, const char *key, const char **out);
+
+/**
+ * @brief Removes a header by key.
+ * @param headers The headers container.
+ * @param key The header key to remove (case-insensitive).
+ * @return 0 on success, ENOENT if not found, EINVAL on bad input.
+ */
+extern int http_headers_remove(struct HttpHeaders *headers, const char *key);
+
+/**
+ * @brief Initialize a cookie jar.
+ * @param jar The cookie jar to initialize.
+ * @return 0 on success, EINVAL if jar is NULL.
+ */
+extern int http_cookie_jar_init(struct HttpCookieJar *jar);
+
+/**
+ * @brief Free resources held by a cookie jar.
+ * @param jar The cookie jar to free.
+ */
+extern void http_cookie_jar_free(struct HttpCookieJar *jar);
+
+/**
+ * @brief Add or update a cookie in the jar.
+ * @param jar The cookie jar.
+ * @param name Cookie name.
+ * @param value Cookie value.
+ * @return 0 on success, ENOMEM on failure.
+ */
+extern int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name, const char *value);
+
+/**
+ * @brief Get a cookie value from the jar.
+ * @param jar The cookie jar.
+ * @param name Cookie name.
+ * @param out Pointer to store the found cookie value string.
+ * @return 0 on success, ENOENT if not found, EINVAL on bad input.
+ */
+extern int http_cookie_jar_get(const struct HttpCookieJar *jar, const char *name, const char **out);
 
 /** @brief http_config_init definition */
 extern /**
@@ -210,6 +320,20 @@ extern /**
  */
 int http_request_set_auth_basic(struct HttpRequest *req,
                                                     const char *token);
+
+/**
+ * @brief Set HTTP Basic Authorization header by encoding username and password.
+ *
+ * Base64 encodes the "username:password" and applies the Authorization header.
+ *
+ * @param[in,out] req The request to modify.
+ * @param[in] username The username.
+ * @param[in] password The password.
+ * @return 0 on success, error code otherwise.
+ */
+extern int http_request_set_auth_basic_userpwd(struct HttpRequest *req,
+                                               const char *username,
+                                               const char *password);
 
 /** @brief http_response_init definition */
 extern /**

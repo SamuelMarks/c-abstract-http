@@ -1,0 +1,168 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  posix-build:
+    name: POSIX ${{ matrix.os }} (${{ matrix.compiler }})
+    runs-on: ${{ matrix.os }}
+    
+    # Extensive Database & Networking Services for deep integration testing
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+        ports:
+          - 3306:3306
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+      mongodb:
+        image: mongo:5
+        ports:
+          - 27017:27017
+      httpbin:
+        image: kennethreitz/httpbin
+        ports:
+          - 8080:80
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            compiler: gcc
+          - os: ubuntu-latest
+            compiler: clang
+          - os: macos-latest
+            compiler: clang
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_C_COMPILER=${{ matrix.compiler }} -DCMAKE_BUILD_TYPE=Release -DC_ABSTRACT_HTTP_LTO=ON
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  windows-msvc:
+    name: MSVC ${{ matrix.msvc }} (${{ matrix.arch }}, CRT=${{ matrix.crt }}, Charset=${{ matrix.charset }}, Thread=${{ matrix.thread }})
+    runs-on: ${{ matrix.msvc }}
+    strategy:
+      fail-fast: false
+      matrix:
+        msvc: [windows-2019, windows-2022]
+        arch: [x64, Win32]
+        crt: [Static, Shared]
+        charset: [UNICODE, ANSI]
+        thread: [Multi, Single]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure CMake
+        run: >
+          cmake -B build -A ${{ matrix.arch }}
+          -DC_ABSTRACT_HTTP_STATIC_CRT=${{ matrix.crt == 'Static' && 'ON' || 'OFF' }}
+          -DC_ABSTRACT_HTTP_SHARED_CRT=${{ matrix.crt == 'Shared' && 'ON' || 'OFF' }}
+          -DC_ABSTRACT_HTTP_UNICODE=${{ matrix.charset == 'UNICODE' && 'ON' || 'OFF' }}
+          -DC_ABSTRACT_HTTP_ANSI=${{ matrix.charset == 'ANSI' && 'ON' || 'OFF' }}
+          -DC_ABSTRACT_HTTP_MULTI_THREADED=${{ matrix.thread == 'Multi' && 'ON' || 'OFF' }}
+          -DC_ABSTRACT_HTTP_SINGLE_THREADED=${{ matrix.thread == 'Single' && 'ON' || 'OFF' }}
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  windows-mingw:
+    name: Windows MinGW (MSYS2)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja
+
+      - name: Configure CMake
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  windows-cygwin:
+    name: Windows Cygwin
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Cygwin
+        uses: cygwin/cygwin-install-action@v3
+        with:
+          packages: gcc-core,cmake,ninja,make
+
+      - name: Configure, Build, and Test
+        shell: C:\cygwin\bin\bash.exe --noprofile --norc -e -o pipefail '{0}'
+        run: |
+          export PATH=/usr/bin:$PATH
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          cd build
+          ctest --output-on-failure
+
+  android-ndk:
+    name: Android NDK (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [armeabi-v7a, arm64-v8a, x86, x86_64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure CMake
+        run: >
+          cmake -B build
+          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_LATEST_HOME/build/cmake/android.toolchain.cmake
+          -DANDROID_ABI=${{ matrix.abi }}
+          -DANDROID_PLATFORM=android-21
+
+      - name: Build
+        run: cmake --build build

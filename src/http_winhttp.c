@@ -18,7 +18,10 @@
 
 /* clang-format off */
 #include "win_compat_sym.h"
-#include <windows.h>
+#include <windef.h>
+#include <winnt.h>
+#include <winbase.h>
+#include <winerror.h>
 #include <winhttp.h>
 /* clang-format on */
 #else
@@ -47,9 +50,10 @@ typedef void *LPVOID;
 
 struct HttpTransportContext {
   /** @brief hSession */
-  /** @brief hSession */
   HINTERNET hSession;
   DWORD security_flags;
+  int disable_redirects;
+  struct HttpCookieJar *cookie_jar;
 };
 
 /* ... (Helpers like method_to_wide, safe_close_handle omitted for brevity if
@@ -189,6 +193,7 @@ int http_winhttp_context_init(struct HttpTransportContext **ctx) {
   }
   (*ctx)->hSession = hSession;
   (*ctx)->security_flags = 0;
+  (*ctx)->cookie_jar = NULL;
   return 0;
 #else
   (void)ctx;
@@ -221,13 +226,17 @@ void http_winhttp_context_free(struct HttpTransportContext *ctx) {
 int http_winhttp_config_apply(struct HttpTransportContext *ctx,
                               const struct HttpConfig *config) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-  DWORD dwTimeout;
+  DWORD dwResolveTimeout, dwConnectTimeout, dwSendTimeout, dwReceiveTimeout;
   if (!ctx || !ctx->hSession || !config)
     return EINVAL;
 
-  dwTimeout = (DWORD)config->timeout_ms;
-  if (!WinHttpSetTimeouts(ctx->hSession, dwTimeout, dwTimeout, dwTimeout,
-                          dwTimeout))
+  dwResolveTimeout = (config->connect_timeout_ms > 0) ? (DWORD)config->connect_timeout_ms : (DWORD)config->timeout_ms;
+  dwConnectTimeout = (config->connect_timeout_ms > 0) ? (DWORD)config->connect_timeout_ms : (DWORD)config->timeout_ms;
+  dwSendTimeout = (config->write_timeout_ms > 0) ? (DWORD)config->write_timeout_ms : (DWORD)config->timeout_ms;
+  dwReceiveTimeout = (config->read_timeout_ms > 0) ? (DWORD)config->read_timeout_ms : (DWORD)config->timeout_ms;
+
+  if (!WinHttpSetTimeouts(ctx->hSession, dwResolveTimeout, dwConnectTimeout,
+                          dwSendTimeout, dwReceiveTimeout))
     return EIO;
 
   if (config->proxy_url) {
@@ -251,6 +260,27 @@ int http_winhttp_config_apply(struct HttpTransportContext *ctx,
       return EIO;
     }
     free(wProxy);
+
+    if (config->proxy_username && config->proxy_password) {
+      size_t uLen = 0, pLen = 0;
+      size_t uBufSize = strlen(config->proxy_username) + 1;
+      size_t pBufSize = strlen(config->proxy_password) + 1;
+      wchar_t *wUser = (wchar_t *)calloc(uBufSize, sizeof(wchar_t));
+      wchar_t *wPass = (wchar_t *)calloc(pBufSize, sizeof(wchar_t));
+
+      if (wUser && wPass &&
+          ascii_to_wide(config->proxy_username, wUser, uBufSize, &uLen) == 0 &&
+          ascii_to_wide(config->proxy_password, wPass, pBufSize, &pLen) == 0) {
+        
+        WinHttpSetOption(ctx->hSession, WINHTTP_OPTION_PROXY_USERNAME,
+                         wUser, (DWORD)(uLen * sizeof(wchar_t)));
+        WinHttpSetOption(ctx->hSession, WINHTTP_OPTION_PROXY_PASSWORD,
+                         wPass, (DWORD)(pLen * sizeof(wchar_t)));
+      }
+      
+      if (wUser) free(wUser);
+      if (wPass) free(wPass);
+    }
   } else {
     WINHTTP_PROXY_INFO proxyInfo;
     proxyInfo.dwAccessType = WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
@@ -268,6 +298,10 @@ int http_winhttp_config_apply(struct HttpTransportContext *ctx,
   if (!config->verify_host) {
     ctx->security_flags |= SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
   }
+
+  ctx->disable_redirects = !config->follow_redirects;
+  ctx->cookie_jar = config->cookie_jar;
+
   return 0;
 #else
   (void)ctx;
@@ -366,6 +400,30 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
                      &ctx->security_flags, sizeof(ctx->security_flags));
   }
 
+  if (ctx->disable_redirects) {
+    DWORD dwDisableFeature = WINHTTP_DISABLE_REDIRECTS;
+    WinHttpSetOption(hRequest, WINHTTP_OPTION_DISABLE_FEATURE,
+                     &dwDisableFeature, sizeof(dwDisableFeature));
+  }
+
+  /* Set cookies from jar before headers */
+  if (ctx->cookie_jar && ctx->cookie_jar->count > 0) {
+    size_t i;
+    for (i = 0; i < ctx->cookie_jar->count; ++i) {
+      char cbuf[4096];
+      wchar_t wcbuf[4096];
+      size_t written = 0;
+      /* format: Cookie: name=value */
+      sprintf_s(cbuf, sizeof(cbuf), "Cookie: %s=%s\r\n", 
+                ctx->cookie_jar->cookies[i].name, 
+                ctx->cookie_jar->cookies[i].value);
+      
+      if (ascii_to_wide(cbuf, wcbuf, 4096, &written) == 0) {
+        WinHttpAddRequestHeaders(hRequest, wcbuf, (DWORD)-1L, WINHTTP_ADDREQ_FLAG_ADD);
+      }
+    }
+  }
+
   if (req->headers.count > 0) {
     if (headers_to_wide_block(&req->headers, &wHeaders) != 0)
       CLEANUP_AND_RET(ENOMEM);
@@ -375,10 +433,36 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
     }
   }
 
-  if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
-                          req->body ? req->body : WINHTTP_NO_REQUEST_DATA,
-                          (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
-    CLEANUP_AND_RET(EIO);
+  if (req->read_chunk) {
+    if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                            WINHTTP_NO_REQUEST_DATA, 0,
+                            (DWORD)req->expected_body_len, 0)) {
+      CLEANUP_AND_RET(EIO);
+    }
+
+    while (1) {
+      char chunkBuf[8192];
+      size_t out_read = 0;
+      int cb_rc = req->read_chunk(req->read_chunk_user_data, chunkBuf, sizeof(chunkBuf), &out_read);
+      if (cb_rc != 0) {
+        CLEANUP_AND_RET(cb_rc);
+      }
+      if (out_read == 0)
+        break; /* EOF */
+
+      {
+        DWORD dwWritten = 0;
+        if (!WinHttpWriteData(hRequest, chunkBuf, (DWORD)out_read, &dwWritten)) {
+          CLEANUP_AND_RET(EIO);
+        }
+      }
+    }
+  } else {
+    if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                            req->body ? req->body : WINHTTP_NO_REQUEST_DATA,
+                            (DWORD)req->body_len, (DWORD)req->body_len, 0)) {
+      CLEANUP_AND_RET(EIO);
+    }
   }
 
   if (!WinHttpReceiveResponse(hRequest, NULL))
@@ -409,13 +493,20 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
       CLEANUP_AND_RET(EIO);
 
     if (dwDownloaded > 0) {
-      char *new_ptr = (char *)realloc(totalBody, totalSize + dwDownloaded + 1);
-      if (!new_ptr)
-        CLEANUP_AND_RET(ENOMEM);
-      totalBody = new_ptr;
-      memcpy(totalBody + totalSize, readBuf, dwDownloaded);
-      totalSize += dwDownloaded;
-      totalBody[totalSize] = '\0'; /* Null terminate for text safety */
+      if (req->on_chunk) {
+        int cb_rc = req->on_chunk(req->on_chunk_user_data, readBuf, dwDownloaded);
+        if (cb_rc != 0) {
+          CLEANUP_AND_RET(cb_rc);
+        }
+      } else {
+        char *new_ptr = (char *)realloc(totalBody, totalSize + dwDownloaded + 1);
+        if (!new_ptr)
+          CLEANUP_AND_RET(ENOMEM);
+        totalBody = new_ptr;
+        memcpy(totalBody + totalSize, readBuf, dwDownloaded);
+        totalSize += dwDownloaded;
+        totalBody[totalSize] = '\0'; /* Null terminate for text safety */
+      }
     }
   } while (dwSize > 0);
 
@@ -426,6 +517,48 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
     free(*res);
     *res = NULL;
     CLEANUP_AND_RET(ENOMEM);
+  }
+
+  /* Extract Cookies and map back to jar */
+  if (ctx->cookie_jar) {
+    DWORD dwIndex = 0;
+    DWORD cbCookie = 0;
+    
+    /* First call to get size of header. */
+    WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_SET_COOKIE,
+                        WINHTTP_HEADER_NAME_BY_INDEX, WINHTTP_NO_OUTPUT_BUFFER,
+                        &cbCookie, &dwIndex);
+                        
+    while (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+      wchar_t *pwszCookie = (wchar_t*)malloc(cbCookie);
+      if (pwszCookie) {
+        if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_SET_COOKIE,
+                                WINHTTP_HEADER_NAME_BY_INDEX, pwszCookie,
+                                &cbCookie, &dwIndex)) {
+          /* Convert back to ascii to parse simply */
+          char cbuf[4096];
+          size_t cwritten = 0;
+          if (wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten) == 0) {
+            /* Basic parse for "name=value" until ; */
+            char *eq = strchr(cbuf, '=');
+            if (eq) {
+              *eq = '\0';
+              char *name = cbuf;
+              char *val = eq + 1;
+              char *semi = strchr(val, ';');
+              if (semi) *semi = '\0';
+              http_cookie_jar_set(ctx->cookie_jar, name, val);
+            }
+          }
+        }
+        free(pwszCookie);
+      }
+      /* Ready for next loop iteration */
+      cbCookie = 0;
+      WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_SET_COOKIE,
+                          WINHTTP_HEADER_NAME_BY_INDEX, WINHTTP_NO_OUTPUT_BUFFER,
+                          &cbCookie, &dwIndex);
+    }
   }
 
   (*res)->status_code = (int)dwStatusCode;

@@ -69,6 +69,9 @@ TEST test_curl_context_lifecycle(void) {
 }
 
 TEST test_curl_config_application(void) {
+  char *_ast_strdup_proxy = NULL;
+  char *_ast_strdup_user = NULL;
+  char *_ast_strdup_pass = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig config;
   int rc;
@@ -80,6 +83,10 @@ TEST test_curl_config_application(void) {
   /* Set some values */
   config.timeout_ms = 500;
   config.verify_peer = 0; /* Insecure for testing logic */
+  config.follow_redirects = 0;
+  config.proxy_url = (c_cdd_strdup("http://proxy.local:8080", &_ast_strdup_proxy), _ast_strdup_proxy);
+  config.proxy_username = (c_cdd_strdup("admin", &_ast_strdup_user), _ast_strdup_user);
+  config.proxy_password = (c_cdd_strdup("secret", &_ast_strdup_pass), _ast_strdup_pass);
 
   rc = http_curl_config_apply(ctx, &config);
   ASSERT_EQ(0, rc);
@@ -166,12 +173,190 @@ TEST test_curl_send_invalid_arguments(void) {
  * The failure cases prove the logic integration.
  */
 
+#include "cdd_test_helpers/mock_server.h"
+
+struct curl_TestChunkState {
+  int call_count;
+  size_t total_bytes;
+  int abort_on_call;
+};
+
+static int curl_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
+  struct curl_TestChunkState *state = (struct curl_TestChunkState *)user_data;
+  state->call_count++;
+  state->total_bytes += chunk_len;
+  if (state->abort_on_call > 0 && state->call_count >= state->abort_on_call) {
+    return ECANCELED; /* Abort */
+  }
+  return 0;
+}
+
+TEST test_curl_send_chunked(void) {
+  MockServerPtr server = NULL;
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpConfig config;
+  struct curl_TestChunkState state;
+  int rc;
+
+  /* Start mock server */
+  ASSERT_EQ(0, mock_server_init(&server));
+  ASSERT_EQ(0, mock_server_start(server));
+
+  http_curl_global_init();
+  http_curl_context_init(&ctx);
+  http_config_init(&config);
+  http_curl_config_apply(ctx, &config);
+
+  setup_request(&req, mock_server_get_port(server));
+  
+  /* Setup chunk callback */
+  state.call_count = 0;
+  state.total_bytes = 0;
+  state.abort_on_call = 0;
+  req.on_chunk = curl_mock_chunk_cb;
+  req.on_chunk_user_data = &state;
+
+  rc = http_curl_send(ctx, &req, &res);
+
+  ASSERT_EQ(0, rc);
+  ASSERT(res != NULL);
+  ASSERT_EQ(200, res->status_code);
+  /* Body should not be populated when on_chunk is used */
+  ASSERT_EQ(NULL, res->body);
+  ASSERT_EQ(0, res->body_len);
+
+  /* Verify chunk callback was called and read data ("OK" from mock server) */
+  ASSERT(state.call_count > 0);
+  ASSERT(state.total_bytes > 0);
+
+  http_response_free(res);
+  free(res);
+  http_config_free(&config);
+  http_request_free(&req);
+  http_curl_context_free(ctx);
+  http_curl_global_cleanup();
+  mock_server_destroy(server);
+  PASS();
+}
+
+TEST test_curl_send_chunked_abort(void) {
+  MockServerPtr server = NULL;
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpConfig config;
+  struct curl_TestChunkState state;
+  int rc;
+
+  ASSERT_EQ(0, mock_server_init(&server));
+  ASSERT_EQ(0, mock_server_start(server));
+
+  http_curl_global_init();
+  http_curl_context_init(&ctx);
+  http_config_init(&config);
+  http_curl_config_apply(ctx, &config);
+
+  setup_request(&req, mock_server_get_port(server));
+  
+  state.call_count = 0;
+  state.total_bytes = 0;
+  state.abort_on_call = 1; /* Abort immediately on first chunk */
+  req.on_chunk = curl_mock_chunk_cb;
+  req.on_chunk_user_data = &state;
+
+  rc = http_curl_send(ctx, &req, &res);
+
+  /* Should return the error code returned by our callback (ECANCELED) */
+  ASSERT_EQ(ECANCELED, rc);
+  ASSERT(res == NULL);
+
+  http_config_free(&config);
+  http_request_free(&req);
+  http_curl_context_free(ctx);
+  http_curl_global_cleanup();
+  mock_server_destroy(server);
+  PASS();
+}
+
+struct curl_TestUploadState {
+  const char *data;
+  size_t len;
+  size_t pos;
+};
+
+static int curl_mock_upload_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
+  struct curl_TestUploadState *state = (struct curl_TestUploadState *)user_data;
+  size_t remaining = state->len - state->pos;
+  size_t to_copy = (remaining < buf_len) ? remaining : buf_len;
+
+  if (to_copy > 0) {
+    memcpy(buf, state->data + state->pos, to_copy);
+    state->pos += to_copy;
+  }
+  *out_read = to_copy;
+  return 0;
+}
+
+TEST test_curl_send_upload_chunked(void) {
+  MockServerPtr server = NULL;
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpConfig config;
+  struct curl_TestUploadState up_state;
+  int rc;
+  const char *payload = "UPLOAD_TEST_DATA";
+
+  ASSERT_EQ(0, mock_server_init(&server));
+  ASSERT_EQ(0, mock_server_start(server));
+
+  http_curl_global_init();
+  http_curl_context_init(&ctx);
+  http_config_init(&config);
+  http_curl_config_apply(ctx, &config);
+
+  setup_request(&req, mock_server_get_port(server));
+  req.method = HTTP_POST;
+
+  up_state.data = payload;
+  up_state.len = strlen(payload);
+  up_state.pos = 0;
+
+  req.read_chunk = curl_mock_upload_cb;
+  req.read_chunk_user_data = &up_state;
+  req.expected_body_len = up_state.len;
+
+  rc = http_curl_send(ctx, &req, &res);
+
+  ASSERT_EQ(0, rc);
+  ASSERT(res != NULL);
+  ASSERT_EQ(200, res->status_code);
+
+  /* Read the payload back to verify? Our mock server doesn't echo it, but it reads it.
+     We just check that it completed successfully and our pos advanced. */
+  ASSERT_EQ(up_state.len, up_state.pos);
+
+  http_response_free(res);
+  free(res);
+  http_config_free(&config);
+  http_request_free(&req);
+  http_curl_context_free(ctx);
+  http_curl_global_cleanup();
+  mock_server_destroy(server);
+  PASS();
+}
+
 SUITE(http_curl_suite) {
   RUN_TEST(test_curl_global_lifecycle);
   RUN_TEST(test_curl_context_lifecycle);
   RUN_TEST(test_curl_config_application);
   RUN_TEST(test_curl_send_connection_failure);
   RUN_TEST(test_curl_send_invalid_arguments);
+  RUN_TEST(test_curl_send_chunked);
+  RUN_TEST(test_curl_send_chunked_abort);
+  RUN_TEST(test_curl_send_upload_chunked);
 }
 
 #endif /* TEST_HTTP_CURL_H */

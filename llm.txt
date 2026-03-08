@@ -1,0 +1,16 @@
+c-abstract-http context file
+============================
+
+Welcome, AI Agent or LLM. If you are modifying, analyzing, or extending `c-abstract-http`, you must adhere to the following absolute mandates.
+
+## Core Rules
+
+1.  **Strict C89 Compliance:** Do not use C99 or C11 features like variable-length arrays (VLAs), intermingled declarations and code, `snprintf`, or `stdbool.h`. Do not use any C++ features. All type casts must be explicit and C-style.
+2.  **The "Int Return" Paradigm:** Every function that allocates memory, reads a value, or configures state MUST return an `int` acting as an exit code (e.g., `0` for success, `EINVAL` for bad args, `ENOMEM` for alloc failures). If a value needs to be returned to the caller, it MUST be returned via a pointer passed as the last argument (e.g., `const char** out`).
+3.  **No `<windows.h>` allowed:** NEVER `#include <windows.h>`. It causes massive macro collisions. Instead, when `#ifdef _WIN32` is active, rely on the existing lean subset: `#include <windef.h>`, `<winnt.h>`, `<winbase.h>`, `<winerror.h>`, etc.
+4.  **MSVC Safe CRT Extensions:** When manipulating strings or files, you must guard unsafe functions like `strcpy`, `sprintf`, or `fopen` using the following exact macro check: `#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)`. If true, use the `_s` variants (`strcpy_s`, `sprintf_s`, `fopen_s`). If false, fallback to standard C89 variants.
+5.  **Printf formatting for `size_t`:** Do not use `%zu` directly. Use the macro `NUM_FORMAT` which evaluates to `%Iu` on legacy MSVC and `%zu` elsewhere. Example: `sprintf(buf, "Length: " NUM_FORMAT, len);`
+6.  **No naked `malloc` / Memory Leaks:** Every allocation must be checked for `NULL`. If it fails, you must cleanly return `ENOMEM`. Do not use `assert` to handle out-of-memory.
+7.  **CMake First:** This project builds with CMake. Do not add Makefiles or scripts. Any new source files must be wired into `CMakeLists.txt` and appropriately targeted based on the active backend (e.g., `http_winhttp.c` only added if `WIN32`).
+
+If you follow these instructions precisely, you will produce correct, merging-ready patches.
