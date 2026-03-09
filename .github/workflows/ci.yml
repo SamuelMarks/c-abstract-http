@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Fix Line Endings
-        if: runner.os == 'Windows'
+        shell: bash
         run: |
           git config --global core.autocrlf false
           find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
@@ -88,7 +88,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Fix Line Endings
-        if: runner.os == 'Windows'
+        shell: bash
         run: |
           git config --global core.autocrlf false
           find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
@@ -116,7 +116,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Fix Line Endings
-        if: runner.os == 'Windows'
+        shell: bash
         run: |
           git config --global core.autocrlf false
           find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
@@ -143,7 +143,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Fix Line Endings
-        if: runner.os == 'Windows'
+        shell: bash
         run: |
           git config --global core.autocrlf false
           find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
@@ -183,7 +183,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Fix Line Endings
-        if: runner.os == 'Windows'
+        shell: bash
         run: |
           git config --global core.autocrlf false
           find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
@@ -216,7 +216,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Fix Line Endings
-        if: runner.os == 'Windows'
+        shell: bash
         run: |
           git config --global core.autocrlf false
           find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
@@ -246,7 +246,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Fix Line Endings
-        if: runner.os == 'Windows'
+        shell: bash
         run: |
           git config --global core.autocrlf false
           find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
@@ -278,7 +278,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Fix Line Endings
-        if: runner.os == 'Windows'
+        shell: bash
         run: |
           git config --global core.autocrlf false
           find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
@@ -302,7 +302,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Fix Line Endings
-        if: runner.os == 'Windows'
+        shell: bash
         run: |
           git config --global core.autocrlf false
           find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
