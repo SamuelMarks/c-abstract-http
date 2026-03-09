@@ -22,10 +22,10 @@ static int mock_actor_handler(struct CddActor *actor, struct CddMessage *msg) {
     return EINVAL;
 
   if (msg->type == CDD_MSG_HTTP_SEND) {
+    struct CddMessage response;
     state->received_messages++;
 
     /* Respond */
-    struct CddMessage response;
     response.type = CDD_MSG_HTTP_RESPONSE;
     response.payload = NULL;
     response.sender = actor;

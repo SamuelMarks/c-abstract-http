@@ -51,6 +51,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Fix Line Endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
+
+
       - name: Install Dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -80,6 +87,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Fix Line Endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
+
+
       - name: Install Dependencies (Linux)
         run: |
           sudo apt-get update
@@ -101,6 +115,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Fix Line Endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
+
+
       - name: Configure CMake
         run: cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DC_ABSTRACT_HTTP_LTO=ON -DTRY_SYS_LIB=ON
 
@@ -120,6 +141,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Fix Line Endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
+
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
@@ -154,6 +182,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Fix Line Endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
+
+
       - name: Configure CMake
         run: >
           cmake -B build -A ${{ matrix.arch }}
@@ -180,6 +215,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Fix Line Endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
+
+
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
         with:
@@ -202,6 +244,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Fix Line Endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
+
 
       - name: Setup Cygwin
         uses: cygwin/cygwin-install-action@v6
@@ -228,6 +277,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Fix Line Endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
+
+
       - name: Configure CMake
         run: >
           cmake -B build
@@ -244,6 +300,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Fix Line Endings
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          find . -type f -not -path '*/\.git/*' -exec dos2unix {} + || echo 'dos2unix failed or not found'
+
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14

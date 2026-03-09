@@ -10,7 +10,10 @@
 #include <string.h>
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-#include <windows.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
 #else
 #include <pthread.h>
 #endif
@@ -97,12 +100,13 @@ void cdd_cond_free(struct CddCond *cond) {
 }
 
 typedef HANDLE cdd_thread_t;
-#define CDD_THREAD_FUNC DWORD WINAPI
+#define CDD_THREAD_FUNC DWORD
 typedef LPVOID cdd_thread_arg_t;
 
-static int thread_create(cdd_thread_t *thread,
-                         CDD_THREAD_FUNC (*start_routine)(cdd_thread_arg_t),
-                         cdd_thread_arg_t arg) {
+static int
+thread_create(cdd_thread_t *thread,
+              CDD_THREAD_FUNC(WINAPI *start_routine)(cdd_thread_arg_t),
+              cdd_thread_arg_t arg) {
   *thread = CreateThread(NULL, 0, start_routine, arg, 0, NULL);
   return (*thread == NULL) ? EIO : 0;
 }
@@ -227,7 +231,11 @@ struct CddThreadPool {
   int stop;
 };
 
+#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+static CDD_THREAD_FUNC WINAPI worker_thread(cdd_thread_arg_t arg) {
+#else
 static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
+#endif
   struct CddThreadPool *pool = (struct CddThreadPool *)arg;
 
   while (1) {

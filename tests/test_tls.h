@@ -1,3 +1,4 @@
+/* clang-format off */
 #ifndef TEST_TLS_H
 #define TEST_TLS_H
 
@@ -7,6 +8,13 @@
 #include <greatest.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+__declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
+#else
+#include <unistd.h>
+#endif
+/* clang-format on */
 
 static struct CddTlsKey *tls_key = NULL;
 

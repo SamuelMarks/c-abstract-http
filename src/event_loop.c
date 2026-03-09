@@ -13,7 +13,10 @@
 
 #if defined(_WIN32)
 #include <winsock2.h>
-#include <windows.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
 #else
 #include <sys/select.h>
 #include <sys/time.h>

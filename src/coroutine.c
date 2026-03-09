@@ -10,7 +10,10 @@
 #include <string.h>
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-#include <windows.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
 #else
 #if defined(__APPLE__) && defined(__MACH__)
 /* ucontext is deprecated on macOS but still mostly works for simple cases,
