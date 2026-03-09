@@ -18,6 +18,7 @@ option(C_ABSTRACT_HTTP_RTC1 "Enable /RTC1" OFF)
 option(C_ABSTRACT_HTTP_RTCs "Enable /RTCs" OFF)
 option(C_ABSTRACT_HTTP_RTCu "Enable /RTCu" OFF)
 option(BUILD_SHARED_LIBS "Build Shared Library" OFF)
+option(TRY_SYS_LIB "Fallback to system packages if vcpkg is not available" ON)
 
 if(C_ABSTRACT_HTTP_LTO)
     include(CheckIPOSupported)
@@ -56,12 +57,53 @@ if(MSVC)
 endif()
 
 include(FetchContent)
-FetchContent_Declare(
-    c89stringutils
-    GIT_REPOSITORY https://github.com/offscale/c89stringutils.git
-    GIT_TAG        master
-)
-FetchContent_MakeAvailable(c89stringutils)
+
+macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
+    set(_VCPKG_APPLICABLE ON)
+    if(MINGW OR CYGWIN OR (MSVC AND MSVC_VERSION LESS 1500))
+        set(_VCPKG_APPLICABLE OFF)
+    endif()
+
+    set(${PkgName}_RESOLVED OFF)
+
+    # a) try vcpkg
+    if(_VCPKG_APPLICABLE AND DEFINED CMAKE_TOOLCHAIN_FILE AND CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg.cmake")
+        find_package(${PkgName} CONFIG QUIET)
+        if(${PkgName}_FOUND)
+            message(STATUS "Found ${PkgName} via vcpkg")
+            set(${PkgName}_RESOLVED ON)
+        endif()
+    endif()
+
+    # b) try system if TRY_SYS_LIB is set
+    if(NOT ${PkgName}_RESOLVED AND TRY_SYS_LIB)
+        find_package(${PkgName} QUIET)
+        if(${PkgName}_FOUND)
+            message(STATUS "Found ${PkgName} via system packages")
+            set(${PkgName}_RESOLVED ON)
+        endif()
+    endif()
+
+    # c) try fetchcontent
+    if(NOT ${PkgName}_RESOLVED)
+        message(STATUS "Fetching ${PkgName} via FetchContent")
+        FetchContent_Declare(${PkgName}
+            GIT_REPOSITORY ${FetchRepo}
+            GIT_TAG ${FetchTag}
+        )
+        FetchContent_MakeAvailable(${PkgName})
+        # If fetchcontent fails, CMake usually aborts or the target is not created
+        # We assume success if it didn't fatal error during MakeAvailable,
+        # but we can do a sanity check to ensure the target we need is there.
+        set(${PkgName}_RESOLVED ON)
+    endif()
+
+    if(NOT ${PkgName}_RESOLVED)
+        message(FATAL_ERROR "Failed to resolve dependency ${PkgName}")
+    endif()
+endmacro()
+
+c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
 
 if(C_ABSTRACT_HTTP_HEADER_ONLY)
     add_library(c-abstract-http INTERFACE)
@@ -73,7 +115,7 @@ if(C_ABSTRACT_HTTP_HEADER_ONLY)
         find_library(CFNetwork CFNetwork)
         target_link_libraries(c-abstract-http INTERFACE ${FOUNDATION} ${CFNetwork} c89stringutils)
     else()
-        find_package(CURL REQUIRED)
+        c_abstract_http_resolve_dependency(CURL https://github.com/curl/curl.git curl-8_0_1)
         target_link_libraries(c-abstract-http INTERFACE CURL::libcurl c89stringutils)
     endif()
 else()
@@ -114,7 +156,7 @@ else()
         target_sources(c-abstract-http PRIVATE
             src/http_curl.c
         )
-        find_package(CURL REQUIRED)
+        c_abstract_http_resolve_dependency(CURL https://github.com/curl/curl.git curl-8_0_1)
         target_link_libraries(c-abstract-http PUBLIC CURL::libcurl)
     endif()
 endif()

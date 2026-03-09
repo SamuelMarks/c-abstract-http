@@ -22,6 +22,9 @@ set(TEST_SOURCES
 add_executable(c-abstract-http-test ${TEST_SOURCES})
 target_link_libraries(c-abstract-http-test PRIVATE c-abstract-http)
 
+find_package(Threads REQUIRED)
+target_link_libraries(c-abstract-http-test PRIVATE Threads::Threads)
+
 if(WIN32)
     target_link_libraries(c-abstract-http-test PRIVATE ws2_32)
 endif()

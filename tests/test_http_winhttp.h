@@ -27,11 +27,11 @@ TEST test_winhttp_lifecycle(void) {
 
   /* Global init */
   rc = http_winhttp_global_init();
-  if(rc!=0) printf("FAILING RC: %d\n", rc); ASSERT_EQ(0, rc);
+  if(rc!=0) { printf("FAILING RC: %d\n", rc); } ASSERT_EQ(0, rc);
 
   /* Context init */
   rc = http_winhttp_context_init(&ctx);
-  if(rc!=0) printf("FAILING RC: %d\n", rc); ASSERT_EQ(0, rc);
+  if(rc!=0) { printf("FAILING RC: %d\n", rc); } ASSERT_EQ(0, rc);
   ASSERT(ctx != NULL);
 
   /* Cleanup */
@@ -61,7 +61,7 @@ TEST test_winhttp_config_usage(void) {
   cfg.follow_redirects = 0;
 
   rc = http_winhttp_config_apply(ctx, &cfg);
-  if(rc!=0) printf("FAILING RC: %d\n", rc); ASSERT_EQ(0, rc);
+  if(rc!=0) { printf("FAILING RC: %d\n", rc); } ASSERT_EQ(0, rc);
 
   /* Test proxy configuration */
   if (cfg.proxy_url)
@@ -76,7 +76,7 @@ TEST test_winhttp_config_usage(void) {
   cfg.proxy_password = (c_cdd_strdup("secret", &_ast_strdup_0), _ast_strdup_0);
 
   rc = http_winhttp_config_apply(ctx, &cfg);
-  if(rc!=0) printf("FAILING RC: %d\n", rc); ASSERT_EQ(0, rc);
+  if(rc!=0) { printf("FAILING RC: %d\n", rc); } ASSERT_EQ(0, rc);
 
   http_config_free(&cfg);
   http_winhttp_context_free(ctx);
@@ -95,7 +95,7 @@ TEST test_winhttp_send_fail(void) {
   int rc;
 
   rc = http_winhttp_context_init(&ctx);
-  if(rc!=0) printf("FAILING RC: %d\n", rc); ASSERT_EQ(0, rc);
+  if(rc!=0) { printf("FAILING RC: %d\n", rc); } ASSERT_EQ(0, rc);
 
   /* Initialize request */
   http_request_init(&req);

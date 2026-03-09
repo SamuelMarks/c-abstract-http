@@ -19,14 +19,20 @@
 static /**
  * @brief Case-insensitive string comparison helper
  */
-int strcasecmp_portable(const char *s1, const char *s2) {
+int strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
+  if (!out_diff) return EINVAL;
+  if (!s1 || !s2) { *out_diff = -1; return EINVAL; }
   while (*s1 && *s2) {
     int diff = tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
-    if (diff != 0) return diff;
+    if (diff != 0) {
+      *out_diff = diff;
+      return 0;
+    }
     s1++;
     s2++;
   }
-  return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
+  *out_diff = tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
+  return 0;
 }
 
 static /**
@@ -127,7 +133,8 @@ int http_headers_get(const struct HttpHeaders *headers, const char *key, const c
   if (!headers || !key || !out) return EINVAL;
 
   for (i = 0; i < headers->count; ++i) {
-    if (strcasecmp_portable(headers->headers[i].key, key) == 0) {
+    int diff = -1;
+    if (strcasecmp_portable(headers->headers[i].key, key, &diff) == 0 && diff == 0) {
       *out = headers->headers[i].value;
       return 0;
     }
@@ -144,7 +151,8 @@ int http_headers_remove(struct HttpHeaders *headers, const char *key) {
   if (!headers || !key) return EINVAL;
 
   for (i = 0; i < headers->count; ) {
-    if (strcasecmp_portable(headers->headers[i].key, key) == 0) {
+    int diff = -1;
+    if (strcasecmp_portable(headers->headers[i].key, key, &diff) == 0 && diff == 0) {
       /* Free memory */
       free(headers->headers[i].key);
       free(headers->headers[i].value);

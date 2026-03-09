@@ -1,24 +1,47 @@
 # c-abstract-http
 
+[![Continuous Integration](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml/badge.svg)](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml)
+
 A highly robust, cross-platform abstract HTTP network library for C. It unifies Windows (WinHTTP, WinINet), macOS/iOS (CFNetwork/Foundation), Android, and POSIX (cURL) beneath a single abstracted API.
 
 Designed with strict C89 compliance, memory safety, and high portability in mind, this library is suitable for deeply embedded environments, legacy systems, and modern high-performance backends.
 
 ## Features
 
-- **Cross-Platform Abstraction:** Write once, compile anywhere. Automatically targets native platform APIs to reduce binary bloat (e.g., uses WinHTTP/WinINet on Windows instead of bundling cURL).
-- **Strict C89 Compliance:** Operates entirely within the C89 standard. No C++ or modern C features are relied upon unless wrapped in strict platform/compiler feature macros.
-- **Robust Error Handling:** All non-void utility and lifecycle functions return an `int` exit code/status. Real return values are populated via `out` pointers, ensuring that failure states (like `ENOMEM`, `EINVAL`, or `EIO`) are properly cascaded and handled.
-- **Safe CRT Integration:** Extensive support for MSVC Safe C11 extensions (`strcpy_s`, `sprintf_s`, `fopen_s`). Unsafe counterparts are completely avoided on MSVC without breaking POSIX/MinGW compliance.
-- **Zero Windows.h Bloat:** Explicitly avoids including the massive `<windows.h>` header. Uses lean alternatives (`<windef.h>`, `<winbase.h>`, `<winnt.h>`, `<winerror.h>`, etc.) to drastically reduce compilation times and namespace pollution.
-- **Extensive CMake Configuration:** Support for granular control over linkage and compilation:
-  - `/MD`, `/MDd`, `/MT`, `/MTd` for MSVC CRT linkage.
-  - Runtime Checks (`/RTC1`, `/RTCs`, `/RTCu`).
-  - Link-Time Optimization (LTO).
-  - Single/Multi-threaded configurations.
-  - ANSI / UNICODE character set toggles.
-  - Static or Shared CRT and Library building.
-- **Header-Only Mode:** Can be consumed as a single-header STB-style library for easy integration.
+| Feature | Description | Status |
+| :--- | :--- | :---: |
+| **Cross-Platform API** | Write once, compile anywhere. Automatically targets native platform APIs to reduce binary bloat. | Implemented ✅ |
+| **Strict C89 Compliance** | Operates entirely within the C89 standard. No C++ or modern C features are relied upon. | Implemented ✅ |
+| **Robust Error Handling** | All non-void functions return `int` statuses. Real values are populated via `out` pointers. | Implemented ✅ |
+| **HTTP Verbs** | Full support for standard verbs: `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS`. | Implemented ✅ |
+| **Multipart Form-Data** | Build complex payloads with rich boundary generation, file attachments, and headers. | Implemented ✅ |
+| **Authentication** | Built-in Base64 encoding for Basic Auth, and direct Bearer Token support. | Implemented ✅ |
+| **Streaming Responses** | Optional `http_on_chunk_fn` callbacks for processing response bodies as they stream. | Implemented ✅ |
+| **Streaming Uploads** | Optional `http_read_chunk_fn` callbacks for sending large request bodies as a stream. | Implemented ✅ |
+| **Cookie Persistence** | Shared `HttpCookieJar` structures for persistent sessions across multiple requests. | Implemented ✅ |
+| **Retry & Backoff** | Configurable `HttpRetryPolicy` to automatically handle transient network failures. | Implemented ✅ |
+| **Safe CRT Integration** | Extensive support for MSVC Safe C11 extensions (`strcpy_s`, `sprintf_s`, `fopen_s`). | Implemented ✅ |
+| **Zero Windows.h Bloat** | Avoids massive `<windows.h>` includes to drastically reduce compile times on Windows. | Implemented ✅ |
+| **Extensive CMake Config** | Granular control over linkage (`/MD`, `/MT`), Runtime Checks, LTO, and UNICODE toggles. | Implemented ✅ |
+| **Header-Only Mode** | Can be consumed as a single-header STB-style library for easy, localized integration. | Implemented ✅ |
+| **WebSockets** | Built-in support for upgrading connections to WebSockets. | Planned 🚧 |
+| **HTTP/3 (QUIC)** | First-class abstraction for UDP-based HTTP/3 traffic. | Planned 🚧 |
+| **Asynchronous API** | Non-blocking event loop integration (epoll/kqueue/IOCP). | Planned 🚧 |
+
+## OS and Network Library Support
+
+The library is designed to compile out-of-the-box using the optimal native network backend for each platform. This minimizes binary bloat and leverages the host's native TLS/SSL certificate stores.
+
+| Operating System | Network Library | Default on OS | Native TLS/SSL Support | Notes |
+| :--- | :--- | :---: | :---: | :--- |
+| **Windows** | WinHTTP | **Yes** | Schannel | Primary API for background/system services. |
+| **Windows** | WinINet | No | Schannel | Available alternative (often used for UI/IE compatibility). |
+| **Windows** | libcurl | No | OpenSSL / Schannel | Supported but requires manual compilation and linking. |
+| **macOS / iOS** | CFNetwork / Foundation | **Yes** | SecureTransport | Leverages Apple's native network framework. |
+| **macOS / iOS** | libcurl | No | OpenSSL / SecureTransport | Available fallback. |
+| **Linux / POSIX** | libcurl | **Yes** | OpenSSL / GnuTLS | Standard backend for most POSIX platforms. |
+| **Android** | libcurl (NDK) | **Yes** | BoringSSL / OpenSSL | Default fallback when compiled with Android NDK. |
+| **Android** | `HttpURLConnection` | No | Java Provider | Experimental JNI backend natively integrating with Android's Java network stack. |
 
 ## Documentation Overview
 

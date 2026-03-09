@@ -1,3 +1,4 @@
+*.o
 patch_*
 *build*
 .vscode

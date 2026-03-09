@@ -10,7 +10,7 @@ jobs:
   posix-build:
     name: POSIX ${{ matrix.os }} (${{ matrix.compiler }})
     runs-on: ${{ matrix.os }}
-    
+
     # Extensive Database & Networking Services for deep integration testing
     services:
       postgres:
@@ -60,7 +60,36 @@ jobs:
           sudo apt-get install -y libcurl4-openssl-dev
 
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_C_COMPILER=${{ matrix.compiler }} -DCMAKE_BUILD_TYPE=Release -DC_ABSTRACT_HTTP_LTO=ON
+        run: cmake -B build -DCMAKE_C_COMPILER=${{ matrix.compiler }} -DCMAKE_BUILD_TYPE=Release -DC_ABSTRACT_HTTP_LTO=ON -DTRY_SYS_LIB=ON
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  vcpkg-build:
+    name: vcpkg Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 'master'
+
+      - name: Configure CMake
+        run: >
+          cmake -B build
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+          -DCMAKE_BUILD_TYPE=Release
+          -DTRY_SYS_LIB=OFF
 
       - name: Build
         run: cmake --build build --config Release

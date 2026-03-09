@@ -45,7 +45,9 @@ typedef void *LPVOID;
 #include <c_abstract_http/str.h>
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+#if defined(_MSC_VER)
 #pragma comment(lib, "winhttp.lib")
+#endif
 #endif
 
 struct HttpTransportContext {
@@ -542,14 +544,13 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
             /* Basic parse for "name=value" until ; */
             char *eq = strchr(cbuf, '=');
             if (eq) {
-              *eq = '\0';
               char *name = cbuf;
               char *val = eq + 1;
               char *semi = strchr(val, ';');
+              *eq = '\0';
               if (semi) *semi = '\0';
               http_cookie_jar_set(ctx->cookie_jar, name, val);
-            }
-          }
+            }          }
         }
         free(pwszCookie);
       }

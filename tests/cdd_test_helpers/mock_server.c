@@ -144,7 +144,7 @@ struct MockServer_ {
 
 /* --- Thread Routine --- */
 
-static int server_thread_func(THREAD_FUNC_ARG arg, THREAD_FUNC_RETURN *_out_val) {
+static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
   struct MockServer_ *s = (struct MockServer_ *)arg;
   const char *response = "HTTP/1.1 200 OK\r\n"
                          "Content-Type: text/plain\r\n"
@@ -319,14 +319,14 @@ int mock_server_start(MockServerPtr server) {
 
 #if defined(_WIN32)
   server->thread =
-      (HANDLE)_beginthreadex(NULL, 0, server_thread_func, server, 0, NULL);
+      (HANDLE)_beginthreadex(NULL, 0, math_server_thread_func, server, 0, NULL);
   if (server->thread == 0) {
     server->running = 0;
     close_socket(server->server_fd);
     return -1;
   }
 #else
-  if (pthread_create(&server->thread, NULL, server_thread_func, server) != 0) {
+  if (pthread_create(&server->thread, NULL, math_server_thread_func, server) != 0) {
     server->running = 0;
     close_socket(server->server_fd);
     return -1;

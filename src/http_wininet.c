@@ -22,7 +22,9 @@
 #include <winerror.h>
 #include <wininet.h>
 /* clang-format on */
+#if defined(_MSC_VER)
 #pragma comment(lib, "wininet.lib")
+#endif
 #else
 /* Stub definitions for non-Windows linting/compilation checks */
 /** @brief HINTERNET typedef */
@@ -555,14 +557,13 @@ int http_wininet_send(struct HttpTransportContext *ctx,
           if (wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten) == 0) {
             char *eq = strchr(cbuf, '=');
             if (eq) {
-              *eq = '\0';
               char *name = cbuf;
               char *val = eq + 1;
               char *semi = strchr(val, ';');
+              *eq = '\0';
               if (semi) *semi = '\0';
               http_cookie_jar_set(ctx->cookie_jar, name, val);
-            }
-          }
+            }          }
         }
         free(pwszCookie);
       }
