@@ -46,8 +46,6 @@ jobs:
             compiler: gcc
           - os: ubuntu-latest
             compiler: clang
-          - os: macos-latest
-            compiler: clang
 
     steps:
       - name: Checkout code
@@ -61,6 +59,22 @@ jobs:
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_C_COMPILER=${{ matrix.compiler }} -DCMAKE_BUILD_TYPE=Release -DC_ABSTRACT_HTTP_LTO=ON -DTRY_SYS_LIB=ON
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -C Release
+
+  macos-build:
+    name: POSIX macos-latest (clang)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DC_ABSTRACT_HTTP_LTO=ON -DTRY_SYS_LIB=ON
 
       - name: Build
         run: cmake --build build --config Release
@@ -82,7 +96,7 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: 'master'
+          vcpkgGitCommitId: '1b1ae08e45b40d6d5ef6645396b2cd1dbb9dd4b4'
 
       - name: Configure CMake
         run: >
@@ -164,7 +178,7 @@ jobs:
       - name: Setup Cygwin
         uses: cygwin/cygwin-install-action@v3
         with:
-          packages: gcc-core,cmake,ninja,make
+          packages: gcc-core,cmake,ninja,make,libssl-devel
 
       - name: Configure, Build, and Test
         shell: C:\cygwin\bin\bash.exe --noprofile --norc -e -o pipefail '{0}'

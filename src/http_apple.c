@@ -18,6 +18,9 @@
 #include <CFNetwork/CFNetwork.h>
 #include <CoreFoundation/CoreFoundation.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 /* clang-format on */
 struct HttpTransportContext {
   struct HttpConfig config;
@@ -275,6 +278,8 @@ int http_apple_send(struct HttpTransportContext *ctx,
 
   return 0;
 }
+
+#pragma clang diagnostic pop
 
 #else
 

@@ -35,8 +35,8 @@ if(MSVC)
             CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
             CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
             if(${flag_var} MATCHES "/MD")
-                string(REGEX REPLACE "/MD" "/MT" ${
-  flag_var} "${${flag_var}}")
+                set(_tmp "${${flag_var}}")
+                string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${_tmp}")
             endif()
         endforeach()
     endif()
@@ -110,7 +110,7 @@ c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c8
 if(C_ABSTRACT_HTTP_HEADER_ONLY)
     add_library(c-abstract-http INTERFACE)
     target_include_directories(c-abstract-http INTERFACE include)
-    if(ANDROID)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Android" OR ANDROID)
         target_link_libraries(c-abstract-http INTERFACE c89stringutils)
     elseif(EMSCRIPTEN)
         target_link_options(c-abstract-http INTERFACE "SHELL:-s FETCH=1")
@@ -152,7 +152,7 @@ else()
     target_link_libraries(c-abstract-http PUBLIC c89stringutils)
 
 #Platform specific HTTP backends
-    if(ANDROID)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Android" OR ANDROID)
         target_sources(c-abstract-http PRIVATE
             src/http_android.c
         )
