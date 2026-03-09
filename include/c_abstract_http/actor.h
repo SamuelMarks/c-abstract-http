@@ -59,6 +59,27 @@ typedef int (*cdd_actor_handler_cb)(struct CddActor *actor,
                                     struct CddMessage *msg);
 
 /**
+ * @brief External hooks for actor management.
+ */
+struct CddActorHooks {
+  int (*bus_init)(struct CddMessageBus **bus);
+  void (*bus_free)(struct CddMessageBus *bus);
+  int (*bus_process)(struct CddMessageBus *bus);
+  int (*actor_spawn)(struct CddMessageBus *bus, const char *name,
+                     cdd_actor_handler_cb handler, void *state,
+                     struct CddActor **actor);
+  int (*actor_send)(struct CddMessageBus *bus, const struct CddMessage *msg);
+  void *(*actor_get_state)(struct CddActor *actor);
+  const char *(*actor_get_name)(const struct CddActor *actor);
+};
+
+/**
+ * @brief Register external actor hooks.
+ * @param[in] hooks The hooks structure.
+ */
+extern void cdd_actor_set_hooks(const struct CddActorHooks *hooks);
+
+/**
  * @brief Initialize a new global message bus.
  * @param[out] bus Pointer to receive the bus handle.
  * @return 0 on success.

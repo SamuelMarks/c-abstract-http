@@ -265,3 +265,24 @@ void download_multiple_files(void) {
     http_client_free(&client);
 }
 ``n
+
+## 8. Framework Integration
+
+The library can seamlessly integrate its execution engines (Thread Pools, Event Loops, Actors) with larger frameworks (like c-multiplatform) via injection adapters.
+
+```c
+#include <c_abstract_http/cmp_integration.h>
+
+void framework_init(void) {
+    struct HttpClient client;
+    struct CmpAppConfig cmp_cfg = { CMP_MODALITY_ASYNC_SINGLE, 4, 16 };
+
+    http_client_init(&client);
+
+    /* Automatically configure HTTP modalities based on the framework */
+    cmp_http_inject_config(&cmp_cfg, &client.config);
+
+    /* ... attach external event loop hooks, thread pools, etc ... */
+}
+```
+

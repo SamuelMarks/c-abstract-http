@@ -31,6 +31,24 @@ struct CddCoroutine;
 typedef void (*cdd_coroutine_cb)(void *arg);
 
 /**
+ * @brief External hooks for overriding coroutine management.
+ */
+struct CddCoroutineHooks {
+  int (*init)(struct CddCoroutine **co, size_t stack_size, cdd_coroutine_cb cb,
+              void *arg);
+  void (*free)(struct CddCoroutine *co);
+  int (*resume)(struct CddCoroutine *co);
+  int (*yield)(void);
+  int (*is_done)(const struct CddCoroutine *co);
+};
+
+/**
+ * @brief Register external coroutine hooks.
+ * @param[in] hooks The hooks structure.
+ */
+extern void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks);
+
+/**
  * @brief Initialize a new coroutine.
  * @param[out] co Pointer to receive the allocated coroutine handle.
  * @param[in] stack_size Stack size in bytes (0 for default).

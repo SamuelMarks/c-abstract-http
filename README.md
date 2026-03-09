@@ -32,6 +32,7 @@ Below is a detailed table summarizing the core capabilities that are currently i
 | **Greenthreads** | High-performance user-space coroutine contexts via Fibers (Windows) and `ucontext_t` (POSIX). | Implemented ✅ |
 | **Message Passing** | Decentralized actor model and pub-sub bus for scalable request routing. | Implemented ✅ |
 | **Concurrent Dispatch** | Native `http_client_send_multi` executing concurrent batch downloads via Modality engines. | Implemented ✅ |
+| **Framework Integration** | Deep 1:1 execution bridging with `c-multiplatform` event loops, actors, and UI. | Implemented ✅ |
 | **WebSockets** | Built-in support for upgrading connections to WebSockets. | Planned 🚧 |
 | **HTTP/3 (QUIC)** | First-class abstraction for UDP-based HTTP/3 traffic. | Planned 🚧 |
 

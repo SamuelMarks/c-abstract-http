@@ -46,11 +46,42 @@ typedef void (*http_timer_cb)(struct ModalityEventLoop *loop, int timer_id,
                               void *user_data);
 
 /**
+ * @brief Hooks for integrating with an external framework's event loop (e.g.,
+ * c-multiplatform).
+ */
+struct HttpLoopHooks {
+  void *external_context;
+
+  /* Polling Hooks */
+  int (*add_fd)(void *ctx, int fd, int events, http_loop_cb cb,
+                void *user_data);
+  int (*mod_fd)(void *ctx, int fd, int events);
+  int (*remove_fd)(void *ctx, int fd);
+
+  /* Timer Hooks */
+  int (*add_timer)(void *ctx, long timeout_ms, http_timer_cb cb,
+                   void *user_data, int *out_timer_id);
+  int (*cancel_timer)(void *ctx, int timer_id);
+
+  /* Wakeup Hook */
+  int (*wakeup)(void *ctx);
+};
+
+/**
  * @brief Initialize an event loop context.
  * @param[out] loop Pointer to receive the allocated loop.
  * @return 0 on success, ENOMEM on allocation failure.
  */
 extern int http_loop_init(struct ModalityEventLoop **loop);
+
+/**
+ * @brief Initialize an event loop context that proxies to an external reactor.
+ * @param[out] loop Pointer to receive the allocated loop.
+ * @param[in] hooks The external hooks to use.
+ * @return 0 on success, ENOMEM on allocation failure.
+ */
+extern int http_loop_init_external(struct ModalityEventLoop **loop,
+                                   const struct HttpLoopHooks *hooks);
 
 /**
  * @brief Free an event loop context.
@@ -65,6 +96,15 @@ extern void http_loop_free(struct ModalityEventLoop *loop);
  * @return 0 on success.
  */
 extern int http_loop_run(struct ModalityEventLoop *loop);
+
+/**
+ * @brief Run a single iteration of the event loop.
+ * Non-blocking by default. Useful for hooking into a framework's idle phase
+ * (e.g. cmp_run_loop).
+ * @param[in] loop The event loop context.
+ * @return 0 on success, non-zero on failure.
+ */
+extern int http_loop_tick(struct ModalityEventLoop *loop);
 
 /**
  * @brief Stop the event loop from running further.

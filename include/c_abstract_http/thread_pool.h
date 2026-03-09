@@ -103,6 +103,14 @@ extern void cdd_cond_free(struct CddCond *cond);
 typedef void (*cdd_thread_task_cb)(void *arg);
 
 /**
+ * @brief Hooks for integrating with an external thread pool.
+ */
+struct CddThreadPoolHooks {
+  void *external_context;
+  int (*push)(void *ctx, cdd_thread_task_cb cb, void *arg);
+};
+
+/**
  * @brief Initialize a thread pool.
  * @param[out] pool Pointer to receive the allocated thread pool.
  * @param[in] num_threads Number of worker threads to spawn.
@@ -110,6 +118,17 @@ typedef void (*cdd_thread_task_cb)(void *arg);
  */
 extern int cdd_thread_pool_init(struct CddThreadPool **pool,
                                 size_t num_threads);
+
+/**
+ * @brief Initialize a thread pool that delegates tasks to an external worker
+ * pool.
+ * @param[out] pool Pointer to receive the allocated thread pool proxy.
+ * @param[in] hooks External thread pool hooks.
+ * @return 0 on success, error code on failure.
+ */
+extern int
+cdd_thread_pool_init_external(struct CddThreadPool **pool,
+                              const struct CddThreadPoolHooks *hooks);
 
 /**
  * @brief Push a task to the thread pool queue.

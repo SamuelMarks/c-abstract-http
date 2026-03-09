@@ -5,6 +5,11 @@
 #include "http_types.h"
 
 /* clang-format boundary */
+#if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) || !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
+#include "cmp_integration.h"
+#endif
+
+/* clang-format boundary */
 #include "event_loop.h"
 
 /* clang-format boundary */
@@ -47,6 +52,9 @@
 /* Single translation unit inclusion of the source */
 #include "../../src/fs.c"
 #include "../../src/http_types.c"
+#if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) || !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
+#include "../../src/cmp_integration.c"
+#endif
 #include "../../src/event_loop.c"
 #include "../../src/thread_pool.c"
 #include "../../src/cdd_tls.c"

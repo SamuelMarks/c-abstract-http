@@ -20,7 +20,10 @@ option(C_ABSTRACT_HTTP_RTCu "Enable /RTCu" OFF)
 option(C_ABSTRACT_HTTP_USE_LIBSOUP3 "Use libsoup3 instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_LIBUV "Use libuv instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_LIBFETCH "Use libfetch instead of libcurl" OFF)
+option(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION "Enable c-multiplatform integration" ON)
 option(BUILD_SHARED_LIBS "Build Shared Library" OFF)
+option(C_ABSTRACT_HTTP_USE_ASAN "Enable AddressSanitizer" OFF)
+option(C_ABSTRACT_HTTP_USE_TSAN "Enable ThreadSanitizer" OFF)
 option(TRY_SYS_LIB "Fallback to system packages if vcpkg is not available" ON)
 
 if(C_ABSTRACT_HTTP_LTO)
@@ -147,6 +150,8 @@ else()
     if(BUILD_SHARED_LIBS)
         add_library(c-abstract-http SHARED
             src/http_types.c
+            $<$<BOOL:${C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION}>:src/cmp_integration.c>
+            
             src/event_loop.c
             src/thread_pool.c
             src/cdd_tls.c
@@ -160,6 +165,8 @@ else()
     else()
         add_library(c-abstract-http STATIC
             src/http_types.c
+            $<$<BOOL:${C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION}>:src/cmp_integration.c>
+            
             src/event_loop.c
             src/thread_pool.c
             src/cdd_tls.c
@@ -235,3 +242,19 @@ endif()
 
 enable_testing()
 add_subdirectory(tests)
+
+
+if(C_ABSTRACT_HTTP_USE_ASAN)
+  if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
+  endif()
+endif()
+
+if(C_ABSTRACT_HTTP_USE_TSAN)
+  if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-fsanitize=thread)
+    add_link_options(-fsanitize=thread)
+  endif()
+endif()
+

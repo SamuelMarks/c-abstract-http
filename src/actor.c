@@ -13,6 +13,15 @@
 #include <c_abstract_http/str.h>
 /* clang-format on */
 
+static struct CddActorHooks g_actor_hooks = {NULL, NULL, NULL, NULL,
+                                             NULL, NULL, NULL};
+
+void cdd_actor_set_hooks(const struct CddActorHooks *hooks) {
+  if (hooks) {
+    g_actor_hooks = *hooks;
+  }
+}
+
 struct CddActor {
   char *name;
   cdd_actor_handler_cb handler;
@@ -36,6 +45,11 @@ struct CddMessageBus {
 
 int cdd_message_bus_init(struct CddMessageBus **bus) {
   struct CddMessageBus *b;
+
+  if (g_actor_hooks.bus_init) {
+    return g_actor_hooks.bus_init(bus);
+  }
+
   if (!bus)
     return EINVAL;
 
@@ -58,6 +72,11 @@ int cdd_message_bus_init(struct CddMessageBus **bus) {
 void cdd_message_bus_free(struct CddMessageBus *bus) {
   size_t i;
   struct MessageNode *node;
+
+  if (g_actor_hooks.bus_free) {
+    g_actor_hooks.bus_free(bus);
+    return;
+  }
 
   if (!bus)
     return;
@@ -83,6 +102,10 @@ void cdd_message_bus_free(struct CddMessageBus *bus) {
 int cdd_message_bus_process(struct CddMessageBus *bus) {
   int count = 0;
   struct MessageNode *node;
+
+  if (g_actor_hooks.bus_process) {
+    return g_actor_hooks.bus_process(bus);
+  }
 
   if (!bus)
     return EINVAL;
@@ -110,6 +133,10 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
                     struct CddActor **actor) {
   struct CddActor *a;
   char *_ast_strdup_0 = NULL;
+
+  if (g_actor_hooks.actor_spawn) {
+    return g_actor_hooks.actor_spawn(bus, name, handler, state, actor);
+  }
 
   if (!bus || !name || !handler || !actor)
     return EINVAL;
@@ -147,6 +174,10 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
 int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
   struct MessageNode *node;
 
+  if (g_actor_hooks.actor_send) {
+    return g_actor_hooks.actor_send(bus, msg);
+  }
+
   if (!bus || !msg || !msg->receiver)
     return EINVAL;
 
@@ -169,9 +200,15 @@ int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
 }
 
 void *cdd_actor_get_state(struct CddActor *actor) {
+  if (g_actor_hooks.actor_get_state) {
+    return g_actor_hooks.actor_get_state(actor);
+  }
   return actor ? actor->state : NULL;
 }
 
 const char *cdd_actor_get_name(const struct CddActor *actor) {
+  if (g_actor_hooks.actor_get_name) {
+    return g_actor_hooks.actor_get_name(actor);
+  }
   return actor ? actor->name : NULL;
 }

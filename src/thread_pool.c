@@ -219,6 +219,9 @@ struct TaskNode {
 };
 
 struct CddThreadPool {
+  int is_external;
+  struct CddThreadPoolHooks hooks;
+
   cdd_thread_t *threads;
   size_t num_threads;
 
@@ -330,12 +333,38 @@ int cdd_thread_pool_init(struct CddThreadPool **pool, size_t num_threads) {
   return 0;
 }
 
+int cdd_thread_pool_init_external(struct CddThreadPool **pool,
+                                  const struct CddThreadPoolHooks *hooks) {
+  struct CddThreadPool *p;
+
+  if (!pool || !hooks)
+    return EINVAL;
+
+  p = (struct CddThreadPool *)malloc(sizeof(struct CddThreadPool));
+  if (!p)
+    return ENOMEM;
+  memset(p, 0, sizeof(struct CddThreadPool));
+
+  p->is_external = 1;
+  p->hooks = *hooks;
+
+  *pool = p;
+  return 0;
+}
+
 int cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
                          void *arg) {
   struct TaskNode *task;
 
   if (!pool || !cb)
     return EINVAL;
+
+  if (pool->is_external) {
+    if (pool->hooks.push) {
+      return pool->hooks.push(pool->hooks.external_context, cb, arg);
+    }
+    return ENOTSUP;
+  }
 
   task = (struct TaskNode *)malloc(sizeof(struct TaskNode));
   if (!task)
@@ -370,6 +399,11 @@ void cdd_thread_pool_free(struct CddThreadPool *pool) {
   size_t i;
   if (!pool)
     return;
+
+  if (pool->is_external) {
+    free(pool);
+    return;
+  }
 
   cdd_mutex_lock(pool->lock);
   pool->stop = 1;

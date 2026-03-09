@@ -27,6 +27,15 @@
 #include <c_abstract_http/cdd_tls.h>
 /* clang-format on */
 
+static struct CddCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL, NULL,
+                                                     NULL};
+
+void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
+  if (hooks) {
+    g_coroutine_hooks = *hooks;
+  }
+}
+
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
 struct CddCoroutine {
@@ -54,6 +63,10 @@ static VOID WINAPI fiber_entry(LPVOID lpParameter) {
 int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
   struct CddCoroutine *c;
+
+  if (g_coroutine_hooks.init) {
+    return g_coroutine_hooks.init(co, stack_size, cb, arg);
+  }
 
   if (!co || !cb)
     return EINVAL;
@@ -86,6 +99,11 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
 }
 
 void cdd_coroutine_free(struct CddCoroutine *co) {
+  if (g_coroutine_hooks.free) {
+    g_coroutine_hooks.free(co);
+    return;
+  }
+
   if (co) {
     if (co->fiber) {
       DeleteFiber(co->fiber);
@@ -96,6 +114,10 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
 
 int cdd_coroutine_resume(struct CddCoroutine *co) {
   LPVOID current_fiber;
+
+  if (g_coroutine_hooks.resume) {
+    return g_coroutine_hooks.resume(co);
+  }
 
   if (!co || co->is_done)
     return EINVAL;
@@ -116,6 +138,11 @@ int cdd_coroutine_resume(struct CddCoroutine *co) {
 
 int cdd_coroutine_yield(void) {
   struct CddCoroutine *co;
+
+  if (g_coroutine_hooks.yield) {
+    return g_coroutine_hooks.yield();
+  }
+
   if (dwTlsIndex == TLS_OUT_OF_INDEXES)
     return EINVAL;
 
@@ -128,6 +155,10 @@ int cdd_coroutine_yield(void) {
 }
 
 int cdd_coroutine_is_done(const struct CddCoroutine *co) {
+  if (g_coroutine_hooks.is_done) {
+    return g_coroutine_hooks.is_done(co);
+  }
+
   return co ? co->is_done : 1;
 }
 
@@ -173,6 +204,10 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
   struct CddCoroutine *c;
 
+  if (g_coroutine_hooks.init) {
+    return g_coroutine_hooks.init(co, stack_size, cb, arg);
+  }
+
   if (!co || !cb)
     return EINVAL;
 
@@ -216,6 +251,11 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
 }
 
 void cdd_coroutine_free(struct CddCoroutine *co) {
+  if (g_coroutine_hooks.free) {
+    g_coroutine_hooks.free(co);
+    return;
+  }
+
   if (co) {
     if (co->stack)
       free(co->stack);
@@ -224,6 +264,10 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
 }
 
 int cdd_coroutine_resume(struct CddCoroutine *co) {
+  if (g_coroutine_hooks.resume) {
+    return g_coroutine_hooks.resume(co);
+  }
+
   if (!co || co->is_done)
     return EINVAL;
 
@@ -239,6 +283,10 @@ int cdd_coroutine_resume(struct CddCoroutine *co) {
 int cdd_coroutine_yield(void) {
   struct CddCoroutine *co;
 
+  if (g_coroutine_hooks.yield) {
+    return g_coroutine_hooks.yield();
+  }
+
   if (!co_tls_initialized)
     return EINVAL;
   co = (struct CddCoroutine *)pthread_getspecific(co_tls_key);
@@ -253,6 +301,10 @@ int cdd_coroutine_yield(void) {
 }
 
 int cdd_coroutine_is_done(const struct CddCoroutine *co) {
+  if (g_coroutine_hooks.is_done) {
+    return g_coroutine_hooks.is_done(co);
+  }
+
   return co ? co->is_done : 1;
 }
 

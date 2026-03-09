@@ -29,6 +29,10 @@ endif()
 find_package(Threads REQUIRED)
 target_link_libraries(c-abstract-http-test PRIVATE Threads::Threads)
 
+if(NOT C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION)
+    target_compile_definitions(c-abstract-http-test PRIVATE C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
+endif()
+
 if(WIN32)
     target_link_libraries(c-abstract-http-test PRIVATE ws2_32)
 endif()

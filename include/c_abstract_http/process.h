@@ -34,6 +34,24 @@ struct CddIpcPipe {
 };
 
 /**
+ * @brief Hooks to override internal process management with an external
+ * framework.
+ */
+struct CddProcessHooks {
+  int (*spawn)(struct CddProcess **proc, struct CddIpcPipe *p2c,
+               struct CddIpcPipe *c2p);
+  int (*wait_and_free)(struct CddProcess *proc, int *exit_code);
+  int (*ipc_write)(void *handle, const void *data, size_t len);
+  int (*ipc_read)(void *handle, void *data, size_t len);
+};
+
+/**
+ * @brief Register external process hooks.
+ * @param[in] hooks The hooks structure (copied internally).
+ */
+extern void cdd_process_set_hooks(const struct CddProcessHooks *hooks);
+
+/**
  * @brief Initialize an IPC pipe pair.
  * @param[out] pipe The pipe structure to populate.
  * @return 0 on success, error code on failure.

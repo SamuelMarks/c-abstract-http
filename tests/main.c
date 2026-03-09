@@ -17,6 +17,9 @@
 #include "test_process.h"
 #include "test_coroutine.h"
 #include "test_actor.h"
+#if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) || !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
+#include "test_cmp_integration.h"
+#endif
 
 #if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include "test_http_libsoup3.h"
@@ -55,6 +58,10 @@ int main(int argc, char **argv) {
   RUN_SUITE(process_suite);
   RUN_SUITE(coroutine_suite);
   RUN_SUITE(actor_suite);
+#if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) ||                      \
+    !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
+  RUN_SUITE(cmp_integration_suite);
+#endif
 
 #if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   RUN_SUITE(http_libsoup3_suite);

@@ -25,6 +25,14 @@
 #include <c_abstract_http/str.h>
 /* clang-format on */
 
+static struct CddProcessHooks g_process_hooks = {NULL, NULL, NULL, NULL};
+
+void cdd_process_set_hooks(const struct CddProcessHooks *hooks) {
+  if (hooks) {
+    g_process_hooks = *hooks;
+  }
+}
+
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
 struct CddProcess {
@@ -72,6 +80,10 @@ int cdd_process_spawn(struct CddProcess **proc,
   char szCmdline[MAX_PATH];
   struct CddProcess *p;
 
+  if (g_process_hooks.spawn) {
+    return g_process_hooks.spawn(proc, parent_to_child, child_to_parent);
+  }
+
   if (!proc || !parent_to_child || !child_to_parent)
     return EINVAL;
 
@@ -83,39 +95,21 @@ int cdd_process_spawn(struct CddProcess **proc,
   ZeroMemory(&siStartInfo, sizeof(STARTUPINFOA));
   siStartInfo.cb = sizeof(STARTUPINFOA);
 
-  /* Set up pipes for stdin/stdout */
   siStartInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-  siStartInfo.hStdOutput =
-      (HANDLE)parent_to_child
-          ->write_handle; /* child writes here? wait, if parent->child it's
-                             parent writing to child stdin */
-
-  /* Actually, to properly route, parent writes to parent_to_child.write_handle,
-   * child reads from parent_to_child.read_handle */
-  /* child writes to child_to_parent.write_handle, parent reads from
-   * child_to_parent.read_handle */
   siStartInfo.hStdInput = (HANDLE)parent_to_child->read_handle;
   siStartInfo.hStdOutput = (HANDLE)child_to_parent->write_handle;
   siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
 
-  /* Ensure the write handle to the stdin pipe is not inherited by the child */
   SetHandleInformation((HANDLE)parent_to_child->write_handle,
                        HANDLE_FLAG_INHERIT, 0);
   SetHandleInformation((HANDLE)child_to_parent->read_handle,
                        HANDLE_FLAG_INHERIT, 0);
 
   GetModuleFileNameA(NULL, szCmdline, MAX_PATH);
-  strcat(szCmdline, " --cdd-worker"); /* Custom arg to trigger worker mode */
+  strcat(szCmdline, " --cdd-worker");
 
-  bSuccess = CreateProcessA(NULL, szCmdline, /* command line */
-                            NULL,            /* process security attributes */
-                            NULL, /* primary thread security attributes */
-                            TRUE, /* handles are inherited */
-                            0,    /* creation flags */
-                            NULL, /* use parent's environment */
-                            NULL, /* use parent's current directory */
-                            &siStartInfo, /* STARTUPINFO pointer */
-                            &piProcInfo); /* receives PROCESS_INFORMATION */
+  bSuccess = CreateProcessA(NULL, szCmdline, NULL, NULL, TRUE, 0, NULL, NULL,
+                            &siStartInfo, &piProcInfo);
 
   if (!bSuccess) {
     free(p);
@@ -131,6 +125,11 @@ int cdd_process_spawn(struct CddProcess **proc,
 
 int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
   DWORD dwExitCode = 0;
+
+  if (g_process_hooks.wait_and_free) {
+    return g_process_hooks.wait_and_free(proc, exit_code);
+  }
+
   if (!proc)
     return EINVAL;
 
@@ -148,7 +147,13 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
 
 int cdd_ipc_write(void *handle, const void *data, size_t len) {
   DWORD dwWritten;
-  BOOL bSuccess = WriteFile((HANDLE)handle, data, (DWORD)len, &dwWritten, NULL);
+  BOOL bSuccess;
+
+  if (g_process_hooks.ipc_write) {
+    return g_process_hooks.ipc_write(handle, data, len);
+  }
+
+  bSuccess = WriteFile((HANDLE)handle, data, (DWORD)len, &dwWritten, NULL);
   if (!bSuccess || dwWritten != len)
     return EIO;
   return 0;
@@ -156,7 +161,13 @@ int cdd_ipc_write(void *handle, const void *data, size_t len) {
 
 int cdd_ipc_read(void *handle, void *data, size_t len) {
   DWORD dwRead;
-  BOOL bSuccess = ReadFile((HANDLE)handle, data, (DWORD)len, &dwRead, NULL);
+  BOOL bSuccess;
+
+  if (g_process_hooks.ipc_read) {
+    return g_process_hooks.ipc_read(handle, data, len);
+  }
+
+  bSuccess = ReadFile((HANDLE)handle, data, (DWORD)len, &dwRead, NULL);
   if (!bSuccess || dwRead != len)
     return EIO;
   return 0;
@@ -174,7 +185,6 @@ int cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
     return EINVAL;
   if (pipe(fd) == -1)
     return EIO;
-  /* Store as intptr_t to fit in void* */
   pipe->read_handle = (void *)(size_t)fd[0];
   pipe->write_handle = (void *)(size_t)fd[1];
   return 0;
@@ -197,6 +207,10 @@ int cdd_process_spawn(struct CddProcess **proc,
   pid_t pid;
   struct CddProcess *p;
 
+  if (g_process_hooks.spawn) {
+    return g_process_hooks.spawn(proc, parent_to_child, child_to_parent);
+  }
+
   if (!proc || !parent_to_child || !child_to_parent)
     return EINVAL;
 
@@ -209,33 +223,19 @@ int cdd_process_spawn(struct CddProcess **proc,
     free(p);
     return EIO;
   } else if (pid == 0) {
-    /* Child Process */
     char *argv[] = {"cdd-worker", "--cdd-worker", NULL};
 
-    /* Redirect stdin to parent_to_child read end */
     dup2((int)(size_t)parent_to_child->read_handle, STDIN_FILENO);
-    /* Redirect stdout to child_to_parent write end */
     dup2((int)(size_t)child_to_parent->write_handle, STDOUT_FILENO);
 
-    /* Close unused pipe ends */
     close((int)(size_t)parent_to_child->write_handle);
     close((int)(size_t)child_to_parent->read_handle);
     close((int)(size_t)parent_to_child->read_handle);
     close((int)(size_t)child_to_parent->write_handle);
 
-    /* Execution - Note: since this is a library, execv is tricky unless we know
-       the binary path. For testing/library contexts, we can just return a
-       specific exit code to the caller indicating "I am child" or run a
-       registered callback. For a true isolated process, we'd exec
-       /proc/self/exe on linux. For simplicity in this stub implementation,
-       we'll try to exec /proc/self/exe. */
     execv("/proc/self/exe", argv);
-
-    /* If exec fails, exit */
     exit(1);
   } else {
-    /* Parent Process */
-    /* Close child's ends of the pipes */
     close((int)(size_t)parent_to_child->read_handle);
     parent_to_child->read_handle = NULL;
     close((int)(size_t)child_to_parent->write_handle);
@@ -249,6 +249,11 @@ int cdd_process_spawn(struct CddProcess **proc,
 
 int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
   int status;
+
+  if (g_process_hooks.wait_and_free) {
+    return g_process_hooks.wait_and_free(proc, exit_code);
+  }
+
   if (!proc)
     return EINVAL;
 
@@ -266,14 +271,26 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
 }
 
 int cdd_ipc_write(void *handle, const void *data, size_t len) {
-  ssize_t written = write((int)(size_t)handle, data, len);
+  ssize_t written;
+
+  if (g_process_hooks.ipc_write) {
+    return g_process_hooks.ipc_write(handle, data, len);
+  }
+
+  written = write((int)(size_t)handle, data, len);
   if (written < 0 || (size_t)written != len)
     return EIO;
   return 0;
 }
 
 int cdd_ipc_read(void *handle, void *data, size_t len) {
-  ssize_t r = read((int)(size_t)handle, data, len);
+  ssize_t r;
+
+  if (g_process_hooks.ipc_read) {
+    return g_process_hooks.ipc_read(handle, data, len);
+  }
+
+  r = read((int)(size_t)handle, data, len);
   if (r < 0 || (size_t)r != len)
     return EIO;
   return 0;
@@ -319,7 +336,6 @@ static int read_size(const char **p, const char *end, size_t *val) {
 }
 
 static int read_str(const char **p, const char *end, char **str) {
-  char *_ast_strdup_x = NULL;
   size_t len;
   if (read_size(p, end, &len) != 0)
     return EINVAL;
@@ -342,15 +358,14 @@ static int read_str(const char **p, const char *end, char **str) {
 int cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
                               size_t *out_len) {
   size_t i;
-  size_t est_size = sizeof(int) + sizeof(size_t); /* method + body_len */
+  size_t est_size = sizeof(int) + sizeof(size_t);
   char *buf, *p;
 
   if (!req || !out_buf || !out_len)
     return EINVAL;
 
-  /* Estimate size */
   est_size += sizeof(size_t) + (req->url ? strlen(req->url) : 0);
-  est_size += sizeof(size_t); /* header count */
+  est_size += sizeof(size_t);
   for (i = 0; i < req->headers.count; ++i) {
     est_size +=
         sizeof(size_t) +
@@ -443,13 +458,13 @@ int cdd_ipc_deserialize_request(const char *buf, size_t len,
 int cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
                                size_t *out_len) {
   size_t i;
-  size_t est_size = sizeof(int) + sizeof(size_t); /* status + body_len */
+  size_t est_size = sizeof(int) + sizeof(size_t);
   char *buf, *p;
 
   if (!res || !out_buf || !out_len)
     return EINVAL;
 
-  est_size += sizeof(size_t); /* header count */
+  est_size += sizeof(size_t);
   for (i = 0; i < res->headers.count; ++i) {
     est_size +=
         sizeof(size_t) +
