@@ -49,7 +49,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Install Dependencies (Linux)
         if: runner.os == 'Linux'
@@ -71,7 +71,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Configure CMake
         run: cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DC_ABSTRACT_HTTP_LTO=ON -DTRY_SYS_LIB=ON
@@ -91,12 +91,12 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: '1b1ae08e45b40d6d5ef6645396b2cd1dbb9dd4b4'
+          vcpkgGitCommitId: '1e199d32ad53aab1defda61ce41c380302e3f95c'
 
       - name: Configure CMake
         run: >
@@ -124,7 +124,7 @@ jobs:
         thread: [Multi, Single]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Configure CMake
         run: >
@@ -150,7 +150,7 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
@@ -173,10 +173,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Setup Cygwin
-        uses: cygwin/cygwin-install-action@v3
+        uses: cygwin/cygwin-install-action@v6
         with:
           packages: gcc-core,cmake,ninja,make,libssl-devel
 
@@ -198,7 +198,7 @@ jobs:
         abi: [armeabi-v7a, arm64-v8a, x86, x86_64]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Configure CMake
         run: >
@@ -215,7 +215,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
