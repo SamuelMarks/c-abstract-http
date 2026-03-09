@@ -201,8 +201,8 @@ int http_apple_send(struct HttpTransportContext *ctx,
 
   if (!ctx->config.verify_peer) {
     CFMutableDictionaryRef sslSettings = CFDictionaryCreateMutable(
-        kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBack,
-        &kCFTypeDictionaryValueCallBack);
+        kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks);
     if (sslSettings) {
       CFDictionarySetValue(sslSettings, kCFStreamSSLValidatesCertificateChain,
                            kCFBooleanFalse);

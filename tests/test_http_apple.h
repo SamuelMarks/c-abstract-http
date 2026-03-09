@@ -71,7 +71,8 @@ TEST test_apple_send_invalid(void) {
 
 #if defined(__APPLE__)
   /* Valid input but we need to mock a real URL so it fails gracefully */
-  req.url = "http://localhost:1";
+  req.url = (char *)malloc(sizeof("http://localhost:1"));
+  strcpy(req.url, "http://localhost:1");
   req.method = HTTP_GET;
   /* Might fail with EIO due to no connection or return an allocated res */
   {

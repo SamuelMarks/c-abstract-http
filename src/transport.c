@@ -17,6 +17,8 @@
 #include <c_abstract_http/http_winhttp.h>
 #elif defined(__APPLE__)
 #include <c_abstract_http/http_apple.h>
+#elif defined(__ANDROID__)
+#include <c_abstract_http/http_android.h>
 #elif defined(__EMSCRIPTEN__)
 #include <c_abstract_http/http_wasm.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
@@ -45,6 +47,8 @@ int transport_global_init(void) {
   return http_winhttp_global_init();
 #elif defined(__APPLE__)
   return http_apple_global_init();
+#elif defined(__ANDROID__)
+  return http_android_global_init();
 #elif defined(__EMSCRIPTEN__)
   return http_wasm_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
@@ -67,6 +71,8 @@ void transport_global_cleanup(void) {
   http_winhttp_global_cleanup();
 #elif defined(__APPLE__)
   http_apple_global_cleanup();
+#elif defined(__ANDROID__)
+  http_android_global_cleanup();
 #elif defined(__EMSCRIPTEN__)
   http_wasm_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
@@ -105,6 +111,11 @@ int transport_factory_init_client(struct HttpClient *client) {
   rc = http_apple_context_init(&client->transport);
   if (rc == 0) {
     client->send = http_apple_send;
+  }
+#elif defined(__ANDROID__)
+  rc = http_android_context_init(&client->transport);
+  if (rc == 0) {
+    client->send = http_android_send;
   }
 #elif defined(__EMSCRIPTEN__)
   rc = http_wasm_context_init(&client->transport);
@@ -148,6 +159,8 @@ void transport_factory_cleanup_client(struct HttpClient *client) {
   http_winhttp_context_free(client->transport);
 #elif defined(__APPLE__)
   http_apple_context_free(client->transport);
+#elif defined(__ANDROID__)
+  http_android_context_free(client->transport);
 #elif defined(__EMSCRIPTEN__)
   http_wasm_context_free(client->transport);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
