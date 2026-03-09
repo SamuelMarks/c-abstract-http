@@ -1,15 +1,15 @@
 /**
- * @file test_http_curl.h
- * @brief Integration tests for Libcurl Backend.
+ * @file test_http_libuv.h
+ * @brief Integration tests for Liblibuv Backend.
  *
- * Verifies that the Curl wrapper correctly initializes, handles configuration,
+ * Verifies that the libuv wrapper correctly initializes, handles configuration,
  * sends requests, and maps failures to errno.
  *
  * @author Samuel Marks
  */
 
-#ifndef TEST_HTTP_CURL_H
-#define TEST_HTTP_CURL_H
+#ifndef TEST_HTTP_libuv_H
+#define TEST_HTTP_libuv_H
 
 /* clang-format off */
 #include <errno.h>
@@ -17,7 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <c_abstract_http/http_curl.h>
+#include <c_abstract_http/http_libuv.h>
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/str.h>
 
@@ -44,35 +44,35 @@ static int setup_request(struct HttpRequest *req, int port) {
   return (enum greatest_test_res)0;
 }
 
-TEST test_curl_global_lifecycle(void) {
+TEST test_libuv_global_lifecycle(void) {
   /* Should succeed and track ref count internally */
-  ASSERT_EQ(0, http_curl_global_init());
-  ASSERT_EQ(0, http_curl_global_init()); /* Re-entrant check */
+  ASSERT_EQ(0, http_libuv_global_init());
+  ASSERT_EQ(0, http_libuv_global_init()); /* Re-entrant check */
 
-  http_curl_global_cleanup();
-  http_curl_global_cleanup();
+  http_libuv_global_cleanup();
+  http_libuv_global_cleanup();
   PASS();
 }
 
-TEST test_curl_context_lifecycle(void) {
+TEST test_libuv_context_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
   int rc;
 
-  http_curl_global_init();
+  http_libuv_global_init();
 
-  rc = http_curl_context_init(&ctx);
+  rc = http_libuv_context_init(&ctx);
   ASSERT_EQ(0, rc);
   ASSERT(ctx != NULL);
 
-  http_curl_context_free(ctx);
+  http_libuv_context_free(ctx);
   /* Double free safety check (should be safe with NULL) */
-  http_curl_context_free(NULL);
+  http_libuv_context_free(NULL);
 
-  http_curl_global_cleanup();
+  http_libuv_global_cleanup();
   PASS();
 }
 
-TEST test_curl_config_application(void) {
+TEST test_libuv_config_application(void) {
   char *_ast_strdup_proxy = NULL;
   char *_ast_strdup_user = NULL;
   char *_ast_strdup_pass = NULL;
@@ -80,8 +80,8 @@ TEST test_curl_config_application(void) {
   struct HttpConfig config;
   int rc;
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  http_libuv_global_init();
+  http_libuv_context_init(&ctx);
   http_config_init(&config);
 
   /* Set some values */
@@ -96,16 +96,16 @@ TEST test_curl_config_application(void) {
   config.proxy_password =
       (c_cdd_strdup("secret", &_ast_strdup_pass), _ast_strdup_pass);
 
-  rc = http_curl_config_apply(ctx, &config);
+  rc = http_libuv_config_apply(ctx, &config);
   ASSERT_EQ(0, rc);
 
   http_config_free(&config);
-  http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  http_libuv_context_free(ctx);
+  http_libuv_global_cleanup();
   PASS();
 }
 
-TEST test_curl_send_connection_failure(void) {
+TEST test_libuv_send_connection_failure(void) {
   /* Expect mapped error (ECONNREFUSED or ETIMEDOUT or EHOSTUNREACH) */
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -113,18 +113,18 @@ TEST test_curl_send_connection_failure(void) {
   struct HttpConfig config;
   int rc;
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  http_libuv_global_init();
+  http_libuv_context_init(&ctx);
   http_config_init(&config);
 
   /* Fast timeout for test speed */
   config.timeout_ms = 50;
-  http_curl_config_apply(ctx, &config);
+  http_libuv_config_apply(ctx, &config);
 
   /* Use an invalid port */
   setup_request(&req, 59999);
 
-  rc = http_curl_send(ctx, &req, &res);
+  rc = http_libuv_send(ctx, &req, &res);
 
   /* Verify mapping logic.
      Note: On some systems connection refused happens instanly (ECONNREFUSED),
@@ -140,56 +140,56 @@ TEST test_curl_send_connection_failure(void) {
 
   http_config_free(&config);
   http_request_free(&req);
-  http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  http_libuv_context_free(ctx);
+  http_libuv_global_cleanup();
   PASS();
 }
 
-TEST test_curl_send_invalid_arguments(void) {
+TEST test_libuv_send_invalid_arguments(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpResponse *res = NULL;
   struct HttpRequest req;
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  http_libuv_global_init();
+  http_libuv_context_init(&ctx);
   http_request_init(&req);
 
   /* NULL ctx */
-  ASSERT_EQ(EINVAL, http_curl_send(NULL, &req, &res));
+  ASSERT_EQ(EINVAL, http_libuv_send(NULL, &req, &res));
 
   /* NULL req */
-  ASSERT_EQ(EINVAL, http_curl_send(ctx, NULL, &res));
+  ASSERT_EQ(EINVAL, http_libuv_send(ctx, NULL, &res));
 
   /* NULL res pointer */
-  ASSERT_EQ(EINVAL, http_curl_send(ctx, &req, NULL));
+  ASSERT_EQ(EINVAL, http_libuv_send(ctx, &req, NULL));
 
   /* NULL internal config application */
-  ASSERT_EQ(EINVAL, http_curl_config_apply(NULL, NULL));
-  ASSERT_EQ(EINVAL, http_curl_config_apply(ctx, NULL));
+  ASSERT_EQ(EINVAL, http_libuv_config_apply(NULL, NULL));
+  ASSERT_EQ(EINVAL, http_libuv_config_apply(ctx, NULL));
 
   http_request_free(&req);
-  http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  http_libuv_context_free(ctx);
+  http_libuv_global_cleanup();
   PASS();
 }
 
 /*
  * NOTE: Testing a successful request requires a running server.
- * We skip strictly specific success tests here (mocking/stubbing libcurl
+ * We skip strictly specific success tests here (mocking/stubbing liblibuv
  * internals requires complex LD_PRELOAD or weak symbols which is beyond
  * standard C89 unit test scope without heavy frameworks).
  * The failure cases prove the logic integration.
  */
 
-struct curl_TestChunkState {
+struct libuv_TestChunkState {
   int call_count;
   size_t total_bytes;
   int abort_on_call;
 };
 
-static int curl_mock_chunk_cb(void *user_data, const void *chunk,
-                              size_t chunk_len) {
-  struct curl_TestChunkState *state = (struct curl_TestChunkState *)user_data;
+static int libuv_mock_chunk_cb(void *user_data, const void *chunk,
+                               size_t chunk_len) {
+  struct libuv_TestChunkState *state = (struct libuv_TestChunkState *)user_data;
   state->call_count++;
   state->total_bytes += chunk_len;
   if (state->abort_on_call > 0 && state->call_count >= state->abort_on_call) {
@@ -198,23 +198,23 @@ static int curl_mock_chunk_cb(void *user_data, const void *chunk,
   return 0;
 }
 
-TEST test_curl_send_chunked(void) {
+TEST test_libuv_send_chunked(void) {
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
-  struct curl_TestChunkState state;
+  struct libuv_TestChunkState state;
   int rc;
 
   /* Start mock server */
   ASSERT_EQ(0, mock_server_init(&server));
   ASSERT_EQ(0, mock_server_start(server));
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  http_libuv_global_init();
+  http_libuv_context_init(&ctx);
   http_config_init(&config);
-  http_curl_config_apply(ctx, &config);
+  http_libuv_config_apply(ctx, &config);
 
   setup_request(&req, mock_server_get_port(server));
 
@@ -222,10 +222,10 @@ TEST test_curl_send_chunked(void) {
   state.call_count = 0;
   state.total_bytes = 0;
   state.abort_on_call = 0;
-  req.on_chunk = curl_mock_chunk_cb;
+  req.on_chunk = libuv_mock_chunk_cb;
   req.on_chunk_user_data = &state;
 
-  rc = http_curl_send(ctx, &req, &res);
+  rc = http_libuv_send(ctx, &req, &res);
 
   ASSERT_EQ(0, rc);
   ASSERT(res != NULL);
@@ -242,38 +242,38 @@ TEST test_curl_send_chunked(void) {
   free(res);
   http_config_free(&config);
   http_request_free(&req);
-  http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  http_libuv_context_free(ctx);
+  http_libuv_global_cleanup();
   mock_server_destroy(server);
   PASS();
 }
 
-TEST test_curl_send_chunked_abort(void) {
+TEST test_libuv_send_chunked_abort(void) {
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
-  struct curl_TestChunkState state;
+  struct libuv_TestChunkState state;
   int rc;
 
   ASSERT_EQ(0, mock_server_init(&server));
   ASSERT_EQ(0, mock_server_start(server));
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  http_libuv_global_init();
+  http_libuv_context_init(&ctx);
   http_config_init(&config);
-  http_curl_config_apply(ctx, &config);
+  http_libuv_config_apply(ctx, &config);
 
   setup_request(&req, mock_server_get_port(server));
 
   state.call_count = 0;
   state.total_bytes = 0;
   state.abort_on_call = 1; /* Abort immediately on first chunk */
-  req.on_chunk = curl_mock_chunk_cb;
+  req.on_chunk = libuv_mock_chunk_cb;
   req.on_chunk_user_data = &state;
 
-  rc = http_curl_send(ctx, &req, &res);
+  rc = http_libuv_send(ctx, &req, &res);
 
   /* Should return the error code returned by our callback (ECANCELED) */
   ASSERT_EQ(ECANCELED, rc);
@@ -281,21 +281,22 @@ TEST test_curl_send_chunked_abort(void) {
 
   http_config_free(&config);
   http_request_free(&req);
-  http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  http_libuv_context_free(ctx);
+  http_libuv_global_cleanup();
   mock_server_destroy(server);
   PASS();
 }
 
-struct curl_TestUploadState {
+struct libuv_TestUploadState {
   const char *data;
   size_t len;
   size_t pos;
 };
 
-static int curl_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
-                               size_t *out_read) {
-  struct curl_TestUploadState *state = (struct curl_TestUploadState *)user_data;
+static int libuv_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
+                                size_t *out_read) {
+  struct libuv_TestUploadState *state =
+      (struct libuv_TestUploadState *)user_data;
   size_t remaining = state->len - state->pos;
   size_t to_copy = (remaining < buf_len) ? remaining : buf_len;
 
@@ -307,23 +308,23 @@ static int curl_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
   return 0;
 }
 
-TEST test_curl_send_upload_chunked(void) {
+TEST test_libuv_send_upload_chunked(void) {
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
-  struct curl_TestUploadState up_state;
+  struct libuv_TestUploadState up_state;
   int rc;
   const char *payload = "UPLOAD_TEST_DATA";
 
   ASSERT_EQ(0, mock_server_init(&server));
   ASSERT_EQ(0, mock_server_start(server));
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  http_libuv_global_init();
+  http_libuv_context_init(&ctx);
   http_config_init(&config);
-  http_curl_config_apply(ctx, &config);
+  http_libuv_config_apply(ctx, &config);
 
   setup_request(&req, mock_server_get_port(server));
   req.method = HTTP_POST;
@@ -332,11 +333,11 @@ TEST test_curl_send_upload_chunked(void) {
   up_state.len = strlen(payload);
   up_state.pos = 0;
 
-  req.read_chunk = curl_mock_upload_cb;
+  req.read_chunk = libuv_mock_upload_cb;
   req.read_chunk_user_data = &up_state;
   req.expected_body_len = up_state.len;
 
-  rc = http_curl_send(ctx, &req, &res);
+  rc = http_libuv_send(ctx, &req, &res);
 
   ASSERT_EQ(0, rc);
   ASSERT(res != NULL);
@@ -351,21 +352,21 @@ TEST test_curl_send_upload_chunked(void) {
   free(res);
   http_config_free(&config);
   http_request_free(&req);
-  http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  http_libuv_context_free(ctx);
+  http_libuv_global_cleanup();
   mock_server_destroy(server);
   PASS();
 }
 
-SUITE(http_curl_suite) {
-  RUN_TEST(test_curl_global_lifecycle);
-  RUN_TEST(test_curl_context_lifecycle);
-  RUN_TEST(test_curl_config_application);
-  RUN_TEST(test_curl_send_connection_failure);
-  RUN_TEST(test_curl_send_invalid_arguments);
-  RUN_TEST(test_curl_send_chunked);
-  RUN_TEST(test_curl_send_chunked_abort);
-  RUN_TEST(test_curl_send_upload_chunked);
+SUITE(http_libuv_suite) {
+  RUN_TEST(test_libuv_global_lifecycle);
+  RUN_TEST(test_libuv_context_lifecycle);
+  RUN_TEST(test_libuv_config_application);
+  RUN_TEST(test_libuv_send_connection_failure);
+  RUN_TEST(test_libuv_send_invalid_arguments);
+  RUN_TEST(test_libuv_send_chunked);
+  RUN_TEST(test_libuv_send_chunked_abort);
+  RUN_TEST(test_libuv_send_upload_chunked);
 }
 
-#endif /* TEST_HTTP_CURL_H */
+#endif /* TEST_HTTP_libuv_H */

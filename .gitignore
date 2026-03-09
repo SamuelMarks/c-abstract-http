@@ -4,3 +4,5 @@ patch_*
 *build*
 .vscode
 .idea
+fetch.h
+test_fetch.c

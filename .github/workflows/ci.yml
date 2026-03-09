@@ -66,6 +66,34 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure -C Release
 
+  libuv-build:
+    name: POSIX ubuntu-latest (libuv)
+    runs-on: ubuntu-latest
+
+    services:
+      httpbin:
+        image: kennethreitz/httpbin
+        ports:
+          - 8080:80
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install Dependencies (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libuv1-dev
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release -DC_ABSTRACT_HTTP_LTO=ON -DTRY_SYS_LIB=ON -DC_ABSTRACT_HTTP_USE_LIBUV=ON
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -C Release
+
   macos-build:
     name: POSIX macos-latest (clang)
     runs-on: macos-latest
@@ -181,7 +209,7 @@ jobs:
           packages: gcc-core,cmake,ninja,make,libssl-devel
 
       - name: Configure, Build, and Test
-        shell: C:\cygwin\bin\bash.exe --noprofile --norc -e -o pipefail '{0}'
+        shell: C:\cygwin\bin\bash.exe --noprofile --norc -e -o pipefail -o igncr '{0}'
         run: |
           export PATH=/usr/bin:$PATH
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release

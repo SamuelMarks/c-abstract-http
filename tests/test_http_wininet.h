@@ -22,6 +22,8 @@
 #include <c_abstract_http/http_wininet.h>
 #include <c_abstract_http/str.h>
 
+#include "cdd_test_helpers/mock_server.h"
+
 /* clang-format on */
 TEST test_wininet_lifecycle(void) {
 #ifdef _WIN32
@@ -137,10 +139,6 @@ TEST test_wininet_stubs(void) {
 #endif
 }
 
-/* clang-format off */
-#include "cdd_test_helpers/mock_server.h"
-
-/* clang-format on */
 struct wininet_TestChunkState {
   int call_count;
   size_t total_bytes;
@@ -181,7 +179,12 @@ TEST test_wininet_send_chunked(void) {
   http_wininet_config_apply(ctx, &config);
 
   http_request_init(&req);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
+            mock_server_get_port(server));
+#else
   sprintf(url, "http://127.0.0.1:%d/test", mock_server_get_port(server));
+#endif
   req.url = (c_cdd_strdup(url, &_ast_strdup_2), _ast_strdup_2);
 
   /* Setup chunk callback */
@@ -238,7 +241,12 @@ TEST test_wininet_send_chunked_abort(void) {
   http_wininet_config_apply(ctx, &config);
 
   http_request_init(&req);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
+            mock_server_get_port(server));
+#else
   sprintf(url, "http://127.0.0.1:%d/test", mock_server_get_port(server));
+#endif
   req.url = (c_cdd_strdup(url, &_ast_strdup_3), _ast_strdup_3);
 
   state.call_count = 0;
@@ -307,7 +315,12 @@ TEST test_wininet_send_upload_chunked(void) {
   http_wininet_config_apply(ctx, &config);
 
   http_request_init(&req);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
+            mock_server_get_port(server));
+#else
   sprintf(url, "http://127.0.0.1:%d/test", mock_server_get_port(server));
+#endif
   req.url = (c_cdd_strdup(url, &_ast_strdup_4), _ast_strdup_4);
   req.method = HTTP_POST;
 
