@@ -108,7 +108,7 @@ c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c8
 if(C_ABSTRACT_HTTP_HEADER_ONLY)
     add_library(c-abstract-http INTERFACE)
     target_include_directories(c-abstract-http INTERFACE include)
-    if(WIN32)
+    if(WIN32 AND NOT MINGW_TEST_CURL)
         target_link_libraries(c-abstract-http INTERFACE winhttp wininet ws2_32 crypt32 advapi32 shlwapi bcrypt c89stringutils)
     elseif(APPLE)
         find_library(FOUNDATION Foundation)
@@ -139,7 +139,7 @@ else()
     target_link_libraries(c-abstract-http PUBLIC c89stringutils)
 
     # Platform specific HTTP backends
-    if(WIN32)
+    if(WIN32 AND NOT MINGW_TEST_CURL)
         target_sources(c-abstract-http PRIVATE
             src/http_winhttp.c
             src/http_wininet.c
@@ -163,3 +163,4 @@ endif()
 
 enable_testing()
 add_subdirectory(tests)
+

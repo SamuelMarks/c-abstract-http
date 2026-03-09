@@ -16,7 +16,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-
 #include <stddef.h>
 
 /**
@@ -80,17 +79,15 @@ extern int mock_server_get_port(MockServerPtr server);
  *                     Caller must free contents.
  * @return 0 on success, non-zero on timeout or error.
  */
-extern int
-mock_server_wait_for_request(MockServerPtr server,
-                             struct MockServerRequest *out_req);
+extern int mock_server_wait_for_request(MockServerPtr server,
+                                        struct MockServerRequest *out_req);
 
 /**
  * @brief Helper to free the request content captured by wait_for_request.
  *
  * @param[in] req The request structure to clean.
  */
-extern void
-mock_server_request_cleanup(struct MockServerRequest *req);
+extern void mock_server_request_cleanup(struct MockServerRequest *req);
 
 #ifdef __cplusplus
 }

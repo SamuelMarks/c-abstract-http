@@ -27,8 +27,7 @@ extern void cdd_precondition_failed(void);
  * @param[in] contents The data to write.
  * @return EXIT_SUCCESS on success, EXIT_FAILURE on error.
  */
-extern int write_to_file(const char *filename,
-                                                 const char *contents);
+extern int write_to_file(const char *filename, const char *contents);
 
 #ifdef __cplusplus
 }

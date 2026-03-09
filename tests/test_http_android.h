@@ -15,8 +15,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_android.h>
+#include <c_abstract_http/http_types.h>
 
 TEST test_android_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;

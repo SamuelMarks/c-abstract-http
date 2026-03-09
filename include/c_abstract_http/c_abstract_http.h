@@ -2,17 +2,27 @@
 #define C_ABSTRACT_HTTP_H
 
 #include "http_types.h"
+
+/* clang-format boundary */
 #include "http_curl.h"
+
+/* clang-format boundary */
 #include "http_winhttp.h"
+
+/* clang-format boundary */
 #include "http_wininet.h"
+
+/* clang-format boundary */
 #include "http_apple.h"
+
+/* clang-format boundary */
 #include "http_android.h"
 
 #ifdef C_ABSTRACT_HTTP_IMPLEMENTATION
 /* Single translation unit inclusion of the source */
-#include "../src/str.c"
 #include "../src/fs.c"
 #include "../src/http_types.c"
+#include "../src/str.c"
 #include "../src/transport.c"
 
 #if defined(_WIN32)

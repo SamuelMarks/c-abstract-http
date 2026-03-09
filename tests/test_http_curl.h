@@ -84,9 +84,13 @@ TEST test_curl_config_application(void) {
   config.timeout_ms = 500;
   config.verify_peer = 0; /* Insecure for testing logic */
   config.follow_redirects = 0;
-  config.proxy_url = (c_cdd_strdup("http://proxy.local:8080", &_ast_strdup_proxy), _ast_strdup_proxy);
-  config.proxy_username = (c_cdd_strdup("admin", &_ast_strdup_user), _ast_strdup_user);
-  config.proxy_password = (c_cdd_strdup("secret", &_ast_strdup_pass), _ast_strdup_pass);
+  config.proxy_url =
+      (c_cdd_strdup("http://proxy.local:8080", &_ast_strdup_proxy),
+       _ast_strdup_proxy);
+  config.proxy_username =
+      (c_cdd_strdup("admin", &_ast_strdup_user), _ast_strdup_user);
+  config.proxy_password =
+      (c_cdd_strdup("secret", &_ast_strdup_pass), _ast_strdup_pass);
 
   rc = http_curl_config_apply(ctx, &config);
   ASSERT_EQ(0, rc);
@@ -181,7 +185,8 @@ struct curl_TestChunkState {
   int abort_on_call;
 };
 
-static int curl_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
+static int curl_mock_chunk_cb(void *user_data, const void *chunk,
+                              size_t chunk_len) {
   struct curl_TestChunkState *state = (struct curl_TestChunkState *)user_data;
   state->call_count++;
   state->total_bytes += chunk_len;
@@ -210,7 +215,7 @@ TEST test_curl_send_chunked(void) {
   http_curl_config_apply(ctx, &config);
 
   setup_request(&req, mock_server_get_port(server));
-  
+
   /* Setup chunk callback */
   state.call_count = 0;
   state.total_bytes = 0;
@@ -259,7 +264,7 @@ TEST test_curl_send_chunked_abort(void) {
   http_curl_config_apply(ctx, &config);
 
   setup_request(&req, mock_server_get_port(server));
-  
+
   state.call_count = 0;
   state.total_bytes = 0;
   state.abort_on_call = 1; /* Abort immediately on first chunk */
@@ -286,7 +291,8 @@ struct curl_TestUploadState {
   size_t pos;
 };
 
-static int curl_mock_upload_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
+static int curl_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
+                               size_t *out_read) {
   struct curl_TestUploadState *state = (struct curl_TestUploadState *)user_data;
   size_t remaining = state->len - state->pos;
   size_t to_copy = (remaining < buf_len) ? remaining : buf_len;
@@ -334,8 +340,9 @@ TEST test_curl_send_upload_chunked(void) {
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
 
-  /* Read the payload back to verify? Our mock server doesn't echo it, but it reads it.
-     We just check that it completed successfully and our pos advanced. */
+  /* Read the payload back to verify? Our mock server doesn't echo it, but it
+     reads it. We just check that it completed successfully and our pos
+     advanced. */
   ASSERT_EQ(up_state.len, up_state.pos);
 
   http_response_free(res);

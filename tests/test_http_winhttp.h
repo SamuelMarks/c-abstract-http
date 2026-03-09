@@ -27,11 +27,17 @@ TEST test_winhttp_lifecycle(void) {
 
   /* Global init */
   rc = http_winhttp_global_init();
-  if(rc!=0) { printf("FAILING RC: %d\n", rc); } ASSERT_EQ(0, rc);
+  if (rc != 0) {
+    printf("FAILING RC: %d\n", rc);
+  }
+  ASSERT_EQ(0, rc);
 
   /* Context init */
   rc = http_winhttp_context_init(&ctx);
-  if(rc!=0) { printf("FAILING RC: %d\n", rc); } ASSERT_EQ(0, rc);
+  if (rc != 0) {
+    printf("FAILING RC: %d\n", rc);
+  }
+  ASSERT_EQ(0, rc);
   ASSERT(ctx != NULL);
 
   /* Cleanup */
@@ -61,22 +67,30 @@ TEST test_winhttp_config_usage(void) {
   cfg.follow_redirects = 0;
 
   rc = http_winhttp_config_apply(ctx, &cfg);
-  if(rc!=0) { printf("FAILING RC: %d\n", rc); } ASSERT_EQ(0, rc);
+  if (rc != 0) {
+    printf("FAILING RC: %d\n", rc);
+  }
+  ASSERT_EQ(0, rc);
 
   /* Test proxy configuration */
   if (cfg.proxy_url)
     free(cfg.proxy_url);
   cfg.proxy_url =
       (c_cdd_strdup("http://127.0.0.1:8888", &_ast_strdup_0), _ast_strdup_0);
-  
-  if (cfg.proxy_username) free(cfg.proxy_username);
+
+  if (cfg.proxy_username)
+    free(cfg.proxy_username);
   cfg.proxy_username = (c_cdd_strdup("admin", &_ast_strdup_0), _ast_strdup_0);
 
-  if (cfg.proxy_password) free(cfg.proxy_password);
+  if (cfg.proxy_password)
+    free(cfg.proxy_password);
   cfg.proxy_password = (c_cdd_strdup("secret", &_ast_strdup_0), _ast_strdup_0);
 
   rc = http_winhttp_config_apply(ctx, &cfg);
-  if(rc!=0) { printf("FAILING RC: %d\n", rc); } ASSERT_EQ(0, rc);
+  if (rc != 0) {
+    printf("FAILING RC: %d\n", rc);
+  }
+  ASSERT_EQ(0, rc);
 
   http_config_free(&cfg);
   http_winhttp_context_free(ctx);
@@ -95,7 +109,10 @@ TEST test_winhttp_send_fail(void) {
   int rc;
 
   rc = http_winhttp_context_init(&ctx);
-  if(rc!=0) { printf("FAILING RC: %d\n", rc); } ASSERT_EQ(0, rc);
+  if (rc != 0) {
+    printf("FAILING RC: %d\n", rc);
+  }
+  ASSERT_EQ(0, rc);
 
   /* Initialize request */
   http_request_init(&req);
@@ -178,8 +195,10 @@ struct winhttp_TestChunkState {
   int abort_on_call;
 };
 
-static int winhttp_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
-  struct winhttp_TestChunkState *state = (struct winhttp_TestChunkState *)user_data;
+static int winhttp_mock_chunk_cb(void *user_data, const void *chunk,
+                                 size_t chunk_len) {
+  struct winhttp_TestChunkState *state =
+      (struct winhttp_TestChunkState *)user_data;
   state->call_count++;
   state->total_bytes += chunk_len;
   if (state->abort_on_call > 0 && state->call_count >= state->abort_on_call) {
@@ -212,7 +231,7 @@ TEST test_winhttp_send_chunked(void) {
   http_request_init(&req);
   sprintf(url, "http://127.0.0.1:%d/test", mock_server_get_port(server));
   req.url = (c_cdd_strdup(url, &_ast_strdup_2), _ast_strdup_2);
-  
+
   /* Setup chunk callback */
   state.call_count = 0;
   state.total_bytes = 0;
@@ -269,7 +288,7 @@ TEST test_winhttp_send_chunked_abort(void) {
   http_request_init(&req);
   sprintf(url, "http://127.0.0.1:%d/test", mock_server_get_port(server));
   req.url = (c_cdd_strdup(url, &_ast_strdup_3), _ast_strdup_3);
-  
+
   state.call_count = 0;
   state.total_bytes = 0;
   state.abort_on_call = 1; /* Abort immediately on first chunk */
@@ -299,8 +318,10 @@ struct winhttp_TestUploadState {
   size_t pos;
 };
 
-static int winhttp_mock_upload_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
-  struct winhttp_TestUploadState *state = (struct winhttp_TestUploadState *)user_data;
+static int winhttp_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
+                                  size_t *out_read) {
+  struct winhttp_TestUploadState *state =
+      (struct winhttp_TestUploadState *)user_data;
   size_t remaining = state->len - state->pos;
   size_t to_copy = (remaining < buf_len) ? remaining : buf_len;
 

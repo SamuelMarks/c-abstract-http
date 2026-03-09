@@ -15,8 +15,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_apple.h>
+#include <c_abstract_http/http_types.h>
 
 TEST test_apple_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
@@ -75,7 +75,8 @@ TEST test_apple_send_invalid(void) {
   {
     int rc = http_apple_send(ctx, &req, &res);
     if (rc == 0) {
-      if (res) http_response_free(res);
+      if (res)
+        http_response_free(res);
       free(res);
     }
   }

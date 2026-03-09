@@ -56,12 +56,14 @@ TEST test_wininet_config_apply(void) {
 
   /* Customize */
   config.timeout_ms = 500;
-  config.verify_peer = 0; /* Insecure */
+  config.verify_peer = 0;      /* Insecure */
   config.follow_redirects = 0; /* Test redirect disable */
 
   /* Test with Proxy Auth */
-  config.proxy_username = (c_cdd_strdup("admin", &_ast_strdup_proxy), _ast_strdup_proxy);
-  config.proxy_password = (c_cdd_strdup("secret", &_ast_strdup_proxy2), _ast_strdup_proxy2);
+  config.proxy_username =
+      (c_cdd_strdup("admin", &_ast_strdup_proxy), _ast_strdup_proxy);
+  config.proxy_password =
+      (c_cdd_strdup("secret", &_ast_strdup_proxy2), _ast_strdup_proxy2);
 
   rc = http_wininet_config_apply(ctx, &config);
   ASSERT_EQ(0, rc);
@@ -128,10 +130,10 @@ TEST test_wininet_stubs(void) {
   ASSERT_EQ(ENOTSUP, http_wininet_config_apply(NULL, &cfg));
   ASSERT_EQ(ENOTSUP, http_wininet_send(NULL, &req, &res));
   PASS();
-  #else
+#else
   SKIPm("WinInet is supported on this platform");
-  #endif
-  }
+#endif
+}
 
 #include "cdd_test_helpers/mock_server.h"
 
@@ -141,8 +143,10 @@ struct wininet_TestChunkState {
   int abort_on_call;
 };
 
-static int wininet_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
-  struct wininet_TestChunkState *state = (struct wininet_TestChunkState *)user_data;
+static int wininet_mock_chunk_cb(void *user_data, const void *chunk,
+                                 size_t chunk_len) {
+  struct wininet_TestChunkState *state =
+      (struct wininet_TestChunkState *)user_data;
   state->call_count++;
   state->total_bytes += chunk_len;
   if (state->abort_on_call > 0 && state->call_count >= state->abort_on_call) {
@@ -175,7 +179,7 @@ TEST test_wininet_send_chunked(void) {
   http_request_init(&req);
   sprintf(url, "http://127.0.0.1:%d/test", mock_server_get_port(server));
   req.url = (c_cdd_strdup(url, &_ast_strdup_2), _ast_strdup_2);
-  
+
   /* Setup chunk callback */
   state.call_count = 0;
   state.total_bytes = 0;
@@ -232,7 +236,7 @@ TEST test_wininet_send_chunked_abort(void) {
   http_request_init(&req);
   sprintf(url, "http://127.0.0.1:%d/test", mock_server_get_port(server));
   req.url = (c_cdd_strdup(url, &_ast_strdup_3), _ast_strdup_3);
-  
+
   state.call_count = 0;
   state.total_bytes = 0;
   state.abort_on_call = 1; /* Abort immediately on first chunk */
@@ -262,8 +266,10 @@ struct wininet_TestUploadState {
   size_t pos;
 };
 
-static int wininet_mock_upload_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
-  struct wininet_TestUploadState *state = (struct wininet_TestUploadState *)user_data;
+static int wininet_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
+                                  size_t *out_read) {
+  struct wininet_TestUploadState *state =
+      (struct wininet_TestUploadState *)user_data;
   size_t remaining = state->len - state->pos;
   size_t to_copy = (remaining < buf_len) ? remaining : buf_len;
 

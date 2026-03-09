@@ -8,6 +8,8 @@ Designed with strict C89 compliance, memory safety, and high portability in mind
 
 ## Features
 
+Below is a detailed table summarizing the core capabilities that are currently implemented, alongside our roadmap for future enhancements.
+
 | Feature | Description | Status |
 | :--- | :--- | :---: |
 | **Cross-Platform API** | Write once, compile anywhere. Automatically targets native platform APIs to reduce binary bloat. | Implemented ✅ |

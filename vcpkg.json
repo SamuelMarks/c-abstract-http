@@ -1,0 +1,10 @@
+{
+  "name": "c-abstract-http",
+  "version-string": "0.1.0",
+  "dependencies": [
+    {
+      "name": "curl",
+      "platform": "!windows & !osx"
+    }
+  ]
+}
