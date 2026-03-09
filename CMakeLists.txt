@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(c-abstract-http C)
 
-# Set C standards
+#Set C standards
 set(CMAKE_C_STANDARD 90)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
@@ -17,6 +17,7 @@ option(C_ABSTRACT_HTTP_LTO "Enable Link Time Optimization" OFF)
 option(C_ABSTRACT_HTTP_RTC1 "Enable /RTC1" OFF)
 option(C_ABSTRACT_HTTP_RTCs "Enable /RTCs" OFF)
 option(C_ABSTRACT_HTTP_RTCu "Enable /RTCu" OFF)
+option(C_ABSTRACT_HTTP_USE_LIBSOUP3 "Use libsoup3 instead of libcurl" OFF)
 option(BUILD_SHARED_LIBS "Build Shared Library" OFF)
 option(TRY_SYS_LIB "Fallback to system packages if vcpkg is not available" ON)
 
@@ -34,7 +35,8 @@ if(MSVC)
             CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
             CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
             if(${flag_var} MATCHES "/MD")
-                string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+                string(REGEX REPLACE "/MD" "/MT" ${
+  flag_var} "${${flag_var}}")
             endif()
         endforeach()
     endif()
@@ -66,7 +68,7 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
 
     set(${PkgName}_RESOLVED OFF)
 
-    # a) try vcpkg
+#a) try vcpkg
     if(_VCPKG_APPLICABLE AND DEFINED CMAKE_TOOLCHAIN_FILE AND CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg.cmake")
         find_package(${PkgName} CONFIG QUIET)
         if(${PkgName}_FOUND)
@@ -75,7 +77,7 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
         endif()
     endif()
 
-    # b) try system if TRY_SYS_LIB is set
+#b) try system if TRY_SYS_LIB is set
     if(NOT ${PkgName}_RESOLVED AND TRY_SYS_LIB)
         find_package(${PkgName} QUIET)
         if(${PkgName}_FOUND)
@@ -84,7 +86,7 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
         endif()
     endif()
 
-    # c) try fetchcontent
+#c) try fetchcontent
     if(NOT ${PkgName}_RESOLVED)
         message(STATUS "Fetching ${PkgName} via FetchContent")
         FetchContent_Declare(${PkgName}
@@ -92,9 +94,9 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
             GIT_TAG ${FetchTag}
         )
         FetchContent_MakeAvailable(${PkgName})
-        # If fetchcontent fails, CMake usually aborts or the target is not created
-        # We assume success if it didn't fatal error during MakeAvailable,
-        # but we can do a sanity check to ensure the target we need is there.
+#If fetchcontent fails, CMake usually aborts or the target is not created
+#We assume success if it didn't fatal error during MakeAvailable,
+#but we can do a sanity check to ensure the target we need is there.
         set(${PkgName}_RESOLVED ON)
     endif()
 
@@ -108,12 +110,20 @@ c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c8
 if(C_ABSTRACT_HTTP_HEADER_ONLY)
     add_library(c-abstract-http INTERFACE)
     target_include_directories(c-abstract-http INTERFACE include)
-    if(WIN32 AND NOT MINGW_TEST_CURL)
+    if(EMSCRIPTEN)
+        target_link_options(c-abstract-http INTERFACE "SHELL:-s FETCH=1")
+    elseif(WIN32 AND NOT MINGW_TEST_CURL)
         target_link_libraries(c-abstract-http INTERFACE winhttp wininet ws2_32 crypt32 advapi32 shlwapi bcrypt c89stringutils)
     elseif(APPLE)
         find_library(FOUNDATION Foundation)
         find_library(CFNetwork CFNetwork)
         target_link_libraries(c-abstract-http INTERFACE ${FOUNDATION} ${CFNetwork} c89stringutils)
+    elseif(C_ABSTRACT_HTTP_USE_LIBSOUP3)
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(LIBSOUP3 REQUIRED libsoup-3.0)
+        target_include_directories(c-abstract-http INTERFACE ${LIBSOUP3_INCLUDE_DIRS})
+        target_link_libraries(c-abstract-http INTERFACE ${LIBSOUP3_LIBRARIES} c89stringutils)
+        target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_LIBSOUP3)
     else()
         c_abstract_http_resolve_dependency(CURL https://github.com/curl/curl.git curl-8_0_1)
         target_link_libraries(c-abstract-http INTERFACE CURL::libcurl c89stringutils)
@@ -138,8 +148,14 @@ else()
     target_include_directories(c-abstract-http PUBLIC include)
     target_link_libraries(c-abstract-http PUBLIC c89stringutils)
 
-    # Platform specific HTTP backends
-    if(WIN32 AND NOT MINGW_TEST_CURL)
+#Platform specific HTTP backends
+    if(EMSCRIPTEN)
+        target_sources(c-abstract-http PRIVATE
+            src/http_wasm.c
+        )
+#Fetch API requires - s FETCH = 1
+        target_link_options(c-abstract-http PUBLIC "SHELL:-s FETCH=1")
+    elseif(WIN32 AND NOT MINGW_TEST_CURL)
         target_sources(c-abstract-http PRIVATE
             src/http_winhttp.c
             src/http_wininet.c
@@ -152,6 +168,15 @@ else()
         find_library(FOUNDATION Foundation)
         find_library(CFNetwork CFNetwork)
         target_link_libraries(c-abstract-http PUBLIC ${FOUNDATION} ${CFNetwork})
+    elseif(C_ABSTRACT_HTTP_USE_LIBSOUP3)
+        target_sources(c-abstract-http PRIVATE
+            src/http_libsoup3.c
+        )
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(LIBSOUP3 REQUIRED libsoup-3.0)
+        target_include_directories(c-abstract-http PUBLIC ${LIBSOUP3_INCLUDE_DIRS})
+        target_link_libraries(c-abstract-http PUBLIC ${LIBSOUP3_LIBRARIES})
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LIBSOUP3)
     else()
         target_sources(c-abstract-http PRIVATE
             src/http_curl.c
@@ -163,4 +188,3 @@ endif()
 
 enable_testing()
 add_subdirectory(tests)
-

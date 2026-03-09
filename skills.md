@@ -4,11 +4,18 @@ This document outlines standard operating procedures (SOPs) and technical "skill
 
 ## 1. Extending the Backend (Adding a new Transport)
 
-If you are implementing a new transport backend (e.g., `http_lwip.c` for embedded systems):
-- **Define Context:** Create a `struct HttpTransportContext` in your implementation file (`src/http_lwip.c`).
-- **Implement Interface:** You must supply initialization logic, configuration logic, and a `send` implementation conforming to the `http_send_fn` typedef inside `http_types.h`.
-- **Memory Handling:** Your `send` function must populate a `struct HttpResponse **res`. Ensure you gracefully handle the case where reading the socket fails halfway through, cleaning up whatever `res` struct you started to allocate.
-- **Wire up Transport:** Add the new backend dispatch logic inside `src/transport.c` guarded by the appropriate preprocessor macro (e.g., `#elif defined(LWIP)`). Add it to `CMakeLists.txt`.
+If you are implementing a new transport backend (e.g., `http_lwip.c` for embedded systems)
+:
+- **Define Context:** Create a `struct HttpTransportContext` in your implementation file (
+`src/http_lwip.c`).
+- **Implement Interface:** You must supply initialization logic, configuration logic, and 
+a `send` implementation conforming to the `http_send_fn` typedef inside `http_types.h`.   
+- **Memory Handling:** Your `send` function must populate a `struct HttpResponse **res`. E
+nsure you gracefully handle the case where reading the socket fails halfway through, clean
+ing up whatever `res` struct you started to allocate.
+- **Wire up Transport:** Add the new backend dispatch logic inside `src/transport.c` guard
+ed by the appropriate preprocessor macro (e.g., `#elif defined(LWIP)` or `#elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)`). Add it to `CMakeLi
+sts.txt`.
 
 ## 2. Navigating the `int` Return Error Code Pattern
 

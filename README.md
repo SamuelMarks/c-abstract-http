@@ -41,9 +41,11 @@ The library is designed to compile out-of-the-box using the optimal native netwo
 | **Windows** | libcurl | No | OpenSSL / Schannel | Supported but requires manual compilation and linking. |
 | **macOS / iOS** | CFNetwork / Foundation | **Yes** | SecureTransport | Leverages Apple's native network framework. |
 | **macOS / iOS** | libcurl | No | OpenSSL / SecureTransport | Available fallback. |
+| **Linux / POSIX** | libsoup3 | No | GnuTLS | Modern fallback often used in GTK4 environments. |
 | **Linux / POSIX** | libcurl | **Yes** | OpenSSL / GnuTLS | Standard backend for most POSIX platforms. |
 | **Android** | libcurl (NDK) | **Yes** | BoringSSL / OpenSSL | Default fallback when compiled with Android NDK. |
 | **Android** | `HttpURLConnection` | No | Java Provider | Experimental JNI backend natively integrating with Android's Java network stack. |
+| **WebAssembly** | Emscripten Fetch API | **Yes** | Browser / Host | Natively bridges to JS `fetch` for WASM. |
 
 ## Documentation Overview
 
@@ -104,8 +106,9 @@ Verified to work flawlessly across:
 - **MSVC 2005**, **MSVC 2022**, **MSVC 2026**
 - **MinGW** & **Cygwin**
 - **macOS / iOS** (Clang / Apple Frameworks)
-- **Linux / POSIX** (GCC / Clang + libcurl)
+- **Linux / POSIX** (GCC / Clang + libcurl / libsoup3)
 - **Android** (NDK)
+- **WebAssembly** (Emscripten)
 
 ## License
 

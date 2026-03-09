@@ -36,7 +36,9 @@ Each backend translates the abstract `HttpRequest` into its native equivalent.
 - `http_wininet.c`: The legacy standard for older Windows environments or specialized proxy/caching setups.
 - `http_apple.c`: Uses `CFNetwork` and `Foundation` types for native execution on macOS and iOS.
 - `http_curl.c`: The fallback for POSIX systems (Linux, BSD) leveraging `libcurl`.
+- `http_libsoup3.c`: Modern POSIX backend leveraging `libsoup3`, ideal for GTK4 environments.
 - `http_android.c`: Specialized networking integrations for Android NDK environments.
+- `http_wasm.c`: The WebAssembly backend leveraging Emscripten's Fetch API to bridge network calls to the browser's `fetch`.
 
 ## Memory Management
 

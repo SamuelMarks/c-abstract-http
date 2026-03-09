@@ -16,6 +16,10 @@
 #include <c_abstract_http/http_winhttp.h>
 #elif defined(__APPLE__)
 #include <c_abstract_http/http_apple.h>
+#elif defined(__EMSCRIPTEN__)
+#include <c_abstract_http/http_wasm.h>
+#elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
+#include <c_abstract_http/http_libsoup3.h>
 #else
 #include <c_abstract_http/http_curl.h>
 #endif
@@ -39,6 +43,10 @@ int transport_global_init(void) {
   return http_winhttp_global_init();
 #elif defined(__APPLE__)
   return http_apple_global_init();
+#elif defined(__EMSCRIPTEN__)
+  return http_wasm_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
+  return http_libsoup3_global_init();
 #else
   return http_curl_global_init();
 #endif
@@ -57,6 +65,10 @@ void transport_global_cleanup(void) {
   http_winhttp_global_cleanup();
 #elif defined(__APPLE__)
   http_apple_global_cleanup();
+#elif defined(__EMSCRIPTEN__)
+  http_wasm_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
+  http_libsoup3_global_cleanup();
 #else
   http_curl_global_cleanup();
 #endif
@@ -92,6 +104,16 @@ int transport_factory_init_client(struct HttpClient *client) {
   if (rc == 0) {
     client->send = http_apple_send;
   }
+#elif defined(__EMSCRIPTEN__)
+  rc = http_wasm_context_init(&client->transport);
+  if (rc == 0) {
+    client->send = http_wasm_send;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
+  rc = http_libsoup3_context_init(&client->transport);
+  if (rc == 0) {
+    client->send = http_libsoup3_send;
+  }
 #else
   rc = http_curl_context_init(&client->transport);
   if (rc == 0) {
@@ -124,6 +146,10 @@ void transport_factory_cleanup_client(struct HttpClient *client) {
   http_winhttp_context_free(client->transport);
 #elif defined(__APPLE__)
   http_apple_context_free(client->transport);
+#elif defined(__EMSCRIPTEN__)
+  http_wasm_context_free(client->transport);
+#elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
+  http_libsoup3_context_free(client->transport);
 #else
   http_curl_context_free(client->transport);
 #endif
