@@ -136,6 +136,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
   int rc = 0;
   char *body_buffer = NULL;
   size_t body_len = 0;
+  const char *method_str;
 
   if (!ctx || !req || !res) {
     return EINVAL;
@@ -149,7 +150,6 @@ int http_wasm_send(struct HttpTransportContext *ctx,
   }
 
   emscripten_fetch_attr_init(&attr);
-  const char *method_str;
   get_method_str(req->method, &method_str);
   strcpy(attr.requestMethod, method_str);
   attr.attributes = EMSCRIPTEN_FETCH_SYNCHRONOUS;

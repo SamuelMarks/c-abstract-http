@@ -27,24 +27,24 @@
 
 #ifdef C_ABSTRACT_HTTP_IMPLEMENTATION
 /* Single translation unit inclusion of the source */
-#include "../src/fs.c"
-#include "../src/http_types.c"
-#include "../src/str.c"
-#include "../src/transport.c"
+#include "../../src/fs.c"
+#include "../../src/http_types.c"
+#include "../../src/str.c"
+#include "../../src/transport.c"
 
 #if defined(_WIN32)
-#include "../src/http_winhttp.c"
-#include "../src/http_wininet.c"
+#include "../../src/http_winhttp.c"
+#include "../../src/http_wininet.c"
 #elif defined(__APPLE__)
-#include "../src/http_apple.c"
+#include "../../src/http_apple.c"
 #elif defined(__ANDROID__)
-#include "../src/http_android.c"
+#include "../../src/http_android.c"
 #elif defined(__EMSCRIPTEN__)
-#include "../src/http_wasm.c"
+#include "../../src/http_wasm.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
-#include "../src/http_libsoup3.c"
+#include "../../src/http_libsoup3.c"
 #else
-#include "../src/http_curl.c"
+#include "../../src/http_curl.c"
 #endif
 
 #endif /* C_ABSTRACT_HTTP_IMPLEMENTATION */

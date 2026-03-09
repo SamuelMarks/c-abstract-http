@@ -2,6 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef C_ABSTRACT_HTTP_HEADER_ONLY
+#define C_ABSTRACT_HTTP_IMPLEMENTATION
+#include <c_abstract_http/c_abstract_http.h>
+#endif
+
 /* clang-format boundary */
 #include "greatest.h"
 
