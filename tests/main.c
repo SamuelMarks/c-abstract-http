@@ -1,3 +1,4 @@
+/* clang-format off */
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -29,6 +30,7 @@
 #include "test_http_curl.h"
 #endif
 
+/* clang-format on */
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {

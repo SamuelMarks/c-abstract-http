@@ -7,6 +7,7 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include <c_abstract_http/http_apple.h>
 
 #include <errno.h>
@@ -17,6 +18,7 @@
 #include <CFNetwork/CFNetwork.h>
 #include <CoreFoundation/CoreFoundation.h>
 
+/* clang-format on */
 struct HttpTransportContext {
   struct HttpConfig config;
 };

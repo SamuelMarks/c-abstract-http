@@ -8,6 +8,7 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include <c_abstract_http/http_android.h>
 
 #include <errno.h>
@@ -19,6 +20,7 @@
 
 /* JNI implementation */
 
+/* clang-format on */
 struct HttpTransportContext {
   JavaVM *jvm;
   jclass url_class;

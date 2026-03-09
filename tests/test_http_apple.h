@@ -11,6 +11,7 @@
 #ifndef C_CDD_TEST_HTTP_APPLE_H
 #define C_CDD_TEST_HTTP_APPLE_H
 
+/* clang-format off */
 #include <greatest.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,7 @@
 #include <c_abstract_http/http_apple.h>
 #include <c_abstract_http/http_types.h>
 
+/* clang-format on */
 TEST test_apple_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
 

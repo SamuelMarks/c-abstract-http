@@ -1,6 +1,7 @@
 #ifndef C_ABSTRACT_HTTP_H
 #define C_ABSTRACT_HTTP_H
 
+/* clang-format off */
 #include "http_types.h"
 
 /* clang-format boundary */
@@ -49,3 +50,5 @@
 #endif /* C_ABSTRACT_HTTP_IMPLEMENTATION */
 
 #endif /* C_ABSTRACT_HTTP_H */
+
+/* clang-format on */

@@ -11,6 +11,7 @@
 #ifndef TEST_HTTP_WINHTTP_H
 #define TEST_HTTP_WINHTTP_H
 
+/* clang-format off */
 #include <errno.h>
 #include <greatest.h>
 #include <stdlib.h>
@@ -20,6 +21,7 @@
 #include <c_abstract_http/http_winhttp.h>
 #include <c_abstract_http/str.h>
 
+/* clang-format on */
 TEST test_winhttp_lifecycle(void) {
 #ifdef _WIN32
   struct HttpTransportContext *ctx = NULL;
@@ -187,8 +189,10 @@ TEST test_winhttp_stubs(void) {
 #endif
 }
 
+/* clang-format off */
 #include "cdd_test_helpers/mock_server.h"
 
+/* clang-format on */
 struct winhttp_TestChunkState {
   int call_count;
   size_t total_bytes;

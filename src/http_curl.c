@@ -10,6 +10,7 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +32,7 @@
 /**
  * @brief Opaque context definition.
  */
+/* clang-format on */
 struct HttpTransportContext {
   CURL *curl;                       /**< The libcurl handle */
   struct HttpCookieJar *cookie_jar; /**< Weak reference to shared cookie jar */

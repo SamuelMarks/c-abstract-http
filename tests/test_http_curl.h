@@ -11,6 +11,7 @@
 #ifndef TEST_HTTP_CURL_H
 #define TEST_HTTP_CURL_H
 
+/* clang-format off */
 #include <errno.h>
 #include <greatest.h>
 #include <stdio.h>
@@ -21,6 +22,7 @@
 #include <c_abstract_http/str.h>
 
 /* Helper: Build a request to localhost on a port likely to be closed */
+/* clang-format on */
 static int setup_request(struct HttpRequest *req, int port) {
   char *_ast_strdup_0 = NULL;
   int rc;
@@ -177,8 +179,10 @@ TEST test_curl_send_invalid_arguments(void) {
  * The failure cases prove the logic integration.
  */
 
+/* clang-format off */
 #include "cdd_test_helpers/mock_server.h"
 
+/* clang-format on */
 struct curl_TestChunkState {
   int call_count;
   size_t total_bytes;

@@ -15,6 +15,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/* clang-format off */
 #include <stddef.h>
 
 #ifndef NUM_FORMAT
@@ -28,6 +29,7 @@ extern "C" {
 /**
  * @brief HTTP Method verbs.
  */
+/* clang-format on */
 enum HttpMethod {
   HTTP_GET,
   HTTP_POST,

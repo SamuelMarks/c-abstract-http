@@ -4,6 +4,7 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -16,6 +17,7 @@
 
 #include <stdarg.h>
 
+/* clang-format on */
 static /**
         * @brief Case-insensitive string comparison helper
         */

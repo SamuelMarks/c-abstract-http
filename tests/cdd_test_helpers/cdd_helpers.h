@@ -11,12 +11,14 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/* clang-format off */
 #include <stdio.h>
 
 /**
  * @brief Callback for assertion failures in dependencies.
  * Usually stubbed out or prints to stderr.
  */
+/* clang-format on */
 extern void cdd_precondition_failed(void);
 
 /**

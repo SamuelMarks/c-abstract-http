@@ -16,11 +16,13 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/* clang-format off */
 #include <stddef.h>
 
 /**
  * @brief Opaque handle for the server instance.
  */
+/* clang-format on */
 typedef struct MockServer_ *MockServerPtr;
 
 /**

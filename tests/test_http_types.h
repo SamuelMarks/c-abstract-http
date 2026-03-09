@@ -1,6 +1,7 @@
 #ifndef TEST_HTTP_TYPES_H
 #define TEST_HTTP_TYPES_H
 
+/* clang-format off */
 #include <errno.h>
 #include <greatest.h>
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 
 #include <c_abstract_http/http_types.h>
 
+/* clang-format on */
 TEST test_multipart_lifecycle(void) {
   struct HttpRequest req;
   http_request_init(&req);

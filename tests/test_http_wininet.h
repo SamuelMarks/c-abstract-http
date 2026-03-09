@@ -12,6 +12,7 @@
 #ifndef TEST_HTTP_WININET_H
 #define TEST_HTTP_WININET_H
 
+/* clang-format off */
 #include <errno.h>
 #include <greatest.h>
 #include <stdlib.h>
@@ -21,6 +22,7 @@
 #include <c_abstract_http/http_wininet.h>
 #include <c_abstract_http/str.h>
 
+/* clang-format on */
 TEST test_wininet_lifecycle(void) {
 #ifdef _WIN32
   struct HttpTransportContext *ctx = NULL;
@@ -135,8 +137,10 @@ TEST test_wininet_stubs(void) {
 #endif
 }
 
+/* clang-format off */
 #include "cdd_test_helpers/mock_server.h"
 
+/* clang-format on */
 struct wininet_TestChunkState {
   int call_count;
   size_t total_bytes;

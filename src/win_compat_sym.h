@@ -11,6 +11,7 @@
 #elif defined(_M_ARM) && !defined(_ARM_)
 #define _ARM_
 #endif
+/* clang-format off */
 #include <string.h>
 #if _MSC_VER < 1900
 #define snprintf _snprintf
@@ -33,3 +34,5 @@
 #endif
 
 #endif /* C_CDD_WIN_COMPAT_SYM_H */
+
+/* clang-format on */
