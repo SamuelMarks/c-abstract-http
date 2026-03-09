@@ -5,6 +5,21 @@
 #include "http_types.h"
 
 /* clang-format boundary */
+#include "event_loop.h"
+
+/* clang-format boundary */
+#include "thread_pool.h"
+
+/* clang-format boundary */
+#include "cdd_tls.h"
+
+/* clang-format boundary */
+#include "coroutine.h"
+
+/* clang-format boundary */
+#include "actor.h"
+
+/* clang-format boundary */
 #include "http_libsoup3.h"
 
 /* clang-format boundary */
@@ -32,6 +47,11 @@
 /* Single translation unit inclusion of the source */
 #include "../../src/fs.c"
 #include "../../src/http_types.c"
+#include "../../src/event_loop.c"
+#include "../../src/thread_pool.c"
+#include "../../src/cdd_tls.c"
+#include "../../src/coroutine.c"
+#include "../../src/actor.c"
 #include "../../src/str.c"
 #include "../../src/transport.c"
 

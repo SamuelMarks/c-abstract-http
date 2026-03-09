@@ -605,6 +605,10 @@ int http_config_init(struct HttpConfig *config) {
   config->retry_count = 0;
   config->retry_policy = HTTP_RETRY_NONE;
 
+  config->modality = MODALITY_SYNC;
+  config->min_threads = 4;
+  config->max_threads = 16;
+
   if (!config->user_agent)
     return ENOMEM;
 
@@ -706,6 +710,80 @@ void http_request_free(struct HttpRequest *req) {
   }
   http_headers_free(&req->headers);
   http_parts_free(&req->parts);
+}
+
+int http_modality_context_init(struct ModalityContext *ctx) {
+  if (!ctx)
+    return EINVAL;
+  ctx->modality = MODALITY_SYNC;
+  ctx->internal_ctx = NULL;
+  return 0;
+}
+
+void http_modality_context_free(struct ModalityContext *ctx) {
+  if (!ctx)
+    return;
+  /* Modality specific cleanup would happen here later */
+  ctx->internal_ctx = NULL;
+}
+
+int http_future_init(struct HttpFuture *future) {
+  if (!future)
+    return EINVAL;
+  future->is_ready = 0;
+  future->error_code = 0;
+  future->response = NULL;
+  future->internal_state = NULL;
+  return 0;
+}
+
+void http_future_free(struct HttpFuture *future) {
+  if (!future)
+    return;
+  /* if we owned future->response, we might free it, but usually user takes
+   * ownership */
+  future->response = NULL;
+  future->internal_state = NULL;
+}
+
+int http_multi_request_init(struct HttpMultiRequest *multi) {
+  if (!multi)
+    return EINVAL;
+  multi->requests = NULL;
+  multi->count = 0;
+  multi->capacity = 0;
+  return 0;
+}
+
+void http_multi_request_free(struct HttpMultiRequest *multi) {
+  if (!multi)
+    return;
+  if (multi->requests) {
+    /* Does not free the actual HttpRequest objects, just the array */
+    free(multi->requests);
+    multi->requests = NULL;
+  }
+  multi->count = 0;
+  multi->capacity = 0;
+}
+
+int http_multi_request_add(struct HttpMultiRequest *multi,
+                           struct HttpRequest *req) {
+  if (!multi || !req)
+    return EINVAL;
+
+  if (multi->count >= multi->capacity) {
+    size_t new_cap = (multi->capacity == 0) ? 4 : multi->capacity * 2;
+    struct HttpRequest **new_arr = (struct HttpRequest **)realloc(
+        multi->requests, new_cap * sizeof(struct HttpRequest *));
+    if (!new_arr)
+      return ENOMEM;
+    multi->requests = new_arr;
+    multi->capacity = new_cap;
+  }
+
+  multi->requests[multi->count++] = req;
+  return 0;
 }
 
 /** @brief http_request_set_auth_bearer definition */
@@ -921,4 +999,67 @@ int http_response_save_to_file(const struct HttpResponse *res,
     return EIO;
 
   return 0;
+}
+
+int http_client_send_multi(struct HttpClient *client,
+                           struct HttpRequest *const *requests,
+                           size_t num_requests, struct HttpFuture **futures,
+                           http_multi_progress_cb progress_cb, void *user_data,
+                           int fail_fast) {
+  size_t i;
+  int rc;
+  struct HttpMultiRequest multi;
+
+  if (!client || !requests || num_requests == 0 || !futures) {
+    return EINVAL;
+  }
+
+  (void)progress_cb;
+  (void)user_data;
+  (void)fail_fast;
+
+  if (http_multi_request_init(&multi) != 0)
+    return ENOMEM;
+
+  for (i = 0; i < num_requests; ++i) {
+    if (http_multi_request_add(&multi, requests[i]) != 0) {
+      http_multi_request_free(&multi);
+      return ENOMEM;
+    }
+  }
+
+  /* Dispatch based on modality */
+  switch (client->config.modality) {
+  case MODALITY_ASYNC:
+    if (client->send_multi && client->loop) {
+      rc = client->send_multi(client->transport, client->loop, &multi, futures);
+    } else {
+      rc = ENOTSUP;
+    }
+    break;
+
+  case MODALITY_SYNC:
+  default:
+    /* Fallback to simple sequential execution if backend doesn't support multi
+     * natively or is sync */
+    rc = 0;
+    for (i = 0; i < num_requests; ++i) {
+      struct HttpResponse *res = NULL;
+      int req_rc;
+
+      req_rc = client->send(client->transport, requests[i], &res);
+      futures[i]->response = res;
+      futures[i]->error_code = req_rc;
+      futures[i]->is_ready = 1;
+
+      if (fail_fast && req_rc != 0) {
+        rc = req_rc;
+        break; /* Stop processing further requests */
+      }
+    }
+    break;
+  }
+
+  http_multi_request_free(&multi);
+  return rc;
 }

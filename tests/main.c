@@ -11,6 +11,12 @@
 
 /* Include test suites */
 #include "test_http_types.h"
+#include "test_event_loop.h"
+#include "test_thread_pool.h"
+#include "test_tls.h"
+#include "test_process.h"
+#include "test_coroutine.h"
+#include "test_actor.h"
 
 #if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include "test_http_libsoup3.h"
@@ -43,6 +49,12 @@ int main(int argc, char **argv) {
   GREATEST_MAIN_BEGIN();
 
   RUN_SUITE(http_types_suite);
+  RUN_SUITE(event_loop_suite);
+  RUN_SUITE(thread_pool_suite);
+  RUN_SUITE(tls_suite);
+  RUN_SUITE(process_suite);
+  RUN_SUITE(coroutine_suite);
+  RUN_SUITE(actor_suite);
 
 #if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   RUN_SUITE(http_libsoup3_suite);

@@ -179,3 +179,13 @@ int http_fetch_send(struct HttpTransportContext *ctx,
   *res = new_res;
   return 0;
 }
+int http_fetch_send_multi(struct HttpTransportContext *ctx,
+                          struct ModalityEventLoop *loop,
+                          const struct HttpMultiRequest *multi,
+                          struct HttpFuture **futures) {
+  (void)ctx;
+  (void)loop;
+  (void)multi;
+  (void)futures;
+  return ENOTSUP;
+}

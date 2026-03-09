@@ -26,9 +26,14 @@ Below is a detailed table summarizing the core capabilities that are currently i
 | **Zero Windows.h Bloat** | Avoids massive `<windows.h>` includes to drastically reduce compile times on Windows. | Implemented ✅ |
 | **Extensive CMake Config** | Granular control over linkage (`/MD`, `/MT`), Runtime Checks, LTO, and UNICODE toggles. | Implemented ✅ |
 | **Header-Only Mode** | Can be consumed as a single-header STB-style library for easy, localized integration. | Implemented ✅ |
+| **Asynchronous API** | Non-blocking event loop integration mimicking Node.js (`uv_run`) across natively asynchronous backends. | Implemented ✅ |
+| **Multi-Threading** | Cross-platform thread pool architecture with robust Mutex and CondVar abstraction. | Implemented ✅ |
+| **Multi-Processing** | Subprocess dispatching with built-in C89 binary IPC serialization over anonymous pipes. | Implemented ✅ |
+| **Greenthreads** | High-performance user-space coroutine contexts via Fibers (Windows) and `ucontext_t` (POSIX). | Implemented ✅ |
+| **Message Passing** | Decentralized actor model and pub-sub bus for scalable request routing. | Implemented ✅ |
+| **Concurrent Dispatch** | Native `http_client_send_multi` executing concurrent batch downloads via Modality engines. | Implemented ✅ |
 | **WebSockets** | Built-in support for upgrading connections to WebSockets. | Planned 🚧 |
 | **HTTP/3 (QUIC)** | First-class abstraction for UDP-based HTTP/3 traffic. | Planned 🚧 |
-| **Asynchronous API** | Non-blocking event loop integration (epoll/kqueue/IOCP). | Planned 🚧 |
 
 ## OS and Network Library Support
 

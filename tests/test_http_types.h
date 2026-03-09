@@ -234,6 +234,51 @@ TEST test_http_cookie_jar(void) {
   PASS();
 }
 
+TEST test_modality_context(void) {
+  struct ModalityContext ctx;
+  ASSERT_EQ(0, http_modality_context_init(&ctx));
+  ASSERT_EQ(MODALITY_SYNC, ctx.modality);
+  ASSERT_EQ(NULL, ctx.internal_ctx);
+  http_modality_context_free(&ctx);
+  PASS();
+}
+
+TEST test_http_future(void) {
+  struct HttpFuture future;
+  ASSERT_EQ(0, http_future_init(&future));
+  ASSERT_EQ(0, future.is_ready);
+  ASSERT_EQ(0, future.error_code);
+  ASSERT_EQ(NULL, future.response);
+  ASSERT_EQ(NULL, future.internal_state);
+  http_future_free(&future);
+  PASS();
+}
+
+TEST test_http_multi_request(void) {
+  struct HttpMultiRequest multi;
+  struct HttpRequest req1, req2;
+
+  http_request_init(&req1);
+  http_request_init(&req2);
+
+  ASSERT_EQ(0, http_multi_request_init(&multi));
+  ASSERT_EQ(0, multi.count);
+  ASSERT_EQ(NULL, multi.requests);
+
+  ASSERT_EQ(0, http_multi_request_add(&multi, &req1));
+  ASSERT_EQ(1, multi.count);
+  ASSERT_EQ(&req1, multi.requests[0]);
+
+  ASSERT_EQ(0, http_multi_request_add(&multi, &req2));
+  ASSERT_EQ(2, multi.count);
+  ASSERT_EQ(&req2, multi.requests[1]);
+
+  http_multi_request_free(&multi);
+  http_request_free(&req1);
+  http_request_free(&req2);
+  PASS();
+}
+
 SUITE(http_types_suite) {
   RUN_TEST(test_multipart_lifecycle);
   RUN_TEST(test_multipart_flatten);
@@ -244,6 +289,9 @@ SUITE(http_types_suite) {
   RUN_TEST(test_http_request_init_defaults);
   RUN_TEST(test_http_headers_get_remove);
   RUN_TEST(test_http_cookie_jar);
+  RUN_TEST(test_modality_context);
+  RUN_TEST(test_http_future);
+  RUN_TEST(test_http_multi_request);
 }
 
 #endif

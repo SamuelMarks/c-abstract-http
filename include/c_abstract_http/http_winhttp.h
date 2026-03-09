@@ -119,6 +119,24 @@ extern /**
     http_winhttp_send(struct HttpTransportContext *ctx,
                       const struct HttpRequest *req, struct HttpResponse **res);
 
+/**
+ * @brief Asynchronous multi-send implementation for WinHTTP.
+ * Matches `http_send_multi_fn` signature.
+ *
+ * Uses background threads to execute requests and posts completion events
+ * to the `ModalityEventLoop`.
+ *
+ * @param[in] ctx The transport context.
+ * @param[in] loop The event loop context.
+ * @param[in] multi The multi request structure.
+ * @param[out] futures Array of futures.
+ * @return 0 on success.
+ */
+extern int http_winhttp_send_multi(struct HttpTransportContext *ctx,
+                                   struct ModalityEventLoop *loop,
+                                   const struct HttpMultiRequest *multi,
+                                   struct HttpFuture **futures);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

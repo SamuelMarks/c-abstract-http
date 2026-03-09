@@ -169,6 +169,45 @@ struct HttpCookieJar {
 };
 
 /**
+ * @brief Execution Modality Enum.
+ */
+enum ExecutionModality {
+  MODALITY_SYNC,
+  MODALITY_ASYNC,
+  MODALITY_THREAD_POOL,
+  MODALITY_MULTIPROCESS,
+  MODALITY_GREENTHREAD,
+  MODALITY_MESSAGE_PASSING
+};
+
+/**
+ * @brief Runtime context for the chosen execution modality.
+ */
+struct ModalityContext {
+  enum ExecutionModality modality;
+  void *internal_ctx; /**< Modality-specific internal context */
+};
+
+/**
+ * @brief Represents a deferred HTTP response for non-sync modalities.
+ */
+struct HttpFuture {
+  int is_ready;                  /**< 1 if completed, 0 otherwise */
+  int error_code;                /**< Error code if request failed */
+  struct HttpResponse *response; /**< The resulting response, if successful */
+  void *internal_state;          /**< Modality-specific state */
+};
+
+/**
+ * @brief Aggregate for multiple HttpRequest objects.
+ */
+struct HttpMultiRequest {
+  struct HttpRequest **requests; /**< Array of pointers to requests */
+  size_t count;                  /**< Number of requests */
+  size_t capacity;               /**< Current capacity */
+};
+
+/**
  * @brief Configuration settings for the HTTP Client.
  */
 struct HttpConfig {
@@ -191,9 +230,13 @@ struct HttpConfig {
   enum HttpRetryPolicy retry_policy; /**< Backoff strategy */
   struct HttpCookieJar *cookie_jar;  /**< Optional shared cookie jar for
                                         persistence across requests */
+  enum ExecutionModality modality;   /**< Execution paradigm */
+  size_t min_threads; /**< Min threads for thread pool modality */
+  size_t max_threads; /**< Max threads for thread pool modality */
 };
 
 struct HttpTransportContext;
+struct ModalityEventLoop;
 
 /**
  * @brief Function pointer signature for the transport send method.
@@ -203,15 +246,62 @@ typedef int (*http_send_fn)(struct HttpTransportContext *ctx,
                             struct HttpResponse **res);
 
 /**
+ * @brief Function pointer signature for the transport asynchronous multi-send
+ * method.
+ */
+typedef int (*http_send_multi_fn)(struct HttpTransportContext *ctx,
+                                  struct ModalityEventLoop *loop,
+                                  const struct HttpMultiRequest *multi,
+                                  struct HttpFuture **futures);
+
+/**
  * @brief High-level client context.
  */
 struct HttpClient {
   struct HttpTransportContext
       *transport;    /**< Backend-specific context (CURL*, HINTERNET, etc.) */
   http_send_fn send; /**< Function pointer to execute requests */
-  char *base_url;    /**< Base URL for API calls */
+  http_send_multi_fn
+      send_multi;           /**< Function pointer for multi/async requests */
+  char *base_url;           /**< Base URL for API calls */
   struct HttpConfig config; /**< Client configuration */
+
+  /* Runtime State */
+  struct ModalityEventLoop *loop;    /**< Event loop for async mode */
+  struct CddThreadPool *thread_pool; /**< Thread pool for multi-threaded mode */
 };
+
+/**
+ * @brief Progress callback for multi-request downloads.
+ * @param[in] current_bytes Bytes transferred so far across all requests.
+ * @param[in] total_bytes Total expected bytes (0 if unknown).
+ * @param[in] user_data User context.
+ * @return 0 to continue, non-zero to abort all transfers.
+ */
+typedef int (*http_multi_progress_cb)(size_t current_bytes, size_t total_bytes,
+                                      void *user_data);
+
+/**
+ * @brief Dispatch multiple requests concurrently based on the client's
+ * modality.
+ * @param[in] client The HTTP client.
+ * @param[in] requests The array of requests to execute.
+ * @param[in] num_requests Number of requests.
+ * @param[out] futures Array of futures (must be pre-allocated to size
+ * `num_requests`).
+ * @param[in] progress_cb Optional progress callback.
+ * @param[in] user_data User data for the progress callback.
+ * @param[in] fail_fast 1 to abort all remaining requests if one fails, 0 to
+ * continue.
+ * @return 0 on successful dispatch (futures may still report individual
+ * errors), error code otherwise.
+ */
+extern int http_client_send_multi(struct HttpClient *client,
+                                  struct HttpRequest *const *requests,
+                                  size_t num_requests,
+                                  struct HttpFuture **futures,
+                                  http_multi_progress_cb progress_cb,
+                                  void *user_data, int fail_fast);
 
 /* --- Lifecycle Management --- */
 
@@ -324,6 +414,55 @@ extern /**
         */
     void
     http_request_free(struct HttpRequest *req);
+
+/**
+ * @brief Initialize a ModalityContext.
+ * @param ctx Context to initialize.
+ * @return 0 on success.
+ */
+extern int http_modality_context_init(struct ModalityContext *ctx);
+
+/**
+ * @brief Free a ModalityContext.
+ * @param ctx Context to free.
+ */
+extern void http_modality_context_free(struct ModalityContext *ctx);
+
+/**
+ * @brief Initialize a HttpFuture.
+ * @param future Future to initialize.
+ * @return 0 on success.
+ */
+extern int http_future_init(struct HttpFuture *future);
+
+/**
+ * @brief Free a HttpFuture.
+ * @param future Future to free.
+ */
+extern void http_future_free(struct HttpFuture *future);
+
+/**
+ * @brief Initialize an HttpMultiRequest.
+ * @param multi Multi-request to initialize.
+ * @return 0 on success.
+ */
+extern int http_multi_request_init(struct HttpMultiRequest *multi);
+
+/**
+ * @brief Free an HttpMultiRequest.
+ * @param multi Multi-request to free.
+ */
+extern void http_multi_request_free(struct HttpMultiRequest *multi);
+
+/**
+ * @brief Add a request to a multi-request struct.
+ * @param multi Multi-request struct.
+ * @param req Request to add.
+ * @return 0 on success, ENOMEM on allocation failure.
+ */
+extern int http_multi_request_add(struct HttpMultiRequest *multi,
+                                  struct HttpRequest *req);
+
 /** @brief http_request_set_auth_bearer definition */
 extern /**
         * @brief Autogenerated docstring

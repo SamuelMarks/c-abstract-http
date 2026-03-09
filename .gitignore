@@ -1,8 +1,39 @@
-emsdk
-*.o
-patch_*
+# Build directories
+build/
+build-*/
 *build*
-.vscode
-.idea
-fetch.h
+out/
+bin/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.vs/
+
+# Artifacts
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+*.exe
+*.pdb
+*.ilk
+*.exp
+
+# Fetch/Vendor dependencies
+emsdk/
+patch_*/
+
+# Vcpkg
+vcpkg_installed/
+
+# Test artifacts
+Testing/
 test_fetch.c
+fetch.h

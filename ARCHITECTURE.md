@@ -21,16 +21,24 @@ The `c-abstract-http` library is designed to offer a clean, unified API over dis
 ## Abstraction Layers
 
 ### 1. `http_types.h` (The Frontend API)
-This file dictates the contract the developer interacts with. 
-- Defines standard structs: `HttpRequest`, `HttpResponse`, `HttpHeaders`, `HttpCookieJar`, `HttpConfig`.
+This file dictates the contract the developer interacts with.
+- Defines standard structs: `HttpRequest`, `HttpResponse`, `HttpHeaders`, `HttpCookieJar`, `HttpConfig`.  
 - Provides lifecycle functions for initializing and freeing these objects.
 - Normalizes configurations (e.g., retry policies, proxies, timeouts, caching).
 
-### 2. `transport.c` (The Dispatcher)
-This acts as the bridge. When you call `http_client_init`, the transport layer evaluates the compiled platform (e.g., `#ifdef _WIN32`) and wires up the backend's specific `send` implementation and context lifecycle hooks.
+### 2. Modality Execution Runtimes
+To handle concurrent HTTP requests without locking consumers into a single paradigm, the library operates through a series of pluggable "Modalities" controlled via `enum ExecutionModality`.
+- **`MODALITY_SYNC`:** Default sequential blocking execution.
+- **`MODALITY_ASYNC`:** Non-blocking `ModalityEventLoop` executing `uv_run`-style socket polling.
+- **`MODALITY_THREAD_POOL`:** Cross-platform multi-threaded pool utilizing Mutexes and Condition Variables (e.g. `pthread` on Unix, `CRITICAL_SECTION` on Windows).
+- **`MODALITY_MULTIPROCESS`:** Uses `fork`/`CreateProcess` natively bundled with C89 binary IPC serialization to securely isolate requests in totally detached process states.
+- **`MODALITY_GREENTHREAD`:** High-performance user-space thread switching (`ucontext_t` and Windows `Fiber` APIs) allowing synchronous code to pause during I/O without native thread overhead.
+- **`MODALITY_MESSAGE_PASSING`:** A built-in actor model and pub-sub bus (`CddMessageBus`) enabling decoupled internal routing of HTTP requests.
 
-### 3. Backend Implementations (`http_winhttp.c`, `http_curl.c`, etc.)
-These files implement the raw platform APIs.
+### 3. `transport.c` (The Dispatcher)
+This acts as the bridge. When you call `http_client_init`, the transport layer evaluates the compiled platform (e.g., `#ifdef _WIN32`) and wires up the backend's specific `send` and `send_multi` implementations and context lifecycle hooks.
+
+### 4. Backend Implementations (`http_winhttp.c`, `http_curl.c`, etc.)These files implement the raw platform APIs.
 Each backend translates the abstract `HttpRequest` into its native equivalent.
 - `http_winhttp.c`: The modern standard for Windows networking. Uses `WinHttpSendRequest`.
 - `http_wininet.c`: The legacy standard for older Windows environments or specialized proxy/caching setups.

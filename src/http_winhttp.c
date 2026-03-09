@@ -40,6 +40,7 @@ typedef void *LPVOID;
 #define TRUE 1
 #endif
 
+#include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/fs.h>
 #include <c_abstract_http/http_winhttp.h>
 #include <c_abstract_http/str.h>
@@ -613,3 +614,70 @@ cleanup:
 #endif
 #endif
 }
+
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+struct WinHttpAsyncWorkerCtx {
+  struct HttpTransportContext *ctx;
+  struct ModalityEventLoop *loop;
+  const struct HttpRequest *req;
+  struct HttpFuture *future;
+};
+
+static DWORD WINAPI winhttp_async_worker(LPVOID lpParam) {
+  struct WinHttpAsyncWorkerCtx *worker_ctx =
+      (struct WinHttpAsyncWorkerCtx *)lpParam;
+  struct HttpResponse *res = NULL;
+  int rc;
+
+  rc = http_winhttp_send(worker_ctx->ctx, worker_ctx->req, &res);
+
+  worker_ctx->future->response = res;
+  worker_ctx->future->error_code = rc;
+  worker_ctx->future->is_ready = 1;
+
+  http_loop_wakeup(worker_ctx->loop);
+  free(worker_ctx);
+  return 0;
+}
+
+int http_winhttp_send_multi(struct HttpTransportContext *ctx,
+                            struct ModalityEventLoop *loop,
+                            const struct HttpMultiRequest *multi,
+                            struct HttpFuture **futures) {
+  size_t i;
+  if (!ctx || !loop || !multi || !futures)
+    return EINVAL;
+
+  for (i = 0; i < multi->count; ++i) {
+    struct WinHttpAsyncWorkerCtx *wctx = (struct WinHttpAsyncWorkerCtx *)malloc(
+        sizeof(struct WinHttpAsyncWorkerCtx));
+    if (!wctx)
+      return ENOMEM;
+    wctx->ctx = ctx;
+    wctx->loop = loop;
+    wctx->req = multi->requests[i];
+    wctx->future = futures[i];
+
+    if (!QueueUserWorkItem(winhttp_async_worker, wctx, WT_EXECUTEDEFAULT)) {
+      free(wctx);
+      return EIO;
+    }
+  }
+  return 0;
+}
+#else
+int http_winhttp_send_multi(struct HttpTransportContext *ctx,
+                            struct ModalityEventLoop *loop,
+                            const struct HttpMultiRequest *multi,
+                            struct HttpFuture **futures) {
+  (void)ctx;
+  (void)loop;
+  (void)multi;
+  (void)futures;
+#ifdef ENOTSUP
+  return ENOTSUP;
+#else
+  return EINVAL;
+#endif
+}
+#endif

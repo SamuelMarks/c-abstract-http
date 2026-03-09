@@ -405,6 +405,122 @@ TEST test_winhttp_send_upload_chunked(void) {
   PASS();
 }
 
+static void dummy_timeout_cb(struct ModalityEventLoop *loop, int timer_id,
+                             void *user_data) {
+  (void)timer_id;
+  (void)user_data;
+  http_loop_stop(loop);
+}
+
+static int setup_request(struct HttpRequest *req, int port) {
+  char *_ast_strdup_0 = NULL;
+  int rc;
+  char url[64];
+
+  rc = http_request_init(req);
+  if (rc != 0)
+    return rc;
+
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
+#else
+  sprintf(url, "http://127.0.0.1:%d/test", port);
+#endif
+
+  req->url = (c_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
+  if (!req->url) {
+    http_request_free(req);
+    return ENOMEM;
+  }
+  return 0;
+}
+
+TEST test_winhttp_send_multi(void) {
+#ifdef _WIN32
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req1, req2;
+  struct HttpConfig config;
+  struct HttpMultiRequest multi;
+  struct HttpFuture f1, f2;
+  struct HttpFuture *futures[2];
+  struct ModalityEventLoop *loop;
+  MockServerPtr server1 = NULL;
+  MockServerPtr server2 = NULL;
+  int rc;
+
+  ASSERT_EQ(0, mock_server_init(&server1));
+  ASSERT_EQ(0, mock_server_start(server1));
+  ASSERT_EQ(0, mock_server_init(&server2));
+  ASSERT_EQ(0, mock_server_start(server2));
+
+  http_winhttp_global_init();
+  http_winhttp_context_init(&ctx);
+  http_config_init(&config);
+  http_winhttp_config_apply(ctx, &config);
+
+  http_loop_init(&loop);
+  http_multi_request_init(&multi);
+  http_future_init(&f1);
+  http_future_init(&f2);
+
+  setup_request(&req1, mock_server_get_port(server1));
+  setup_request(&req2, mock_server_get_port(server2));
+
+  http_multi_request_add(&multi, &req1);
+  http_multi_request_add(&multi, &req2);
+
+  futures[0] = &f1;
+  futures[1] = &f2;
+
+  rc = http_winhttp_send_multi(ctx, loop, &multi, futures);
+  ASSERT_EQ(0, rc);
+
+  {
+    int timeout_ticks = 100;
+    while (timeout_ticks-- > 0 && (!f1.is_ready || !f2.is_ready)) {
+      int timer_id;
+      http_loop_add_timer(loop, 10, dummy_timeout_cb, NULL, &timer_id);
+      http_loop_run(loop);
+    }
+  }
+
+  if (!f1.is_ready || !f2.is_ready) {
+    Sleep(100);
+  }
+
+  ASSERT_EQ(1, f1.is_ready);
+  ASSERT_EQ(0, f1.error_code);
+  ASSERT(f1.response != NULL);
+  ASSERT_EQ(200, f1.response->status_code);
+
+  ASSERT_EQ(1, f2.is_ready);
+  ASSERT_EQ(0, f2.error_code);
+  ASSERT(f2.response != NULL);
+  ASSERT_EQ(200, f2.response->status_code);
+
+  http_response_free(f1.response);
+  free(f1.response);
+  http_response_free(f2.response);
+  free(f2.response);
+
+  http_multi_request_free(&multi);
+  http_future_free(&f1);
+  http_future_free(&f2);
+  http_loop_free(loop);
+  http_request_free(&req1);
+  http_request_free(&req2);
+  http_config_free(&config);
+  http_winhttp_context_free(ctx);
+  http_winhttp_global_cleanup();
+
+  mock_server_destroy(server1);
+  mock_server_destroy(server2);
+#else
+  SKIPm("WinHTTP not supported on this platform");
+#endif
+  PASS();
+}
+
 SUITE(http_winhttp_suite) {
   RUN_TEST(test_winhttp_stubs);
   RUN_TEST(test_winhttp_lifecycle);
@@ -414,6 +530,7 @@ SUITE(http_winhttp_suite) {
   RUN_TEST(test_winhttp_send_chunked);
   RUN_TEST(test_winhttp_send_chunked_abort);
   RUN_TEST(test_winhttp_send_upload_chunked);
+  RUN_TEST(test_winhttp_send_multi);
 }
 
 #endif /* TEST_HTTP_WINHTTP_H */

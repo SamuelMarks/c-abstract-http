@@ -123,6 +123,11 @@ extern /**
     http_fetch_send(struct HttpTransportContext *ctx,
                     const struct HttpRequest *req, struct HttpResponse **res);
 
+extern int http_fetch_send_multi(struct HttpTransportContext *ctx,
+                                 struct ModalityEventLoop *loop,
+                                 const struct HttpMultiRequest *multi,
+                                 struct HttpFuture **futures);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

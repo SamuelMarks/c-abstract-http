@@ -105,10 +105,14 @@ int transport_factory_init_client(struct HttpClient *client) {
     return EINVAL;
   }
 
+  client->thread_pool = NULL;
+  client->loop = NULL;
+
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   rc = http_winhttp_context_init(&client->transport);
   if (rc == 0) {
     client->send = http_winhttp_send;
+    client->send_multi = http_winhttp_send_multi;
   }
 #elif defined(__APPLE__)
   rc = http_apple_context_init(&client->transport);
@@ -139,11 +143,13 @@ int transport_factory_init_client(struct HttpClient *client) {
   rc = http_fetch_context_init(&client->transport);
   if (rc == 0) {
     client->send = http_fetch_send;
+    client->send_multi = http_fetch_send_multi;
   }
 #else
   rc = http_curl_context_init(&client->transport);
   if (rc == 0) {
     client->send = http_curl_send;
+    client->send_multi = http_curl_send_multi;
   }
 #endif
 

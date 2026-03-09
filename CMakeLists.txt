@@ -147,6 +147,12 @@ else()
     if(BUILD_SHARED_LIBS)
         add_library(c-abstract-http SHARED
             src/http_types.c
+            src/event_loop.c
+            src/thread_pool.c
+            src/cdd_tls.c
+            src/coroutine.c
+            src/actor.c
+            src/process.c
             src/str.c
             src/fs.c
             src/transport.c
@@ -154,6 +160,12 @@ else()
     else()
         add_library(c-abstract-http STATIC
             src/http_types.c
+            src/event_loop.c
+            src/thread_pool.c
+            src/cdd_tls.c
+            src/coroutine.c
+            src/actor.c
+            src/process.c
             src/str.c
             src/fs.c
             src/transport.c

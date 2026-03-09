@@ -357,12 +357,14 @@ TEST test_curl_send_upload_chunked(void) {
   PASS();
 }
 
-SUITE(http_curl_suite) {
+$code $code SUITE(http_curl_suite) {
   RUN_TEST(test_curl_global_lifecycle);
   RUN_TEST(test_curl_context_lifecycle);
   RUN_TEST(test_curl_config_application);
   RUN_TEST(test_curl_send_connection_failure);
   RUN_TEST(test_curl_send_invalid_arguments);
+  RUN_TEST(test_curl_send_multi);
+  RUN_TEST(test_curl_send_multi_100);
   RUN_TEST(test_curl_send_chunked);
   RUN_TEST(test_curl_send_chunked_abort);
   RUN_TEST(test_curl_send_upload_chunked);

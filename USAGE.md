@@ -203,3 +203,65 @@ void upload_file(struct HttpClient *client) {
     http_request_free(&req);
 }
 ```
+## 7. Dispatching Multiple Requests Concurrently
+
+The library natively supports concurrent request execution via its `Modality` configurations (e.g., Event Loop, Thread Pool).
+
+`c
+#include <c_abstract_http/c_abstract_http.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+void download_multiple_files(void) {
+    struct HttpClient client;
+    struct HttpRequest req1, req2;
+    struct HttpRequest *req_array[2];
+    struct HttpFuture f1, f2;
+    struct HttpFuture *futures_array[2];
+    int rc;
+
+    http_client_init(&client);
+    
+    /* Enable Asynchronous Event Loop Mode */
+    client.config.modality = MODALITY_ASYNC;
+
+    http_request_init(&req1);
+    req1.url = "https://example.com/file1.txt";
+    http_request_init(&req2);
+    req2.url = "https://example.com/file2.txt";
+
+    req_array[0] = &req1;
+    req_array[1] = &req2;
+
+    http_future_init(&f1);
+    http_future_init(&f2);
+    futures_array[0] = &f1;
+    futures_array[1] = &f2;
+
+    /* Dispatch all requests concurrently */
+    rc = http_client_send_multi(&client, req_array, 2, futures_array, NULL, NULL, 0);
+
+    if (rc == 0) {
+        /* In ASYNC mode, we must drive the event loop until requests finish */
+        if (client.loop) {
+            http_loop_run(client.loop);
+        }
+        
+        if (f1.is_ready && f1.error_code == 0 && f1.response) {
+            printf("File 1 downloaded: %d bytes\n", (int)f1.response->body_len);
+        }
+        if (f2.is_ready && f2.error_code == 0 && f2.response) {
+            printf("File 2 downloaded: %d bytes\n", (int)f2.response->body_len);
+        }
+    }
+
+    /* Clean up */
+    if (f1.response) { http_response_free(f1.response); free(f1.response); }
+    if (f2.response) { http_response_free(f2.response); free(f2.response); }
+    http_future_free(&f1);
+    http_future_free(&f2);
+    http_request_free(&req1);
+    http_request_free(&req2);
+    http_client_free(&client);
+}
+``n
