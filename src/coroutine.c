@@ -159,7 +159,7 @@ int cdd_coroutine_yield(void) {
   return 0;
 }
 
-int cdd_coroutine_is_done(const struct CddCoroutine *co) {
+int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co);
   }
@@ -305,7 +305,7 @@ int cdd_coroutine_yield(void) {
   return 0;
 }
 
-int cdd_coroutine_is_done(const struct CddCoroutine *co) {
+int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co);
   }
@@ -352,7 +352,7 @@ int cdd_coroutine_yield(void) {
   return ENOSYS;
 }
 
-int cdd_coroutine_is_done(const struct CddCoroutine *co) {
+int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co);
   }

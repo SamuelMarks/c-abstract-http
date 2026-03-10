@@ -68,7 +68,7 @@ struct ModalityEventLoop {
 #endif
 };
 
-static cdd_int64_t get_current_time_ms(void) {
+static cdd_int64_t math_get_current_time_ms(void) {
 #if defined(_WIN32)
   return (cdd_int64_t)GetTickCount64();
 #else
@@ -364,7 +364,7 @@ int http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
     *out_timer_id = id;
 
   loop->timers[loop->timer_count].expiration =
-      get_current_time_ms() + timeout_ms;
+      math_get_current_time_ms() + timeout_ms;
   loop->timers[loop->timer_count].id = id;
   loop->timers[loop->timer_count].cb = cb;
   loop->timers[loop->timer_count].user_data = user_data;
@@ -405,7 +405,7 @@ static void process_timers(struct ModalityEventLoop *loop) {
     return; /* External loop handles timers */
   }
 
-  now = get_current_time_ms();
+  now = math_get_current_time_ms();
 
   while (loop->timer_count > 0) {
     if (loop->timers[0].expiration > now) {
@@ -456,7 +456,7 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
 
   /* Calculate next timeout */
   if (loop->timer_count > 0) {
-    now = get_current_time_ms();
+    now = math_get_current_time_ms();
     while (loop->timer_count > 0 && !loop->timers[0].active) {
       loop->timers[0] = loop->timers[loop->timer_count - 1];
       loop->timer_count--;
@@ -540,10 +540,10 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
           revents |= HTTP_LOOP_ERROR;
 
         if (revents) {
-          cdd_int64_t start_cb = get_current_time_ms();
+          cdd_int64_t start_cb = math_get_current_time_ms();
           loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                           loop->fds[i].user_data);
-          if (get_current_time_ms() - start_cb > 50) {
+          if (math_get_current_time_ms() - start_cb > 50) {
             fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
                             "detected (callback took >50ms). This breaks "
                             "asynchronous concurrency!\n");
@@ -588,7 +588,7 @@ int http_loop_run(struct ModalityEventLoop *loop) {
 
     /* Calculate next timeout */
     if (loop->timer_count > 0) {
-      now = get_current_time_ms();
+      now = math_get_current_time_ms();
       while (loop->timer_count > 0 && !loop->timers[0].active) {
         loop->timers[0] = loop->timers[loop->timer_count - 1];
         loop->timer_count--;
@@ -679,10 +679,10 @@ int http_loop_run(struct ModalityEventLoop *loop) {
             revents |= HTTP_LOOP_ERROR;
 
           if (revents) {
-            cdd_int64_t start_cb = get_current_time_ms();
+            cdd_int64_t start_cb = math_get_current_time_ms();
             loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                             loop->fds[i].user_data);
-            if (get_current_time_ms() - start_cb > 50) {
+            if (math_get_current_time_ms() - start_cb > 50) {
               fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
                               "detected (callback took >50ms). This breaks "
                               "asynchronous concurrency!\n");

@@ -181,9 +181,9 @@ TEST test_wininet_send_chunked(void) {
   http_request_init(&req);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
-            mock_server_get_port(server));
+            math_mock_server_get_port(server));
 #else
-  sprintf(url, "http://127.0.0.1:%d/test", mock_server_get_port(server));
+  sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
   req.url = (c_cdd_strdup(url, &_ast_strdup_2), _ast_strdup_2);
 
@@ -243,9 +243,9 @@ TEST test_wininet_send_chunked_abort(void) {
   http_request_init(&req);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
-            mock_server_get_port(server));
+            math_mock_server_get_port(server));
 #else
-  sprintf(url, "http://127.0.0.1:%d/test", mock_server_get_port(server));
+  sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
   req.url = (c_cdd_strdup(url, &_ast_strdup_3), _ast_strdup_3);
 
@@ -317,9 +317,9 @@ TEST test_wininet_send_upload_chunked(void) {
   http_request_init(&req);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
-            mock_server_get_port(server));
+            math_mock_server_get_port(server));
 #else
-  sprintf(url, "http://127.0.0.1:%d/test", mock_server_get_port(server));
+  sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
   req.url = (c_cdd_strdup(url, &_ast_strdup_4), _ast_strdup_4);
   req.method = HTTP_POST;

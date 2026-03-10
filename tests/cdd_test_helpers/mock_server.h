@@ -68,7 +68,7 @@ extern int mock_server_start(MockServerPtr server);
  * @param[in] server The server handle.
  * @return The port number (host byte order), or 0 if not running.
  */
-extern int mock_server_get_port(MockServerPtr server);
+extern int math_mock_server_get_port(MockServerPtr server);
 
 /**
  * @brief Wait for a client request and capture the headers.

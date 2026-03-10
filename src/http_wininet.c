@@ -481,9 +481,15 @@ int http_wininet_send(struct HttpTransportContext *ctx,
       wchar_t wcbuf[4096];
       size_t written = 0;
       /* format: Cookie: name=value */
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
       sprintf_s(cbuf, sizeof(cbuf), "Cookie: %s=%s\r\n",
                 ctx->cookie_jar->cookies[i].name,
                 ctx->cookie_jar->cookies[i].value);
+#else
+      sprintf(cbuf, "Cookie: %s=%s\r\n",
+              ctx->cookie_jar->cookies[i].name,
+              ctx->cookie_jar->cookies[i].value);
+#endif
 
       if (ascii_to_wide(cbuf, wcbuf, 4096, &written) == 0) {
         HttpAddRequestHeadersW(hRequest, wcbuf, (DWORD)-1L,

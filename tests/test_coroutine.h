@@ -43,19 +43,19 @@ TEST test_coroutine_execution(void) {
   ASSERT_EQ(0, rc);
 
   ASSERT_EQ(0, state.counter);
-  ASSERT_EQ(0, cdd_coroutine_is_done(co));
+  ASSERT_EQ(0, math_cdd_coroutine_is_done(co));
 
   ASSERT_EQ(0, cdd_coroutine_resume(co));
   ASSERT_EQ(1, state.counter);
-  ASSERT_EQ(0, cdd_coroutine_is_done(co));
+  ASSERT_EQ(0, math_cdd_coroutine_is_done(co));
 
   ASSERT_EQ(0, cdd_coroutine_resume(co));
   ASSERT_EQ(2, state.counter);
-  ASSERT_EQ(0, cdd_coroutine_is_done(co));
+  ASSERT_EQ(0, math_cdd_coroutine_is_done(co));
 
   ASSERT_EQ(0, cdd_coroutine_resume(co));
   ASSERT_EQ(3, state.counter);
-  ASSERT_EQ(1, cdd_coroutine_is_done(co));
+  ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
 
   /* Calling resume on a finished coroutine should return an error */
   ASSERT_EQ(EINVAL, cdd_coroutine_resume(co));

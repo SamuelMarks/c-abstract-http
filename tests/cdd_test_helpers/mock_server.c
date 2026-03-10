@@ -341,7 +341,7 @@ int mock_server_start(MockServerPtr server) {
   return 0;
 }
 
-int mock_server_get_port(MockServerPtr server) {
+int math_mock_server_get_port(MockServerPtr server) {
   return server ? server->port : 0;
 }
 

@@ -216,7 +216,7 @@ TEST test_curl_send_chunked(void) {
   http_config_init(&config);
   http_curl_config_apply(ctx, &config);
 
-  setup_request(&req, mock_server_get_port(server));
+  setup_request(&req, math_mock_server_get_port(server));
 
   /* Setup chunk callback */
   state.call_count = 0;
@@ -265,7 +265,7 @@ TEST test_curl_send_chunked_abort(void) {
   http_config_init(&config);
   http_curl_config_apply(ctx, &config);
 
-  setup_request(&req, mock_server_get_port(server));
+  setup_request(&req, math_mock_server_get_port(server));
 
   state.call_count = 0;
   state.total_bytes = 0;
@@ -325,7 +325,7 @@ TEST test_curl_send_upload_chunked(void) {
   http_config_init(&config);
   http_curl_config_apply(ctx, &config);
 
-  setup_request(&req, mock_server_get_port(server));
+  setup_request(&req, math_mock_server_get_port(server));
   req.method = HTTP_POST;
 
   /* Disable Expect: 100-continue to prevent curl from waiting or aborting early */

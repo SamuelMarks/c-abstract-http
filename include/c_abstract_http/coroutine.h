@@ -87,7 +87,7 @@ extern int cdd_coroutine_yield(void);
  * @param[in] co The coroutine handle.
  * @return 1 if finished, 0 if still active.
  */
-extern int cdd_coroutine_is_done(const struct CddCoroutine *co);
+extern int math_cdd_coroutine_is_done(const struct CddCoroutine *co);
 
 #ifdef __cplusplus
 }
