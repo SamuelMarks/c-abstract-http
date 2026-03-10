@@ -26,9 +26,10 @@ static void test_co_cb(void *arg) {
 TEST test_coroutine_execution(void) {
   struct CddCoroutine *co = NULL;
   struct CoroutineTestState state;
+  int rc;
   state.counter = 0;
 
-  int rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
+  rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
 #ifdef ENOTSUP
   if (rc == ENOTSUP) {
     SKIPm("Coroutines not supported on this platform");

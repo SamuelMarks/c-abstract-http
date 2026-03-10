@@ -426,7 +426,11 @@ static int parse_url(const char *url, char **host, int *port, char **path) {
   *host = (char *)malloc(host_len + 1);
   if (!*host)
     return ENOMEM;
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  strncpy_s(*host, host_len + 1, host_start, host_len);
+#else
   strncpy(*host, host_start, host_len);
+#endif
   (*host)[host_len] = '\0';
 
   if (path_start) {
@@ -534,7 +538,7 @@ int http_libuv_send(struct HttpTransportContext *ctx,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     state.req_len += sprintf_s(
         state.req_buf + state.req_len, req_cap - state.req_len,
-        "Content-Length: %" NUM_FORMAT "\r\n", req->expected_body_len);
+        "Content-Length: " NUM_FORMAT "\r\n", req->expected_body_len);
 #else
     state.req_len +=
         sprintf(state.req_buf + state.req_len,
@@ -544,7 +548,7 @@ int http_libuv_send(struct HttpTransportContext *ctx,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     state.req_len +=
         sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len,
-                  "Content-Length: %" NUM_FORMAT "\r\n", req->body_len);
+                  "Content-Length: " NUM_FORMAT "\r\n", req->body_len);
 #else
     state.req_len +=
         sprintf(state.req_buf + state.req_len,

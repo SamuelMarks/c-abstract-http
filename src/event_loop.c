@@ -26,7 +26,7 @@
 /* clang-format on */
 
 struct TimerNode {
-  long long expiration;
+  cdd_int64_t expiration;
   int id;
   http_timer_cb cb;
   void *user_data;
@@ -68,13 +68,13 @@ struct ModalityEventLoop {
 #endif
 };
 
-static long long get_current_time_ms(void) {
+static cdd_int64_t get_current_time_ms(void) {
 #if defined(_WIN32)
-  return (long long)GetTickCount64();
+  return (cdd_int64_t)GetTickCount64();
 #else
   struct timeval tv;
   gettimeofday(&tv, NULL);
-  return (long long)tv.tv_sec * 1000 + (long long)tv.tv_usec / 1000;
+  return (cdd_int64_t)tv.tv_sec * 1000 + (cdd_int64_t)tv.tv_usec / 1000;
 #endif
 }
 
@@ -400,7 +400,7 @@ int http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
 }
 
 static void process_timers(struct ModalityEventLoop *loop) {
-  long long now;
+  cdd_int64_t now;
   if (loop->has_hooks) {
     return; /* External loop handles timers */
   }
@@ -427,8 +427,8 @@ static void process_timers(struct ModalityEventLoop *loop) {
 }
 
 int http_loop_tick(struct ModalityEventLoop *loop) {
-  long long now;
-  long long next_timeout = -1;
+  cdd_int64_t now;
+  cdd_int64_t next_timeout = -1;
   size_t i;
   int active_fds = 0;
   int max_fd = -1;
@@ -540,7 +540,7 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
           revents |= HTTP_LOOP_ERROR;
 
         if (revents) {
-          long long start_cb = get_current_time_ms();
+          cdd_int64_t start_cb = get_current_time_ms();
           loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                           loop->fds[i].user_data);
           if (get_current_time_ms() - start_cb > 50) {
@@ -570,8 +570,8 @@ int http_loop_run(struct ModalityEventLoop *loop) {
   loop->stop_requested = 0;
 
   while (loop->running && !loop->stop_requested) {
-    long long now;
-    long long next_timeout = -1;
+    cdd_int64_t now;
+    cdd_int64_t next_timeout = -1;
     size_t i;
     int active_fds = 0;
     int max_fd = -1;
@@ -679,7 +679,7 @@ int http_loop_run(struct ModalityEventLoop *loop) {
             revents |= HTTP_LOOP_ERROR;
 
           if (revents) {
-            long long start_cb = get_current_time_ms();
+            cdd_int64_t start_cb = get_current_time_ms();
             loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                             loop->fds[i].user_data);
             if (get_current_time_ms() - start_cb > 50) {

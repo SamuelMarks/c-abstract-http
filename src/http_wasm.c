@@ -151,7 +151,11 @@ int http_wasm_send(struct HttpTransportContext *ctx,
 
   emscripten_fetch_attr_init(&attr);
   get_method_str(req->method, &method_str);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  strcpy_s(attr.requestMethod, sizeof(attr.requestMethod), method_str);
+#else
   strcpy(attr.requestMethod, method_str);
+#endif
   attr.attributes = EMSCRIPTEN_FETCH_SYNCHRONOUS;
 
   if (ctx->config.timeout_ms > 0) {

@@ -28,7 +28,11 @@ static int setup_request(struct HttpRequest *req, int port) {
   if (rc != 0)
     return rc;
 
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
+#else
   sprintf(url, "http://127.0.0.1:%d/test", port);
+#endif
 
   req->url = (c_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
   return (enum greatest_test_res)0;

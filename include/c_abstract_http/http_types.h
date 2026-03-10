@@ -26,6 +26,17 @@ extern "C" {
 #endif
 #endif
 
+#if defined(_MSC_VER) && (_MSC_VER < 1600)
+typedef __int64 cdd_int64_t;
+typedef unsigned __int64 cdd_uint64_t;
+#define CDD_INT64_FMT "%I64d"
+#else
+#include <stdint.h>
+typedef int64_t cdd_int64_t;
+typedef uint64_t cdd_uint64_t;
+#define CDD_INT64_FMT "%lld"
+#endif
+
 /**
  * @brief HTTP Method verbs.
  */
