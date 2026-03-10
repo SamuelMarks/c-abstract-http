@@ -10,16 +10,24 @@
 #include <string.h>
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#endif
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
+#include <windows.h>
 #else
 #include <pthread.h>
 #endif
 
 #include <c_abstract_http/thread_pool.h>
 /* clang-format on */
+
+#ifndef ENOTSUP
+#define ENOTSUP EINVAL
+#endif
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
@@ -28,7 +36,12 @@ struct CddMutex {
 };
 
 struct CddCond {
+#if defined(_MSC_VER) && _MSC_VER < 1600
+  HANDLE semaphore;
+  int waiters;
+#else
   CONDITION_VARIABLE cv;
+#endif
 };
 
 int cdd_mutex_init(struct CddMutex **mutex) {
@@ -68,33 +81,64 @@ int cdd_cond_init(struct CddCond **cond) {
   *cond = (struct CddCond *)malloc(sizeof(struct CddCond));
   if (!*cond)
     return ENOMEM;
+#if defined(_MSC_VER) && _MSC_VER < 1600
+  (*cond)->semaphore = CreateSemaphore(NULL, 0, MAXLONG, NULL);
+  (*cond)->waiters = 0;
+#else
   InitializeConditionVariable(&(*cond)->cv);
+#endif
   return 0;
 }
 
 int cdd_cond_wait(struct CddCond *cond, struct CddMutex *mutex) {
   if (!cond || !mutex)
     return EINVAL;
+#if defined(_MSC_VER) && _MSC_VER < 1600
+  cond->waiters++;
+  LeaveCriticalSection(&mutex->cs);
+  WaitForSingleObject(cond->semaphore, INFINITE);
+  EnterCriticalSection(&mutex->cs);
+#else
   SleepConditionVariableCS(&cond->cv, &mutex->cs, INFINITE);
+#endif
   return 0;
 }
 
 int cdd_cond_signal(struct CddCond *cond) {
   if (!cond)
     return EINVAL;
+#if defined(_MSC_VER) && _MSC_VER < 1600
+  if (cond->waiters > 0) {
+    cond->waiters--;
+    ReleaseSemaphore(cond->semaphore, 1, NULL);
+  }
+#else
   WakeConditionVariable(&cond->cv);
+#endif
   return 0;
 }
 
 int cdd_cond_broadcast(struct CddCond *cond) {
   if (!cond)
     return EINVAL;
+#if defined(_MSC_VER) && _MSC_VER < 1600
+  if (cond->waiters > 0) {
+    ReleaseSemaphore(cond->semaphore, cond->waiters, NULL);
+    cond->waiters = 0;
+  }
+#else
   WakeAllConditionVariable(&cond->cv);
+#endif
   return 0;
 }
 
 void cdd_cond_free(struct CddCond *cond) {
   if (cond) {
+#if defined(_MSC_VER) && _MSC_VER < 1600
+    if (cond->semaphore) {
+      CloseHandle(cond->semaphore);
+    }
+#endif
     free(cond);
   }
 }

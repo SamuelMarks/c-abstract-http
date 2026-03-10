@@ -25,7 +25,7 @@
 
 /* clang-format on */
 TEST test_winhttp_lifecycle(void) {
-#ifdef _WIN32
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   struct HttpTransportContext *ctx = NULL;
   int rc;
 
@@ -55,7 +55,7 @@ TEST test_winhttp_lifecycle(void) {
 
 TEST test_winhttp_config_usage(void) {
   char *_ast_strdup_0 = NULL;
-#ifdef _WIN32
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
   int rc;
@@ -106,7 +106,7 @@ TEST test_winhttp_config_usage(void) {
 
 TEST test_winhttp_send_fail(void) {
   char *_ast_strdup_1 = NULL;
-#ifdef _WIN32
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
@@ -138,7 +138,7 @@ TEST test_winhttp_send_fail(void) {
 }
 
 TEST test_winhttp_send_null_checks(void) {
-#ifdef _WIN32
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
@@ -171,7 +171,7 @@ TEST test_winhttp_send_null_checks(void) {
 }
 
 TEST test_winhttp_stubs(void) {
-#ifndef _WIN32
+#if !defined(_WIN32) || (defined(_MSC_VER) && _MSC_VER < 1600)
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
   struct HttpRequest req;
@@ -210,7 +210,7 @@ static int winhttp_mock_chunk_cb(void *user_data, const void *chunk,
 }
 
 TEST test_winhttp_send_chunked(void) {
-#ifdef _WIN32
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -273,7 +273,7 @@ TEST test_winhttp_send_chunked(void) {
 }
 
 TEST test_winhttp_send_chunked_abort(void) {
-#ifdef _WIN32
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -346,7 +346,7 @@ static int winhttp_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
 }
 
 TEST test_winhttp_send_upload_chunked(void) {
-#ifdef _WIN32
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -436,7 +436,7 @@ static int setup_request(struct HttpRequest *req, int port) {
 }
 
 TEST test_winhttp_send_multi(void) {
-#ifdef _WIN32
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req1, req2;
   struct HttpConfig config;

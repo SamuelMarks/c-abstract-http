@@ -11,7 +11,11 @@
 #include <stdio.h>
 
 #if defined(_WIN32)
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#endif
 #include <winsock2.h>
+#include <windows.h>
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -70,7 +74,11 @@ struct ModalityEventLoop {
 
 static cdd_int64_t math_get_current_time_ms(void) {
 #if defined(_WIN32)
+#if defined(_MSC_VER) && _MSC_VER < 1600
+  return (cdd_int64_t)GetTickCount();
+#else
   return (cdd_int64_t)GetTickCount64();
+#endif
 #else
   struct timeval tv;
   gettimeofday(&tv, NULL);

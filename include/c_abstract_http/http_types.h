@@ -16,7 +16,20 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include <errno.h>
 #include <stddef.h>
+
+#ifndef ENOTSUP
+#define ENOTSUP EINVAL
+#endif
+
+#ifndef ENOSYS
+#define ENOSYS EINVAL
+#endif
+
+#ifndef ECANCELED
+#define ECANCELED EINVAL
+#endif
 
 #ifndef NUM_FORMAT
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
