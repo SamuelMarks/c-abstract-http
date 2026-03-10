@@ -159,7 +159,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
   attr.attributes = EMSCRIPTEN_FETCH_SYNCHRONOUS;
 
   if (ctx->config.timeout_ms > 0) {
-    attr.timeoutMSecs = (uint32_t)ctx->config.timeout_ms;
+    attr.timeoutMSecs = (unsigned long)ctx->config.timeout_ms;
   }
 
   if (req->headers.count > 0) {

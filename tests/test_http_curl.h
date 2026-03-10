@@ -328,7 +328,8 @@ TEST test_curl_send_upload_chunked(void) {
   setup_request(&req, math_mock_server_get_port(server));
   req.method = HTTP_POST;
 
-  /* Disable Expect: 100-continue to prevent curl from waiting or aborting early */
+  /* Disable Expect: 100-continue to prevent curl from waiting or aborting early
+   */
   http_headers_add(&req.headers, "Expect", "");
 
   up_state.data = payload;

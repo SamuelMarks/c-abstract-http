@@ -467,8 +467,17 @@ static int finish_curl_request(struct HttpTransportContext *ctx, CURL *curl,
         char domain[256], flag[16], path[256], secure[16], name[256],
             value[2048];
         long expiration;
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+        if (sscanf_s(each->data, "%255s\t%15s\t%255s\t%15s\t%ld\t%255s\t%2047s",
+                     domain, (unsigned)sizeof(domain), flag,
+                     (unsigned)sizeof(flag), path, (unsigned)sizeof(path),
+                     secure, (unsigned)sizeof(secure), &expiration, name,
+                     (unsigned)sizeof(name), value,
+                     (unsigned)sizeof(value)) == 7) {
+#else
         if (sscanf(each->data, "%255s\t%15s\t%255s\t%15s\t%ld\t%255s\t%2047s",
                    domain, flag, path, secure, &expiration, name, value) == 7) {
+#endif
           http_cookie_jar_set(ctx->cookie_jar, name, value);
         }
         each = each->next;

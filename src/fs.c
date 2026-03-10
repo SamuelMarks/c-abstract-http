@@ -1,3 +1,4 @@
+/* clang-format off */
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #define _CRT_RAND_S
 #endif
@@ -23,7 +24,6 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 
-/* clang-format off */
 /* windef.h must precede winbase.h to prevent DWORD redefinition errors */
 #include "win_compat_sym.h"
 #include <windef.h>
@@ -31,7 +31,6 @@
 #include <winbase.h>
 #include <winnls.h>
 #include <winerror.h>
-/* clang-format on */
 
 #include <direct.h>
 #if !defined(_MSC_VER) || _MSC_VER >= 1900
@@ -61,12 +60,12 @@
 #else /* Not MSVC */
 #include <dirent.h>
 #include <fcntl.h>
-#include <inttypes.h>
 #include <libgen.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 #endif /* defined(_MSC_VER) && !defined(__INTEL_COMPILER) */
+/* clang-format on */
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 /* Windows specific logic or typedefs if needed */
@@ -677,18 +676,21 @@ int tempdir(char **out_path) {
     size_t sz = 0;
     _dupenv_s(&_ast_strdup_5, &sz, "TMPDIR");
     if (!_ast_strdup_5 || *_ast_strdup_5 == '\0') {
-      if (_ast_strdup_5) free(_ast_strdup_5);
+      if (_ast_strdup_5)
+        free(_ast_strdup_5);
       _dupenv_s(&_ast_strdup_5, &sz, "TMP");
     }
     if (!_ast_strdup_5 || *_ast_strdup_5 == '\0') {
-      if (_ast_strdup_5) free(_ast_strdup_5);
+      if (_ast_strdup_5)
+        free(_ast_strdup_5);
       _dupenv_s(&_ast_strdup_5, &sz, "TEMP");
     }
     if (_ast_strdup_5 && *_ast_strdup_5 != '\0') {
       *out_path = _ast_strdup_5;
       return 0;
     }
-    if (_ast_strdup_5) free(_ast_strdup_5);
+    if (_ast_strdup_5)
+      free(_ast_strdup_5);
   }
 #else
   env = getenv("TMPDIR");
@@ -812,8 +814,8 @@ int mktmpfilegetnameandfile(const char *prefix, const char *suffix,
       /* Using arc4random on random-equipped systems, or simple rand if generic.
        * The assumption is arc4random is available in this env based on previous
        * context. */
-      uint32_t number = (uint32_t)rand();
-      if (asprintf(&tmpfilename, "%s%c%s%" PRIu32 "%s", tmpdir_path, PATH_SEP_C,
+      unsigned int number = (unsigned int)rand();
+      if (asprintf(&tmpfilename, "%s%c%s%u%s", tmpdir_path, PATH_SEP_C,
                    prefix == NULL ? "" : prefix, number,
                    suffix == NULL ? "" : suffix) == -1) {
         free(tmpdir_path);

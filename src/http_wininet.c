@@ -486,8 +486,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
                 ctx->cookie_jar->cookies[i].name,
                 ctx->cookie_jar->cookies[i].value);
 #else
-      sprintf(cbuf, "Cookie: %s=%s\r\n",
-              ctx->cookie_jar->cookies[i].name,
+      sprintf(cbuf, "Cookie: %s=%s\r\n", ctx->cookie_jar->cookies[i].name,
               ctx->cookie_jar->cookies[i].value);
 #endif
 
