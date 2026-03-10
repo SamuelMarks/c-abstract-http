@@ -1,5 +1,7 @@
-# c-abstract-http
+c-abstract-http
+===============
 
+[![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Continuous Integration](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml/badge.svg)](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml)
 
 A highly robust, cross-platform abstract HTTP network library for C. It unifies Windows (WinHTTP, WinINet), macOS/iOS (CFNetwork/Foundation), Android, FreeBSD (libfetch), and POSIX (cURL) beneath a single abstracted API.
