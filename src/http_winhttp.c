@@ -151,7 +151,11 @@ static /**
       return EIO;
     }
     p += written;
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     wcscpy_s(p, total_wide_chars - (p - buf), L": ");
+#else
+    wcscpy(p, L": ");
+#endif
     p += 2;
     if (ascii_to_wide(headers->headers[i].value, p,
                       total_wide_chars - (p - buf), &written) != 0) {
@@ -159,7 +163,11 @@ static /**
       return EIO;
     }
     p += written;
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     wcscpy_s(p, total_wide_chars - (p - buf), L"\r\n");
+#else
+    wcscpy(p, L"\r\n");
+#endif
     p += 2;
   }
   *out = buf;

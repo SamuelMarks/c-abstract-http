@@ -21,11 +21,16 @@
 #define _XOPEN_SOURCE 600
 #endif
 #include <ucontext.h>
+#include <pthread.h>
 #endif
 
 #include <c_abstract_http/coroutine.h>
 #include <c_abstract_http/cdd_tls.h>
 /* clang-format on */
+
+#if defined(__linux__) && !defined(__GLIBC__)
+#define CDD_NO_UCONTEXT 1
+#endif
 
 static struct CddCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL, NULL,
                                                      NULL};
@@ -162,7 +167,7 @@ int cdd_coroutine_is_done(const struct CddCoroutine *co) {
   return co ? co->is_done : 1;
 }
 
-#else /* POSIX ucontext */
+#elif !defined(CDD_NO_UCONTEXT) /* POSIX ucontext */
 
 struct CddCoroutine {
   ucontext_t ctx;
@@ -306,6 +311,52 @@ int cdd_coroutine_is_done(const struct CddCoroutine *co) {
   }
 
   return co ? co->is_done : 1;
+}
+
+#else
+
+int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
+                       cdd_coroutine_cb cb, void *arg) {
+  if (g_coroutine_hooks.init) {
+    return g_coroutine_hooks.init(co, stack_size, cb, arg);
+  }
+#ifndef ENOSYS
+#define ENOSYS EINVAL
+#endif
+  return ENOSYS;
+}
+
+void cdd_coroutine_free(struct CddCoroutine *co) {
+  if (g_coroutine_hooks.free) {
+    g_coroutine_hooks.free(co);
+  }
+}
+
+int cdd_coroutine_resume(struct CddCoroutine *co) {
+  if (g_coroutine_hooks.resume) {
+    return g_coroutine_hooks.resume(co);
+  }
+#ifndef ENOSYS
+#define ENOSYS EINVAL
+#endif
+  return ENOSYS;
+}
+
+int cdd_coroutine_yield(void) {
+  if (g_coroutine_hooks.yield) {
+    return g_coroutine_hooks.yield();
+  }
+#ifndef ENOSYS
+#define ENOSYS EINVAL
+#endif
+  return ENOSYS;
+}
+
+int cdd_coroutine_is_done(const struct CddCoroutine *co) {
+  if (g_coroutine_hooks.is_done) {
+    return g_coroutine_hooks.is_done(co);
+  }
+  return 1;
 }
 
 #endif

@@ -28,7 +28,18 @@ TEST test_coroutine_execution(void) {
   struct CoroutineTestState state;
   state.counter = 0;
 
-  ASSERT_EQ(0, cdd_coroutine_init(&co, 0, test_co_cb, &state));
+  int rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
+#ifdef ENOTSUP
+  if (rc == ENOTSUP) {
+    SKIPm("Coroutines not supported on this platform");
+  }
+#endif
+#ifdef ENOSYS
+  if (rc == ENOSYS) {
+    SKIPm("Coroutines not supported on this platform");
+  }
+#endif
+  ASSERT_EQ(0, rc);
 
   ASSERT_EQ(0, state.counter);
   ASSERT_EQ(0, cdd_coroutine_is_done(co));

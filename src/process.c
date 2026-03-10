@@ -106,7 +106,11 @@ int cdd_process_spawn(struct CddProcess **proc,
                        HANDLE_FLAG_INHERIT, 0);
 
   GetModuleFileNameA(NULL, szCmdline, MAX_PATH);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  strcat_s(szCmdline, MAX_PATH, " --cdd-worker");
+#else
   strcat(szCmdline, " --cdd-worker");
+#endif
 
   bSuccess = CreateProcessA(NULL, szCmdline, NULL, NULL, TRUE, 0, NULL, NULL,
                             &siStartInfo, &piProcInfo);
@@ -179,14 +183,14 @@ struct CddProcess {
   pid_t pid;
 };
 
-int cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
+int cdd_ipc_pipe_init(struct CddIpcPipe *p) {
   int fd[2];
-  if (!pipe)
+  if (!p)
     return EINVAL;
   if (pipe(fd) == -1)
     return EIO;
-  pipe->read_handle = (void *)(size_t)fd[0];
-  pipe->write_handle = (void *)(size_t)fd[1];
+  p->read_handle = (void *)(size_t)fd[0];
+  p->write_handle = (void *)(size_t)fd[1];
   return 0;
 }
 

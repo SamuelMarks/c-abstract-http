@@ -665,11 +665,32 @@ int makedir(const char *path) {
  */
 int tempdir(char **out_path) {
   char *_ast_strdup_5 = NULL;
+#if !defined(_MSC_VER) || defined(__INTEL_COMPILER)
   const char *env;
+#endif
 
   if (!out_path)
     return EINVAL;
 
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  {
+    size_t sz = 0;
+    _dupenv_s(&_ast_strdup_5, &sz, "TMPDIR");
+    if (!_ast_strdup_5 || *_ast_strdup_5 == '\0') {
+      if (_ast_strdup_5) free(_ast_strdup_5);
+      _dupenv_s(&_ast_strdup_5, &sz, "TMP");
+    }
+    if (!_ast_strdup_5 || *_ast_strdup_5 == '\0') {
+      if (_ast_strdup_5) free(_ast_strdup_5);
+      _dupenv_s(&_ast_strdup_5, &sz, "TEMP");
+    }
+    if (_ast_strdup_5 && *_ast_strdup_5 != '\0') {
+      *out_path = _ast_strdup_5;
+      return 0;
+    }
+    if (_ast_strdup_5) free(_ast_strdup_5);
+  }
+#else
   env = getenv("TMPDIR");
   if (!env || *env == '\0')
     env = getenv("TMP");
@@ -679,6 +700,7 @@ int tempdir(char **out_path) {
     *out_path = (c_cdd_strdup(env, &_ast_strdup_5), _ast_strdup_5);
     return *out_path ? 0 : ENOMEM;
   }
+#endif
 
 #if defined(_WIN32)
   {

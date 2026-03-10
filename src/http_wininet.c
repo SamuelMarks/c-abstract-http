@@ -214,7 +214,11 @@ static /**
       return EIO;
     }
     p += written;
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    wcscpy_s(p, total_wchars - (p - buf), L": ");
+#else
     wcscpy(p, L": ");
+#endif
     p += 2;
 
     /* Value */
@@ -224,7 +228,11 @@ static /**
       return EIO;
     }
     p += written;
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    wcscpy_s(p, total_wchars - (p - buf), L"\r\n");
+#else
     wcscpy(p, L"\r\n");
+#endif
     p += 2;
   }
 

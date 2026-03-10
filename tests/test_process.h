@@ -9,6 +9,7 @@
 
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/process.h>
+#include <c_abstract_http/str.h>
 /* clang-format on */
 
 TEST test_ipc_pipe_init_free(void) {

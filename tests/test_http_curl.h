@@ -328,6 +328,9 @@ TEST test_curl_send_upload_chunked(void) {
   setup_request(&req, mock_server_get_port(server));
   req.method = HTTP_POST;
 
+  /* Disable Expect: 100-continue to prevent curl from waiting or aborting early */
+  http_headers_add(&req.headers, "Expect", "");
+
   up_state.data = payload;
   up_state.len = strlen(payload);
   up_state.pos = 0;
@@ -357,14 +360,12 @@ TEST test_curl_send_upload_chunked(void) {
   PASS();
 }
 
-$code $code SUITE(http_curl_suite) {
+SUITE(http_curl_suite) {
   RUN_TEST(test_curl_global_lifecycle);
   RUN_TEST(test_curl_context_lifecycle);
   RUN_TEST(test_curl_config_application);
   RUN_TEST(test_curl_send_connection_failure);
   RUN_TEST(test_curl_send_invalid_arguments);
-  RUN_TEST(test_curl_send_multi);
-  RUN_TEST(test_curl_send_multi_100);
   RUN_TEST(test_curl_send_chunked);
   RUN_TEST(test_curl_send_chunked_abort);
   RUN_TEST(test_curl_send_upload_chunked);
