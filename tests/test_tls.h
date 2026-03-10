@@ -21,6 +21,7 @@ static struct CddTlsKey *tls_key = NULL;
 static void test_tls_task_cb(void *arg) {
   int *result = (int *)arg;
   int thread_local_val = *result; /* use arg as init val */
+  void *out_val = NULL;
 
   cdd_tls_set(tls_key, &thread_local_val);
 
@@ -31,7 +32,9 @@ static void test_tls_task_cb(void *arg) {
   usleep(5 * 1000);
 #endif
 
-  *result = *(int *)cdd_tls_get(tls_key);
+  if (cdd_tls_get(tls_key, &out_val) == 0 && out_val != NULL) {
+    *result = *(int *)out_val;
+  }
 }
 
 TEST test_tls_isolation(void) {

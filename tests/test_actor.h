@@ -16,9 +16,8 @@ struct TestActorState {
 };
 
 static int mock_actor_handler(struct CddActor *actor, struct CddMessage *msg) {
-  struct TestActorState *state =
-      (struct TestActorState *)cdd_actor_get_state(actor);
-  if (!state)
+  struct TestActorState *state = NULL;
+  if (cdd_actor_get_state(actor, (void **)&state) != 0 || !state)
     return EINVAL;
 
   if (msg->type == CDD_MSG_HTTP_SEND) {
@@ -41,13 +40,15 @@ static int mock_actor_handler(struct CddActor *actor, struct CddMessage *msg) {
   return 0;
 }
 
-TEST test_actor_bus_messaging(void) {
+TEST test_actor_spawn_and_message(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor1 = NULL;
   struct CddActor *actor2 = NULL;
   struct TestActorState state1 = {0, 0};
   struct TestActorState state2 = {0, 0};
   struct CddMessage msg;
+  const char *name1 = NULL;
+  const char *name2 = NULL;
 
   ASSERT_EQ(0, cdd_message_bus_init(&bus));
   ASSERT_EQ(
@@ -55,8 +56,10 @@ TEST test_actor_bus_messaging(void) {
   ASSERT_EQ(
       0, cdd_actor_spawn(bus, "Actor2", mock_actor_handler, &state2, &actor2));
 
-  ASSERT_STR_EQ("Actor1", cdd_actor_get_name(actor1));
-  ASSERT_STR_EQ("Actor2", cdd_actor_get_name(actor2));
+  ASSERT_EQ(0, cdd_actor_get_name(actor1, &name1));
+  ASSERT_STR_EQ("Actor1", name1);
+  ASSERT_EQ(0, cdd_actor_get_name(actor2, &name2));
+  ASSERT_STR_EQ("Actor2", name2);
 
   msg.type = CDD_MSG_HTTP_SEND;
   msg.payload = NULL;
@@ -86,6 +89,6 @@ TEST test_actor_bus_messaging(void) {
   PASS();
 }
 
-SUITE(actor_suite) { RUN_TEST(test_actor_bus_messaging); }
+SUITE(actor_suite) { RUN_TEST(test_actor_spawn_and_message); }
 
 #endif

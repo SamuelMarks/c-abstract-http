@@ -69,8 +69,8 @@ struct CddActorHooks {
                      cdd_actor_handler_cb handler, void *state,
                      struct CddActor **actor);
   int (*actor_send)(struct CddMessageBus *bus, const struct CddMessage *msg);
-  void *(*actor_get_state)(struct CddActor *actor);
-  const char *(*actor_get_name)(const struct CddActor *actor);
+  int (*actor_get_state)(struct CddActor *actor, void **state);
+  int (*actor_get_name)(const struct CddActor *actor, const char **name);
 };
 
 /**
@@ -126,16 +126,18 @@ extern int cdd_actor_send(struct CddMessageBus *bus,
 /**
  * @brief Retrieve the state of an actor.
  * @param[in] actor The actor handle.
- * @return The state pointer.
+ * @param[out] state Pointer to receive the state.
+ * @return 0 on success.
  */
-extern void *cdd_actor_get_state(struct CddActor *actor);
+extern int cdd_actor_get_state(struct CddActor *actor, void **state);
 
 /**
  * @brief Retrieve the name of an actor.
  * @param[in] actor The actor handle.
- * @return The name string.
+ * @param[out] name Pointer to receive the name.
+ * @return 0 on success.
  */
-extern const char *cdd_actor_get_name(const struct CddActor *actor);
+extern int cdd_actor_get_name(const struct CddActor *actor, const char **name);
 
 #ifdef __cplusplus
 }

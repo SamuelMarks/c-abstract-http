@@ -199,16 +199,22 @@ int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
   return 0;
 }
 
-void *cdd_actor_get_state(struct CddActor *actor) {
+int cdd_actor_get_state(struct CddActor *actor, void **state) {
   if (g_actor_hooks.actor_get_state) {
-    return g_actor_hooks.actor_get_state(actor);
+    return g_actor_hooks.actor_get_state(actor, state);
   }
-  return actor ? actor->state : NULL;
+  if (!actor || !state)
+    return EINVAL;
+  *state = actor->state;
+  return 0;
 }
 
-const char *cdd_actor_get_name(const struct CddActor *actor) {
+int cdd_actor_get_name(const struct CddActor *actor, const char **name) {
   if (g_actor_hooks.actor_get_name) {
-    return g_actor_hooks.actor_get_name(actor);
+    return g_actor_hooks.actor_get_name(actor, name);
   }
-  return actor ? actor->name : NULL;
+  if (!actor || !name)
+    return EINVAL;
+  *name = actor->name;
+  return 0;
 }

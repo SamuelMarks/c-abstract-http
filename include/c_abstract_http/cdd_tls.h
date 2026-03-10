@@ -14,7 +14,7 @@ struct CddTlsKey;
 extern int cdd_tls_key_create(struct CddTlsKey **key,
                               void (*destructor)(void *));
 extern int cdd_tls_set(struct CddTlsKey *key, void *value);
-extern void *cdd_tls_get(struct CddTlsKey *key);
+extern int cdd_tls_get(struct CddTlsKey *key, void **out_value);
 extern void cdd_tls_key_delete(struct CddTlsKey *key);
 
 #ifdef __cplusplus

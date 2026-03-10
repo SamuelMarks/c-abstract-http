@@ -48,10 +48,13 @@ int cdd_tls_set(struct CddTlsKey *key, void *value) {
   return TlsSetValue(key->dwTlsIndex, value) ? 0 : EIO;
 }
 
-void *cdd_tls_get(struct CddTlsKey *key) {
-  if (!key)
-    return NULL;
-  return TlsGetValue(key->dwTlsIndex);
+int cdd_tls_get(struct CddTlsKey *key, void **out_value) {
+  if (!key || !out_value)
+    return -1;
+  *out_value = TlsGetValue(key->dwTlsIndex);
+  if (!*out_value && GetLastError() != ERROR_SUCCESS)
+    return -1;
+  return 0;
 }
 
 void cdd_tls_key_delete(struct CddTlsKey *key) {
@@ -86,10 +89,11 @@ int cdd_tls_set(struct CddTlsKey *key, void *value) {
   return (pthread_setspecific(key->key, value) == 0) ? 0 : EIO;
 }
 
-void *cdd_tls_get(struct CddTlsKey *key) {
-  if (!key)
-    return NULL;
-  return pthread_getspecific(key->key);
+int cdd_tls_get(struct CddTlsKey *key, void **out_value) {
+  if (!key || !out_value)
+    return EINVAL;
+  *out_value = pthread_getspecific(key->key);
+  return 0;
 }
 
 void cdd_tls_key_delete(struct CddTlsKey *key) {
