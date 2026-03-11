@@ -38,3 +38,14 @@ if(WIN32)
 endif()
 
 add_test(NAME c-abstract-http-tests COMMAND c-abstract-http-test)
+
+if(WIN32 AND BUILD_SHARED_LIBS)
+    add_custom_command(TARGET c-abstract-http-test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:c-abstract-http>
+            $<TARGET_FILE_DIR:c-abstract-http-test>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:c89stringutils>
+            $<TARGET_FILE_DIR:c-abstract-http-test>
+    )
+endif()

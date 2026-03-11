@@ -6,6 +6,10 @@ set(CMAKE_C_STANDARD 90)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
 option(C_ABSTRACT_HTTP_HEADER_ONLY "Use header-only STB-style library" OFF)
 option(C_ABSTRACT_HTTP_STATIC_CRT "Use Static CRT (/MT, /MTd)" OFF)
 option(C_ABSTRACT_HTTP_SHARED_CRT "Use Shared CRT (/MD, /MDd) (default)" ON)
@@ -166,6 +170,7 @@ else()
             src/fs.c
             src/transport.c
         )
+        set_target_properties(c-abstract-http PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
     else()
         add_library(c-abstract-http STATIC
             src/http_types.c
