@@ -21,7 +21,119 @@ int main(void) {
 }
 ```
 
-## 2. OAuth 2.0 Client Support
+## 2. Simple HTTP GET Request
+
+```c
+#include <c_abstract_http/c_abstract_http.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void fetch_and_print(struct HttpClient *client) {
+    struct HttpRequest req;
+    struct HttpResponse *res = NULL;
+    
+    http_request_init(&req);
+    
+    req.url = malloc(strlen("https://example.com") + 1);
+    if (req.url) {
+        strcpy(req.url, "https://example.com");
+    }
+
+    client->send(client->transport, &req, &res);
+
+    if (res) {
+        printf("Response Status: %d\n", res->status_code);
+        if (res->body) {
+            printf("Body:\n%.*s\n", (int)res->body_len, (char*)res->body);
+        }
+        http_response_free(res);
+    }
+    http_request_free(&req);
+}
+```
+
+## 3. Downloading Multiple Files
+
+```c
+#include <c_abstract_http/c_abstract_http.h>
+#include <cfs/cfs.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void download_files(struct HttpClient *client, const char *dest_dir) {
+    const char *urls[] = {
+        "https://example.com/file1.txt",
+        "https://example.com/file2.txt"
+    };
+    size_t num_urls = sizeof(urls) / sizeof(urls[0]);
+    struct HttpRequest reqs[2];
+    struct HttpRequest *req_ptrs[2];
+    struct HttpFuture f1, f2;
+    struct HttpFuture *futures[2] = { &f1, &f2 };
+    size_t i;
+    
+    /* Ensure destination directory exists using c-fs */
+    cfs_path dir_path;
+    cfs_error_code ec;
+    cfs_path_init_str(&dir_path, (const cfs_char_t*)dest_dir);
+    cfs_create_directories(&dir_path, &ec);
+
+    for (i = 0; i < num_urls; ++i) {
+        http_request_init(&reqs[i]);
+        reqs[i].url = malloc(strlen(urls[i]) + 1);
+        if (reqs[i].url) {
+            strcpy(reqs[i].url, urls[i]);
+        }
+        req_ptrs[i] = &reqs[i];
+        http_future_init(futures[i]);
+    }
+
+    /* Send requests concurrently */
+    if (http_client_send_multi(client, req_ptrs, num_urls, futures, NULL, NULL, 0) == 0) {
+        for (i = 0; i < num_urls; ++i) {
+            if (futures[i]->is_ready && futures[i]->error_code == 0 && futures[i]->response) {
+                struct HttpResponse *res = futures[i]->response;
+                cfs_path file_path;
+                const char *filename;
+                const cfs_char_t *path_str = NULL;
+                FILE *fp;
+                
+                cfs_path_init(&file_path);
+                cfs_path_clone(&file_path, &dir_path);
+                
+                /* Extract filename from URL */
+                filename = strrchr(urls[i], '/');
+                if (filename) filename++;
+                else filename = "downloaded_file.txt";
+                
+                cfs_path_append(&file_path, (const cfs_char_t*)filename);
+                cfs_path_c_str(&file_path, &path_str);
+                
+                if (path_str && res->body) {
+                    fp = fopen((const char*)path_str, "wb");
+                    if (fp) {
+                        fwrite(res->body, 1, res->body_len, fp);
+                        fclose(fp);
+                        printf("Saved: %s\n", (const char*)path_str);
+                    }
+                }
+                cfs_path_destroy(&file_path);
+                http_response_free(res);
+            }
+        }
+    }
+    
+    for (i = 0; i < num_urls; ++i) {
+        http_request_free(&reqs[i]);
+        http_future_free(futures[i]);
+    }
+    cfs_path_destroy(&dir_path);
+}
+```
+
+## 4. OAuth 2.0 Client Support
 
 `c-abstract-http` natively handles OAuth 2.0 flows, making authentication against modern APIs simple and secure.
 
@@ -137,7 +249,7 @@ void loopback_login() {
 }
 ```
 
-## 3. Supported Crypto Libraries
+## 5. Supported Crypto Libraries
 
 By default, `c-abstract-http` uses the native TLS backend of your network library (e.g. Schannel for WinHTTP, SecureTransport for CFNetwork, GnuTLS/OpenSSL for libcurl). You can force a specific crypto library via CMake when building:
 

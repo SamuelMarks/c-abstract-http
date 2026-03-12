@@ -537,21 +537,22 @@ int http_libuv_send(struct HttpTransportContext *ctx,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     state.req_len +=
         sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len,
-                  "Content-Length: " NUM_FORMAT "\r\n", req->expected_body_len);
+                  "Content-Length: " NUM_FORMAT "\r\n",
+                  (cdd_int64_t)req->expected_body_len);
 #else
-    state.req_len +=
-        sprintf(state.req_buf + state.req_len,
-                "Content-Length: " NUM_FORMAT "\r\n", req->expected_body_len);
+    state.req_len += sprintf(state.req_buf + state.req_len,
+                             "Content-Length: " NUM_FORMAT "\r\n",
+                             (cdd_int64_t)req->expected_body_len);
 #endif
   } else if (req->body_len > 0) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    state.req_len +=
-        sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len,
-                  "Content-Length: " NUM_FORMAT "\r\n", req->body_len);
+    state.req_len += sprintf_s(
+        state.req_buf + state.req_len, req_cap - state.req_len,
+        "Content-Length: " NUM_FORMAT "\r\n", (cdd_int64_t)req->body_len);
 #else
-    state.req_len +=
-        sprintf(state.req_buf + state.req_len,
-                "Content-Length: " NUM_FORMAT "\r\n", req->body_len);
+    state.req_len += sprintf(state.req_buf + state.req_len,
+                             "Content-Length: " NUM_FORMAT "\r\n",
+                             (cdd_int64_t)req->body_len);
 #endif
   }
 

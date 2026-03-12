@@ -33,9 +33,11 @@ extern "C" {
 
 #ifndef NUM_FORMAT
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-#define NUM_FORMAT "%Iu"
+#define NUM_FORMAT "%I64d"
+#elif defined(__LP64__) || defined(_LP64) || defined(__x86_64__) || defined(__aarch64__)
+#define NUM_FORMAT "%ld"
 #else
-#define NUM_FORMAT "%zu"
+#define NUM_FORMAT "%lld"
 #endif
 #endif
 

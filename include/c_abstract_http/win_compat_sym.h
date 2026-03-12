@@ -31,17 +31,17 @@
 
 #if defined(_MSC_VER)
 #define SIZE_T_FMT "Iu"
-#define NUM_FORMAT "I64u"
+
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
 #include <inttypes.h>
 #define SIZE_T_FMT "zu"
-#define NUM_FORMAT PRIu64
+
 #elif defined(__LP64__) || defined(_LP64)
 #define SIZE_T_FMT "lu"
-#define NUM_FORMAT "lu"
+
 #else
 #define SIZE_T_FMT "lu"
-#define NUM_FORMAT "llu"
+
 #endif
 
 #endif /* C_CDD_WIN_COMPAT_SYM_H */

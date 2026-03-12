@@ -3,6 +3,9 @@
 
 /* clang-format off */
 #if defined(_WIN32)
+#ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#endif
 #include <winsock2.h>
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #else
