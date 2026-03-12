@@ -17,7 +17,6 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
-#include <windows.h>
 #else
 #if defined(__APPLE__) && defined(__MACH__)
 /* ucontext is deprecated on macOS but still mostly works for simple cases,
