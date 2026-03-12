@@ -207,7 +207,7 @@ void upload_file(struct HttpClient *client) {
 
 The library natively supports concurrent request execution via its `Modality` configurations (e.g., Event Loop, Thread Pool).
 
-`c
+```c
 #include <c_abstract_http/c_abstract_http.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -221,7 +221,7 @@ void download_multiple_files(void) {
     int rc;
 
     http_client_init(&client);
-    
+
     /* Enable Asynchronous Event Loop Mode */
     client.config.modality = MODALITY_ASYNC;
 
@@ -246,7 +246,7 @@ void download_multiple_files(void) {
         if (client.loop) {
             http_loop_run(client.loop);
         }
-        
+
         if (f1.is_ready && f1.error_code == 0 && f1.response) {
             printf("File 1 downloaded: %d bytes\n", (int)f1.response->body_len);
         }
@@ -264,8 +264,7 @@ void download_multiple_files(void) {
     http_request_free(&req2);
     http_client_free(&client);
 }
-``n
-
+```
 ## 8. Framework Integration
 
 The library can seamlessly integrate its execution engines (Thread Pools, Event Loops, Actors) with larger frameworks (like c-multiplatform) via injection adapters.

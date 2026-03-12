@@ -38,7 +38,8 @@ To handle concurrent HTTP requests without locking consumers into a single parad
 ### 3. `transport.c` (The Dispatcher)
 This acts as the bridge. When you call `http_client_init`, the transport layer evaluates the compiled platform (e.g., `#ifdef _WIN32`) and wires up the backend's specific `send` and `send_multi` implementations and context lifecycle hooks.
 
-### 4. Backend Implementations (`http_winhttp.c`, `http_curl.c`, etc.)These files implement the raw platform APIs.
+### 4. Backend Implementations (`http_winhttp.c`, `http_curl.c`, etc.)
+These files implement the raw platform APIs.
 Each backend translates the abstract `HttpRequest` into its native equivalent.
 - `http_winhttp.c`: The modern standard for Windows networking. Uses `WinHttpSendRequest`.
 - `http_wininet.c`: The legacy standard for older Windows environments or specialized proxy/caching setups.
@@ -49,6 +50,11 @@ Each backend translates the abstract `HttpRequest` into its native equivalent.
 - `http_fetch.c`: FreeBSD and POSIX backend leveraging `libfetch`, ideal for BSD environments.
 - `http_android.c`: Specialized networking integrations for Android NDK environments.
 - `http_wasm.c`: The WebAssembly backend leveraging Emscripten's Fetch API to bridge network calls to the browser's `fetch`.
+
+### 5. Cryptography Integration
+To preserve the "Native By Default" philosophy without locking consumers into a heavy OpenSSL dependency, the library dynamically injects cryptography routines natively into the underlying HTTP abstraction via a unified CMake macro (`c_abstract_http_apply_crypto`). 
+If a backend like `libcurl` or `libevent` is used, its configuration is mapped downwards (e.g. bridging `C_ABSTRACT_HTTP_USE_WOLFSSL` -> `CURL_USE_WOLFSSL`). This allows developers to seamlessly pivot between OpenSSL, mbedTLS, BearSSL, Botan, s2n, Schannel, and GnuTLS without ever modifying their application's code.
+
 ## Memory Management
 
 `c-abstract-http` manages memory explicitly via `malloc`, `calloc`, `realloc`, and `free`.

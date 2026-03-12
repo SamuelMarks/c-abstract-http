@@ -522,6 +522,221 @@ extern int http_request_set_auth_basic_userpwd(struct HttpRequest *req,
                                                const char *username,
                                                const char *password);
 
+/**
+ * @brief Construct an OAuth 2.0 Password Grant Request.
+ *
+ * Configures the provided HttpRequest object for a POST to the specified token
+ * endpoint with application/x-www-form-urlencoded content.
+ *
+ * @param[in,out] req The request object to initialize/configure.
+ * @param[in] token_endpoint_url The URL of the OAuth 2.0 token endpoint.
+ * @param[in] username The resource owner username.
+ * @param[in] password The resource owner password.
+ * @param[in] client_id Optional Client ID.
+ * @param[in] client_secret Optional Client Secret.
+ * @param[in] scope Optional scope.
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_init_oauth2_password_grant(
+    struct HttpRequest *req, const char *token_endpoint_url,
+    const char *username, const char *password, const char *client_id,
+    const char *client_secret, const char *scope);
+
+/**
+ * @brief Construct an OAuth 2.0 Refresh Token Grant Request.
+ *
+ * Configures the provided HttpRequest object for a POST to the specified token
+ * endpoint with application/x-www-form-urlencoded content.
+ *
+ * @param[in,out] req The request object to initialize/configure.
+ * @param[in] token_endpoint_url The URL of the OAuth 2.0 token endpoint.
+ * @param[in] refresh_token The refresh token string.
+ * @param[in] client_id Optional Client ID.
+ * @param[in] client_secret Optional Client Secret.
+ * @param[in] scope Optional scope.
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_init_oauth2_refresh_token_grant(
+    struct HttpRequest *req, const char *token_endpoint_url,
+    const char *refresh_token, const char *client_id, const char *client_secret,
+    const char *scope);
+
+/**
+ * @brief Construct an OAuth 2.0 Authorization Code Grant Request.
+ *
+ * Configures the provided HttpRequest object for a POST to the specified token
+ * endpoint with application/x-www-form-urlencoded content.
+ *
+ * @param[in,out] req The request object to initialize/configure.
+ * @param[in] token_endpoint_url The URL of the OAuth 2.0 token endpoint.
+ * @param[in] code The authorization code received from the authorization
+ * server.
+ * @param[in] redirect_uri Optional redirect URI used in the initial
+ * authorization request.
+ * @param[in] client_id Optional Client ID.
+ * @param[in] client_secret Optional Client Secret.
+ * @param[in] code_verifier Optional PKCE code verifier (RFC 7636).
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_init_oauth2_authorization_code_grant(
+    struct HttpRequest *req, const char *token_endpoint_url, const char *code,
+    const char *redirect_uri, const char *client_id, const char *client_secret,
+    const char *code_verifier);
+
+/**
+ * @brief Construct an OAuth 2.0 Client Credentials Grant Request.
+ *
+ * Configures the provided HttpRequest object for a POST to the specified token
+ * endpoint with application/x-www-form-urlencoded content.
+ *
+ * @param[in,out] req The request object to initialize/configure.
+ * @param[in] token_endpoint_url The URL of the OAuth 2.0 token endpoint.
+ * @param[in] client_id Optional Client ID.
+ * @param[in] client_secret Optional Client Secret.
+ * @param[in] scope Optional scope.
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_init_oauth2_client_credentials_grant(
+    struct HttpRequest *req, const char *token_endpoint_url,
+    const char *client_id, const char *client_secret, const char *scope);
+
+/**
+ * @brief Construct an OAuth 2.0 JWT Bearer Grant Request (RFC 7523).
+ *
+ * Configures the provided HttpRequest object for a POST to the specified token
+ * endpoint with application/x-www-form-urlencoded content.
+ *
+ * @param[in,out] req The request object to initialize/configure.
+ * @param[in] token_endpoint_url The URL of the OAuth 2.0 token endpoint.
+ * @param[in] assertion The JWT string.
+ * @param[in] scope Optional scope.
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_init_oauth2_jwt_bearer_grant(
+    struct HttpRequest *req, const char *token_endpoint_url,
+    const char *assertion, const char *scope);
+
+/**
+ * @brief Construct an OAuth 2.0 Device Authorization Request (RFC 8628).
+ *
+ * Configures the provided HttpRequest object for a POST to the specified device
+ * authorization endpoint.
+ *
+ * @param[in,out] req The request object to initialize/configure.
+ * @param[in] device_endpoint_url The URL of the device authorization endpoint.
+ * @param[in] client_id The Client ID.
+ * @param[in] scope Optional scope.
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_init_oauth2_device_authorization_request(
+    struct HttpRequest *req, const char *device_endpoint_url,
+    const char *client_id, const char *scope);
+
+/**
+ * @brief Construct an OAuth 2.0 Device Access Token Request (RFC 8628).
+ *
+ * Configures the provided HttpRequest object for a POST to the token endpoint
+ * to poll for a device code.
+ *
+ * @param[in,out] req The request object to initialize/configure.
+ * @param[in] token_endpoint_url The URL of the token endpoint.
+ * @param[in] client_id The Client ID.
+ * @param[in] device_code The device code from the authorization response.
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_init_oauth2_device_access_token_request(
+    struct HttpRequest *req, const char *token_endpoint_url,
+    const char *client_id, const char *device_code);
+
+/**
+ * @brief Construct an OAuth 2.0 Token Revocation Request (RFC 7009).
+ *
+ * Configures the provided HttpRequest object for a POST to the token revocation
+ * endpoint.
+ *
+ * @param[in,out] req The request object to initialize/configure.
+ * @param[in] revocation_endpoint_url The URL of the revocation endpoint.
+ * @param[in] token The token to revoke.
+ * @param[in] token_type_hint Optional token type hint ("access_token" or
+ * "refresh_token").
+ * @param[in] client_id Optional Client ID.
+ * @param[in] client_secret Optional Client Secret.
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_init_oauth2_token_revocation(
+    struct HttpRequest *req, const char *revocation_endpoint_url,
+    const char *token, const char *token_type_hint, const char *client_id,
+    const char *client_secret);
+
+/**
+ * @brief Construct an OAuth 2.0 Token Introspection Request (RFC 7662).
+ *
+ * Configures the provided HttpRequest object for a POST to the token
+ * introspection endpoint.
+ *
+ * @param[in,out] req The request object to initialize/configure.
+ * @param[in] introspection_endpoint_url The URL of the introspection endpoint.
+ * @param[in] token The token to introspect.
+ * @param[in] token_type_hint Optional token type hint ("access_token" or
+ * "refresh_token").
+ * @param[in] client_id Optional Client ID.
+ * @param[in] client_secret Optional Client Secret.
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_init_oauth2_token_introspection(
+    struct HttpRequest *req, const char *introspection_endpoint_url,
+    const char *token, const char *token_type_hint, const char *client_id,
+    const char *client_secret);
+
+/**
+ * @brief Construct an OAuth 2.0 Authorization Request URL.
+ *
+ * Builds the URL to redirect the user's browser to for authorization.
+ *
+ * @param[in] auth_endpoint The URL of the authorization endpoint.
+ * @param[in] client_id The Client ID.
+ * @param[in] response_type The response type (e.g., "code", "token").
+ * @param[in] redirect_uri The redirect URI (e.g., "http://127.0.0.1:8080/cb").
+ * @param[in] scope Optional scope.
+ * @param[in] state Optional state string.
+ * @param[in] code_challenge Optional PKCE code challenge (RFC 7636).
+ * @param[in] code_challenge_method Optional PKCE method (e.g., "S256").
+ * @param[out] out_url Pointer to store the newly allocated URL string.
+ * @return 0 on success, or an error code.
+ */
+extern int http_oauth2_build_authorization_url(
+    const char *auth_endpoint, const char *client_id, const char *response_type,
+    const char *redirect_uri, const char *scope, const char *state,
+    const char *code_challenge, const char *code_challenge_method,
+    char **out_url);
+
+/**
+ * @brief Synchronous localhost server intercept for OAuth 2.0 loopback flow.
+ *
+ * Starts a minimal HTTP server on 127.0.0.1 at the specified port, accepts
+ * exactly one incoming connection, parses the HTTP GET request line for
+ * query parameters ('code', 'state', 'error', 'error_description'), and
+ * responds with the provided HTML success/failure message.
+ *
+ * @param[in] port Port to bind to (e.g., 8080).
+ * @param[in] html_response Complete HTTP response to send (e.g., "HTTP/1.1 200
+ * OK\r\n\r\n...").
+ * @param[out] out_code Allocated string containing 'code' (or NULL if not
+ * found).
+ * @param[out] out_state Allocated string containing 'state' (or NULL if not
+ * found).
+ * @param[out] out_error Allocated string containing 'error' (or NULL if not
+ * found).
+ * @param[out] out_error_desc Allocated string containing 'error_description'
+ * (or NULL if not found).
+ * @return 0 on success, or an error code.
+ */
+extern int http_oauth2_localhost_intercept(unsigned short port,
+                                           const char *html_response,
+                                           char **out_code, char **out_state,
+                                           char **out_error,
+                                           char **out_error_desc);
+
 /** @brief http_response_init definition */
 extern /**
         * @brief Autogenerated docstring

@@ -38,6 +38,25 @@ Below is a detailed table summarizing the core capabilities that are currently i
 | **WebSockets** | Built-in support for upgrading connections to WebSockets. | Planned 🚧 |
 | **HTTP/3 (QUIC)** | First-class abstraction for UDP-based HTTP/3 traffic. | Planned 🚧 |
 
+## Cryptography & TLS Support
+
+To maintain a zero-weight philosophy while remaining adaptable, `c-abstract-http` supports dynamically linking and configuring a massive variety of TLS/Cryptography backends. When enabled via CMake (e.g., `-DC_ABSTRACT_HTTP_USE_MBEDTLS=ON`), the build system will automatically fetch, resolve, and wire the cryptography dependency down into your underlying HTTP implementation (like configuring `libcurl` to compile against it natively).
+
+| Backend | Platform Focus | CMake Option | Description |
+| :--- | :--- | :--- | :--- |
+| **OpenSSL** | Universal / POSIX | `C_ABSTRACT_HTTP_USE_OPENSSL` | The industry standard TLS backend. |
+| **BoringSSL** | Universal / Android | `C_ABSTRACT_HTTP_USE_BORINGSSL` | Google's optimized fork of OpenSSL. |
+| **LibreSSL** | Universal / OpenBSD | `C_ABSTRACT_HTTP_USE_LIBRESSL` | OpenBSD's security-focused OpenSSL fork. |
+| **mbedTLS** | Embedded / IoT | `C_ABSTRACT_HTTP_USE_MBEDTLS` | Extremely lightweight, highly portable TLS. |
+| **wolfSSL** | Embedded / RTOS | `C_ABSTRACT_HTTP_USE_WOLFSSL` | Highly optimized for footprint and speed. |
+| **BearSSL** | Microcontrollers | `C_ABSTRACT_HTTP_USE_BEARSSL` | Minimalist footprint with a simple API. |
+| **s2n-tls** | AWS Environments | `C_ABSTRACT_HTTP_USE_S2N` | AWS's minimal and secure TLS implementation. |
+| **GnuTLS** | Linux / GNU | `C_ABSTRACT_HTTP_USE_GNUTLS` | Primary standard TLS backend in Debian/Ubuntu. |
+| **Botan** | Universal / C++ | `C_ABSTRACT_HTTP_USE_BOTAN` | Modern cryptography library with C FFI. |
+| **Schannel** | Windows | `C_ABSTRACT_HTTP_USE_SCHANNEL` | OS-native Windows TLS. |
+| **CommonCrypto**| macOS / iOS | `C_ABSTRACT_HTTP_USE_COMMONCRYPTO`| OS-native Apple TLS (SecureTransport). |
+| **wincrypt** | Windows | `C_ABSTRACT_HTTP_USE_WINCRYPT` | Windows native cryptographic API. |
+
 ## OS and Network Library Support
 
 The library is designed to compile out-of-the-box using the optimal native network backend for each platform. This minimizes binary bloat and leverages the host's native TLS/SSL certificate stores.

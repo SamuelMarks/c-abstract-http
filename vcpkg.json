@@ -12,5 +12,64 @@
     {
       "name": "libevent"
     }
-  ]
+  ],
+  "features": {
+    "mbedtls": {
+      "description": "Use mbedtls for cryptography",
+      "dependencies": [
+        "mbedtls"
+      ]
+    },
+    "openssl": {
+      "description": "Use OpenSSL for cryptography",
+      "dependencies": [
+        "openssl"
+      ]
+    },
+    "libressl": {
+      "description": "Use LibreSSL for cryptography",
+      "dependencies": [
+        "libressl"
+      ]
+    },
+    "boringssl": {
+      "description": "Use BoringSSL for cryptography",
+      "dependencies": [
+        "boringssl"
+      ]
+    },
+    "wolfssl": {
+      "description": "Use wolfSSL for cryptography",
+      "dependencies": [
+        "wolfssl"
+      ]
+    },
+    "s2n": {
+      "description": "Use s2n-tls for cryptography",
+      "dependencies": [
+        "s2n"
+      ]
+    },
+    "bearssl": {
+      "description": "Use BearSSL for cryptography",
+      "dependencies": [
+        "bearssl"
+      ]
+    },
+    "gnutls": {
+      "description": "Use GnuTLS for cryptography",
+      "dependencies": [
+        "gnutls"
+      ]
+    },
+    "botan": {
+      "description": "Use Botan for cryptography",
+      "dependencies": [
+        "botan"
+      ]
+    },
+    "schannel": {
+      "description": "Use Schannel for cryptography (Windows Native)"
+    }
+  }
 }

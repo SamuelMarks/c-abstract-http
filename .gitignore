@@ -1,8 +1,9 @@
+c-rest-framework
 vcpkg
 # Build directories
 build/
 build-*/
-*build*
+build_*/
 out/
 bin/
 
