@@ -1,3 +1,14 @@
+/**
+ * @file win_compat_sym.h
+ * @brief Windows compatibility definitions for legacy MSVC compilers.
+ *
+ * Ensures proper target architecture macros (_AMD64_, _X86_, etc.) are
+ * defined before including <windef.h> and other Windows API headers.
+ * Also provides fallback definitions for missing standard types/functions.
+ *
+ * @author Samuel Marks
+ */
+
 #ifndef C_CDD_WIN_COMPAT_SYM_H
 #define C_CDD_WIN_COMPAT_SYM_H
 

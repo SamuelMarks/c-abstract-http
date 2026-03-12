@@ -9,6 +9,7 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include "mock_server.h"
 
 #include <errno.h>
@@ -24,7 +25,6 @@
 #endif
 
 #include <process.h>
-/* clang-format off */
 /* winsock2.h must precede windef.h to prevent conflicts */
 #include <winsock2.h>
 
@@ -35,7 +35,17 @@
 #include <windef.h>
 
 #include <winbase.h>
+#else /* POSIX */
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
 /* clang-format on */
+
+#if defined(_WIN32)
 
 typedef SOCKET socket_t;
 typedef HANDLE thread_t;
@@ -84,12 +94,6 @@ static int platform_init(void) {
 static void platform_cleanup(void) { WSACleanup(); }
 
 #else /* POSIX */
-
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <pthread.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
 typedef int socket_t;
 typedef pthread_t thread_t;

@@ -1,3 +1,14 @@
+/**
+ * @file c_abstract_http.h
+ * @brief Main inclusion header for the C Abstract HTTP library.
+ *
+ * This header conditionally includes the entire API and all implemented
+ * transport backends, allowing single-header-style amalgamation when
+ * C_ABSTRACT_HTTP_AMALGAMATION is defined.
+ *
+ * @author Samuel Marks
+ */
+
 #ifndef C_ABSTRACT_HTTP_H
 #define C_ABSTRACT_HTTP_H
 

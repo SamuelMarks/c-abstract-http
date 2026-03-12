@@ -8,20 +8,19 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
 #ifdef _WIN32
 
-/* clang-format off */
 #include "win_compat_sym.h"
 #include <windef.h>
 #include <winnt.h>
 #include <winbase.h>
 #include <winerror.h>
 #include <wininet.h>
-/* clang-format on */
 #if defined(_MSC_VER)
 #pragma comment(lib, "wininet.lib")
 #endif
@@ -91,6 +90,7 @@ typedef URL_COMPONENTSW URL_COMPONENTS;
 #include <c_abstract_http/fs.h> /* For ascii_to_wide helpers */
 #include <c_abstract_http/http_wininet.h>
 #include <c_abstract_http/str.h>
+/* clang-format on */
 
 /** @brief CHECK_EINVAL definition */
 #define CHECK_EINVAL(x)                                                        \

@@ -10,20 +10,19 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 
-/* clang-format off */
 #include "win_compat_sym.h"
 #include <windef.h>
 #include <winnt.h>
 #include <winbase.h>
 #include <winerror.h>
 #include <winhttp.h>
-/* clang-format on */
 #else
 /* Stub definitions */
 /** @brief HINTERNET typedef */
@@ -44,6 +43,7 @@ typedef void *LPVOID;
 #include <c_abstract_http/fs.h>
 #include <c_abstract_http/http_winhttp.h>
 #include <c_abstract_http/str.h>
+/* clang-format on */
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 #if defined(_MSC_VER)
