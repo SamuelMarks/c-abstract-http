@@ -48,6 +48,9 @@
 /* clang-format boundary */
 #include "http_libuv.h"
 
+/* clang-format boundary */
+#include "http_libevent.h"
+
 #ifdef C_ABSTRACT_HTTP_IMPLEMENTATION
 /* Single translation unit inclusion of the source */
 #include "../../src/fs.c"
@@ -76,6 +79,8 @@
 #include "../../src/http_libsoup3.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
 #include "../../src/http_libuv.c"
+#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
+#include "../../src/http_libevent.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
 #include "../../src/http_fetch.c"
 #else

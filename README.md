@@ -50,7 +50,7 @@ The library is designed to compile out-of-the-box using the optimal native netwo
 | **macOS / iOS** | CFNetwork / Foundation | **Yes** | SecureTransport | Leverages Apple's native network framework. |
 | **macOS / iOS** | libcurl | No | OpenSSL / SecureTransport | Available fallback. |
 | **Linux / POSIX** | libsoup3 | No | GnuTLS | Modern fallback often used in GTK4 environments. |
-| **Linux / POSIX** | libuv | No | OpenSSL | Modern asynchronous fallback often used in Node.js environments. |
+| **Linux / POSIX** | libuv / libevent | No | OpenSSL | Modern asynchronous fallback often used in Node.js environments. |
 | **FreeBSD / POSIX** | libfetch | **Yes** | OpenSSL | Native fallback for FreeBSD/BSD systems. |
 | **Linux / POSIX** | libcurl | **Yes** | OpenSSL / GnuTLS | Standard backend for most POSIX platforms. |
 | **Android** | libcurl (NDK) | **Yes** | BoringSSL / OpenSSL | Default fallback when compiled with Android NDK. |
@@ -116,7 +116,7 @@ Verified to work flawlessly across:
 - **MSVC 2005**, **MSVC 2022**, **MSVC 2026**
 - **MinGW** & **Cygwin**
 - **macOS / iOS** (Clang / Apple Frameworks)
-- **Linux / POSIX** (GCC / Clang + libcurl / libsoup3 / libuv / libfetch)
+- **Linux / POSIX** (GCC / Clang + libcurl / libsoup3 / libuv / libevent / libfetch)
 - **FreeBSD** (Clang + libfetch)
 - **Android** (NDK)
 - **WebAssembly** (Emscripten)

@@ -26,6 +26,8 @@
 
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
 #include "test_http_libuv.h"
+#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
+#include "test_http_libevent.h"
 
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
 #include "test_http_fetch.h"
@@ -67,6 +69,8 @@ int main(int argc, char **argv) {
   RUN_SUITE(http_libsoup3_suite);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
   RUN_SUITE(http_libuv_suite);
+#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
+  RUN_SUITE(http_libevent_suite);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   RUN_SUITE(http_fetch_suite);
 #elif defined(_WIN32) && !defined(MINGW_TEST_CURL)

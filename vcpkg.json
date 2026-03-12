@@ -8,6 +8,9 @@
     },
     {
       "name": "libuv"
+    },
+    {
+      "name": "libevent"
     }
   ]
 }
