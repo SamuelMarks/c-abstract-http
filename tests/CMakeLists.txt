@@ -14,10 +14,10 @@ include_directories(../include)
 include_directories(../src)
 
 # Need to build cdd_test_helpers/mock_server.c as part of the test executable
-set(TEST_SOURCES
-    main.c
-    cdd_test_helpers/mock_server.c
-)
+set(TEST_SOURCES main.c)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    list(APPEND TEST_SOURCES cdd_test_helpers/mock_server.c)
+endif()
 
 add_executable(c-abstract-http-test ${TEST_SOURCES})
 target_link_libraries(c-abstract-http-test PRIVATE c-abstract-http)
@@ -26,8 +26,10 @@ if(C_ABSTRACT_HTTP_HEADER_ONLY)
     target_compile_definitions(c-abstract-http-test PRIVATE C_ABSTRACT_HTTP_HEADER_ONLY)
 endif()
 
-find_package(Threads REQUIRED)
-target_link_libraries(c-abstract-http-test PRIVATE Threads::Threads)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    find_package(Threads REQUIRED)
+    target_link_libraries(c-abstract-http-test PRIVATE Threads::Threads)
+endif()
 
 if(NOT C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION)
     target_compile_definitions(c-abstract-http-test PRIVATE C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)

@@ -43,6 +43,9 @@
 #elif defined(__EMSCRIPTEN__)
 #include "test_http_wasm.h"
 
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+/* No HTTP backend tests on DOS currently */
+
 #else
 #include "test_http_curl.h"
 #endif
@@ -82,6 +85,10 @@ int main(int argc, char **argv) {
   RUN_SUITE(http_android_suite);
 #elif defined(__EMSCRIPTEN__)
   RUN_SUITE(http_wasm_suite);
+
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  /* No HTTP backend suite for DOS currently */
+
 #else
   RUN_SUITE(http_curl_suite);
 #endif

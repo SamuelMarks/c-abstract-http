@@ -15,6 +15,8 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+#include <dos.h>
 #else
 #include <unistd.h>
 #include <sys/types.h>
@@ -175,6 +177,43 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
   if (!bSuccess || dwRead != len)
     return EIO;
   return 0;
+}
+
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+
+struct CddProcess {
+  int dummy;
+};
+
+int cdd_ipc_pipe_init(struct CddIpcPipe *p) {
+  (void)p;
+  return EINVAL;
+}
+void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) { (void)pipe; }
+int cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *p2c,
+                      struct CddIpcPipe *c2p) {
+  (void)proc;
+  (void)p2c;
+  (void)c2p;
+  return EINVAL;
+}
+int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
+  (void)proc;
+  if (exit_code)
+    *exit_code = -1;
+  return EINVAL;
+}
+int cdd_ipc_write(void *handle, const void *data, size_t len) {
+  (void)handle;
+  (void)data;
+  (void)len;
+  return EINVAL;
+}
+int cdd_ipc_read(void *handle, void *data, size_t len) {
+  (void)handle;
+  (void)data;
+  (void)len;
+  return EINVAL;
 }
 
 #else /* POSIX */

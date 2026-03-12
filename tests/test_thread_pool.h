@@ -12,6 +12,8 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+#include <dos.h>
 #else
 #include <unistd.h>
 #endif
@@ -22,6 +24,8 @@
 static void sleep_ms(int ms) {
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   Sleep(ms);
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  delay(ms);
 #else
   usleep(ms * 1000);
 #endif

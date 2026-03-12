@@ -12,6 +12,8 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+/* No TLS on DOS */
 #else
 #include <pthread.h>
 #endif
@@ -19,7 +21,33 @@
 #include <c_abstract_http/cdd_tls.h>
 /* clang-format on */
 
-#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+struct CddTlsKey {
+  void *dummy;
+};
+static void *dummy_tls_val = NULL;
+int cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *)) {
+  (void)key;
+  (void)destructor;
+  return EINVAL;
+}
+int cdd_tls_set(struct CddTlsKey *key, void *value) {
+  (void)key;
+  dummy_tls_val = value;
+  return 0;
+}
+int cdd_tls_get(struct CddTlsKey *key, void **out_value) {
+  (void)key;
+  if (out_value)
+    *out_value = dummy_tls_val;
+  return 0;
+}
+void cdd_tls_key_delete(struct CddTlsKey *key) {
+  (void)key;
+  dummy_tls_val = NULL;
+}
+
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
 struct CddTlsKey {
   DWORD dwTlsIndex;

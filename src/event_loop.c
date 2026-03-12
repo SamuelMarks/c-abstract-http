@@ -18,6 +18,8 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+#include <dos.h>
 #else
 #include <sys/select.h>
 #include <sys/time.h>
@@ -27,6 +29,70 @@
 
 #include <c_abstract_http/event_loop.h>
 /* clang-format on */
+
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+int http_loop_init(struct ModalityEventLoop **loop) {
+  (void)loop;
+  return ENOTSUP;
+}
+int http_loop_init_external(struct ModalityEventLoop **loop,
+                            const struct HttpLoopHooks *hooks) {
+  (void)loop;
+  (void)hooks;
+  return ENOTSUP;
+}
+void http_loop_free(struct ModalityEventLoop *loop) { (void)loop; }
+int http_loop_run(struct ModalityEventLoop *loop) {
+  (void)loop;
+  return ENOTSUP;
+}
+int http_loop_tick(struct ModalityEventLoop *loop) {
+  (void)loop;
+  return ENOTSUP;
+}
+int http_loop_stop(struct ModalityEventLoop *loop) {
+  (void)loop;
+  return ENOTSUP;
+}
+int http_loop_add_fd(struct ModalityEventLoop *loop, int fd, int events,
+                     http_loop_cb cb, void *user_data) {
+  (void)loop;
+  (void)fd;
+  (void)events;
+  (void)cb;
+  (void)user_data;
+  return ENOTSUP;
+}
+int http_loop_mod_fd(struct ModalityEventLoop *loop, int fd, int events) {
+  (void)loop;
+  (void)fd;
+  (void)events;
+  return ENOTSUP;
+}
+int http_loop_remove_fd(struct ModalityEventLoop *loop, int fd) {
+  (void)loop;
+  (void)fd;
+  return ENOTSUP;
+}
+int http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
+                        http_timer_cb cb, void *user_data, int *out_timer_id) {
+  (void)loop;
+  (void)timeout_ms;
+  (void)cb;
+  (void)user_data;
+  (void)out_timer_id;
+  return ENOTSUP;
+}
+int http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
+  (void)loop;
+  (void)timer_id;
+  return ENOTSUP;
+}
+int http_loop_wakeup(struct ModalityEventLoop *loop) {
+  (void)loop;
+  return ENOTSUP;
+}
+#else
 
 struct TimerNode {
   cdd_int64_t expiration;
@@ -712,3 +778,5 @@ int http_loop_stop(struct ModalityEventLoop *loop) {
   http_loop_wakeup(loop);
   return 0;
 }
+
+#endif

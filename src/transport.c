@@ -27,6 +27,8 @@
 #include <c_abstract_http/http_libuv.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
 #include <c_abstract_http/http_fetch.h>
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) || defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+#include <c_abstract_http/http_raw.h>
 #else
 #include <c_abstract_http/http_curl.h>
 #endif
@@ -58,6 +60,9 @@ int transport_global_init(void) {
   return http_libuv_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   return http_fetch_global_init();
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
+    defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+  return http_raw_global_init();
 #else
   return http_curl_global_init();
 #endif
@@ -83,6 +88,9 @@ void transport_global_cleanup(void) {
   http_libuv_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   http_fetch_global_cleanup();
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
+    defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+  http_raw_global_cleanup();
 #else
   http_curl_global_cleanup();
 #endif
@@ -138,12 +146,20 @@ int transport_factory_init_client(struct HttpClient *client) {
   rc = http_libuv_context_init(&client->transport);
   if (rc == 0) {
     client->send = http_libuv_send;
+    client->send_multi = http_libuv_send_multi;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   rc = http_fetch_context_init(&client->transport);
   if (rc == 0) {
     client->send = http_fetch_send;
     client->send_multi = http_fetch_send_multi;
+  }
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
+    defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+  rc = http_raw_context_init(&client->transport);
+  if (rc == 0) {
+    client->send = http_raw_send;
+    client->send_multi = http_raw_send_multi;
   }
 #else
   rc = http_curl_context_init(&client->transport);
@@ -152,7 +168,6 @@ int transport_factory_init_client(struct HttpClient *client) {
     client->send_multi = http_curl_send_multi;
   }
 #endif
-
   return rc;
 }
 
@@ -185,6 +200,9 @@ void transport_factory_cleanup_client(struct HttpClient *client) {
   http_libuv_context_free(client->transport);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   http_fetch_context_free(client->transport);
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
+    defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+  http_raw_context_free(client->transport);
 #else
   http_curl_context_free(client->transport);
 #endif

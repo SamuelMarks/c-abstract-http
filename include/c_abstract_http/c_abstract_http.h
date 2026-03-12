@@ -94,6 +94,8 @@
 #include "../../src/http_libevent.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
 #include "../../src/http_fetch.c"
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) || defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+#include "../../src/http_raw.c"
 #else
 #include "../../src/http_curl.c"
 #endif

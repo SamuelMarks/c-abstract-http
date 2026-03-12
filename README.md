@@ -14,6 +14,7 @@ A highly robust, cross-platform abstract HTTP network library for C. It unifies 
 - **FreeBSD**: Clang
 - **Android**: NDK
 - **WebAssembly**: Emscripten
+- **DOS**: OpenWatcom (with fallback support for Watt-32 / mTCP)
 
 ## Target Network Libraries
 
@@ -29,6 +30,7 @@ The library defaults to the best native network library for the target platform,
 - **libfetch**: Default for FreeBSD/BSD systems.
 - **HttpURLConnection**: Java-bridged backend for Android.
 - **Emscripten Fetch API**: Natively bridges to JS `fetch` for WebAssembly.
+- **Raw Sockets (`C_ABSTRACT_HTTP_USE_RAW_SOCKETS`)**: Manual fallback implementation using `select`/`read`/`write` for deeply embedded systems or DOS network stacks.
 
 ## Target Crypto Libraries
 

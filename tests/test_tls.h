@@ -28,6 +28,8 @@ static void test_tls_task_cb(void *arg) {
 /* simulate some context switch */
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   Sleep(5);
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  delay(5);
 #else
   usleep(5 * 1000);
 #endif

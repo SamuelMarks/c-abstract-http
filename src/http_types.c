@@ -22,11 +22,13 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #else
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
 #endif
 
 #include <c_abstract_http/http_types.h>
@@ -1743,6 +1745,19 @@ int http_oauth2_localhost_intercept(unsigned short port,
                                     const char *html_response, char **out_code,
                                     char **out_state, char **out_error,
                                     char **out_error_desc) {
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  (void)port;
+  (void)html_response;
+  if (out_code)
+    *out_code = NULL;
+  if (out_state)
+    *out_state = NULL;
+  if (out_error)
+    *out_error = NULL;
+  if (out_error_desc)
+    *out_error_desc = NULL;
+  return ENOTSUP;
+#else
   cdd_socket_t srv_sock = CDD_INVALID_SOCKET_VAL,
                cli_sock = CDD_INVALID_SOCKET_VAL;
   struct sockaddr_in saddr;
@@ -1869,6 +1884,7 @@ cleanup:
   WSACleanup();
 #endif
   return rc;
+#endif
 }
 
 /** @brief http_response_init definition */

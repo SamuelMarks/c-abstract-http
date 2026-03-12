@@ -40,13 +40,14 @@ To accommodate varied concurrency models, `c-abstract-http` supports multiple ex
 - **FreeBSD**: Clang
 - **Android**: NDK
 - **WebAssembly**: Emscripten
+- **DOS**: OpenWatcom (with fallback support for Watt-32 / mTCP)
 
 ### 2. Target Network Libraries
 
 The dispatcher layer evaluates the compiled platform and wires up the backend's specific `send` and `send_multi` implementations. Native default backends are preferred to reduce binary size and leverage system-provided certificates:
 
 - **WinHTTP**: The modern standard for Windows networking. Uses `WinHttpSendRequest`.
-- **WinINet**: The legacy standard for older Windows environments or specialized proxy/caching setups.
+- **WinINet**: The legacy standard for older Windows environments or specialized proxy/caching setups.    
 - **CFNetwork**: Uses `CFNetwork` and `Foundation` types for native execution on macOS and iOS.
 - **libcurl**: The robust fallback for POSIX systems (Linux, BSD) leveraging `libcurl`.
 - **libuv / libevent**: Modern POSIX backend leveraging `libuv` or `libevent`, ideal for asynchronous Node.js-style environments.
@@ -54,7 +55,7 @@ The dispatcher layer evaluates the compiled platform and wires up the backend's 
 - **libfetch**: FreeBSD and POSIX backend leveraging `libfetch`, tailored for BSD environments.
 - **HttpURLConnection**: Specialized networking integrations for Android JNI environments.
 - **Emscripten Fetch API**: The WebAssembly backend leveraging Emscripten's Fetch API to bridge network calls transparently to the browser's native `fetch`.
-
+- **Raw Sockets (`http_raw.c`)**: A fallback manual HTTP protocol implementation utilizing `select`, `read`, and `write` over raw TCP sockets. Ideal for DOS systems or deeply embedded environments that do not provide native HTTP clients but supply fundamental BSD-style sockets (e.g. Watt-32, mTCP).
 ### 3. Cryptography Integration
 
 To preserve the "Native By Default" philosophy without locking consumers into a heavy OpenSSL dependency, the library dynamically injects cryptography routines natively into the underlying HTTP abstraction via a unified CMake macro (`c_abstract_http_apply_crypto`).

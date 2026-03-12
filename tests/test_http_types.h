@@ -8,6 +8,8 @@
 #endif
 #include <winsock2.h>
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+#include <dos.h>
 #else
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -35,14 +37,19 @@ struct ServerArgs {
   char *err_desc;
 };
 
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 static void server_task(void *arg) {
   struct ServerArgs *args = (struct ServerArgs *)arg;
   args->rc = http_oauth2_localhost_intercept(
       args->port, "HTTP/1.1 200 OK\r\n\r\nOK", &args->code, &args->state,
       &args->err, &args->err_desc);
 }
+#endif
 
 TEST test_oauth2_localhost_intercept(void) {
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  SKIP();
+#else
   struct CddThreadPool *pool;
   struct ServerArgs args;
 #if defined(_WIN32)
@@ -56,8 +63,8 @@ TEST test_oauth2_localhost_intercept(void) {
 #endif
   struct sockaddr_in saddr;
   const char *req = "GET /?code=c123&state=s456 HTTP/1.1\r\n\r\n";
-  int i;
   int connected = 0;
+  int i;
 
   memset(&args, 0, sizeof(args));
   args.port = 18080;
@@ -68,6 +75,8 @@ TEST test_oauth2_localhost_intercept(void) {
   for (i = 0; i < 50; i++) {
 #if defined(_WIN32)
     Sleep(10);
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+    delay(10);
 #else
     usleep(10000);
 #endif
@@ -102,6 +111,7 @@ TEST test_oauth2_localhost_intercept(void) {
     free(args.err);
   if (args.err_desc)
     free(args.err_desc);
+#endif
 
   PASS();
 }

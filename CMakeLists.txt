@@ -134,7 +134,12 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
 endmacro()
 
 c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
-c_abstract_http_resolve_dependency(cfs https://github.com/SamuelMarks/c-fs.git master)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    set(CFS_MULTITHREADED OFF CACHE BOOL "" FORCE)
+else()
+    c_abstract_http_resolve_dependency(cfs https://github.com/SamuelMarks/c-fs.git master)
+endif()
 
 macro(c_abstract_http_apply_crypto tgt scope)
     if(C_ABSTRACT_HTTP_USE_MBEDTLS)
@@ -257,8 +262,9 @@ if(C_ABSTRACT_HTTP_HEADER_ONLY)
     elseif(C_ABSTRACT_HTTP_USE_LIBFETCH)
         target_link_libraries(c-abstract-http INTERFACE fetch c89stringutils cfs)
         target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_LIBFETCH)
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "DOS")
+        target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
     else()
-        c_abstract_http_configure_curl()
         c_abstract_http_resolve_dependency(CURL https://github.com/curl/curl.git curl-8_0_1)
         target_link_libraries(c-abstract-http INTERFACE CURL::libcurl c89stringutils cfs)
     endif()
@@ -297,7 +303,11 @@ else()
     endif()
 
     target_include_directories(c-abstract-http PUBLIC include)
-    target_link_libraries(c-abstract-http PUBLIC c89stringutils cfs)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+        target_link_libraries(c-abstract-http PUBLIC c89stringutils cfs)
+    else()
+        target_link_libraries(c-abstract-http PUBLIC c89stringutils)
+    endif()
 
 #Platform specific HTTP backends
     if(CMAKE_SYSTEM_NAME STREQUAL "Android" OR ANDROID)
@@ -369,6 +379,11 @@ else()
         )
         target_link_libraries(c-abstract-http PUBLIC fetch)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LIBFETCH)
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "DOS")
+        target_sources(c-abstract-http PRIVATE
+            src/http_raw.c
+        )
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
     else()
         target_sources(c-abstract-http PRIVATE
             src/http_curl.c

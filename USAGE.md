@@ -259,4 +259,18 @@ cmake -B build -S . \
     -DC_ABSTRACT_HTTP_USE_OPENSSL=OFF
 ```
 
+## 6. DOS and Raw Sockets Fallback
+
+If you are compiling for DOS (e.g. using OpenWatcom) or building for deeply embedded bare-metal systems, `c-abstract-http` automatically switches to its manual **Raw Sockets** implementation (`http_raw.c`). This backend relies solely on `select`, `read`, and `write` POSIX-like methods.
+
+In such environments, you will usually want to pair the network stack (like Watt-32 or mTCP) with a lightweight cryptography library, like MbedTLS or wolfSSL. 
+
+You can force this fallback layer on any POSIX system by passing the raw sockets flag:
+
+```bash
+cmake -B build -S . \
+    -DCMAKE_SYSTEM_NAME=DOS \
+    -DC_ABSTRACT_HTTP_USE_MBEDTLS=ON 
+```
+
 Available configurations include `C_ABSTRACT_HTTP_USE_OPENSSL`, `C_ABSTRACT_HTTP_USE_MBEDTLS`, `C_ABSTRACT_HTTP_USE_LIBRESSL`, `C_ABSTRACT_HTTP_USE_BORINGSSL`, `C_ABSTRACT_HTTP_USE_WOLFSSL`, `C_ABSTRACT_HTTP_USE_S2N`, `C_ABSTRACT_HTTP_USE_BEARSSL`, `C_ABSTRACT_HTTP_USE_SCHANNEL`, `C_ABSTRACT_HTTP_USE_GNUTLS`, `C_ABSTRACT_HTTP_USE_BOTAN`, `C_ABSTRACT_HTTP_USE_COMMONCRYPTO`, and `C_ABSTRACT_HTTP_USE_WINCRYPT`.

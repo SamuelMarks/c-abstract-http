@@ -17,6 +17,8 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+#include <dos.h>
 #else
 #if defined(__APPLE__) && defined(__MACH__)
 /* ucontext is deprecated on macOS but still mostly works for simple cases,
@@ -31,6 +33,33 @@
 #include <c_abstract_http/cdd_tls.h>
 /* clang-format on */
 
+#ifndef ENOTSUP
+#define ENOTSUP EINVAL
+#endif
+
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
+                       cdd_coroutine_cb cb, void *arg) {
+  (void)co;
+  (void)stack_size;
+  (void)cb;
+  (void)arg;
+  return ENOTSUP;
+}
+int cdd_coroutine_yield(void) { return ENOTSUP; }
+int cdd_coroutine_resume(struct CddCoroutine *co) {
+  (void)co;
+  return ENOTSUP;
+}
+int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
+  (void)co;
+  return 1;
+}
+void cdd_coroutine_free(struct CddCoroutine *co) { (void)co; }
+void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
+  (void)hooks;
+}
+#else
 #if defined(__linux__) && !defined(__GLIBC__)
 #define CDD_NO_UCONTEXT 1
 #endif
@@ -361,5 +390,7 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   }
   return 1;
 }
+
+#endif
 
 #endif

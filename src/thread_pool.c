@@ -17,6 +17,8 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+/* No threading support on DOS */
 #else
 #include <pthread.h>
 #endif
@@ -158,6 +160,66 @@ static void thread_join(cdd_thread_t thread) {
   WaitForSingleObject(thread, INFINITE);
   CloseHandle(thread);
 }
+
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+
+struct CddMutex {
+  int dummy;
+};
+struct CddCond {
+  int dummy;
+};
+
+int cdd_mutex_init(struct CddMutex **mutex) {
+  if (!mutex)
+    return EINVAL;
+  *mutex = (struct CddMutex *)malloc(sizeof(struct CddMutex));
+  return *mutex ? 0 : ENOMEM;
+}
+int cdd_mutex_lock(struct CddMutex *mutex) {
+  (void)mutex;
+  return 0;
+}
+int cdd_mutex_unlock(struct CddMutex *mutex) {
+  (void)mutex;
+  return 0;
+}
+void cdd_mutex_free(struct CddMutex *mutex) { free(mutex); }
+
+int cdd_cond_init(struct CddCond **cond) {
+  if (!cond)
+    return EINVAL;
+  *cond = (struct CddCond *)malloc(sizeof(struct CddCond));
+  return *cond ? 0 : ENOMEM;
+}
+int cdd_cond_wait(struct CddCond *cond, struct CddMutex *mutex) {
+  (void)cond;
+  (void)mutex;
+  return 0;
+}
+int cdd_cond_signal(struct CddCond *cond) {
+  (void)cond;
+  return 0;
+}
+int cdd_cond_broadcast(struct CddCond *cond) {
+  (void)cond;
+  return 0;
+}
+void cdd_cond_free(struct CddCond *cond) { free(cond); }
+
+typedef int cdd_thread_t;
+#define CDD_THREAD_FUNC void *
+typedef void *cdd_thread_arg_t;
+
+static int thread_create(cdd_thread_t *thread,
+                         CDD_THREAD_FUNC (*start_routine)(cdd_thread_arg_t),
+                         cdd_thread_arg_t arg) {
+  (void)thread;
+  (void)start_routine;
+  (void)arg;
+  return ENOTSUP;
+}
+static void thread_join(cdd_thread_t thread) { (void)thread; }
 
 #else /* POSIX */
 
