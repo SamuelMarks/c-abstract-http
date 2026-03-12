@@ -1,10 +1,8 @@
 # Usage
 
-This guide covers basic integration, standard HTTP requests, error handling, and memory lifecycle in `c-abstract-http`.
+This guide covers basic integration, standard HTTP requests, error handling, OAuth2 support, and memory lifecycle in `c-abstract-http`.
 
 ## 1. Initializing the Client
-
-The core object you'll work with is the `HttpClient`. Every networking operation requires an initialized client to function correctly across multiple platforms.
 
 ```c
 #include <c_abstract_http/c_abstract_http.h>
@@ -12,276 +10,141 @@ The core object you'll work with is the `HttpClient`. Every networking operation
 
 int main(void) {
     struct HttpClient client;
-    int rc;
+    int rc = http_client_init(&client);
+    if (rc != 0) return rc;
 
-    /* 1. Initialize the client context */
-    rc = http_client_init(&client);
-    if (rc != 0) {
-        fprintf(stderr, "Failed to initialize client: %d\n", rc);
-        return rc;
-    }
-
-    /* Configure base options if necessary */
-    client.config.timeout_ms = 5000; /* 5 seconds */
+    client.config.timeout_ms = 5000;
     client.config.follow_redirects = 1;
 
-    /* ... Perform requests here ... */
-
-    /* 2. Free the client context to prevent memory leaks */
     http_client_free(&client);
     return 0;
 }
 ```
 
-## 2. Making a Basic GET Request
+## 2. OAuth 2.0 Client Support
 
-Requests and responses are distinct structs. You build an `HttpRequest`, dispatch it via `client.send()`, and receive an `HttpResponse`.
+`c-abstract-http` natively handles OAuth 2.0 flows, making authentication against modern APIs simple and secure.
+
+### Password Grant
 
 ```c
-#include <c_abstract_http/c_abstract_http.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-void perform_get(struct HttpClient *client) {
+void get_token(struct HttpClient *client) {
     struct HttpRequest req;
     struct HttpResponse *res = NULL;
-    int rc;
-
-    /* Initialize the Request object */
-    rc = http_request_init(&req);
-    if (rc != 0) return;
-
-    /* Setup properties */
-    req.method = HTTP_GET;
-    req.url = "https://api.github.com/zen";
-
-    /* Add a custom header */
-    http_headers_add(&req.headers, "User-Agent", "c-abstract-http/1.0");
-
-    /* Send the request (this will allocate the Response object on success) */
-    rc = client->send(client->transport, &req, &res);
     
-    if (rc == 0 && res != NULL) {
-        printf("Status Code: %d\n", res->status_code);
-        
-        if (res->body && res->body_len > 0) {
-            /* Safely print the string, bounded by length or null-terminated */
-            printf("Response Body:\n%s\n", (char *)res->body);
-        }
-    } else {
-        printf("Request failed with error code: %d\n", rc);
-    }
+    http_request_init(&req);
+    
+    http_request_init_oauth2_password_grant(&req, 
+        "https://auth.server/token",
+        "user@example.com",
+        "super_secret_password",
+        "client_id_123",
+        NULL, 
+        "read write"
+    );
 
-    /* Cleanup */
-    if (res) http_response_free(res);
+    client->send(client->transport, &req, &res);
+
+    if (res) {
+        printf("Response: %s\n", (char*)res->body);
+        http_response_free(res);
+    }
     http_request_free(&req);
 }
 ```
 
-## 3. Reading Headers (Out Pointer Pattern)
-
-Remember the primary architectural rule of this library: **All non-void functions return an integer exit code.** When you want to retrieve a value, pass a pointer to your variable via the `out` parameter.
+### Client Credentials Grant
 
 ```c
-void extract_content_type(struct HttpResponse *res) {
-    const char *out_val = NULL;
-    int rc;
-
-    /* We pass &out_val to capture the returned pointer */
-    rc = http_headers_get(&res->headers, "Content-Type", &out_val);
-    
-    if (rc == 0) {
-        printf("Content-Type is: %s\n", out_val);
-    } else {
-        printf("Content-Type header not found (Code: %d)\n", rc);
-    }
-}
-```
-
-## 4. Sending a POST Request with JSON Body
-
-To send data, populate the `body` and `body_len` fields on the `HttpRequest`.
-
-```c
-void perform_post(struct HttpClient *client) {
+void service_token(struct HttpClient *client) {
     struct HttpRequest req;
     struct HttpResponse *res = NULL;
-    const char *payload = "{\"name\": \"c-abstract-http\", \"version\": 1}";
-    int rc;
 
     http_request_init(&req);
+    http_request_init_oauth2_client_credentials_grant(&req, 
+        "https://auth.server/token",
+        "my_client_id",
+        "my_client_secret",
+        "admin_scope"
+    );
 
-    req.method = HTTP_POST;
-    req.url = "https://httpbin.org/post";
+    client->send(client->transport, &req, &res);
     
-    /* Attach the body payload */
-    req.body = (void *)payload;
-    req.body_len = strlen(payload);
-
-    /* Required Headers */
-    http_headers_add(&req.headers, "Content-Type", "application/json");
-    http_headers_add(&req.headers, "User-Agent", "c-abstract-http");
-
-    /* Dispatch */
-    rc = client->send(client->transport, &req, &res);
-    
-    if (rc == 0 && res != NULL) {
-        printf("POST Success! Status: %d\n", res->status_code);
-    }
-
-    /* Cleanup */
     if (res) http_response_free(res);
     http_request_free(&req);
 }
 ```
 
-## 5. Working with Cookies
+### Device Authorization Flow
 
-A shared `HttpCookieJar` can be assigned to the `HttpConfig` to automatically persist cookies across multiple requests.
-
-```c
-#include <c_abstract_http/c_abstract_http.h>
-#include <stdio.h>
-
-void test_cookies(void) {
-    struct HttpClient client;
-    struct HttpCookieJar jar;
-    const char *cookie_val = NULL;
-    int rc;
-
-    http_client_init(&client);
-    http_cookie_jar_init(&jar);
-
-    /* Bind the jar to the client configuration */
-    client.config.cookie_jar = &jar;
-
-    /* Manually inject a cookie into the jar */
-    http_cookie_jar_set(&jar, "session_id", "xyz123");
-
-    /* Requests sent via `client` will now automatically append the session_id cookie! */
-    /* And Set-Cookie response headers will automatically populate the `jar`. */
-
-    /* Retrieve a cookie */
-    rc = http_cookie_jar_get(&jar, "session_id", &cookie_val);
-    if (rc == 0) {
-        printf("Stored Cookie: %s\n", cookie_val);
-    }
-
-    /* Cleanup both */
-    http_cookie_jar_free(&jar);
-    http_client_free(&client);
-}
-```
-
-## 6. Multipart Form Data (File Uploads)
-
-If you need to simulate an HTML `<form>` upload, use the `http_request_add_part` function. The library natively flattens or forwards the parts directly to the OS backend.
+For smart TVs and headless CLIs:
 
 ```c
-void upload_file(struct HttpClient *client) {
+void device_flow(struct HttpClient *client) {
     struct HttpRequest req;
     struct HttpResponse *res = NULL;
-    const char *img_data = "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A..."; /* Pretend it's a PNG */
-    int rc;
-
     http_request_init(&req);
-    req.method = HTTP_POST;
-    req.url = "https://httpbin.org/post";
 
-    /* Add a text field */
-    http_request_add_part(&req, "username", NULL, NULL, "samuel", 6);
+    /* 1. Get the device code */
+    http_request_init_oauth2_device_authorization_request(&req, 
+        "https://auth.server/device",
+        "my_client_id",
+        NULL
+    );
+    client->send(client->transport, &req, &res);
+    if (res) http_response_free(res);
+    http_request_free(&req);
 
-    /* Add a file part */
-    http_request_add_part(&req, "avatar", "profile.png", "image/png", img_data, 8);
-
-    /* Send */
-    rc = client->send(client->transport, &req, &res);
-
-    /* Cleanup */
+    /* 2. Poll for the access token using the device code */
+    http_request_init(&req);
+    http_request_init_oauth2_device_access_token_request(&req, 
+        "https://auth.server/token",
+        "my_client_id",
+        "device_code_123"
+    );
+    client->send(client->transport, &req, &res);
     if (res) http_response_free(res);
     http_request_free(&req);
 }
 ```
-## 7. Dispatching Multiple Requests Concurrently
 
-The library natively supports concurrent request execution via its `Modality` configurations (e.g., Event Loop, Thread Pool).
+### Localhost Intercept Server
+
+To handle the OAuth 2.0 loopback flow for desktop applications:
 
 ```c
-#include <c_abstract_http/c_abstract_http.h>
-#include <stdio.h>
-#include <stdlib.h>
+void loopback_login() {
+    char *code = NULL;
+    char *state = NULL;
+    char *err = NULL;
+    char *err_desc = NULL;
 
-void download_multiple_files(void) {
-    struct HttpClient client;
-    struct HttpRequest req1, req2;
-    struct HttpRequest *req_array[2];
-    struct HttpFuture f1, f2;
-    struct HttpFuture *futures_array[2];
-    int rc;
+    /* Block until the user completes the flow in their browser and is redirected to http://127.0.0.1:8080 */
+    int rc = http_oauth2_localhost_intercept(
+        8080, 
+        "HTTP/1.1 200 OK\r\n\r\n<html><body>Successfully logged in! You can close this tab.</body></html>", 
+        &code, &state, &err, &err_desc
+    );
 
-    http_client_init(&client);
-
-    /* Enable Asynchronous Event Loop Mode */
-    client.config.modality = MODALITY_ASYNC;
-
-    http_request_init(&req1);
-    req1.url = "https://example.com/file1.txt";
-    http_request_init(&req2);
-    req2.url = "https://example.com/file2.txt";
-
-    req_array[0] = &req1;
-    req_array[1] = &req2;
-
-    http_future_init(&f1);
-    http_future_init(&f2);
-    futures_array[0] = &f1;
-    futures_array[1] = &f2;
-
-    /* Dispatch all requests concurrently */
-    rc = http_client_send_multi(&client, req_array, 2, futures_array, NULL, NULL, 0);
-
-    if (rc == 0) {
-        /* In ASYNC mode, we must drive the event loop until requests finish */
-        if (client.loop) {
-            http_loop_run(client.loop);
-        }
-
-        if (f1.is_ready && f1.error_code == 0 && f1.response) {
-            printf("File 1 downloaded: %d bytes\n", (int)f1.response->body_len);
-        }
-        if (f2.is_ready && f2.error_code == 0 && f2.response) {
-            printf("File 2 downloaded: %d bytes\n", (int)f2.response->body_len);
-        }
+    if (rc == 0 && code) {
+        printf("Received Auth Code: %s\n", code);
     }
 
-    /* Clean up */
-    if (f1.response) { http_response_free(f1.response); free(f1.response); }
-    if (f2.response) { http_response_free(f2.response); free(f2.response); }
-    http_future_free(&f1);
-    http_future_free(&f2);
-    http_request_free(&req1);
-    http_request_free(&req2);
-    http_client_free(&client);
-}
-```
-## 8. Framework Integration
-
-The library can seamlessly integrate its execution engines (Thread Pools, Event Loops, Actors) with larger frameworks (like c-multiplatform) via injection adapters.
-
-```c
-#include <c_abstract_http/cmp_integration.h>
-
-void framework_init(void) {
-    struct HttpClient client;
-    struct CmpAppConfig cmp_cfg = { CMP_MODALITY_ASYNC_SINGLE, 4, 16 };
-
-    http_client_init(&client);
-
-    /* Automatically configure HTTP modalities based on the framework */
-    cmp_http_inject_config(&cmp_cfg, &client.config);
-
-    /* ... attach external event loop hooks, thread pools, etc ... */
+    if (code) free(code);
+    if (state) free(state);
+    if (err) free(err);
+    if (err_desc) free(err_desc);
 }
 ```
 
+## 3. Supported Crypto Libraries
+
+By default, `c-abstract-http` uses the native TLS backend of your network library (e.g. Schannel for WinHTTP, SecureTransport for CFNetwork, GnuTLS/OpenSSL for libcurl). You can force a specific crypto library via CMake when building:
+
+```bash
+cmake -B build -S . \
+    -DC_ABSTRACT_HTTP_USE_MBEDTLS=ON \
+    -DC_ABSTRACT_HTTP_USE_OPENSSL=OFF
+```
+
+Available configurations include `C_ABSTRACT_HTTP_USE_OPENSSL`, `C_ABSTRACT_HTTP_USE_MBEDTLS`, `C_ABSTRACT_HTTP_USE_LIBRESSL`, `C_ABSTRACT_HTTP_USE_BORINGSSL`, `C_ABSTRACT_HTTP_USE_WOLFSSL`, `C_ABSTRACT_HTTP_USE_S2N`, `C_ABSTRACT_HTTP_USE_BEARSSL`, `C_ABSTRACT_HTTP_USE_SCHANNEL`, `C_ABSTRACT_HTTP_USE_GNUTLS`, `C_ABSTRACT_HTTP_USE_BOTAN`, `C_ABSTRACT_HTTP_USE_COMMONCRYPTO`, and `C_ABSTRACT_HTTP_USE_WINCRYPT`.

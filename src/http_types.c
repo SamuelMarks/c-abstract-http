@@ -21,6 +21,7 @@
 #else
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
@@ -1714,8 +1715,8 @@ static int urldecode_alloc(const char *src, size_t src_len, char **out) {
   for (i = 0; i < src_len; i++) {
     if (src[i] == '%') {
       if (i + 2 < src_len) {
-        int a = src[i + 1];
-        int b = src[i + 2];
+        int a = (unsigned char)src[i + 1];
+        int b = (unsigned char)src[i + 2];
         a = (a >= '0' && a <= '9') ? a - '0' : (tolower(a) - 'a' + 10);
         b = (b >= '0' && b <= '9') ? b - '0' : (tolower(b) - 'a' + 10);
         dst[j++] = (char)((a << 4) | b);

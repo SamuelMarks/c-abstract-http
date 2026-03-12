@@ -2,14 +2,107 @@
 #define TEST_HTTP_TYPES_H
 
 /* clang-format off */
+#if defined(_WIN32)
+#include <winsock2.h>
+__declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
+#else
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+#endif
+
 #include <errno.h>
 #include <greatest.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <c_abstract_http/http_types.h>
+#include <c_abstract_http/thread_pool.h>
 
 /* clang-format on */
+
+struct ServerArgs {
+  unsigned short port;
+  int rc;
+  char *code;
+  char *state;
+  char *err;
+  char *err_desc;
+};
+
+static void server_task(void *arg) {
+  struct ServerArgs *args = (struct ServerArgs *)arg;
+  args->rc = http_oauth2_localhost_intercept(
+      args->port, "HTTP/1.1 200 OK\r\n\r\nOK", &args->code, &args->state,
+      &args->err, &args->err_desc);
+}
+
+TEST test_oauth2_localhost_intercept(void) {
+  struct CddThreadPool *pool;
+  struct ServerArgs args;
+#if defined(_WIN32)
+  SOCKET sock;
+#define TEST_CLOSESOCKET closesocket
+#define TEST_INVALID_SOCKET INVALID_SOCKET
+#else
+  int sock;
+#define TEST_CLOSESOCKET close
+#define TEST_INVALID_SOCKET -1
+#endif
+  struct sockaddr_in saddr;
+  const char *req = "GET /?code=c123&state=s456 HTTP/1.1\r\n\r\n";
+  int i;
+  int connected = 0;
+
+  memset(&args, 0, sizeof(args));
+  args.port = 18080;
+
+  ASSERT_EQ(0, cdd_thread_pool_init(&pool, 1));
+  ASSERT_EQ(0, cdd_thread_pool_push(pool, server_task, &args));
+
+  for (i = 0; i < 50; i++) {
+#if defined(_WIN32)
+    Sleep(10);
+#else
+    usleep(10000);
+#endif
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == TEST_INVALID_SOCKET)
+      continue;
+    memset(&saddr, 0, sizeof(saddr));
+    saddr.sin_family = AF_INET;
+    saddr.sin_port = htons(args.port);
+    saddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    if (connect(sock, (struct sockaddr *)&saddr, sizeof(saddr)) == 0) {
+      connected = 1;
+      send(sock, req, (int)strlen(req), 0);
+      TEST_CLOSESOCKET(sock);
+      break;
+    }
+    TEST_CLOSESOCKET(sock);
+  }
+  ASSERT_EQ(1, connected);
+
+  cdd_thread_pool_free(pool);
+
+  ASSERT_EQ(0, args.rc);
+  ASSERT_STR_EQ("c123", args.code);
+  ASSERT_STR_EQ("s456", args.state);
+
+  if (args.code)
+    free(args.code);
+  if (args.state)
+    free(args.state);
+  if (args.err)
+    free(args.err);
+  if (args.err_desc)
+    free(args.err_desc);
+
+  PASS();
+}
+
 TEST test_multipart_lifecycle(void) {
   struct HttpRequest req;
   http_request_init(&req);
@@ -657,9 +750,14 @@ SUITE(http_types_suite) {
   RUN_TEST(test_oauth2_password_grant);
   RUN_TEST(test_oauth2_refresh_token_grant);
   RUN_TEST(test_oauth2_authorization_code_grant);
+  RUN_TEST(test_oauth2_device_authorization_request);
+  RUN_TEST(test_oauth2_device_access_token_request);
+  RUN_TEST(test_oauth2_token_revocation);
+  RUN_TEST(test_oauth2_token_introspection);
   RUN_TEST(test_oauth2_client_credentials_grant);
   RUN_TEST(test_oauth2_jwt_bearer_grant);
   RUN_TEST(test_oauth2_build_authorization_url);
+  RUN_TEST(test_oauth2_localhost_intercept);
   RUN_TEST(test_http_config_init_redirects);
   RUN_TEST(test_http_request_init_defaults);
   RUN_TEST(test_http_headers_get_remove);
