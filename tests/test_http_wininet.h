@@ -149,6 +149,7 @@ static int wininet_mock_chunk_cb(void *user_data, const void *chunk,
                                  size_t chunk_len) {
   struct wininet_TestChunkState *state =
       (struct wininet_TestChunkState *)user_data;
+  (void)chunk;
   state->call_count++;
   state->total_bytes += chunk_len;
   if (state->abort_on_call > 0 && state->call_count >= state->abort_on_call) {

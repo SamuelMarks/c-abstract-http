@@ -21,14 +21,8 @@ static int mock_actor_handler(struct CddActor *actor, struct CddMessage *msg) {
     return EINVAL;
 
   if (msg->type == CDD_MSG_HTTP_SEND) {
-    struct CddMessage response;
     state->received_messages++;
 
-    /* Respond */
-    response.type = CDD_MSG_HTTP_RESPONSE;
-    response.payload = NULL;
-    response.sender = actor;
-    response.receiver = msg->sender;
     /* We need to get the bus from somewhere, typically passed in context or
        global. In this test, the sender is known to use the same bus. Actually,
        CddMessageBus is opaque and we don't have a cdd_actor_get_bus, but for

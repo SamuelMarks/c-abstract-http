@@ -13,6 +13,7 @@
 static void timer_cb_1(struct ModalityEventLoop *loop, int timer_id,
                        void *user_data) {
   int *triggered = (int *)user_data;
+  (void)timer_id;
   *triggered = 1;
   http_loop_stop(loop);
 }
@@ -48,11 +49,15 @@ TEST test_event_loop_timer(void) {
 static void timer_cb_cancel(struct ModalityEventLoop *loop, int timer_id,
                             void *user_data) {
   int *triggered = (int *)user_data;
+  (void)loop;
+  (void)timer_id;
   *triggered = 1; /* Should not be hit */
 }
 
 static void timer_cb_stop(struct ModalityEventLoop *loop, int timer_id,
                           void *user_data) {
+  (void)timer_id;
+  (void)user_data;
   http_loop_stop(loop);
 }
 
