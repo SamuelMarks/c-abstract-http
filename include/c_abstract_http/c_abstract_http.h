@@ -12,6 +12,10 @@
 #ifndef C_ABSTRACT_HTTP_H
 #define C_ABSTRACT_HTTP_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "http_types.h"
 
@@ -101,6 +105,10 @@
 #endif
 
 #endif /* C_ABSTRACT_HTTP_IMPLEMENTATION */
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* C_ABSTRACT_HTTP_H */
 

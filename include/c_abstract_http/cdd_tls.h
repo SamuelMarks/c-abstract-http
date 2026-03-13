@@ -12,7 +12,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /* clang-format off */
 #include <stddef.h>
@@ -61,6 +61,6 @@ extern void cdd_tls_key_delete(struct CddTlsKey *key);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
 #endif

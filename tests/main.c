@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if defined(__WATCOMC__)
+#define strncat_s(dest, destsz, src, count) strncat(dest, src, count)
+#endif
+
 #ifdef C_ABSTRACT_HTTP_HEADER_ONLY
 #define C_ABSTRACT_HTTP_IMPLEMENTATION
 #include <c_abstract_http/c_abstract_http.h>

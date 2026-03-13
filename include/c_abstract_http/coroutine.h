@@ -14,7 +14,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /* clang-format off */
 #include <stddef.h>
@@ -91,6 +91,6 @@ extern int math_cdd_coroutine_is_done(const struct CddCoroutine *co);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
 #endif /* C_CDD_HTTP_COROUTINE_H */

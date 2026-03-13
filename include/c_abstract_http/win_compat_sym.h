@@ -12,6 +12,10 @@
 #ifndef C_CDD_WIN_COMPAT_SYM_H
 #define C_CDD_WIN_COMPAT_SYM_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #if defined(_M_AMD64) && !defined(_AMD64_)
 #define _AMD64_
@@ -43,6 +47,10 @@
 #define SIZE_T_FMT "lu"
 
 #endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* C_CDD_WIN_COMPAT_SYM_H */
 

@@ -13,7 +13,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /* clang-format off */
 #include <stddef.h>
@@ -141,6 +141,6 @@ extern int cdd_actor_get_name(const struct CddActor *actor, const char **name);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
 #endif /* C_CDD_HTTP_ACTOR_H */

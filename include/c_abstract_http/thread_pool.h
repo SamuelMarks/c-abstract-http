@@ -13,7 +13,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /* clang-format off */
 #include <stddef.h>
@@ -148,6 +148,6 @@ extern void cdd_thread_pool_free(struct CddThreadPool *pool);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
 #endif /* C_CDD_HTTP_THREAD_POOL_H */

@@ -13,7 +13,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /* clang-format off */
 #include <stddef.h>
@@ -138,6 +138,6 @@ extern int cdd_ipc_read(void *handle, void *data, size_t len);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
 #endif /* C_CDD_HTTP_PROCESS_H */

@@ -13,7 +13,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
@@ -173,6 +173,6 @@ extern int http_loop_wakeup(struct ModalityEventLoop *loop);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
 #endif /* C_CDD_HTTP_EVENT_LOOP_H */

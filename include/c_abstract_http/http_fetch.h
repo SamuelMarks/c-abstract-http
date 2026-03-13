@@ -123,6 +123,19 @@ extern /**
     http_fetch_send(struct HttpTransportContext *ctx,
                     const struct HttpRequest *req, struct HttpResponse **res);
 
+/**
+ * @brief Dispatch multiple HTTP requests using libfetch asynchronous modes.
+ *
+ * Provides multiplexed execution over a single transport context.
+ * Requires `C_ABSTRACT_HTTP_USE_LIBFETCH`.
+ *
+ * @param ctx Pointer to an initialized HttpTransportContext.
+ * @param loop Event loop to drive the execution.
+ * @param multi Multi-request specification.
+ * @param futures Array of returned HttpFuture handles, allocated upon success.
+ * @return 0 on success (all requests initiated), negative mapped cdd-error
+ * otherwise.
+ */
 extern int http_fetch_send_multi(struct HttpTransportContext *ctx,
                                  struct ModalityEventLoop *loop,
                                  const struct HttpMultiRequest *multi,
