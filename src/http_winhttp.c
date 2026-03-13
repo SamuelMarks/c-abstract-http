@@ -41,6 +41,9 @@ typedef void *LPVOID;
 
 #include <c_abstract_http/event_loop.h>
 #include <cfs/cfs.h>
+#include <c_abstract_http/http_winhttp.h>
+#include <c_abstract_http/str.h>
+/* clang-format on */
 
 /**
  * @brief Helper to convert ASCII to wide string.
@@ -50,10 +53,12 @@ typedef void *LPVOID;
  * @param[out] out_len Pointer to store the number of characters written.
  * @return 0 on success, EINVAL on error.
  */
-static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out_len) {
-  cfs_size_t written = cfs_mb_to_wide(s, ws, buf_cap);
-  if (written == 0) return EINVAL;
-  *out_len = written - 1;
+static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
+                         size_t *out_len) {
+  cfs_size_t written = 0;
+  if (cfs_mb_to_wide(s, ws, (cfs_size_t)buf_cap, &written) != 0 || written == 0)
+    return EINVAL;
+  *out_len = (size_t)(written - 1);
   return 0;
 }
 
@@ -65,15 +70,14 @@ static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out
  * @param[out] out_len Pointer to store the number of characters written.
  * @return 0 on success, EINVAL on error.
  */
-static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out_len) {
-  cfs_size_t written = cfs_wide_to_mb(ws, s, buf_cap);
-  if (written == 0) return EINVAL;
-  *out_len = written - 1;
+static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
+                         size_t *out_len) {
+  cfs_size_t written = 0;
+  if (cfs_wide_to_mb(ws, s, (cfs_size_t)buf_cap, &written) != 0 || written == 0)
+    return EINVAL;
+  *out_len = (size_t)(written - 1);
   return 0;
 }
-#include <c_abstract_http/http_winhttp.h>
-#include <c_abstract_http/str.h>
-/* clang-format on */
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 #if defined(_MSC_VER)
