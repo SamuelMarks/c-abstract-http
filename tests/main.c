@@ -28,6 +28,18 @@
 #if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include "test_http_libsoup3.h"
 
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+#include "test_http_lsquic.h"
+
+#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#include "test_http_picoquic.h"
+
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+#include "test_http_nghttp3.h"
+
+#elif defined(C_ABSTRACT_HTTP_USE_MSH3)
+#include "test_http_msh3.h"
+
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
 #include "test_http_libuv.h"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
@@ -74,6 +86,14 @@ int main(int argc, char **argv) {
 
 #if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   RUN_SUITE(http_libsoup3_suite);
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+  RUN_SUITE(http_lsquic_suite);
+#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+  RUN_SUITE(http_picoquic_suite);
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+  RUN_SUITE(http_nghttp3_suite);
+#elif defined(C_ABSTRACT_HTTP_USE_MSH3)
+  RUN_SUITE(http_msh3_suite);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
   RUN_SUITE(http_libuv_suite);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)

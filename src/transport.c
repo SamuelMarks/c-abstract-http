@@ -13,7 +13,17 @@
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
 
-#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
+#include <c_abstract_http/http_aria2.h>
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+#include <c_abstract_http/http_lsquic.h>
+#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#include <c_abstract_http/http_picoquic.h>
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+#include <c_abstract_http/http_nghttp3.h>
+#elif defined(C_ABSTRACT_HTTP_USE_MSH3)
+#include <c_abstract_http/http_msh3.h>
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #include <c_abstract_http/http_winhttp.h>
 #elif defined(__APPLE__)
 #include <c_abstract_http/http_apple.h>
@@ -46,7 +56,17 @@
  */
 /* clang-format on */
 int transport_global_init(void) {
-#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
+  return http_aria2_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+  return http_lsquic_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+  return http_picoquic_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+  return http_nghttp3_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_MSH3)
+  return http_msh3_global_init();
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   return http_winhttp_global_init();
 #elif defined(__APPLE__)
   return http_apple_global_init();
@@ -74,7 +94,17 @@ int transport_global_init(void) {
  * Calls the platform-specific cleanup function.
  */
 void transport_global_cleanup(void) {
-#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
+  http_aria2_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+  http_lsquic_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+  http_picoquic_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+  http_nghttp3_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_MSH3)
+  http_msh3_global_cleanup();
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   http_winhttp_global_cleanup();
 #elif defined(__APPLE__)
   http_apple_global_cleanup();
@@ -116,7 +146,37 @@ int transport_factory_init_client(struct HttpClient *client) {
   client->thread_pool = NULL;
   client->loop = NULL;
 
-#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
+  rc = http_aria2_context_init(&client->transport);
+  if (rc == 0) {
+    client->send = http_aria2_send;
+    client->send_multi = http_aria2_send_multi;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+  rc = http_lsquic_context_init(&client->transport);
+  if (rc == 0) {
+    client->send = http_lsquic_send;
+    client->send_multi = http_lsquic_send_multi;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+  rc = http_picoquic_context_init(&client->transport);
+  if (rc == 0) {
+    client->send = http_picoquic_send;
+    client->send_multi = http_picoquic_send_multi;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+  rc = http_nghttp3_context_init(&client->transport);
+  if (rc == 0) {
+    client->send = http_nghttp3_send;
+    client->send_multi = http_nghttp3_send_multi;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_MSH3)
+  rc = http_msh3_context_init(&client->transport);
+  if (rc == 0) {
+    client->send = http_msh3_send;
+    client->send_multi = http_msh3_send_multi;
+  }
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   rc = http_winhttp_context_init(&client->transport);
   if (rc == 0) {
     client->send = http_winhttp_send;
@@ -186,7 +246,17 @@ void transport_factory_cleanup_client(struct HttpClient *client) {
     return;
   }
 
-#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
+  http_aria2_context_free(client->transport);
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+  http_lsquic_context_free(client->transport);
+#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+  http_picoquic_context_free(client->transport);
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+  http_nghttp3_context_free(client->transport);
+#elif defined(C_ABSTRACT_HTTP_USE_MSH3)
+  http_msh3_context_free(client->transport);
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   http_winhttp_context_free(client->transport);
 #elif defined(__APPLE__)
   http_apple_context_free(client->transport);

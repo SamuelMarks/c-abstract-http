@@ -39,3 +39,12 @@ vcpkg_installed/
 Testing/
 test_fetch.c
 fetch.h
+
+# Temporary and scratch files
+*.patch
+dummy.*
+*_tmp.*
+*_tmp/
+test.cmd
+gdb_script.txt
+

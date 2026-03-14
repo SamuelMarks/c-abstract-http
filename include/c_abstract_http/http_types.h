@@ -234,6 +234,31 @@ struct HttpMultiRequest {
 };
 
 /**
+ * @brief HTTP Protocol Version Bitmasks
+ */
+enum HttpVersion {
+  HTTP_VERSION_DEFAULT =
+      0, /**< Client default (typically HTTP/1.1 or HTTP/2) */
+  HTTP_VERSION_1_0 = 1 << 0, /**< HTTP/1.0 */
+  HTTP_VERSION_1_1 = 1 << 1, /**< HTTP/1.1 */
+  HTTP_VERSION_2 = 1 << 2,   /**< HTTP/2 */
+  HTTP_VERSION_3 = 1 << 3,   /**< HTTP/3 */
+  HTTP_VERSION_ANY = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3)
+};
+
+/**
+ * @brief TLS Protocol Version Bitmasks
+ */
+enum HttpTlsVersion {
+  HTTP_TLS_VERSION_DEFAULT = 0,  /**< Client default */
+  HTTP_TLS_VERSION_1_0 = 1 << 0, /**< TLS 1.0 */
+  HTTP_TLS_VERSION_1_1 = 1 << 1, /**< TLS 1.1 */
+  HTTP_TLS_VERSION_1_2 = 1 << 2, /**< TLS 1.2 */
+  HTTP_TLS_VERSION_1_3 = 1 << 3, /**< TLS 1.3 */
+  HTTP_TLS_VERSION_ANY = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3)
+};
+
+/**
  * @brief Configuration settings for the HTTP Client.
  */
 struct HttpConfig {
@@ -257,8 +282,14 @@ struct HttpConfig {
   struct HttpCookieJar *cookie_jar;  /**< Optional shared cookie jar for
                                         persistence across requests */
   enum ExecutionModality modality;   /**< Execution paradigm */
-  size_t min_threads; /**< Min threads for thread pool modality */
-  size_t max_threads; /**< Max threads for thread pool modality */
+  size_t min_threads;            /**< Min threads for thread pool modality */
+  size_t max_threads;            /**< Max threads for thread pool modality */
+  unsigned int version_mask;     /**< Preferred HTTP version(s) (bitmask of enum
+                                    HttpVersion) */
+  unsigned int tls_version_mask; /**< Allowed TLS version(s) (bitmask of enum
+                                    HttpTlsVersion) */
+  int http3_fallback; /**< 1 to fallback to HTTP/1.1/2 if HTTP/3 fails, 0
+                         otherwise */
 };
 
 struct HttpTransportContext;

@@ -16,6 +16,13 @@ int main(void) {
     client.config.timeout_ms = 5000;
     client.config.follow_redirects = 1;
 
+    /* Request HTTP/3 with a fallback to HTTP/2 and HTTP/1.1 */
+    client.config.version_mask = HTTP_VERSION_3 | HTTP_VERSION_2 | HTTP_VERSION_1_1;
+    client.config.http3_fallback = 1;
+
+    /* Restrict TLS versions to 1.2 and 1.3 for security */
+    client.config.tls_version_mask = HTTP_TLS_VERSION_1_3 | HTTP_TLS_VERSION_1_2;
+
     http_client_free(&client);
     return 0;
 }

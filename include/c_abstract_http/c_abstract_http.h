@@ -58,6 +58,9 @@ extern "C" {
 #include "http_android.h"
 
 /* clang-format boundary */
+#include "http_aria2.h"
+
+/* clang-format boundary */
 #include "http_wasm.h"
 
 /* clang-format boundary */
@@ -90,6 +93,8 @@ extern "C" {
 #include "../../src/http_android.c"
 #elif defined(__EMSCRIPTEN__)
 #include "../../src/http_wasm.c"
+#elif defined(C_ABSTRACT_HTTP_USE_ARIA2)
+#include "../../src/http_aria2.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include "../../src/http_libsoup3.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)

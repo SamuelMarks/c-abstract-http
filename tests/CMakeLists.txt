@@ -49,5 +49,8 @@ if(WIN32 AND BUILD_SHARED_LIBS)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:c89stringutils>
             $<TARGET_FILE_DIR:c-abstract-http-test>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:cfs>
+            $<TARGET_FILE_DIR:c-abstract-http-test>
     )
 endif()

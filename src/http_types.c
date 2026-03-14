@@ -627,6 +627,9 @@ int http_config_init(struct HttpConfig *config) {
   config->modality = MODALITY_SYNC;
   config->min_threads = 4;
   config->max_threads = 16;
+  config->version_mask = HTTP_VERSION_DEFAULT;
+  config->tls_version_mask = HTTP_TLS_VERSION_DEFAULT;
+  config->http3_fallback = 1;
 
   if (!config->user_agent)
     return ENOMEM;

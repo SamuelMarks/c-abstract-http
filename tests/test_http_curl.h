@@ -361,10 +361,30 @@ TEST test_curl_send_upload_chunked(void) {
   PASS();
 }
 
+TEST test_curl_http3_config(void) {
+  ASSERT_EQ(0, http_curl_global_init());
+
+  struct HttpConfig config;
+  ASSERT_EQ(0, http_config_init(&config));
+  config.version_mask = HTTP_VERSION_3;
+  config.http3_fallback = 0;
+
+  struct HttpTransportContext *ctx = NULL;
+  ASSERT_EQ(0, http_curl_context_init(&ctx));
+
+  ASSERT_EQ(0, http_curl_config_apply(ctx, &config));
+
+  http_config_free(&config);
+  http_curl_context_free(ctx);
+  http_curl_global_cleanup();
+  PASS();
+}
+
 SUITE(http_curl_suite) {
   RUN_TEST(test_curl_global_lifecycle);
   RUN_TEST(test_curl_context_lifecycle);
   RUN_TEST(test_curl_config_application);
+  RUN_TEST(test_curl_http3_config);
   RUN_TEST(test_curl_send_connection_failure);
   RUN_TEST(test_curl_send_invalid_arguments);
   RUN_TEST(test_curl_send_chunked);

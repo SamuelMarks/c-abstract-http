@@ -4,7 +4,7 @@ c-abstract-http
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Continuous Integration](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml/badge.svg)](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml)
 
-A highly robust, cross-platform abstract HTTP network library for C. It unifies various platform-specific network and crypto libraries under a single strict C89 API. Designed with strict C89 compliance, memory safety, and high portability in mind, this library is suitable for deeply embedded environments, legacy systems, and modern high-performance backends.
+A highly robust, cross-platform abstract HTTP network library for C. It unifies various platform-specific network and crypto libraries under a single strict C89 API. Designed with strict C89 compliance, memory safety, and high portability in mind, this library is suitable for deeply embedded environments, legacy systems, and modern high-performance backends. It now supports massive scale HTTP/3 integration spanning 4 native cross-platform engines.
 
 ## Target Platforms
 
@@ -23,11 +23,16 @@ The library defaults to the best native network library for the target platform,
 - **WinHTTP**: Default for Windows system services/background.
 - **WinINet**: Alternative for Windows UI/IE compatibility.
 - **CFNetwork / Foundation**: Default for Apple macOS/iOS.
-- **libcurl**: Default for Linux/POSIX. Supported on Windows/macOS as fallback.
+- **libcurl**: Default for Linux/POSIX. Supported on Windows/macOS as fallback. Now includes extensive HTTP/3 routing logic.
 - **libsoup3**: Modern GTK4-friendly POSIX backend.
 - **libuv**: Node.js-style asynchronous I/O backend.
 - **libevent**: Fast event notification backend.
 - **libfetch**: Default for FreeBSD/BSD systems.
+- **msh3**: Microsoft's lightweight HTTP/3 client built natively on the fast MsQuic stack (`C_ABSTRACT_HTTP_USE_MSH3`).
+- **lsquic**: LiteSpeed's high-performance HTTP/3 and QUIC stack (`C_ABSTRACT_HTTP_USE_LSQUIC`).
+- **picoquic**: Easy-to-embed, standalone QUIC & HTTP/3 stack via h3zero (`C_ABSTRACT_HTTP_USE_PICOQUIC`).
+- **nghttp3**: Lightweight HTTP/3 framing state machine backend (`C_ABSTRACT_HTTP_USE_NGHTTP3`).
+- **aria2**: Highly concurrent downloading utility backend (`C_ABSTRACT_HTTP_USE_ARIA2`).
 - **HttpURLConnection**: Java-bridged backend for Android.
 - **Emscripten Fetch API**: Natively bridges to JS `fetch` for WebAssembly.
 - **Raw Sockets (`C_ABSTRACT_HTTP_USE_RAW_SOCKETS`)**: Manual fallback implementation using `select`/`read`/`write` for deeply embedded systems or DOS network stacks.
@@ -64,6 +69,23 @@ The library features extensive built-in support for generating and managing OAut
 - **Token Introspection** (RFC 7662)
 - **Localhost Intercept Server**: For handling local loopback flows synchronously.
 
+## HTTP/3 Cross-Platform Support (C Implementations)
+
+The library guarantees 100% C code compliance routing HTTP/3 frames. The following table showcases pure C network engines capable of driving QUIC/H3 streams which have been integrated as native abstraction backends:
+
+```text
++-----------+--------------------+-----------------------------------------------+----------------+
+| Name      | QUIC Backend       | Description                                   | Implemented    |
++-----------+--------------------+-----------------------------------------------+----------------+
+| libcurl   | ngtcp2/quiche/msh3 | The industry standard multi-protocol library. | Yes            |
+| msh3      | MsQuic             | Minimalist HTTP/3 built on MsQuic.            | Yes            |
+| lsquic    | Built-in           | High-performance stack by LiteSpeed.          | Yes            |
+| picoquic  | Built-in (h3zero)  | Fast and easy-to-embed QUIC & HTTP/3 stack.   | Yes            |
+| nghttp3   | Agnostic (ngtcp2)  | Lightweight framing state machine.            | Yes            |
+| xquic     | Built-in           | Alibaba's stack optimized for mobile/weak net.| No             |
++-----------+--------------------+-----------------------------------------------+----------------+
+```
+
 ## CMake Configuration Options
 
 Configure your build precisely by passing these flags to CMake:
@@ -81,6 +103,10 @@ Configure your build precisely by passing these flags to CMake:
 | `C_ABSTRACT_HTTP_RTC1` | OFF | Enable MSVC /RTC1 runtime checks |
 | `C_ABSTRACT_HTTP_RTCs` | OFF | Enable MSVC /RTCs runtime checks |
 | `C_ABSTRACT_HTTP_RTCu` | OFF | Enable MSVC /RTCu runtime checks |
+| `C_ABSTRACT_HTTP_USE_MSH3` | OFF | Use msh3 (HTTP/3) instead of libcurl |
+| `C_ABSTRACT_HTTP_USE_LSQUIC` | OFF | Use lsquic (HTTP/3) instead of libcurl |
+| `C_ABSTRACT_HTTP_USE_PICOQUIC` | OFF | Use picoquic (HTTP/3) instead of libcurl |
+| `C_ABSTRACT_HTTP_USE_NGHTTP3` | OFF | Use nghttp3 (HTTP/3) instead of libcurl |
 | `C_ABSTRACT_HTTP_USE_LIBSOUP3` | OFF | Use libsoup3 instead of libcurl |
 | `C_ABSTRACT_HTTP_USE_LIBUV` | OFF | Use libuv instead of libcurl |
 | `C_ABSTRACT_HTTP_USE_LIBEVENT` | OFF | Use libevent instead of libcurl |

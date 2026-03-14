@@ -244,6 +244,88 @@ int http_curl_config_apply(struct HttpTransportContext *ctx,
   if (!ctx || !ctx->curl || !config)
     return EINVAL;
 
+  if (config->version_mask & HTTP_VERSION_3) {
+#if LIBCURL_VERSION_NUM >= 0x074200 /* 7.66.0 */
+    if ((config->version_mask &
+         (HTTP_VERSION_2 | HTTP_VERSION_1_1 | HTTP_VERSION_1_0)) ||
+        config->http3_fallback) {
+      if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
+                           CURL_HTTP_VERSION_3) != CURLE_OK)
+        return EIO;
+    } else {
+#if LIBCURL_VERSION_NUM >= 0x075000 /* 7.80.0 */
+      if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
+                           CURL_HTTP_VERSION_3ONLY) != CURLE_OK)
+        return EIO;
+#else
+      if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
+                           CURL_HTTP_VERSION_3) != CURLE_OK)
+        return EIO;
+#endif
+    }
+#else
+    /* Fallback to default if libcurl is too old */
+    if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
+                         CURL_HTTP_VERSION_NONE) != CURLE_OK)
+      return EIO;
+#endif
+  } else if (config->version_mask & HTTP_VERSION_2) {
+#if LIBCURL_VERSION_NUM >= 0x072100 /* 7.33.0 */
+    if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
+                         CURL_HTTP_VERSION_2_0) != CURLE_OK)
+      return EIO;
+#else
+    if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
+                         CURL_HTTP_VERSION_NONE) != CURLE_OK)
+      return EIO;
+#endif
+  } else if (config->version_mask & HTTP_VERSION_1_1) {
+    if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
+                         CURL_HTTP_VERSION_1_1) != CURLE_OK)
+      return EIO;
+  } else if (config->version_mask & HTTP_VERSION_1_0) {
+    if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
+                         CURL_HTTP_VERSION_1_0) != CURLE_OK)
+      return EIO;
+  } else {
+    if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
+                         CURL_HTTP_VERSION_NONE) != CURLE_OK)
+      return EIO;
+  }
+
+  if (config->tls_version_mask != HTTP_TLS_VERSION_DEFAULT) {
+    long ssl_version = CURL_SSLVERSION_DEFAULT;
+    long ssl_version_max = CURL_SSLVERSION_MAX_DEFAULT;
+
+    if (config->tls_version_mask & HTTP_TLS_VERSION_1_0)
+      ssl_version = CURL_SSLVERSION_TLSv1_0;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_1)
+      ssl_version = CURL_SSLVERSION_TLSv1_1;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_2)
+      ssl_version = CURL_SSLVERSION_TLSv1_2;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_3)
+      ssl_version = CURL_SSLVERSION_TLSv1_3;
+
+#if LIBCURL_VERSION_NUM >= 0x073600 /* 7.54.0 */
+    if (config->tls_version_mask & HTTP_TLS_VERSION_1_3)
+      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_3;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_2)
+      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_2;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_1)
+      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_1;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_0)
+      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_0;
+
+    if (curl_easy_setopt(ctx->curl, CURLOPT_SSLVERSION,
+                         ssl_version | ssl_version_max) != CURLE_OK)
+      return EIO;
+#else
+    if (curl_easy_setopt(ctx->curl, CURLOPT_SSLVERSION, ssl_version) !=
+        CURLE_OK)
+      return EIO;
+#endif
+  }
+
   if (curl_easy_setopt(ctx->curl, CURLOPT_TIMEOUT_MS, config->timeout_ms) !=
       CURLE_OK)
     return EIO;

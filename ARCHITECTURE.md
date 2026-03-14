@@ -50,6 +50,11 @@ The dispatcher layer evaluates the compiled platform and wires up the backend's 
 - **WinINet**: The legacy standard for older Windows environments or specialized proxy/caching setups.    
 - **CFNetwork**: Uses `CFNetwork` and `Foundation` types for native execution on macOS and iOS.
 - **libcurl**: The robust fallback for POSIX systems (Linux, BSD) leveraging `libcurl`.
+- **msh3**: Microsoft's lightweight HTTP/3 client built natively on the fast MsQuic stack.
+- **lsquic**: LiteSpeed's high-performance HTTP/3 and QUIC stack.
+- **picoquic**: Easy-to-embed, standalone QUIC & HTTP/3 stack via h3zero.
+- **nghttp3**: Lightweight HTTP/3 framing state machine backend.
+- **aria2**: Highly concurrent downloading utility backend.
 - **libuv / libevent**: Modern POSIX backend leveraging `libuv` or `libevent`, ideal for asynchronous Node.js-style environments.
 - **libsoup3**: Modern POSIX backend leveraging `libsoup3`, ideal for GTK4 environments.
 - **libfetch**: FreeBSD and POSIX backend leveraging `libfetch`, tailored for BSD environments.
