@@ -7,6 +7,7 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +18,10 @@
 
 #ifdef C_ABSTRACT_HTTP_USE_NGHTTP3
 #include <nghttp3/nghttp3.h>
+#endif
+/* clang-format on */
+
+#ifdef C_ABSTRACT_HTTP_USE_NGHTTP3
 
 static int g_nghttp3_init_count = 0;
 

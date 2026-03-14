@@ -7,6 +7,7 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@
 
 #include <c_abstract_http/http_picoquic.h>
 #include <c_abstract_http/str.h>
+/* clang-format on */
 
 #ifdef C_ABSTRACT_HTTP_USE_PICOQUIC
 

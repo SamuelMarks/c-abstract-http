@@ -8,6 +8,7 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,6 +29,10 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #endif
+#endif
+/* clang-format on */
+
+#ifdef C_ABSTRACT_HTTP_USE_MSH3
 
 static MSH3_API *g_msh3_api = NULL;
 static int g_msh3_init_count = 0;
@@ -270,19 +275,36 @@ static int parse_url(const char *url, char **host, char **port, char **path,
   } else {
     if (strcmp(*scheme, "https") == 0) {
       *port = (char *)malloc(4);
+#if defined(_MSC_VER)
+      strcpy_s(*port, 4, "443");
+#else
       strcpy(*port, "443");
+#endif
     } else {
       *port = (char *)malloc(3);
+#if defined(_MSC_VER)
+      strcpy_s(*port, 3, "80");
+#else
       strcpy(*port, "80");
+#endif
     }
   }
 
   if (slash) {
-    *path = (char *)malloc(strlen(slash) + 1);
+    size_t path_len = strlen(slash);
+    *path = (char *)malloc(path_len + 1);
+#if defined(_MSC_VER)
+    strcpy_s(*path, path_len + 1, slash);
+#else
     strcpy(*path, slash);
+#endif
   } else {
     *path = (char *)malloc(2);
+#if defined(_MSC_VER)
+    strcpy_s(*path, 2, "/");
+#else
     strcpy(*path, "/");
+#endif
   }
   return 0;
 }

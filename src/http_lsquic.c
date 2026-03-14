@@ -7,6 +7,7 @@
  * @author Samuel Marks
  */
 
+/* clang-format off */
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +18,10 @@
 
 #ifdef C_ABSTRACT_HTTP_USE_LSQUIC
 #include <lsquic.h>
+#endif
+/* clang-format on */
+
+#ifdef C_ABSTRACT_HTTP_USE_LSQUIC
 
 static int g_lsquic_init_count = 0;
 
