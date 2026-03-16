@@ -42,8 +42,8 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#endif
 /* clang-format on */
+#endif
 
 #if defined(_WIN32)
 

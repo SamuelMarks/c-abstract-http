@@ -11,6 +11,7 @@
 #ifndef TEST_HTTP_NGHTTP3_H
 #define TEST_HTTP_NGHTTP3_H
 
+/* clang-format off */
 #include <errno.h>
 #include <greatest.h>
 #include <stdio.h>
@@ -19,6 +20,7 @@
 #include <c_abstract_http/http_nghttp3.h>
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/str.h>
+/* clang-format on */
 
 TEST test_nghttp3_global_lifecycle(void) {
   ASSERT_EQ(0, http_nghttp3_global_init());

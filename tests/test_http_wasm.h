@@ -17,8 +17,8 @@
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_wasm.h>
 #include <c_abstract_http/str.h>
-
 /* clang-format on */
+
 static int setup_request(struct HttpRequest *req, int port) {
   char *_ast_strdup_0 = NULL;
   int rc;

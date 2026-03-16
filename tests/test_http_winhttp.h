@@ -22,8 +22,8 @@
 #include <c_abstract_http/str.h>
 
 #include "cdd_test_helpers/mock_server.h"
-
 /* clang-format on */
+
 TEST test_winhttp_lifecycle(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   struct HttpTransportContext *ctx = NULL;

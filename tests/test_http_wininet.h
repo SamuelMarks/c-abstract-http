@@ -23,8 +23,8 @@
 #include <c_abstract_http/str.h>
 
 #include "cdd_test_helpers/mock_server.h"
-
 /* clang-format on */
+
 TEST test_wininet_lifecycle(void) {
 #ifdef _WIN32
   struct HttpTransportContext *ctx = NULL;

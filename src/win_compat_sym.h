@@ -23,6 +23,7 @@
 
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
 #include <inttypes.h>
+/* clang-format on */
 #define SIZE_T_FMT "zu"
 
 #elif defined(__LP64__) || defined(_LP64)
@@ -34,5 +35,3 @@
 #endif
 
 #endif /* C_CDD_WIN_COMPAT_SYM_H */
-
-/* clang-format on */

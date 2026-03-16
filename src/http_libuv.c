@@ -17,14 +17,12 @@
 
 #ifdef C_ABSTRACT_HTTP_USE_LIBUV
 #include <uv.h>
+/* clang-format on */
 #endif
-
-
 
 /**
  * @brief Opaque context definition.
  */
-/* clang-format on */
 struct HttpTransportContext {
   struct HttpConfig config;
 };

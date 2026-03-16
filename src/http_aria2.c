@@ -14,7 +14,6 @@
 #include <c_abstract_http/http_aria2.h>
 #include <c_abstract_http/str.h>
 #include <c_abstract_http/http_types.h>
-
 /* clang-format on */
 
 struct HttpTransportContext {

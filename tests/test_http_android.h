@@ -18,8 +18,8 @@
 
 #include <c_abstract_http/http_android.h>
 #include <c_abstract_http/http_types.h>
-
 /* clang-format on */
+
 TEST test_android_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
 

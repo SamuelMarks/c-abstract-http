@@ -139,6 +139,9 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
 endmacro()
 
 c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
+if(TARGET c89stringutils)
+    target_compile_definitions(c89stringutils PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
     set(CFS_MULTITHREADED OFF CACHE BOOL "" FORCE)

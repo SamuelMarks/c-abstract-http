@@ -17,12 +17,12 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/fetch.h>
+/* clang-format on */
 #endif
 
 /**
  * @brief Opaque context definition.
  */
-/* clang-format on */
 struct HttpTransportContext {
   struct HttpConfig config;
 };

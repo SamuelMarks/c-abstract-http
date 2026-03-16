@@ -107,6 +107,7 @@ extern "C" {
 #include "../../src/http_raw.c"
 #else
 #include "../../src/http_curl.c"
+/* clang-format on */
 #endif
 
 #endif /* C_ABSTRACT_HTTP_IMPLEMENTATION */
@@ -116,5 +117,3 @@ extern "C" {
 #endif /* __cplusplus */
 
 #endif /* C_ABSTRACT_HTTP_H */
-
-/* clang-format on */

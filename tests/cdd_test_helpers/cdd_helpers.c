@@ -9,8 +9,8 @@
 #include <stdlib.h>
 
 #include "cdd_helpers.h"
-
 /* clang-format on */
+
 void cdd_precondition_failed(void) {
   fputs("cdd_precondition_failed\n", stderr);
 }

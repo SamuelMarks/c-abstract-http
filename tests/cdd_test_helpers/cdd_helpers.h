@@ -13,12 +13,12 @@ extern "C" {
 
 /* clang-format off */
 #include <stdio.h>
+/* clang-format on */
 
 /**
  * @brief Callback for assertion failures in dependencies.
  * Usually stubbed out or prints to stderr.
  */
-/* clang-format on */
 extern void cdd_precondition_failed(void);
 
 /**

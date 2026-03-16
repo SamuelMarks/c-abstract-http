@@ -18,11 +18,11 @@ extern "C" {
 
 /* clang-format off */
 #include <stddef.h>
+/* clang-format on */
 
 /**
  * @brief Opaque handle for the server instance.
  */
-/* clang-format on */
 typedef struct MockServer_ *MockServerPtr;
 
 /**

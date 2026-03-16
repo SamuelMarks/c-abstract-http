@@ -45,6 +45,7 @@
 
 #include <errno.h>
 #include <stddef.h>
+/* clang-format on */
 
 /**
  * @brief Initialize the global transport layer dependencies.
@@ -54,7 +55,6 @@
  *
  * @return 0 on success, or an error code from the underlying backend.
  */
-/* clang-format on */
 int transport_global_init(void) {
 #if defined(C_ABSTRACT_HTTP_USE_ARIA2)
   return http_aria2_global_init();

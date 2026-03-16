@@ -11,6 +11,7 @@
 #ifndef TEST_HTTP_MSH3_H
 #define TEST_HTTP_MSH3_H
 
+/* clang-format off */
 #include <errno.h>
 #include <greatest.h>
 #include <stdio.h>
@@ -19,6 +20,7 @@
 #include <c_abstract_http/http_msh3.h>
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/str.h>
+/* clang-format on */
 
 static int setup_request(struct HttpRequest *req, int port) {
   char *_ast_strdup_0 = NULL;

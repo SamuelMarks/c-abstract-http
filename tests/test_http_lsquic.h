@@ -11,6 +11,7 @@
 #ifndef TEST_HTTP_LSQUIC_H
 #define TEST_HTTP_LSQUIC_H
 
+/* clang-format off */
 #include <errno.h>
 #include <greatest.h>
 #include <stdio.h>
@@ -19,6 +20,7 @@
 #include <c_abstract_http/http_lsquic.h>
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/str.h>
+/* clang-format on */
 
 TEST test_lsquic_global_lifecycle(void) {
   ASSERT_EQ(0, http_lsquic_global_init());

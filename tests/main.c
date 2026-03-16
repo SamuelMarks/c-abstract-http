@@ -64,9 +64,9 @@
 
 #else
 #include "test_http_curl.h"
+/* clang-format on */
 #endif
 
-/* clang-format on */
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {

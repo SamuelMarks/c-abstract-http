@@ -97,7 +97,6 @@ extern /**
 #include <limits.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
 /* clang-format on */
 
 /** @brief c_stat definition */

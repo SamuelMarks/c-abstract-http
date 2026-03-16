@@ -21,9 +21,9 @@
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/str.h>
 #include "cdd_test_helpers/mock_server.h"
+/* clang-format on */
 
 /* Helper: Build a request to localhost on a port likely to be closed */
-/* clang-format on */
 static int setup_request(struct HttpRequest *req, int port) {
   char *_ast_strdup_0 = NULL;
   int rc;

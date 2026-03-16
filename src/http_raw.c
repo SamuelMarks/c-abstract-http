@@ -37,9 +37,9 @@
 #include <sys/select.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#endif
-#endif
 /* clang-format on */
+#endif
+#endif
 int http_raw_global_init(void) { return 0; }
 
 void http_raw_global_cleanup(void) {}

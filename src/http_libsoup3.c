@@ -25,11 +25,11 @@
 
 #include <c_abstract_http/http_libsoup3.h>
 #include <c_abstract_http/str.h>
+/* clang-format on */
 
 /**
  * @brief Opaque context definition.
  */
-/* clang-format on */
 struct HttpTransportContext {
   SoupSession *session;             /**< The libsoup3 session */
   struct HttpCookieJar *cookie_jar; /**< Weak reference to shared cookie jar */

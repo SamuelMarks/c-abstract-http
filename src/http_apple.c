@@ -17,11 +17,11 @@
 #if defined(__APPLE__)
 #include <CFNetwork/CFNetwork.h>
 #include <CoreFoundation/CoreFoundation.h>
+/* clang-format on */
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 
-/* clang-format on */
 struct HttpTransportContext {
   struct HttpConfig config;
 };

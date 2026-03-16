@@ -1,7 +1,7 @@
-/* clang-format off */
 #ifndef TEST_TLS_H
 #define TEST_TLS_H
 
+/* clang-format off */
 #include <c_abstract_http/cdd_tls.h>
 #include <c_abstract_http/thread_pool.h>
 #include <errno.h>
@@ -13,8 +13,8 @@
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #else
 #include <unistd.h>
-#endif
 /* clang-format on */
+#endif
 
 static struct CddTlsKey *tls_key = NULL;
 

@@ -1,11 +1,11 @@
 #ifndef TEST_HTTP_TYPES_H
 #define TEST_HTTP_TYPES_H
 
-/* clang-format off */
 #if defined(_WIN32)
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #endif
+/* clang-format off */
 #include <winsock2.h>
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
@@ -25,7 +25,6 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/thread_pool.h>
-
 /* clang-format on */
 
 struct ServerArgs {

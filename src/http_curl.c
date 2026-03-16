@@ -29,11 +29,11 @@
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_curl.h>
 #include <c_abstract_http/str.h>
+/* clang-format on */
 
 /**
  * @brief Opaque context definition.
  */
-/* clang-format on */
 struct HttpTransportContext {
   CURL *curl;                       /**< The libcurl handle */
   struct HttpCookieJar *cookie_jar; /**< Weak reference to shared cookie jar */

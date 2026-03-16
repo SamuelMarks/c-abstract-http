@@ -35,8 +35,8 @@
 #include <c_abstract_http/str.h>
 
 #include <stdarg.h>
-
 /* clang-format on */
+
 static /**
         * @brief Case-insensitive string comparison helper
         */

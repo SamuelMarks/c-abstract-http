@@ -24,9 +24,8 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
-#endif
-
 /* clang-format on */
+#endif
 
 struct HttpTransportContext {
   struct HttpConfig config;

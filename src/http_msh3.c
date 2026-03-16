@@ -28,9 +28,9 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#endif
-#endif
 /* clang-format on */
+#endif
+#endif
 
 #ifdef C_ABSTRACT_HTTP_USE_MSH3
 

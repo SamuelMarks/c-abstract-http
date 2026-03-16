@@ -18,8 +18,8 @@
 
 #ifdef C_ABSTRACT_HTTP_USE_LSQUIC
 #include <lsquic.h>
-#endif
 /* clang-format on */
+#endif
 
 #ifdef C_ABSTRACT_HTTP_USE_LSQUIC
 

@@ -17,10 +17,10 @@
 
 #if defined(__ANDROID__)
 #include <jni.h>
+/* clang-format on */
 
 /* JNI implementation */
 
-/* clang-format on */
 struct HttpTransportContext {
   JavaVM *jvm;
   jclass url_class;
