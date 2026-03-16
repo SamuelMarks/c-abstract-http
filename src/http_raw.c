@@ -86,7 +86,7 @@ int http_raw_send(struct HttpTransportContext *ctx,
   }
 
   /* Build simple HTTP GET/POST */
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(request_buf, sizeof(request_buf),
             "%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n",
             req->method == HTTP_POST ? "POST" : "GET", "/", "localhost");

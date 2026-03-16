@@ -33,7 +33,7 @@ extern "C" {
 #endif
 #endif
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #define SIZE_T_FMT "Iu"
 
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L

@@ -21,7 +21,7 @@
 #include <winbase.h>
 #include <winerror.h>
 #include <wininet.h>
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #pragma comment(lib, "wininet.lib")
 #endif
 #else

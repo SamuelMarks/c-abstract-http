@@ -132,7 +132,7 @@ TEST test_libevent_send_connection_failure(void) {
      for this test. */
   if (rc != ECONNREFUSED && rc != ETIMEDOUT && rc != EHOSTUNREACH &&
       rc != EIO) {
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     char errbuf[256];
     strerror_s(errbuf, sizeof(errbuf), rc);
     fprintf(stderr, "Unexpected return code: %d (%s)\n", rc, errbuf);

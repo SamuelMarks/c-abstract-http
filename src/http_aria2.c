@@ -66,7 +66,7 @@ int http_aria2_send(struct HttpTransportContext *ctx,
   if (!ctx || !req || !res || !req->url)
     return EINVAL;
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(tmp_filename, sizeof(tmp_filename), "aria2c_tmp_%p.bin",
             (void *)req);
   sprintf_s(cmd, sizeof(cmd),
@@ -98,7 +98,7 @@ int http_aria2_send(struct HttpTransportContext *ctx,
 
   new_res->status_code = 200;
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   if (fopen_s(&f, tmp_filename, "rb") != 0) {
     f = NULL;
   }

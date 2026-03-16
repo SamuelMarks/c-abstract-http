@@ -80,7 +80,7 @@ static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
 }
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #pragma comment(lib, "winhttp.lib")
 #endif
 #endif

@@ -1938,19 +1938,19 @@ int http_response_save_to_file(const struct HttpResponse *res,
   if (fopen_s(&f, path, "wb") != 0)
     return EIO;
 #else
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   fopen_s(&f, path, "wb");
 #else
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   fopen_s(&f, path, "wb");
 #else
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   fopen_s(&f, path, "wb");
 #else
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   fopen_s(&f, path, "wb");
 #else
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   fopen_s(&f, path, "wb");
 #else
   f = fopen(path, "wb");
