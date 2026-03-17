@@ -32,8 +32,6 @@ typedef void *HINTERNET;
 typedef unsigned long DWORD;
 /** @brief WORD definition */
 typedef unsigned short WORD; /* INTERNET_PORT is usually WORD or int */
-/** @brief wchar_t typedef */
-typedef int wchar_t;
 /** @brief INTERNET_DEFAULT_HTTP_PORT definition */
 #define INTERNET_DEFAULT_HTTP_PORT 80
 /** @brief INTERNET_DEFAULT_HTTPS_PORT definition */
