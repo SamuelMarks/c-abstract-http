@@ -21,9 +21,13 @@
 #include <dos.h>
 #else
 #if defined(__APPLE__) && defined(__MACH__)
-/* ucontext is deprecated on macOS but still mostly works for simple cases,
-   we define _XOPEN_SOURCE to suppress some warnings, or ignore them. */
+/* ucontext is deprecated on macOS but still mostly works for simple cases on x86_64.
+   It is broken on arm64 and will cause a Bus Error. */
+#if defined(__aarch64__) || defined(__arm64__) || defined(__arm__) || defined(__aarch64)
+#define CDD_NO_UCONTEXT 1
+#else
 #define _XOPEN_SOURCE 600
+#endif
 #endif
 #include <ucontext.h>
 #include <pthread.h>
