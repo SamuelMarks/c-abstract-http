@@ -140,7 +140,7 @@ endmacro()
 
 c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
 if(TARGET c89stringutils)
-    target_compile_definitions(c89stringutils PRIVATE _CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(c89stringutils INTERFACE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
@@ -343,7 +343,7 @@ else()
         )
     endif()
 
-    target_include_directories(c-abstract-http PUBLIC include)
+    target_include_directories(c-abstract-http SYSTEM PUBLIC include)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         target_link_libraries(c-abstract-http PUBLIC c89stringutils cfs)
     else()
@@ -506,4 +506,5 @@ if(C_ABSTRACT_HTTP_USE_TSAN)
     add_link_options(-fsanitize=thread)
   endif()
 endif()
+
 
