@@ -11,6 +11,10 @@
 #ifndef TEST_HTTP_LIBSOUP3_H
 #define TEST_HTTP_LIBSOUP3_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <errno.h>
 #include <greatest.h>
@@ -164,5 +168,9 @@ SUITE(http_libsoup3_suite) {
   RUN_TEST(test_libsoup3_send_connection_failure);
   RUN_TEST(test_libsoup3_send_invalid_arguments);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* TEST_HTTP_LIBSOUP3_H */

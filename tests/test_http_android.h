@@ -11,6 +11,10 @@
 #ifndef C_CDD_TEST_HTTP_ANDROID_H
 #define C_CDD_TEST_HTTP_ANDROID_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <greatest.h>
 #include <stdlib.h>
@@ -82,5 +86,9 @@ SUITE(http_android_suite) {
   RUN_TEST(test_android_config);
   RUN_TEST(test_android_send_invalid);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* C_CDD_TEST_HTTP_ANDROID_H */

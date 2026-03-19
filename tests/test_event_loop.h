@@ -1,6 +1,10 @@
 #ifndef TEST_EVENT_LOOP_H
 #define TEST_EVENT_LOOP_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <errno.h>
 #include <greatest.h>
@@ -88,5 +92,9 @@ SUITE(event_loop_suite) {
   RUN_TEST(test_event_loop_timer);
   RUN_TEST(test_event_loop_timer_cancel);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif

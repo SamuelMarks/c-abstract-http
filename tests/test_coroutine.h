@@ -1,6 +1,10 @@
 #ifndef TEST_COROUTINE_H
 #define TEST_COROUTINE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <errno.h>
 #include <greatest.h>
@@ -65,5 +69,9 @@ TEST test_coroutine_execution(void) {
 }
 
 SUITE(coroutine_suite) { RUN_TEST(test_coroutine_execution); }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif

@@ -11,6 +11,10 @@
 #ifndef TEST_HTTP_WINHTTP_H
 #define TEST_HTTP_WINHTTP_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <errno.h>
 #include <greatest.h>
@@ -533,5 +537,9 @@ SUITE(http_winhttp_suite) {
   RUN_TEST(test_winhttp_send_upload_chunked);
   RUN_TEST(test_winhttp_send_multi);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* TEST_HTTP_WINHTTP_H */

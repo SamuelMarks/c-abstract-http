@@ -1,6 +1,10 @@
 #ifndef TEST_CMP_INTEGRATION_H
 #define TEST_CMP_INTEGRATION_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include "greatest.h"
 #include <c_abstract_http/cmp_integration.h>
@@ -73,5 +77,9 @@ SUITE(cmp_integration_suite) {
   RUN_TEST(test_inject_config);
   RUN_TEST(test_progress_adapter);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* TEST_CMP_INTEGRATION_H */

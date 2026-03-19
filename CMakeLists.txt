@@ -144,6 +144,7 @@ if(TARGET c89stringutils)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ml")
     set(CFS_MULTITHREADED OFF CACHE BOOL "" FORCE)
 else()
     c_abstract_http_resolve_dependency(cfs https://github.com/SamuelMarks/c-fs.git master)

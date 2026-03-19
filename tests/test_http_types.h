@@ -1,6 +1,10 @@
 #ifndef TEST_HTTP_TYPES_H
 #define TEST_HTTP_TYPES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 #if defined(_WIN32)
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -778,5 +782,9 @@ SUITE(http_types_suite) {
   RUN_TEST(test_http_future);
   RUN_TEST(test_http_multi_request);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif

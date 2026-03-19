@@ -11,6 +11,10 @@
 #ifndef TEST_HTTP_PICOQUIC_H
 #define TEST_HTTP_PICOQUIC_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <errno.h>
 #include <greatest.h>
@@ -98,5 +102,9 @@ SUITE(http_picoquic_suite) {
   RUN_TEST(test_picoquic_send_invalid_arguments);
 #endif
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* TEST_HTTP_PICOQUIC_H */

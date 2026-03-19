@@ -881,10 +881,10 @@ static int base64_encode(const unsigned char *src, size_t len, char **out) {
     return ENOMEM;
 
   for (i = 0, j = 0; i < len;) {
-    unsigned int octet_a = i < len ? src[i++] : 0;
-    unsigned int octet_b = i < len ? src[i++] : 0;
-    unsigned int octet_c = i < len ? src[i++] : 0;
-    unsigned int triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
+    unsigned long octet_a = i < len ? src[i++] : 0;
+    unsigned long octet_b = i < len ? src[i++] : 0;
+    unsigned long octet_c = i < len ? src[i++] : 0;
+    unsigned long triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
 
     res[j++] = b64[(triple >> 3 * 6) & 0x3F];
     res[j++] = b64[(triple >> 2 * 6) & 0x3F];

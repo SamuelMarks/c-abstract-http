@@ -1,6 +1,10 @@
 #ifndef TEST_TLS_H
 #define TEST_TLS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <c_abstract_http/cdd_tls.h>
 #include <c_abstract_http/thread_pool.h>
@@ -64,5 +68,9 @@ TEST test_tls_isolation(void) {
 }
 
 SUITE(tls_suite) { RUN_TEST(test_tls_isolation); }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif

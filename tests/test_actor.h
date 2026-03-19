@@ -1,6 +1,10 @@
 #ifndef TEST_ACTOR_H
 #define TEST_ACTOR_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <errno.h>
 #include <greatest.h>
@@ -84,5 +88,9 @@ TEST test_actor_spawn_and_message(void) {
 }
 
 SUITE(actor_suite) { RUN_TEST(test_actor_spawn_and_message); }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif

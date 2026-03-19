@@ -8,6 +8,10 @@
 #ifndef TEST_HTTP_WASM_H
 #define TEST_HTTP_WASM_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <errno.h>
 #include <greatest.h>
@@ -158,5 +162,9 @@ SUITE(http_wasm_suite) {
   RUN_TEST(test_wasm_send_connection_failure);
   RUN_TEST(test_wasm_send_invalid_arguments);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* TEST_HTTP_WASM_H */

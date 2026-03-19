@@ -1,6 +1,10 @@
 #ifndef TEST_THREAD_POOL_H
 #define TEST_THREAD_POOL_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <errno.h>
 #include <greatest.h>
@@ -83,5 +87,9 @@ SUITE(thread_pool_suite) {
   RUN_TEST(test_mutex_lock_unlock);
   RUN_TEST(test_thread_pool_execution);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif

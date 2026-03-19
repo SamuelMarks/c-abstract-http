@@ -11,6 +11,10 @@
 #ifndef TEST_HTTP_CURL_H
 #define TEST_HTTP_CURL_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 /* clang-format off */
 #include <errno.h>
 #include <greatest.h>
@@ -392,5 +396,9 @@ SUITE(http_curl_suite) {
   RUN_TEST(test_curl_send_chunked_abort);
   RUN_TEST(test_curl_send_upload_chunked);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* TEST_HTTP_CURL_H */
