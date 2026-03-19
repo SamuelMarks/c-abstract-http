@@ -28,8 +28,12 @@
 #else
 #define _XOPEN_SOURCE 600
 #endif
+#elif defined(__linux__) && !defined(__GLIBC__)
+#define CDD_NO_UCONTEXT 1
 #endif
+#ifndef CDD_NO_UCONTEXT
 #include <ucontext.h>
+#endif
 #include <pthread.h>
 #endif
 
@@ -64,9 +68,6 @@ void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
   (void)hooks;
 }
 #else
-#if defined(__linux__) && !defined(__GLIBC__)
-#define CDD_NO_UCONTEXT 1
-#endif
 
 static struct CddCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL, NULL,
                                                      NULL};

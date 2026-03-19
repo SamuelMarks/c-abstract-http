@@ -330,7 +330,11 @@ int http_msh3_send(struct HttpTransportContext *ctx,
     return EINVAL;
   }
 
-  snprintf(authority, sizeof(authority), "%s:%s", host, port_str);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(authority, sizeof(authority), "%s:%s", host, port_str);
+#else
+  sprintf(authority, "%s:%s", host, port_str);
+#endif
 
   *res = (struct HttpResponse *)calloc(1, sizeof(**res));
   if (!*res) {

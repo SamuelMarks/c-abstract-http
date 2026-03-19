@@ -793,9 +793,9 @@ extern /**
         */
     void
     http_response_free(struct HttpResponse *res);
-extern int
 /** @brief http_response_save_to_file definition */
-http_response_save_to_file(const struct HttpResponse *res, const char *path);
+extern int http_response_save_to_file(const struct HttpResponse *res,
+                                      const char *path);
 
 /* --- Multipart Management --- */
 
