@@ -27,7 +27,9 @@
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#if !defined(_MSC_VER)
 #include <unistd.h>
+#endif
 #endif
 #endif
 

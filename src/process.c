@@ -18,7 +18,9 @@
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <dos.h>
 #else
+#if !defined(_MSC_VER)
 #include <unistd.h>
+#endif
 #include <sys/types.h>
 #include <sys/wait.h>
 #endif

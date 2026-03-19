@@ -16,9 +16,11 @@ extern "C" {
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #else
+#if !defined(_MSC_VER)
 #include <unistd.h>
-/* clang-format on */
 #endif
+#endif
+/* clang-format on */
 
 static struct CddTlsKey *tls_key = NULL;
 

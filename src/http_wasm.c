@@ -17,8 +17,8 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/fetch.h>
-/* clang-format on */
 #endif
+/* clang-format on */
 
 /**
  * @brief Opaque context definition.

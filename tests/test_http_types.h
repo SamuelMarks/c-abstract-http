@@ -5,11 +5,11 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/* clang-format off */
 #if defined(_WIN32)
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #endif
-/* clang-format off */
 #include <winsock2.h>
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
@@ -19,7 +19,9 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#if !defined(_MSC_VER)
 #include <unistd.h>
+#endif
 #endif
 
 #include <errno.h>

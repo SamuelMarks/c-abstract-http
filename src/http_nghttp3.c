@@ -18,8 +18,8 @@
 
 #ifdef C_ABSTRACT_HTTP_USE_NGHTTP3
 #include <nghttp3/nghttp3.h>
-/* clang-format on */
 #endif
+/* clang-format on */
 
 #ifdef C_ABSTRACT_HTTP_USE_NGHTTP3
 

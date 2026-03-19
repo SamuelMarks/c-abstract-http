@@ -19,7 +19,9 @@ extern "C" {
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <dos.h>
 #else
+#if !defined(_MSC_VER)
 #include <unistd.h>
+#endif
 #endif
 
 #include <c_abstract_http/thread_pool.h>

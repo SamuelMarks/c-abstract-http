@@ -41,9 +41,11 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <sys/socket.h>
+#if !defined(_MSC_VER)
 #include <unistd.h>
-/* clang-format on */
 #endif
+#endif
+/* clang-format on */
 
 #if defined(_WIN32)
 

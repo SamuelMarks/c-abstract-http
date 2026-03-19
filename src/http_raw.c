@@ -31,15 +31,17 @@
 
 #ifndef _WIN32
 #if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+#if !defined(_MSC_VER)
 #include <unistd.h>
+#endif
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#endif
+#endif
 /* clang-format on */
-#endif
-#endif
 int http_raw_global_init(void) { return 0; }
 
 void http_raw_global_cleanup(void) {}

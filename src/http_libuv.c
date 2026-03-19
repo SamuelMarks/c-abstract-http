@@ -17,8 +17,8 @@
 
 #ifdef C_ABSTRACT_HTTP_USE_LIBUV
 #include <uv.h>
-/* clang-format on */
 #endif
+/* clang-format on */
 
 /**
  * @brief Opaque context definition.
