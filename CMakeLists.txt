@@ -120,12 +120,20 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
 #c) try fetchcontent
     if(NOT ${PkgName}_RESOLVED)
         message(STATUS "Fetching ${PkgName} via FetchContent")
-        FetchContent_Declare(${PkgName}
-            GIT_REPOSITORY ${FetchRepo}
-            GIT_TAG ${FetchTag}
-            GIT_CONFIG "core.autocrlf=false"
-            UPDATE_COMMAND ""
-        )
+        get_filename_component(_git_repo_name "${FetchRepo}" NAME_WE)
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../${_git_repo_name}/CMakeLists.txt")
+            message(STATUS "Using local ${_git_repo_name} for ${PkgName}")
+            FetchContent_Declare(${PkgName}
+                SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../${_git_repo_name}"
+            )
+        else()
+            FetchContent_Declare(${PkgName}
+                GIT_REPOSITORY ${FetchRepo}
+                GIT_TAG master
+                GIT_CONFIG "core.autocrlf=false"
+                UPDATE_COMMAND ""
+            )
+        endif()
         FetchContent_MakeAvailable(${PkgName})
 #If fetchcontent fails, CMake usually aborts or the target is not created
 #We assume success if it didn't fatal error during MakeAvailable,
