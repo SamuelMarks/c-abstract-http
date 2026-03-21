@@ -42,7 +42,11 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #if !defined(_MSC_VER)
+#if !defined(_MSC_VER)
+#if !defined(_MSC_VER)
 #include <unistd.h>
+#endif
+#endif
 #endif
 #endif
 /* clang-format on */

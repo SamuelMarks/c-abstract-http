@@ -17,7 +17,11 @@ extern "C" {
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #else
 #if !defined(_MSC_VER)
+#if !defined(_MSC_VER)
+#if !defined(_MSC_VER)
 #include <unistd.h>
+#endif
+#endif
 #endif
 #endif
 /* clang-format on */

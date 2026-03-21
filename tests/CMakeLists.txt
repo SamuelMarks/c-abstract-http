@@ -4,18 +4,15 @@ cmake_minimum_required(VERSION 3.10)
 include(FetchContent)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../greatest/greatest.h")
     message(STATUS "Using local greatest for tests")
-    FetchContent_Declare(
-      greatest
-      SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../greatest"
-    )
+    set(greatest_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../greatest")
 else()
     FetchContent_Declare(
       greatest
       URL "https://raw.githubusercontent.com/SamuelMarks/greatest/refs/heads/cmake-and-msvc/greatest.h"
       DOWNLOAD_NO_EXTRACT TRUE
     )
+    FetchContent_MakeAvailable(greatest)
 endif()
-FetchContent_MakeAvailable(greatest)
 
 include_directories(${greatest_SOURCE_DIR})
 include_directories(../include)
