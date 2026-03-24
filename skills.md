@@ -76,3 +76,11 @@ sprintf(buf, "Size=%zu", len);
 
 If you are pulling in Windows APIs, never include `<windows.h>`.
 Identify the precise SDK headers needed (e.g., `<windef.h>`, `<winnt.h>`, `<winbase.h>`) and include those in order. `windef.h` almost always goes first. If necessary, wrap in `#ifdef _WIN32`.
+## 5. FetchContent Policy
+Always use FetchContent_MakeAvailable over the deprecated FetchContent_Populate pattern in modern CMake logic to ensure robust, warning-free dependency resolution.
+
+## 6. Header Guards & C++ Interop
+Every public header MUST be wrapped with #ifdef __cplusplus and extern "C" exactly once. Furthermore, strictly guard POSIX/C99 headers like <stdint.h>, <stdbool.h>, and <unistd.h> using #if defined(_MSC_VER) with local typedef fallbacks to support compilation on legacy environments like MSVC 2005.
+
+## 7. Clang-Format Safety
+All #include blocks MUST be wrapped in /* clang-format off */ and /* clang-format on */ (maximum once per file). This strictly preserves include ordering and dependency hierarchies during automated formatting.

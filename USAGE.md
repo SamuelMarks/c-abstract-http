@@ -426,3 +426,125 @@ The `c-abstract-http` library supports **WebSockets** and **Server-Sent Events (
 | Multiprocess | Yes | IPC Only | IPC Only | Not recommended for streams without shared memory mappings. |
 | Greenthread | Yes | Yes | Yes | Pauses coroutine on `EAGAIN` yielding context dynamically. |
 | Message Passing | Yes | Actors | Actors | Streams natively translate to Actor mailbox messages. |
+## 8. WebSockets (WS) & Server-Sent Events (SSE)
+
+The library provides zero-dependency C89 state-machines for streaming HTTP protocols, natively integrating bounds-checking and fragmented reconstruction.
+
+### WebSockets
+
+`c
+#include <c_abstract_http/c_abstract_http.h>
+#include <c_abstract_http/http_ws.h>
+#include <stdio.h>
+
+int on_ws_message(const struct c_abstract_http_ws_event *ev, void *user_data) {
+    if (ev->opcode == C_ABSTRACT_HTTP_WS_OPCODE_TEXT) {
+        printf("Received WS Text: %.*s\n", (int)ev->payload_len, (const char*)ev->payload);
+    } else if (ev->opcode == C_ABSTRACT_HTTP_WS_OPCODE_CLOSE) {
+        printf("WebSocket Closed.\n");
+    }
+    return 0;
+}
+
+int connect_ws(struct HttpClient *client) {
+    struct HttpRequest req;
+    struct c_abstract_http_ws_config ws_cfg = {0};
+    int rc = 0;
+
+    http_request_init(&req);
+    req.url = "wss://echo.websocket.events";
+    req.method = HTTP_GET;
+
+    ws_cfg.on_message = on_ws_message;
+    ws_cfg.user_data = NULL;
+    ws_cfg.max_frame_size = 65535;
+
+    rc = c_abstract_http_ws_connect(client, &req, &ws_cfg);
+    if (rc != 0) {
+        fprintf(stderr, "Failed to connect WebSocket: %d\n", rc);
+    }
+
+    http_request_free(&req);
+    return rc;
+}
+`
+
+### Server-Sent Events
+
+`c
+#include <c_abstract_http/c_abstract_http.h>
+#include <c_abstract_http/http_sse.h>
+#include <stdio.h>
+
+int on_sse_event(const struct c_abstract_http_sse_event *ev, void *user_data) {
+    if (ev->event) {
+        printf("Event: %.*s\n", (int)ev->event_len, ev->event);
+    }
+    if (ev->data) {
+        printf("Data: %.*s\n", (int)ev->data_len, ev->data);
+    }
+    return 0;
+}
+
+int connect_sse(struct HttpClient *client) {
+    struct HttpRequest req;
+    struct c_abstract_http_sse_config sse_cfg = {0};
+    int rc = 0;
+
+    http_request_init(&req);
+    req.url = "https://sse.example.com/stream";
+
+    sse_cfg.on_event = on_sse_event;
+    sse_cfg.user_data = NULL;
+
+    rc = c_abstract_http_sse_connect(client, &req, &sse_cfg);
+    if (rc != 0) {
+        fprintf(stderr, "Failed to connect SSE: %d\n", rc);
+    }
+
+    http_request_free(&req);
+    return rc;
+}
+`
+
+## 9. Multipart Form-Data Serialization
+
+The HTTP types layer enables robust multipart/form-data serialization natively, preventing buffer overrun edge-cases securely via sprintf_s_wrapper inside the HttpRequest generation logic:
+
+`c
+#include <c_abstract_http/c_abstract_http.h>
+
+int upload_file(struct HttpClient *client) {
+    struct HttpRequest req;
+    struct c_abstract_http_multipart_part parts[2];
+    int rc = 0;
+
+    http_request_init(&req);
+    req.url = "https://api.example.com/upload";
+
+    /* Initialize part 1 */
+    memset(&parts[0], 0, sizeof(parts[0]));
+    parts[0].name = "description";
+    parts[0].data = "Test file upload";
+    parts[0].data_len = strlen(parts[0].data);
+
+    /* Initialize part 2 (File Data) */
+    memset(&parts[1], 0, sizeof(parts[1]));
+    parts[1].name = "file";
+    parts[1].filename = "document.txt";
+    parts[1].content_type = "text/plain";
+    parts[1].data = "Hello, World!";
+    parts[1].data_len = strlen(parts[1].data);
+
+    /* The library generates a random boundary and serializes the payload */
+    rc = http_request_set_multipart_body(&req, parts, 2);
+    if (rc == 0) {
+        struct HttpResponse *res = NULL;
+        client->send(client->transport, &req, &res);
+        if (res) http_response_free(res);
+    }
+
+    http_request_free(&req);
+    return rc;
+}
+`

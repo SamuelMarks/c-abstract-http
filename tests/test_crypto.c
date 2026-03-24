@@ -1,6 +1,8 @@
+/* clang-format off */
 #include "../src/crypto_utils.h"
 #include "greatest.h"
 #include <string.h>
+/* clang-format on */
 
 TEST test_sha1_empty_string(void) {
   struct sha1_ctx ctx;

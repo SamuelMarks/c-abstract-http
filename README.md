@@ -6,6 +6,16 @@ c-abstract-http
 
 A highly robust, cross-platform abstract HTTP network library for C. It unifies various platform-specific network and crypto libraries under a single strict C89 API. Designed with strict C89 compliance, memory safety, and high portability in mind, this library is suitable for deeply embedded environments, legacy systems, and modern high-performance backends. It now supports massive scale HTTP/3 integration spanning 4 native cross-platform engines.
 
+## Key Capabilities
+
+- **Strict C89 Compliance & Legacy MSVC Support**: 100% C89/C90 compliant with custom POSIX header shims (<stdint.h>, <stdbool.h>, <unistd.h>) enabling flawless compilation on MSVC 2005 (_MSC_VER < 1600).
+- **C++ Interop**: Universal extern "C" support on all 93 public headers.
+- **Clang-Format Safety**: Robust /* clang-format off/on */ integration safeguarding #include block ordering.
+- **Advanced OAuth2 Support**: Extensive token grant workflows (Password, Refresh, Authorization Code, Device, Client Credentials, JWT Bearer, Token Revocation, and Introspection).
+- **Multipart Form-Data & Muxing**: Robust, random-boundary multipart/form-data serialization.
+- **WebSockets & SSE**: Zero-dependency, C89 state-machine based streaming modalities.
+- **Modern CMake Integration**: Powered exclusively by FetchContent_MakeAvailable for clean, warning-free dependency ingestion.
+
 ## Target Platforms
 
 - **Windows**: MSVC (2005, 2022, 2026), MinGW, Cygwin

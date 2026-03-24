@@ -1,9 +1,11 @@
+/* clang-format off */
 #include "greatest.h"
 
 #include "../include/c_abstract_http/http_sse.h"
 #include "../src/sse_internal.h"
 #include "greatest.h"
 #include <string.h>
+/* clang-format on */
 
 struct test_sse_ctx {
   int error_code;

@@ -18,6 +18,16 @@ The `c-abstract-http` library is designed to offer a clean, unified API over dis
    - On MSVC environments (`_MSC_VER`), dangerous CRT functions (`sprintf`, `strcpy`, `fopen`) are avoided.
    - The library employs `#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)` compiler guards to selectively utilize `_s` extensions (`sprintf_s`, `strcpy_s`, `fopen_s`) to prevent buffer overruns without sacrificing compatibility with GCC, Clang, or MinGW.
 
+6. **C++ Interoperability**:
+   - Universal extern "C" encapsulation is strictly enforced across all 93 public headers.
+   - Allows seamless drop-in usage from C++ codebases without name mangling issues.
+7. **Robust Legacy Support (MSVC 2005)**:
+   - C89 purity extends to handling modern POSIX headers (<stdint.h>, <stdbool.h>, <unistd.h>).
+   - The library employs custom #if defined(_MSC_VER) && _MSC_VER < 1600 guards with safe 	ypedef fallbacks, guaranteeing successful compilation on toolchains as old as MSVC 2005.
+8. **Clang-Format Header Safeguards**:
+   - Every #include hierarchy is shielded by /* clang-format off */ and /* clang-format on */.
+   - Ensures automated formatting never silently breaks delicate header dependency orders.
+
 ## Execution Modalities
 
 To accommodate varied concurrency models, `c-abstract-http` supports multiple execution modalities natively through the dispatcher:
@@ -67,7 +77,12 @@ The library provides native, zero-dependency implementations for **WebSockets (R
 - **WebSocket Framing Engine**: A fully portable C89 state machine parses WebSocket frames chunk-by-chunk. It handles 16-bit and 64-bit payload unmasking dynamically, reconstructs fragmented `FIN=0` messages gracefully, and enforces bounds checking based on `C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE` to prevent DoS attacks.
 - **SSE Chunk Buffer**: Uses a dynamic line-reader state machine to capture streaming `text/event-stream` payloads without exploding memory constraints. Supports `Last-Event-ID` tracking for reconnect loops.
 
-### 4. Cryptography Integration
+### 4. Advanced Protocol Implementations
+The library avoids pushing complex HTTP specifications onto the consumer, integrating them securely into the core C89 types layer:
+- **OAuth 2.0 Workflows**: First-class memory-safe generation of OAuth 2.0 token requests (Password, Refresh, Authorization Code, Device Authorization, Client Credentials, JWT Bearer) and Token Management (Revocation, Introspection).
+- **Multipart Form-Data & Muxing**: Robust, random-boundary multipart/form-data serialization logic using safe CRT string formatting natively within the HttpRequest lifecycle.
+
+### 5. Cryptography Integration
 
 To preserve the "Native By Default" philosophy without locking consumers into a heavy OpenSSL dependency, the library dynamically injects cryptography routines natively into the underlying HTTP abstraction via a unified CMake macro (`c_abstract_http_apply_crypto`).
 If a backend like `libcurl` or `libevent` is used, its configuration is mapped downwards (e.g., bridging `C_ABSTRACT_HTTP_USE_WOLFSSL` to `CURL_USE_WOLFSSL`). This allows developers to seamlessly pivot between the following crypto libraries without ever modifying their application's code:
@@ -85,7 +100,7 @@ If a backend like `libcurl` or `libevent` is used, its configuration is mapped d
 - **CommonCrypto** (Native macOS/iOS)
 - **wincrypt**
 
-### 4. CMake Configuration
+### 6. CMake Configuration
 
 CMake configuration drives the abstraction mapping and code generation:
 

@@ -1,4 +1,3 @@
-/* clang-format off */
 #ifndef C_ABSTRACT_HTTP_WS_INTERNAL_H
 #define C_ABSTRACT_HTTP_WS_INTERNAL_H
 
@@ -11,18 +10,31 @@ extern "C" {
  * @brief Internal WebSocket definitions and parsing logic.
  */
 
+/* clang-format off */
 #include "c_abstract_http/http_ws.h"
+#if defined(_MSC_VER) && _MSC_VER < 1600
+typedef __int8 int8_t;
+typedef unsigned __int8 uint8_t;
+typedef __int16 int16_t;
+typedef unsigned __int16 uint16_t;
+typedef __int32 int32_t;
+typedef unsigned __int32 uint32_t;
+typedef __int64 int64_t;
+typedef unsigned __int64 uint64_t;
+#else
 #include <stdint.h>
+#endif
+/* clang-format on */
 
 /**
  * @brief Internal structure representing a parsed WebSocket frame header.
  */
 struct ws_frame_header {
-    int fin;                       /**< FIN bit flag */
-    int opcode;                    /**< Frame opcode */
-    int mask;                      /**< Mask bit flag */
-    uint64_t payload_len;          /**< Parsed payload length */
-    unsigned char masking_key[4];  /**< Masking key if present */
+  int fin;                      /**< FIN bit flag */
+  int opcode;                   /**< Frame opcode */
+  int mask;                     /**< Mask bit flag */
+  uint64_t payload_len;         /**< Parsed payload length */
+  unsigned char masking_key[4]; /**< Masking key if present */
 };
 
 /**
@@ -67,7 +79,8 @@ int ws_generate_mask_key(unsigned char out_key[4]);
  * @param mask_key The 4-byte masking key.
  * @return 0 on success.
  */
-int ws_apply_mask(unsigned char* payload, size_t len, const unsigned char mask_key[4]);
+int ws_apply_mask(unsigned char *payload, size_t len,
+                  const unsigned char mask_key[4]);
 
 /**
  * @brief Pack a small WebSocket frame header (payload <= 125).
@@ -78,7 +91,8 @@ int ws_apply_mask(unsigned char* payload, size_t len, const unsigned char mask_k
  * @param len Payload length.
  * @return Number of bytes written.
  */
-int ws_pack_header_small(unsigned char* buf, int fin, int opcode, int mask, size_t len);
+int ws_pack_header_small(unsigned char *buf, int fin, int opcode, int mask,
+                         size_t len);
 
 /**
  * @brief Pack a medium WebSocket frame header (126 <= payload <= 65535).
@@ -89,7 +103,8 @@ int ws_pack_header_small(unsigned char* buf, int fin, int opcode, int mask, size
  * @param len Payload length.
  * @return Number of bytes written.
  */
-int ws_pack_header_medium(unsigned char* buf, int fin, int opcode, int mask, size_t len);
+int ws_pack_header_medium(unsigned char *buf, int fin, int opcode, int mask,
+                          size_t len);
 
 /**
  * @brief Pack a large WebSocket frame header (payload > 65535).
@@ -100,41 +115,42 @@ int ws_pack_header_medium(unsigned char* buf, int fin, int opcode, int mask, siz
  * @param len Payload length.
  * @return Number of bytes written.
  */
-int ws_pack_header_large(unsigned char* buf, int fin, int opcode, int mask, size_t len);
+int ws_pack_header_large(unsigned char *buf, int fin, int opcode, int mask,
+                         size_t len);
 
 /**
  * @brief State machine enum for the WebSocket parser.
  */
 enum ws_parser_state {
-    WS_PARSER_READ_OPCODE,
-    WS_PARSER_READ_LEN,
-    WS_PARSER_READ_EXT_LEN_16,
-    WS_PARSER_READ_EXT_LEN_64,
-    WS_PARSER_READ_MASK,
-    WS_PARSER_READ_PAYLOAD
+  WS_PARSER_READ_OPCODE,
+  WS_PARSER_READ_LEN,
+  WS_PARSER_READ_EXT_LEN_16,
+  WS_PARSER_READ_EXT_LEN_64,
+  WS_PARSER_READ_MASK,
+  WS_PARSER_READ_PAYLOAD
 };
 
 /**
  * @brief Context structure for parsing incoming WebSocket frames.
  */
 struct ws_parser_ctx {
-    enum ws_parser_state state;            /**< Current parser state */
-    struct ws_frame_header current_frame;  /**< In-progress frame header */
-    unsigned char* payload_buffer;         /**< Dynamic buffer for the payload */
-    size_t payload_capacity;               /**< Capacity of the payload buffer */
-    size_t payload_offset;                 /**< Current write offset in payload buffer */
-    size_t ext_len_offset;                 /**< Offset for reading extended lengths */
-    unsigned char ext_len_buffer[8];       /**< Buffer for reading extended lengths */
-    unsigned char mask_offset;             /**< Offset for reading the masking key */
-    
-    unsigned char* reassembly_buffer;      /**< Buffer for fragmented messages */
-    size_t reassembly_capacity;            /**< Capacity of the reassembly buffer */
-    size_t reassembly_offset;              /**< Current offset in reassembly buffer */
+  enum ws_parser_state state;           /**< Current parser state */
+  struct ws_frame_header current_frame; /**< In-progress frame header */
+  unsigned char *payload_buffer;        /**< Dynamic buffer for the payload */
+  size_t payload_capacity;              /**< Capacity of the payload buffer */
+  size_t payload_offset; /**< Current write offset in payload buffer */
+  size_t ext_len_offset; /**< Offset for reading extended lengths */
+  unsigned char ext_len_buffer[8]; /**< Buffer for reading extended lengths */
+  unsigned char mask_offset;       /**< Offset for reading the masking key */
 
-    c_abstract_http_ws_on_message on_message; /**< User callback for messages */
-    c_abstract_http_ws_on_error on_error;     /**< User callback for errors */
-    c_abstract_http_ws_on_close on_close;     /**< User callback for closures */
-    void* user_data;                          /**< Opaque user data */
+  unsigned char *reassembly_buffer; /**< Buffer for fragmented messages */
+  size_t reassembly_capacity;       /**< Capacity of the reassembly buffer */
+  size_t reassembly_offset;         /**< Current offset in reassembly buffer */
+
+  c_abstract_http_ws_on_message on_message; /**< User callback for messages */
+  c_abstract_http_ws_on_error on_error;     /**< User callback for errors */
+  c_abstract_http_ws_on_close on_close;     /**< User callback for closures */
+  void *user_data;                          /**< Opaque user data */
 };
 
 /**
@@ -146,13 +162,16 @@ struct ws_parser_ctx {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, negative error code on failure.
  */
-int ws_parser_init(struct ws_parser_ctx* ctx, c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err, c_abstract_http_ws_on_close on_cls, void* user_data);
+int ws_parser_init(struct ws_parser_ctx *ctx,
+                   c_abstract_http_ws_on_message on_msg,
+                   c_abstract_http_ws_on_error on_err,
+                   c_abstract_http_ws_on_close on_cls, void *user_data);
 
 /**
  * @brief Destroy a WebSocket parser context and free its buffers.
  * @param ctx The parser context to destroy.
  */
-void ws_parser_destroy(struct ws_parser_ctx* ctx);
+void ws_parser_destroy(struct ws_parser_ctx *ctx);
 
 /**
  * @brief Feed raw network bytes into the WebSocket parser.
@@ -161,34 +180,38 @@ void ws_parser_destroy(struct ws_parser_ctx* ctx);
  * @param len The length of the chunk.
  * @return 0 on success, negative error code on protocol violation.
  */
-int ws_parser_feed(struct ws_parser_ctx* ctx, const unsigned char* chunk, size_t len);
+int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
+                   size_t len);
 
 /**
  * @brief Generate a random 24-character Base64 encoded client key.
- * @param out_key The output buffer (must hold 25 characters including null-terminator).
+ * @param out_key The output buffer (must hold 25 characters including
+ * null-terminator).
  * @return 0 on success, negative error code on failure.
  */
 int ws_generate_key(char out_key[25]);
 
 /**
- * @brief Sign a client key with the RFC 6455 magic GUID and Base64 encode the SHA-1 hash.
+ * @brief Sign a client key with the RFC 6455 magic GUID and Base64 encode the
+ * SHA-1 hash.
  * @param client_key The raw 24-character client key.
- * @param out_accept The output buffer (must hold 29 characters including null-terminator).
+ * @param out_accept The output buffer (must hold 29 characters including
+ * null-terminator).
  * @return 0 on success, negative error code on failure.
  */
-int ws_sign_key(const char* client_key, char out_accept[29]);
+int ws_sign_key(const char *client_key, char out_accept[29]);
 
 /**
- * @brief Verify a server's Sec-WebSocket-Accept response against a given client key.
+ * @brief Verify a server's Sec-WebSocket-Accept response against a given client
+ * key.
  * @param client_key The original client key.
  * @param server_accept The server's response.
  * @return 0 on success, negative error code on failure.
  */
-int ws_verify_accept(const char* client_key, const char* server_accept);
+int ws_verify_accept(const char *client_key, const char *server_accept);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif /* C_ABSTRACT_HTTP_WS_INTERNAL_H */
-/* clang-format on */

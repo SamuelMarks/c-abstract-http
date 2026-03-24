@@ -1,7 +1,9 @@
+/* clang-format off */
 #include "../include/c_abstract_http/http_ws.h"
 #include "../src/ws_internal.h"
 #include "greatest.h"
 #include <string.h>
+/* clang-format on */
 
 TEST test_ws_generate_key_length(void) {
   char key[25] = {0};

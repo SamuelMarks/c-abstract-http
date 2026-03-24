@@ -31,7 +31,6 @@ int c_abstract_http_ws_async_send(struct HttpRequest* req, enum c_abstract_http_
     return -1; /* Stub */
 }
 
-/* clang-format on */
 #include "c_abstract_http/http_ws.h"
 #include "crypto_utils.h"
 #include "ws_internal.h"
@@ -263,6 +262,7 @@ int ws_pack_header_large(unsigned char *buf, int fin, int opcode, int mask,
 }
 
 #include "ws_config.h"
+/* clang-format on */
 
 int ws_parser_init(struct ws_parser_ctx *ctx,
                    c_abstract_http_ws_on_message on_msg,
