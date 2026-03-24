@@ -202,6 +202,16 @@ TEST test_sse_async_register_stub(void) {
   PASS();
 }
 
+TEST test_sse_init_headers_null(void) {
+  ASSERT_EQ(-1, c_abstract_http_sse_init(NULL, NULL));
+  PASS();
+}
+
+TEST test_sse_parser_init_null(void) {
+  ASSERT_EQ(-1, sse_parser_init(NULL, NULL, NULL, NULL, NULL, NULL));
+  PASS();
+}
+
 SUITE(sse_suite) {
   RUN_TEST(test_sse_parse_basic_data);
   RUN_TEST(test_sse_parse_multi_line_data);
@@ -210,10 +220,11 @@ SUITE(sse_suite) {
   RUN_TEST(test_sse_parse_id_and_retry);
   RUN_TEST(test_sse_chunked_delivery);
   RUN_TEST(test_sse_init_headers);
+  RUN_TEST(test_sse_init_headers_null);
+  RUN_TEST(test_sse_parser_init_null);
   RUN_TEST(test_sse_sync_loop_exit_flag);
   RUN_TEST(test_sse_async_register_stub);
 }
-
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {

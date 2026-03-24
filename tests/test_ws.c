@@ -268,16 +268,58 @@ TEST test_ws_async_send_stub(void) {
   PASS();
 }
 
+TEST test_ws_init_headers_null(void) {
+  ASSERT_EQ(-1, c_abstract_http_ws_init(NULL, NULL));
+  PASS();
+}
+
+TEST test_ws_pack_header_invalid(void) {
+  unsigned char buf[10];
+
+  /* Small buffer invalid payload length */
+  ASSERT_EQ(
+      -1, ws_pack_header_small(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1, 126));
+
+  /* Medium buffer invalid payload length */
+  ASSERT_EQ(-1, ws_pack_header_medium(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
+                                      125));
+  ASSERT_EQ(-1, ws_pack_header_medium(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
+                                      65536));
+
+  /* Large buffer invalid payload length */
+  ASSERT_EQ(-1, ws_pack_header_large(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
+                                     65535));
+
+  /* Null buffer */
+  ASSERT_EQ(
+      -1, ws_pack_header_small(NULL, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1, 10));
+  ASSERT_EQ(-1, ws_pack_header_medium(NULL, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                      1, 126));
+  ASSERT_EQ(-1, ws_pack_header_large(NULL, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
+                                     65536));
+
+  PASS();
+}
+
+TEST test_ws_apply_mask_invalid(void) {
+  unsigned char mask_key[4] = {0x12, 0x34, 0x56, 0x78};
+  ASSERT_EQ(0, ws_apply_mask(NULL, 12, mask_key));
+  PASS();
+}
+
 SUITE(ws_suite) {
   RUN_TEST(test_ws_generate_key_length);
   RUN_TEST(test_ws_sign_key_rfc_example);
   RUN_TEST(test_ws_verify_accept_success);
   RUN_TEST(test_ws_verify_accept_failure);
   RUN_TEST(test_ws_init_headers);
+  RUN_TEST(test_ws_init_headers_null);
   RUN_TEST(test_ws_pack_header_small);
   RUN_TEST(test_ws_pack_header_medium);
   RUN_TEST(test_ws_pack_header_large);
+  RUN_TEST(test_ws_pack_header_invalid);
   RUN_TEST(test_ws_apply_mask_symmetry);
+  RUN_TEST(test_ws_apply_mask_invalid);
   RUN_TEST(test_ws_parser_single_frame);
   RUN_TEST(test_ws_parser_chunked_delivery);
   RUN_TEST(test_ws_parser_fragmented_message);
@@ -287,7 +329,6 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_async_register_stub);
   RUN_TEST(test_ws_async_send_stub);
 }
-
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
