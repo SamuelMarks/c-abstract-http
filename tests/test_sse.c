@@ -26,7 +26,12 @@ static int test_sse_on_event(const struct c_abstract_http_sse_event *ev,
     ctx->last_id[0] = '\0';
   }
   if (ev->event) {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    strncpy_s(ctx->last_event, sizeof(ctx->last_event), ev->event,
+              sizeof(ctx->last_event) - 1);
+#else
     strncpy(ctx->last_event, ev->event, sizeof(ctx->last_event) - 1);
+#endif
   } else {
     ctx->last_event[0] = '\0';
   }
