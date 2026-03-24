@@ -413,3 +413,16 @@ cmake -B build -S . \
 ```
 
 Available configurations include `C_ABSTRACT_HTTP_USE_OPENSSL`, `C_ABSTRACT_HTTP_USE_MBEDTLS`, `C_ABSTRACT_HTTP_USE_LIBRESSL`, `C_ABSTRACT_HTTP_USE_BORINGSSL`, `C_ABSTRACT_HTTP_USE_WOLFSSL`, `C_ABSTRACT_HTTP_USE_S2N`, `C_ABSTRACT_HTTP_USE_BEARSSL`, `C_ABSTRACT_HTTP_USE_SCHANNEL`, `C_ABSTRACT_HTTP_USE_GNUTLS`, `C_ABSTRACT_HTTP_USE_BOTAN`, `C_ABSTRACT_HTTP_USE_COMMONCRYPTO`, and `C_ABSTRACT_HTTP_USE_WINCRYPT`.
+
+## 7. Streaming Modalities
+
+The `c-abstract-http` library supports **WebSockets** and **Server-Sent Events (SSE)** natively. Their behaviors map dynamically depending on the selected computational modality:
+
+| Modality | HTTP/REST | WebSockets | SSE | Notes |
+|----------|-----------|------------|-----|-------|
+| Sync | Yes | Yes (Blocking) | Yes (Blocking) | Locks the calling thread; best for dedicated streams. |
+| Async | Yes | Yes | Yes | Non-blocking via event loop registration (`libuv`/`epoll`). |
+| Thread Pool | Yes | Yes | Yes | Scales nicely; blocks on worker thread but async to caller. |
+| Multiprocess | Yes | IPC Only | IPC Only | Not recommended for streams without shared memory mappings. |
+| Greenthread | Yes | Yes | Yes | Pauses coroutine on `EAGAIN` yielding context dynamically. |
+| Message Passing | Yes | Actors | Actors | Streams natively translate to Actor mailbox messages. |

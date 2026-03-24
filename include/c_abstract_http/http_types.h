@@ -31,6 +31,21 @@ extern "C" {
 #define ECANCELED EINVAL
 #endif
 
+/** @brief Error: WebSocket framing violation or protocol error */
+#define C_ABSTRACT_HTTP_ERR_WS_FRAMING -1001
+
+/** @brief Error: WebSocket handshake failed or was rejected */
+#define C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE -1002
+
+/** @brief Error: SSE stream parse error */
+#define C_ABSTRACT_HTTP_ERR_SSE_PARSE -1003
+
+/** @brief Error: SSE stream exceeded maximum buffer size (OOM prevention) */
+#define C_ABSTRACT_HTTP_ERR_SSE_OOM -1004
+
+/** @brief Error: WebSocket connection closed gracefully or unexpectedly */
+#define C_ABSTRACT_HTTP_ERR_WS_CLOSED -1005
+
 #ifndef NUM_FORMAT
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #define NUM_FORMAT "%I64d"
@@ -193,6 +208,8 @@ struct HttpRequest {
   void *read_chunk_user_data; /**< User data for the read_chunk callback */
   size_t expected_body_len;   /**< Expected total upload size (set to 0 for
                                  unknown/chunked) */
+  void *ws_ctx;               /**< Opaque WebSocket stream context */
+  void *sse_ctx;              /**< Opaque Server-Sent Events context */
 };
 
 /**

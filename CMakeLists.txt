@@ -46,7 +46,23 @@ option(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION "Enable c-multiplatform integra
 option(BUILD_SHARED_LIBS "Build Shared Library" OFF)
 option(C_ABSTRACT_HTTP_USE_ASAN "Enable AddressSanitizer" OFF)
 option(C_ABSTRACT_HTTP_USE_TSAN "Enable ThreadSanitizer" OFF)
+option(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS "Enable WebSocket support" OFF)
+option(C_ABSTRACT_HTTP_ENABLE_SSE "Enable Server-Sent Events support" OFF)
+option(C_ABSTRACT_HTTP_ENABLE_FUZZING "Enable fuzzing targets" OFF)
 option(TRY_SYS_LIB "Fallback to system packages if vcpkg is not available" ON)
+
+set(C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE 1048576 CACHE STRING "Max WS frame size")
+set(C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE 32768 CACHE STRING "Max SSE line size")
+
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ws_config.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/ws_config.h"
+)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/sse_config.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/sse_config.h"
+)
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 if(C_ABSTRACT_HTTP_LTO)
     include(CheckIPOSupported)
@@ -319,6 +335,13 @@ if(C_ABSTRACT_HTTP_HEADER_ONLY)
         target_link_libraries(c-abstract-http INTERFACE CURL::libcurl c89stringutils cfs)
     endif()
     
+    if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
+        target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
+    endif()
+    if(C_ABSTRACT_HTTP_ENABLE_SSE)
+        target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_ENABLE_SSE)
+    endif()
+
     c_abstract_http_apply_crypto(c-abstract-http INTERFACE)
 else()
     if(BUILD_SHARED_LIBS)
@@ -357,6 +380,21 @@ else()
         target_link_libraries(c-abstract-http PUBLIC c89stringutils cfs)
     else()
         target_link_libraries(c-abstract-http PUBLIC c89stringutils)
+    endif()
+
+    if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
+        target_sources(c-abstract-http PRIVATE
+            src/http_ws.c
+            src/crypto_utils.c
+        )
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
+    endif()
+
+    if(C_ABSTRACT_HTTP_ENABLE_SSE)
+        target_sources(c-abstract-http PRIVATE
+            src/http_sse.c
+        )
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_ENABLE_SSE)
     endif()
 
 #Platform specific HTTP backends

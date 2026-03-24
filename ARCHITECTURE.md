@@ -61,7 +61,13 @@ The dispatcher layer evaluates the compiled platform and wires up the backend's 
 - **HttpURLConnection**: Specialized networking integrations for Android JNI environments.
 - **Emscripten Fetch API**: The WebAssembly backend leveraging Emscripten's Fetch API to bridge network calls transparently to the browser's native `fetch`.
 - **Raw Sockets (`http_raw.c`)**: A fallback manual HTTP protocol implementation utilizing `select`, `read`, and `write` over raw TCP sockets. Ideal for DOS systems or deeply embedded environments that do not provide native HTTP clients but supply fundamental BSD-style sockets (e.g. Watt-32, mTCP).
-### 3. Cryptography Integration
+
+### 3. Streaming Modalities (WebSockets & SSE)
+The library provides native, zero-dependency implementations for **WebSockets (RFC 6455)** and **Server-Sent Events (SSE)**.
+- **WebSocket Framing Engine**: A fully portable C89 state machine parses WebSocket frames chunk-by-chunk. It handles 16-bit and 64-bit payload unmasking dynamically, reconstructs fragmented `FIN=0` messages gracefully, and enforces bounds checking based on `C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE` to prevent DoS attacks.
+- **SSE Chunk Buffer**: Uses a dynamic line-reader state machine to capture streaming `text/event-stream` payloads without exploding memory constraints. Supports `Last-Event-ID` tracking for reconnect loops.
+
+### 4. Cryptography Integration
 
 To preserve the "Native By Default" philosophy without locking consumers into a heavy OpenSSL dependency, the library dynamically injects cryptography routines natively into the underlying HTTP abstraction via a unified CMake macro (`c_abstract_http_apply_crypto`).
 If a backend like `libcurl` or `libevent` is used, its configuration is mapped downwards (e.g., bridging `C_ABSTRACT_HTTP_USE_WOLFSSL` to `CURL_USE_WOLFSSL`). This allows developers to seamlessly pivot between the following crypto libraries without ever modifying their application's code:

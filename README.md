@@ -54,6 +54,10 @@ To maintain a zero-weight philosophy while remaining adaptable, `c-abstract-http
 - **CommonCrypto** (`C_ABSTRACT_HTTP_USE_COMMONCRYPTO` - Apple)
 - **wincrypt** (`C_ABSTRACT_HTTP_USE_WINCRYPT` - Windows)
 
+## Streaming Modalities
+- **WebSockets (RFC 6455)**: 100% Native C89 framing engine featuring 16/64-bit bounds checking, chunk buffering, and zero-allocation masking via `C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS`. Includes native Base64 & SHA1 support.
+- **Server-Sent Events (SSE)**: Native C89 parser featuring robust `Last-Event-ID` tracking, `retry` synchronization, and highly flexible line-buffering constraints via `C_ABSTRACT_HTTP_ENABLE_SSE`.
+
 ## OAuth 2.0 Support
 
 The library features extensive built-in support for generating and managing OAuth 2.0 requests:
