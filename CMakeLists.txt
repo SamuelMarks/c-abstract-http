@@ -146,8 +146,8 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
             FetchContent_Declare(${PkgName}
                 GIT_REPOSITORY ${FetchRepo}
                 GIT_TAG master
-                GIT_CONFIG "core.autocrlf=false"
-                UPDATE_COMMAND ""
+                
+                
             )
         endif()
         FetchContent_MakeAvailable(${PkgName})
@@ -164,7 +164,7 @@ endmacro()
 
 c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
 if(TARGET c89stringutils)
-    target_compile_definitions(c89stringutils PUBLIC _CRT_SECURE_NO_WARNINGS)
+    
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "DOS")

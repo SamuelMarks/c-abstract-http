@@ -149,10 +149,11 @@ int base64_encode(const unsigned char *in, size_t in_len, char **out_str,
     return 12; /* ENOMEM fallback */
 
   for (i = 0, j = 0; i < in_len;) {
-    uint32_t octet_a = i < in_len ? (unsigned char)in[i++] : 0;
-    uint32_t octet_b = i < in_len ? (unsigned char)in[i++] : 0;
-    uint32_t octet_c = i < in_len ? (unsigned char)in[i++] : 0;
-    uint32_t triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
+    uint32_t octet_a, octet_b, octet_c, triple;
+    octet_a = i < in_len ? (unsigned char)in[i++] : 0;
+    octet_b = i < in_len ? (unsigned char)in[i++] : 0;
+    octet_c = i < in_len ? (unsigned char)in[i++] : 0;
+    triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
 
     out[j++] = base64_chars[(triple >> 3 * 6) & 0x3F];
     out[j++] = base64_chars[(triple >> 2 * 6) & 0x3F];
@@ -210,20 +211,21 @@ int base64_decode(const char *in, size_t in_len, unsigned char **out_data,
     return 12; /* ENOMEM fallback */
 
   for (i = 0, j = 0; i < in_len;) {
-    uint32_t sextet_a =
+    uint32_t sextet_a, sextet_b, sextet_c, sextet_d, triple;
+    sextet_a =
         in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
     i++;
-    uint32_t sextet_b =
+    sextet_b =
         in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
     i++;
-    uint32_t sextet_c =
+    sextet_c =
         in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
     i++;
-    uint32_t sextet_d =
+    sextet_d =
         in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
     i++;
 
-    uint32_t triple = (sextet_a << 3 * 6) + (sextet_b << 2 * 6) +
+    triple = (sextet_a << 3 * 6) + (sextet_b << 2 * 6) +
                       (sextet_c << 1 * 6) + (sextet_d << 0 * 6);
 
     if (j < out_size)
