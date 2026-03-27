@@ -46,13 +46,13 @@ extern "C" {
 /** @brief Error: WebSocket connection closed gracefully or unexpectedly */
 #define C_ABSTRACT_HTTP_ERR_WS_CLOSED -1005
 
-#ifndef NUM_FORMAT
+#ifndef C_ABSTRACT_HTTP_NUM_FORMAT
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-#define NUM_FORMAT "%I64d"
+#define C_ABSTRACT_HTTP_NUM_FORMAT "%I64d"
 #elif defined(__LP64__) || defined(_LP64) || defined(__x86_64__) || defined(__aarch64__)
-#define NUM_FORMAT "%ld"
+#define C_ABSTRACT_HTTP_NUM_FORMAT "%ld"
 #else
-#define NUM_FORMAT "%lld"
+#define C_ABSTRACT_HTTP_NUM_FORMAT "%lld"
 #endif
 #endif
 

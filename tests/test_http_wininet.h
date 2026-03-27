@@ -45,10 +45,10 @@ TEST test_wininet_lifecycle(void) {
   /* Cleanup */
   http_wininet_context_free(ctx);
   http_wininet_global_cleanup();
+  PASS();
 #else
   SKIPm("WinInet not supported on this platform");
 #endif
-  PASS();
 }
 
 TEST test_wininet_config_apply(void) {
@@ -82,10 +82,10 @@ TEST test_wininet_config_apply(void) {
 
   http_config_free(&config);
   http_wininet_context_free(ctx);
+  PASS();
 #else
   SKIPm("WinInet not supported on this platform");
 #endif
-  PASS();
 }
 
 TEST test_wininet_send_validation(void) {
@@ -116,10 +116,10 @@ TEST test_wininet_send_validation(void) {
 
   http_request_free(&req);
   http_wininet_context_free(ctx);
+  PASS();
 #else
   SKIPm("WinInet not supported on this platform");
 #endif
-  PASS();
 }
 
 TEST test_wininet_stubs(void) {
@@ -219,10 +219,10 @@ TEST test_wininet_send_chunked(void) {
   http_wininet_context_free(ctx);
   http_wininet_global_cleanup();
   mock_server_destroy(server);
+  PASS();
 #else
   SKIPm("WinInet not supported on this platform");
 #endif
-  PASS();
 }
 
 TEST test_wininet_send_chunked_abort(void) {
@@ -271,10 +271,10 @@ TEST test_wininet_send_chunked_abort(void) {
   http_wininet_context_free(ctx);
   http_wininet_global_cleanup();
   mock_server_destroy(server);
+  PASS();
 #else
   SKIPm("WinInet not supported on this platform");
 #endif
-  PASS();
 }
 
 struct wininet_TestUploadState {
@@ -352,10 +352,10 @@ TEST test_wininet_send_upload_chunked(void) {
   http_wininet_context_free(ctx);
   http_wininet_global_cleanup();
   mock_server_destroy(server);
+  PASS();
 #else
   SKIPm("WinInet not supported on this platform");
 #endif
-  PASS();
 }
 
 SUITE(http_wininet_suite) {

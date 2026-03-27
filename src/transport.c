@@ -12,6 +12,7 @@
 
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
+#include <c_abstract_http/transport.h>
 
 #if defined(C_ABSTRACT_HTTP_USE_ARIA2)
 #include <c_abstract_http/http_aria2.h>

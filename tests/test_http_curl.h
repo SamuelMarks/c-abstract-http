@@ -194,6 +194,7 @@ struct curl_TestChunkState {
 static int curl_mock_chunk_cb(void *user_data, const void *chunk,
                               size_t chunk_len) {
   struct curl_TestChunkState *state = (struct curl_TestChunkState *)user_data;
+  (void)chunk;
   state->call_count++;
   state->total_bytes += chunk_len;
   if (state->abort_on_call > 0 && state->call_count >= state->abort_on_call) {
@@ -366,17 +367,19 @@ TEST test_curl_send_upload_chunked(void) {
 }
 
 TEST test_curl_http3_config(void) {
+  struct HttpConfig config;
+  struct HttpTransportContext *ctx = NULL;
+  int ret;
+
   ASSERT_EQ(0, http_curl_global_init());
 
-  struct HttpConfig config;
   ASSERT_EQ(0, http_config_init(&config));
   config.version_mask = HTTP_VERSION_3;
   config.http3_fallback = 0;
 
-  struct HttpTransportContext *ctx = NULL;
   ASSERT_EQ(0, http_curl_context_init(&ctx));
 
-  int ret = http_curl_config_apply(ctx, &config);
+  ret = http_curl_config_apply(ctx, &config);
   ASSERT(ret == 0 || ret == EIO);
 
   http_config_free(&config);
