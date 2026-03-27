@@ -8,7 +8,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../greatest/greatest.h")
 else()
     FetchContent_Declare(
       greatest
-      URL "https://raw.githubusercontent.com/SamuelMarks/greatest/refs/heads/cmake-and-msvc/greatest.h"
+      URL "https://raw.githubusercontent.com/SamuelMarks/greatest/refs/heads/master/greatest.h"
       DOWNLOAD_NO_EXTRACT TRUE
     )
     FetchContent_MakeAvailable(greatest)

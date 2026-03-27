@@ -145,7 +145,7 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
         else()
             FetchContent_Declare(${PkgName}
                 GIT_REPOSITORY ${FetchRepo}
-                GIT_TAG master
+                GIT_TAG ${FetchTag}
             GIT_CONFIG "core.autocrlf=false"
                 
                 
