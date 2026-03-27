@@ -23,7 +23,7 @@ extern "C" {
 
 #include <c_abstract_http/http_lsquic.h>
 #include <c_abstract_http/http_types.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 TEST test_lsquic_global_lifecycle(void) {

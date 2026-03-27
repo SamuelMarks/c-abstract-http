@@ -24,7 +24,7 @@
 #include <libsoup/soup.h>
 
 #include <c_abstract_http/http_libsoup3.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 /**

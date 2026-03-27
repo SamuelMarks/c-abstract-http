@@ -42,7 +42,7 @@ typedef void *LPVOID;
 #include <c_abstract_http/event_loop.h>
 #include <cfs/cfs.h>
 #include <c_abstract_http/http_winhttp.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 /**

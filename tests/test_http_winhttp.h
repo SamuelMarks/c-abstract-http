@@ -23,7 +23,7 @@ extern "C" {
 
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_winhttp.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 
 #include "cdd_test_helpers/mock_server.h"
 /* clang-format on */
@@ -53,13 +53,14 @@ TEST test_winhttp_lifecycle(void) {
   http_winhttp_global_cleanup();
 #else
   SKIPm("WinHTTP not supported on this platform");
+  return 0;
 #endif
   PASS();
 }
 
 TEST test_winhttp_config_usage(void) {
-  char *_ast_strdup_0 = NULL;
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+  char *_ast_strdup_0 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
   int rc;
@@ -104,13 +105,14 @@ TEST test_winhttp_config_usage(void) {
   http_winhttp_context_free(ctx);
 #else
   SKIPm("WinHTTP not supported on this platform");
+  return 0;
 #endif
   PASS();
 }
 
 TEST test_winhttp_send_fail(void) {
-  char *_ast_strdup_1 = NULL;
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+  char *_ast_strdup_1 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
@@ -137,6 +139,7 @@ TEST test_winhttp_send_fail(void) {
   http_winhttp_context_free(ctx);
 #else
   SKIPm("WinHTTP not supported on this platform");
+  return 0;
 #endif
   PASS();
 }
@@ -170,6 +173,7 @@ TEST test_winhttp_send_null_checks(void) {
   http_winhttp_context_free(ctx);
 #else
   SKIPm("WinHTTP not supported on this platform");
+  return 0;
 #endif
   PASS();
 }
@@ -191,7 +195,8 @@ TEST test_winhttp_stubs(void) {
   ASSERT_EQ(ENOTSUP, http_winhttp_send(NULL, &req, &res));
   PASS();
 #else
-  SKIPm("WinHTTP is supported on this platform");
+  SKIPm("WinHTTP not supported on this platform");
+  return 0;
 #endif
 }
 
@@ -273,6 +278,7 @@ TEST test_winhttp_send_chunked(void) {
   mock_server_destroy(server);
 #else
   SKIPm("WinHTTP not supported on this platform");
+  return 0;
 #endif
   PASS();
 }
@@ -325,6 +331,7 @@ TEST test_winhttp_send_chunked_abort(void) {
   mock_server_destroy(server);
 #else
   SKIPm("WinHTTP not supported on this platform");
+  return 0;
 #endif
   PASS();
 }
@@ -406,6 +413,7 @@ TEST test_winhttp_send_upload_chunked(void) {
   mock_server_destroy(server);
 #else
   SKIPm("WinHTTP not supported on this platform");
+  return 0;
 #endif
   PASS();
 }
@@ -448,7 +456,7 @@ TEST test_winhttp_send_multi(void) {
   struct HttpMultiRequest multi;
   struct HttpFuture f1, f2;
   struct HttpFuture *futures[2];
-  struct ModalityEventLoop *loop;
+  struct ModalityEventLoop *loop = NULL;
   MockServerPtr server1 = NULL;
   MockServerPtr server2 = NULL;
   int rc;
@@ -522,6 +530,7 @@ TEST test_winhttp_send_multi(void) {
   mock_server_destroy(server2);
 #else
   SKIPm("WinHTTP not supported on this platform");
+  return 0;
 #endif
   PASS();
 }

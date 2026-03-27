@@ -14,7 +14,7 @@
 #include <fetch.h>
 
 #include <c_abstract_http/http_fetch.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 struct HttpTransportContext {

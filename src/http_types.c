@@ -42,7 +42,7 @@
 #endif
 
 #include <c_abstract_http/http_types.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 
 #include <stdarg.h>
 /* clang-format on */

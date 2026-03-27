@@ -87,7 +87,7 @@ typedef URL_COMPONENTSW URL_COMPONENTS;
 
 #include <cfs/cfs.h>
 #include <c_abstract_http/http_wininet.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 /**

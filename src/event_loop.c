@@ -573,11 +573,11 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
     if (loop->fds[i].active) {
       active_fds++;
       if (loop->fds[i].events & HTTP_LOOP_READ)
-        FD_SET(loop->fds[i].fd, &read_fds);
+        FD_SET((unsigned)loop->fds[i].fd, &read_fds);
       if (loop->fds[i].events & HTTP_LOOP_WRITE)
-        FD_SET(loop->fds[i].fd, &write_fds);
+        FD_SET((unsigned)loop->fds[i].fd, &write_fds);
       if (loop->fds[i].events & HTTP_LOOP_ERROR)
-        FD_SET(loop->fds[i].fd, &error_fds);
+        FD_SET((unsigned)loop->fds[i].fd, &error_fds);
       if (loop->fds[i].fd > max_fd)
         max_fd = loop->fds[i].fd;
     }
@@ -700,11 +700,11 @@ int http_loop_run(struct ModalityEventLoop *loop) {
       if (loop->fds[i].active) {
         active_fds++;
         if (loop->fds[i].events & HTTP_LOOP_READ)
-          FD_SET(loop->fds[i].fd, &read_fds);
+          FD_SET((unsigned)loop->fds[i].fd, &read_fds);
         if (loop->fds[i].events & HTTP_LOOP_WRITE)
-          FD_SET(loop->fds[i].fd, &write_fds);
+          FD_SET((unsigned)loop->fds[i].fd, &write_fds);
         if (loop->fds[i].events & HTTP_LOOP_ERROR)
-          FD_SET(loop->fds[i].fd, &error_fds);
+          FD_SET((unsigned)loop->fds[i].fd, &error_fds);
         if (loop->fds[i].fd > max_fd)
           max_fd = loop->fds[i].fd;
       }

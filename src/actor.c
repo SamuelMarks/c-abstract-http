@@ -10,7 +10,7 @@
 #include <string.h>
 
 #include <c_abstract_http/actor.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 static struct CddActorHooks g_actor_hooks = {NULL, NULL, NULL, NULL,

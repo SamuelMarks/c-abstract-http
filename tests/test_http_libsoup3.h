@@ -23,7 +23,7 @@ extern "C" {
 
 #include <c_abstract_http/http_libsoup3.h>
 #include <c_abstract_http/http_types.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 /* Helper: Build a request to localhost on a port likely to be closed */

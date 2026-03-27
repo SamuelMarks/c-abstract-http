@@ -14,7 +14,7 @@
 #include <string.h>
 
 #include <c_abstract_http/http_nghttp3.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 
 #ifdef C_ABSTRACT_HTTP_USE_NGHTTP3
 #include <nghttp3/nghttp3.h>

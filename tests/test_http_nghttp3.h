@@ -23,7 +23,7 @@ extern "C" {
 
 #include <c_abstract_http/http_nghttp3.h>
 #include <c_abstract_http/http_types.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 TEST test_nghttp3_global_lifecycle(void) {

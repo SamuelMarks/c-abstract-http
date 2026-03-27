@@ -212,21 +212,17 @@ int base64_decode(const char *in, size_t in_len, unsigned char **out_data,
 
   for (i = 0, j = 0; i < in_len;) {
     uint32_t sextet_a, sextet_b, sextet_c, sextet_d, triple;
-    sextet_a =
-        in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
+    sextet_a = in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
     i++;
-    sextet_b =
-        in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
+    sextet_b = in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
     i++;
-    sextet_c =
-        in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
+    sextet_c = in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
     i++;
-    sextet_d =
-        in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
+    sextet_d = in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
     i++;
 
-    triple = (sextet_a << 3 * 6) + (sextet_b << 2 * 6) +
-                      (sextet_c << 1 * 6) + (sextet_d << 0 * 6);
+    triple = (sextet_a << 3 * 6) + (sextet_b << 2 * 6) + (sextet_c << 1 * 6) +
+             (sextet_d << 0 * 6);
 
     if (j < out_size)
       out[j++] = (triple >> 2 * 8) & 0xFF;

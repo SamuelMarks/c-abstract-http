@@ -34,7 +34,7 @@
 #endif
 
 #include <c_abstract_http/process.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 static struct CddProcessHooks g_process_hooks = {NULL, NULL, NULL, NULL};

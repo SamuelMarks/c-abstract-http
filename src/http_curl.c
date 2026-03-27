@@ -28,7 +28,7 @@
 
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_curl.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 /**

@@ -14,7 +14,7 @@
 #include <string.h>
 
 #include <c_abstract_http/http_picoquic.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 /* clang-format on */
 
 #ifdef C_ABSTRACT_HTTP_USE_PICOQUIC

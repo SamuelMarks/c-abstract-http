@@ -14,7 +14,7 @@
 #include <string.h>
 
 #include <c_abstract_http/http_lsquic.h>
-#include <c_abstract_http/str.h>
+#include "functions/parse/str.h"
 
 #ifdef C_ABSTRACT_HTTP_USE_LSQUIC
 #include <lsquic.h>
