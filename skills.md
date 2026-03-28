@@ -4,6 +4,8 @@ This document outlines standard operating procedures (SOPs) and technical "skill
 
 ## 1. Extending the Backend (Adding a new Transport)
 
+Before implementing a new transport backend, consider how it interacts with the OS defaults. The library is structured to automatically use the best native APIs per platform (WinHTTP on Windows, CFNetwork on Apple, libcurl on Linux, etc.), unless explicitly overridden via a CMake `-D` flag (e.g., `-DC_ABSTRACT_HTTP_USE_LIBUV=ON`).
+
 If you are implementing a new transport backend (e.g., `http_lwip.c` for embedded systems):
 - **Define Context:** Create a `struct HttpTransportContext` in your implementation file (`src/http_lwip.c`).
 - **Implement Interface:** You must supply initialization logic, configuration logic, and a `send` implementation conforming to the `http_send_fn` typedef inside `http_types.h`.

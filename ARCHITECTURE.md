@@ -52,25 +52,30 @@ To accommodate varied concurrency models, `c-abstract-http` supports multiple ex
 - **WebAssembly**: Emscripten
 - **DOS**: OpenWatcom (with fallback support for Watt-32 / mTCP)
 
-### 2. Target Network Libraries
+### 2. Target Network Libraries & OS Defaults
 
-The dispatcher layer evaluates the compiled platform and wires up the backend's specific `send` and `send_multi` implementations. Native default backends are preferred to reduce binary size and leverage system-provided certificates:
+The dispatcher layer evaluates the compiled platform and wires up the backend's specific `send` and `send_multi` implementations. **Native default backends are strictly preferred** to reduce binary size, avoid heavy third-party dependencies, and leverage system-provided root certificate stores.
 
-- **WinHTTP**: The modern standard for Windows networking. Uses `WinHttpSendRequest`.
-- **WinINet**: The legacy standard for older Windows environments or specialized proxy/caching setups.    
-- **CFNetwork**: Uses `CFNetwork` and `Foundation` types for native execution on macOS and iOS.
-- **libcurl**: The robust fallback for POSIX systems (Linux, BSD) leveraging `libcurl`.
-- **msh3**: Microsoft's lightweight HTTP/3 client built natively on the fast MsQuic stack.
-- **lsquic**: LiteSpeed's high-performance HTTP/3 and QUIC stack.
-- **picoquic**: Easy-to-embed, standalone QUIC & HTTP/3 stack via h3zero.
-- **nghttp3**: Lightweight HTTP/3 framing state machine backend.
-- **aria2**: Highly concurrent downloading utility backend.
-- **libuv / libevent**: Modern POSIX backend leveraging `libuv` or `libevent`, ideal for asynchronous Node.js-style environments.
-- **libsoup3**: Modern POSIX backend leveraging `libsoup3`, ideal for GTK4 environments.
-- **libfetch**: FreeBSD and POSIX backend leveraging `libfetch`, tailored for BSD environments.
-- **HttpURLConnection**: Specialized networking integrations for Android JNI environments.
-- **Emscripten Fetch API**: The WebAssembly backend leveraging Emscripten's Fetch API to bridge network calls transparently to the browser's native `fetch`.
-- **Raw Sockets (`http_raw.c`)**: A fallback manual HTTP protocol implementation utilizing `select`, `read`, and `write` over raw TCP sockets. Ideal for DOS systems or deeply embedded environments that do not provide native HTTP clients but supply fundamental BSD-style sockets (e.g. Watt-32, mTCP).
+#### Default Backend Selection
+When no override flags are provided, CMake automatically configures the following targets based on your OS:
+- **Windows (`WIN32`)**: Maps to `http_winhttp.c` / `http_wininet.c` (WinHTTP / WinINet).
+- **macOS/iOS (`APPLE`)**: Maps to `http_apple.c` (CFNetwork/Foundation).
+- **Android (`ANDROID`)**: Maps to `http_android.c` (JNI HttpURLConnection).
+- **WebAssembly (`EMSCRIPTEN`)**: Maps to `http_wasm.c` (Emscripten Fetch API).
+- **DOS (`DOS`)**: Maps to `http_raw.c` (Raw BSD sockets via `select`/`read`/`write`).
+- **Linux/POSIX (Fallback)**: Maps to `http_curl.c` (libcurl).
+
+#### Build-Time Overrides (`-D` flags)
+To support specialized environments (like async event loops or HTTP/3), developers can bypass the OS default by passing `-D` flags to CMake. This triggers `#elif` branches in `transport.c` and changes the source files compiled in `CMakeLists.txt`:
+- `-DC_ABSTRACT_HTTP_USE_LIBUV=ON` -> Compiles `http_libuv.c`
+- `-DC_ABSTRACT_HTTP_USE_LIBEVENT=ON` -> Compiles `http_libevent.c`
+- `-DC_ABSTRACT_HTTP_USE_LSQUIC=ON` -> Compiles `http_lsquic.c`
+- `-DC_ABSTRACT_HTTP_USE_PICOQUIC=ON` -> Compiles `http_picoquic.c`
+- `-DC_ABSTRACT_HTTP_USE_NGHTTP3=ON` -> Compiles `http_nghttp3.c`
+- `-DC_ABSTRACT_HTTP_USE_MSH3=ON` -> Compiles `http_msh3.c`
+- `-DC_ABSTRACT_HTTP_USE_ARIA2=ON` -> Compiles `http_aria2.c`
+- `-DC_ABSTRACT_HTTP_USE_LIBSOUP3=ON` -> Compiles `http_libsoup3.c`
+- `-DC_ABSTRACT_HTTP_USE_LIBFETCH=ON` -> Compiles `http_fetch.c`
 
 ### 3. Streaming Modalities (WebSockets & SSE)
 The library provides native, zero-dependency implementations for **WebSockets (RFC 6455)** and **Server-Sent Events (SSE)**.

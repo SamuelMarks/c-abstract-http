@@ -2,7 +2,33 @@
 
 This guide covers basic integration, standard HTTP requests, error handling, OAuth2 support, and memory lifecycle in `c-abstract-http`.
 
-## 1. Initializing the Client
+## 1. Choosing a Backend & Compiling
+
+Before initializing the client in your C code, you must configure the library using CMake. By default, `c-abstract-http` automatically selects the best native backend for your operating system to reduce bloat (e.g., WinHTTP on Windows, CFNetwork on macOS, libcurl on Linux, Emscripten Fetch on WebAssembly).
+
+### Overriding the Default Backend
+If you want to use a specific backend instead of the OS default, pass the corresponding `-D` flag to CMake:
+
+```bash
+# Use the default OS backend (Recommended)
+cmake -B build -S .
+
+# Override: Force libuv backend
+cmake -B build -S . -DC_ABSTRACT_HTTP_USE_LIBUV=ON
+
+# Override: Force HTTP/3 via msh3
+cmake -B build -S . -DC_ABSTRACT_HTTP_USE_MSH3=ON
+```
+
+### Overriding Cryptography
+The library also defaults to the native crypto library of the chosen backend (e.g., Schannel on Windows, SecureTransport on Apple). You can force a specific crypto backend:
+
+```bash
+# Force MbedTLS for cryptography
+cmake -B build -S . -DC_ABSTRACT_HTTP_USE_MBEDTLS=ON
+```
+
+## 2. Initializing the Client
 
 ```c
 #include <c_abstract_http/c_abstract_http.h>
@@ -31,7 +57,7 @@ int main(void) {
 }
 ```
 
-## 2. Simple HTTP GET Request
+## 3. Simple HTTP GET Request
 
 ```c
 #include <c_abstract_http/c_abstract_http.h>
@@ -76,7 +102,7 @@ cleanup:
 }
 ```
 
-## 3. Downloading Multiple Files
+## 4. Downloading Multiple Files
 
 ```c
 #include <c_abstract_http/c_abstract_http.h>
@@ -191,7 +217,7 @@ cleanup_dir:
 }
 ```
 
-## 4. OAuth 2.0 Client Support
+## 5. OAuth 2.0 Client Support
 
 `c-abstract-http` natively handles OAuth 2.0 flows, making authentication against modern APIs simple and secure.
 
@@ -388,7 +414,7 @@ cleanup:
 }
 ```
 
-## 5. Supported Crypto Libraries
+## 6. Supported Crypto Libraries
 
 By default, `c-abstract-http` uses the native TLS backend of your network library (e.g. Schannel for WinHTTP, SecureTransport for CFNetwork, GnuTLS/OpenSSL for libcurl). You can force a specific crypto library via CMake when building:
 
@@ -398,7 +424,7 @@ cmake -B build -S . \
     -DC_ABSTRACT_HTTP_USE_OPENSSL=OFF
 ```
 
-## 6. DOS and Raw Sockets Fallback
+## 7. DOS and Raw Sockets Fallback
 
 If you are compiling for DOS (e.g. using OpenWatcom) or building for deeply embedded bare-metal systems, `c-abstract-http` automatically switches to its manual **Raw Sockets** implementation (`http_raw.c`). This backend relies solely on `select`, `read`, and `write` POSIX-like methods.
 
@@ -414,7 +440,7 @@ cmake -B build -S . \
 
 Available configurations include `C_ABSTRACT_HTTP_USE_OPENSSL`, `C_ABSTRACT_HTTP_USE_MBEDTLS`, `C_ABSTRACT_HTTP_USE_LIBRESSL`, `C_ABSTRACT_HTTP_USE_BORINGSSL`, `C_ABSTRACT_HTTP_USE_WOLFSSL`, `C_ABSTRACT_HTTP_USE_S2N`, `C_ABSTRACT_HTTP_USE_BEARSSL`, `C_ABSTRACT_HTTP_USE_SCHANNEL`, `C_ABSTRACT_HTTP_USE_GNUTLS`, `C_ABSTRACT_HTTP_USE_BOTAN`, `C_ABSTRACT_HTTP_USE_COMMONCRYPTO`, and `C_ABSTRACT_HTTP_USE_WINCRYPT`.
 
-## 7. Streaming Modalities
+## 8. Streaming Modalities
 
 The `c-abstract-http` library supports **WebSockets** and **Server-Sent Events (SSE)** natively. Their behaviors map dynamically depending on the selected computational modality:
 
@@ -426,7 +452,7 @@ The `c-abstract-http` library supports **WebSockets** and **Server-Sent Events (
 | Multiprocess | Yes | IPC Only | IPC Only | Not recommended for streams without shared memory mappings. |
 | Greenthread | Yes | Yes | Yes | Pauses coroutine on `EAGAIN` yielding context dynamically. |
 | Message Passing | Yes | Actors | Actors | Streams natively translate to Actor mailbox messages. |
-## 8. WebSockets (WS) & Server-Sent Events (SSE)
+## 9. WebSockets (WS) & Server-Sent Events (SSE)
 
 The library provides zero-dependency C89 state-machines for streaming HTTP protocols, natively integrating bounds-checking and fragmented reconstruction.
 
@@ -507,7 +533,7 @@ int connect_sse(struct HttpClient *client) {
 }
 `
 
-## 9. Multipart Form-Data Serialization
+## 10. Multipart Form-Data Serialization
 
 The HTTP types layer enables robust multipart/form-data serialization natively, preventing buffer overrun edge-cases securely via sprintf_s_wrapper inside the HttpRequest generation logic:
 

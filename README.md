@@ -28,24 +28,28 @@ A highly robust, cross-platform abstract HTTP network library for C. It unifies 
 
 ## Target Network Libraries
 
-The library defaults to the best native network library for the target platform, but can be configured to use others:
+The library automatically selects the most optimal, native network backend for your target operating system by default. This minimizes dependencies and maximizes performance.
 
-- **WinHTTP**: Default for Windows system services/background.
-- **WinINet**: Alternative for Windows UI/IE compatibility.
-- **CFNetwork / Foundation**: Default for Apple macOS/iOS.
-- **libcurl**: Default for Linux/POSIX. Supported on Windows/macOS as fallback. Now includes extensive HTTP/3 routing logic.
-- **libsoup3**: Modern GTK4-friendly POSIX backend.
-- **libuv**: Node.js-style asynchronous I/O backend.
-- **libevent**: Fast event notification backend.
-- **libfetch**: Default for FreeBSD/BSD systems.
-- **msh3**: Microsoft's lightweight HTTP/3 client built natively on the fast MsQuic stack (`C_ABSTRACT_HTTP_USE_MSH3`).
-- **lsquic**: LiteSpeed's high-performance HTTP/3 and QUIC stack (`C_ABSTRACT_HTTP_USE_LSQUIC`).
-- **picoquic**: Easy-to-embed, standalone QUIC & HTTP/3 stack via h3zero (`C_ABSTRACT_HTTP_USE_PICOQUIC`).
-- **nghttp3**: Lightweight HTTP/3 framing state machine backend (`C_ABSTRACT_HTTP_USE_NGHTTP3`).
-- **aria2**: Highly concurrent downloading utility backend (`C_ABSTRACT_HTTP_USE_ARIA2`).
-- **HttpURLConnection**: Java-bridged backend for Android.
-- **Emscripten Fetch API**: Natively bridges to JS `fetch` for WebAssembly.
-- **Raw Sockets (`C_ABSTRACT_HTTP_USE_RAW_SOCKETS`)**: Manual fallback implementation using `select`/`read`/`write` for deeply embedded systems or DOS network stacks.
+### Default OS/Platform Targets
+- **Windows**: Defaults to **WinHTTP** / **WinINet** (Native Windows APIs).
+- **macOS / iOS**: Defaults to **CFNetwork / Foundation** (Native Apple Frameworks).
+- **Android**: Defaults to **HttpURLConnection** (Native Java bridge via JNI).
+- **WebAssembly (Wasm)**: Defaults to **Emscripten Fetch API** (Native browser `fetch`).
+- **DOS**: Defaults to **Raw Sockets** (Manual TCP fallback).
+- **Linux / POSIX**: Defaults to **libcurl** (Industry standard for POSIX).
+
+### Overriding Defaults via CMake (`-D` flags)
+You can override the default native backend on any platform by passing specific `-D` flags to CMake during configuration:
+
+- **`-DC_ABSTRACT_HTTP_USE_MSH3=ON`**: Microsoft's lightweight HTTP/3 client built natively on MsQuic.
+- **`-DC_ABSTRACT_HTTP_USE_LSQUIC=ON`**: LiteSpeed's high-performance HTTP/3 and QUIC stack.
+- **`-DC_ABSTRACT_HTTP_USE_PICOQUIC=ON`**: Easy-to-embed, standalone QUIC & HTTP/3 stack via h3zero.
+- **`-DC_ABSTRACT_HTTP_USE_NGHTTP3=ON`**: Lightweight HTTP/3 framing state machine backend.
+- **`-DC_ABSTRACT_HTTP_USE_ARIA2=ON`**: Highly concurrent downloading utility backend.
+- **`-DC_ABSTRACT_HTTP_USE_LIBSOUP3=ON`**: Modern GTK4-friendly POSIX backend.
+- **`-DC_ABSTRACT_HTTP_USE_LIBUV=ON`**: Node.js-style asynchronous I/O backend.
+- **`-DC_ABSTRACT_HTTP_USE_LIBEVENT=ON`**: Fast event notification backend.
+- **`-DC_ABSTRACT_HTTP_USE_LIBFETCH=ON`**: Default for FreeBSD/BSD systems.
 
 ## Target Crypto Libraries
 
