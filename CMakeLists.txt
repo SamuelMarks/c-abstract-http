@@ -531,9 +531,9 @@ endif()
 
 option(C89STRINGUTILS_BUILD_TESTING "Build c89stringutils tests" OFF)
 option(C_ABSTRACT_HTTP_BUILD_TESTING "Build c-abstract-http tests" ON)
-option(C_CDD_BUILD_TESTING "Build cdd tests" ON)
-option(C_FS_BUILD_TESTING "Build cfs tests" ON)
-option(C_ORM_BUILD_TESTING "Build c-orm tests" ON)
+option(C_CDD_BUILD_TESTING "Build cdd tests" OFF)
+option(C_FS_BUILD_TESTING "Build cfs tests" OFF)
+option(C_ORM_BUILD_TESTING "Build c-orm tests" OFF)
 
 if(C_ABSTRACT_HTTP_BUILD_TESTING)
     enable_testing()

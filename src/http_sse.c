@@ -45,13 +45,19 @@ int c_abstract_http_sse_init(struct HttpRequest *req,
   return 0;
 }
 
-static char *sse_strdup(const char *s) {
-  size_t len = strlen(s);
-  char *copy = (char *)malloc(len + 1);
+static int sse_strdup(const char *s, char **out) {
+  size_t len;
+  char *copy;
+  if (!s || !out)
+    return -1;
+  len = strlen(s);
+  copy = (char *)malloc(len + 1);
   if (copy) {
     memcpy(copy, s, len + 1);
+    *out = copy;
+    return 0;
   }
-  return copy;
+  return 12; /* ENOMEM */
 }
 
 int sse_parser_init(struct sse_parser_ctx *ctx,
@@ -75,10 +81,10 @@ int sse_parser_init(struct sse_parser_ctx *ctx,
     return 12; /* ENOMEM */
   }
 
-  ctx->current_event = sse_strdup("message");
+  sse_strdup("message", &ctx->current_event);
 
   if (config && config->last_event_id) {
-    ctx->last_event_id = sse_strdup(config->last_event_id);
+    sse_strdup(config->last_event_id, &ctx->last_event_id);
   }
   if (config && config->retry_timeout_ms > 0) {
     ctx->retry_ms = config->retry_timeout_ms;
@@ -135,7 +141,7 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
     }
     /* Reset for next event */
     free(ctx->current_event);
-    ctx->current_event = sse_strdup("message");
+    sse_strdup("message", &ctx->current_event);
     ctx->data_offset = 0;
     if (ctx->current_data)
       ctx->current_data[0] = '\0';
