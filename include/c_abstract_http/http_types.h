@@ -120,7 +120,7 @@ typedef unsigned __int64 uint64_t;
 /* clang-format on */
 typedef int64_t cdd_int64_t;
 typedef uint64_t cdd_uint64_t;
-#define CDD_INT64_FMT "%lld"
+#define CDD_INT64_FMT C_ABSTRACT_HTTP_NUM_FORMAT
 #endif
 
 /**

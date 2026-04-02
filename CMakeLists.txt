@@ -115,6 +115,12 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
 
     set(${PkgName}_RESOLVED OFF)
 
+    string(TOUPPER "${PkgName}" PkgNameUpper)
+    if(TARGET ${PkgName} OR ${PkgName}_FOUND OR ${PkgNameUpper}_FOUND)
+        message(STATUS "${PkgName} already provided by parent")
+        set(${PkgName}_RESOLVED ON)
+    endif()
+
 #a) try vcpkg
     if(_VCPKG_APPLICABLE AND DEFINED CMAKE_TOOLCHAIN_FILE AND CMAKE_TOOLCHAIN_FILE MATCHES "vcpkg.cmake")
         find_package(${PkgName} CONFIG QUIET)
