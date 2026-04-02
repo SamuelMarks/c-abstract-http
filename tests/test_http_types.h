@@ -103,6 +103,10 @@ TEST test_oauth2_localhost_intercept(void) {
     if (connect(sock, (struct sockaddr *)&saddr, sizeof(saddr)) == 0) {
       connected = 1;
       send(sock, req, (int)strlen(req), 0);
+      {
+        char resp_buf[1024];
+        recv(sock, resp_buf, sizeof(resp_buf), 0);
+      }
       TEST_CLOSESOCKET(sock);
       break;
     }
