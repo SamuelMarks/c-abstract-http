@@ -162,6 +162,7 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
     endif()
 endmacro()
 
+set(C89STRINGUTILS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
 if(TARGET c89stringutils)
     
@@ -528,6 +529,7 @@ else()
     c_abstract_http_apply_crypto(c-abstract-http PUBLIC)
 endif()
 
+option(C89STRINGUTILS_BUILD_TESTING "Build c89stringutils tests" OFF)
 option(C_ABSTRACT_HTTP_BUILD_TESTING "Build c-abstract-http tests" ON)
 option(C_CDD_BUILD_TESTING "Build cdd tests" ON)
 option(C_FS_BUILD_TESTING "Build cfs tests" ON)
