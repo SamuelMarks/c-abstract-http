@@ -147,8 +147,7 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
                 GIT_REPOSITORY ${FetchRepo}
                 GIT_TAG ${FetchTag}
             GIT_CONFIG "core.autocrlf=false"
-                
-                
+                UPDATE_COMMAND git fetch origin ${FetchTag} COMMAND git reset --hard origin/${FetchTag}
             )
         endif()
         FetchContent_MakeAvailable(${PkgName})
