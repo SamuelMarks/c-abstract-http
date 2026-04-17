@@ -168,17 +168,17 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
     endif()
 endmacro()
 
-c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
-if(TARGET c89stringutils)
-    
-endif()
-
 if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ml")
     set(CFS_MULTITHREADED OFF CACHE BOOL "" FORCE)
 else()
     c_abstract_http_resolve_dependency(cdd_c https://github.com/SamuelMarks/cdd-c.git master)
     c_abstract_http_resolve_dependency(cfs https://github.com/SamuelMarks/c-fs.git master)
+endif()
+
+c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
+if(TARGET c89stringutils)
+    
 endif()
 
 macro(c_abstract_http_apply_crypto tgt scope)

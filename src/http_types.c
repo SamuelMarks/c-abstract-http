@@ -2049,3 +2049,13 @@ int http_client_send_multi(struct HttpClient *client,
   http_multi_request_free(&multi);
   return rc;
 }
+
+
+#include <stdarg.h>
+
+void c_abstract_http_log_debug(const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  vfprintf(stderr, fmt, args);
+  va_end(args);
+}
