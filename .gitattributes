@@ -1,16 +1,37 @@
-* text=auto eol=lf
+* text=auto
 
+# Enforce CRLF for Windows scripts
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
 *.bat text eol=crlf
+*.sln text eol=crlf
+*.vcproj text eol=crlf
+*.vcxproj text eol=crlf
+*.vcxproj.filters text eol=crlf
 
+# Enforce LF for Linux/Unix specific files
 *.sh text eol=lf
 *.Dockerfile text eol=lf
 Dockerfile text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+*.conf text eol=lf
+Makefile text eol=lf
+*.mk text eol=lf
 
+# Force text on source code just to be explicit
+*.c text
+*.h text
+*.cpp text
+*.hpp text
+*.py text
+*.txt text
+*.md text
+
+# Specific files
 LICENSE-CC0 text eol=lf
+LICENSE-APACHE text eol=lf
+LICENSE-MIT text eol=lf
 README.md text eol=lf
 .gitignore text eol=lf
 .gitattributes text eol=lf

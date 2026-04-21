@@ -6,5 +6,8 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-[*.{cmd,bat,ps1}]
+[*.{cmd,bat,ps1,sln,vcproj,vcxproj,vcxproj.filters}]
 end_of_line = crlf
+
+[*.{md,txt}]
+trim_trailing_whitespace = false
