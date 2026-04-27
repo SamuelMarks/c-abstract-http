@@ -33,20 +33,20 @@ struct CddActor;
  * @brief Built-in standard message types.
  */
 enum CddMessageType {
-  CDD_MSG_HTTP_SEND = 1,
-  CDD_MSG_HTTP_RESPONSE = 2,
-  CDD_MSG_SHUTDOWN = 3,
-  CDD_MSG_CUSTOM = 1000
+  CDD_MSG_HTTP_SEND = 1,     /**< Standard HTTP Send Request */
+  CDD_MSG_HTTP_RESPONSE = 2, /**< Standard HTTP Response */
+  CDD_MSG_SHUTDOWN = 3,      /**< Request to shutdown actor/bus */
+  CDD_MSG_CUSTOM = 1000      /**< Starting point for custom messages */
 };
 
 /**
  * @brief A discrete message on the bus.
  */
 struct CddMessage {
-  int type;
+  int type;      /**< The message type from CddMessageType or custom */
   void *payload; /**< Owned by the sender until freed by the receiver */
-  struct CddActor *sender;
-  struct CddActor *receiver;
+  struct CddActor *sender;   /**< The actor that sent this message */
+  struct CddActor *receiver; /**< The target actor for this message */
 };
 
 /**
@@ -62,15 +62,21 @@ typedef int (*cdd_actor_handler_cb)(struct CddActor *actor,
  * @brief External hooks for actor management.
  */
 struct CddActorHooks {
-  int (*bus_init)(struct CddMessageBus **bus);
-  void (*bus_free)(struct CddMessageBus *bus);
-  int (*bus_process)(struct CddMessageBus *bus);
+  int (*bus_init)(
+      struct CddMessageBus **bus); /**< Hook for bus initialization */
+  void (*bus_free)(struct CddMessageBus *bus); /**< Hook for bus destruction */
+  int (*bus_process)(
+      struct CddMessageBus *bus); /**< Hook to process messages */
   int (*actor_spawn)(struct CddMessageBus *bus, const char *name,
                      cdd_actor_handler_cb handler, void *state,
-                     struct CddActor **actor);
-  int (*actor_send)(struct CddMessageBus *bus, const struct CddMessage *msg);
-  int (*actor_get_state)(struct CddActor *actor, void **state);
-  int (*actor_get_name)(const struct CddActor *actor, const char **name);
+                     struct CddActor **actor); /**< Hook for spawning actors */
+  int (*actor_send)(
+      struct CddMessageBus *bus,
+      const struct CddMessage *msg); /**< Hook for sending messages */
+  int (*actor_get_state)(struct CddActor *actor,
+                         void **state); /**< Hook for retrieving state */
+  int (*actor_get_name)(const struct CddActor *actor,
+                        const char **name); /**< Hook for retrieving name */
 };
 
 /**

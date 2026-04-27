@@ -1,8 +1,8 @@
 /* clang-format off */
 #include "../src/crypto_utils.h"
 #include "greatest.h"
+#include <errno.h>
 #include <string.h>
-/* clang-format on */
 
 TEST test_sha1_empty_string(void) {
   struct sha1_ctx ctx;
@@ -101,7 +101,56 @@ TEST test_const_time_streq(void) {
   PASS();
 }
 
+#include <errno.h>
+/* clang-format on */
+
+TEST test_crypto_errors(void) {
+  struct sha1_ctx ctx;
+  unsigned char out[20];
+  char *b64_str;
+  size_t b64_len;
+  unsigned char *dec_data;
+  size_t dec_len;
+
+  ASSERT_EQ(EINVAL, sha1_init(NULL));
+  ASSERT_EQ(EINVAL, sha1_update(NULL, (const unsigned char *)"a", 1));
+  ASSERT_EQ(EINVAL, sha1_final(NULL, out));
+  ASSERT_EQ(EINVAL, sha1_final(&ctx, NULL));
+
+  ASSERT_EQ(EINVAL, base64_encode(NULL, 1, &b64_str, &b64_len));
+  ASSERT_EQ(EINVAL,
+            base64_encode((const unsigned char *)"a", 1, NULL, &b64_len));
+  ASSERT_EQ(EINVAL,
+            base64_encode((const unsigned char *)"a", 1, &b64_str, NULL));
+
+  ASSERT_EQ(EINVAL, base64_decode(NULL, 4, &dec_data, &dec_len));
+  ASSERT_EQ(EINVAL, base64_decode("abcd", 4, NULL, &dec_len));
+  ASSERT_EQ(EINVAL, base64_decode("abcd", 4, &dec_data, NULL));
+
+  /* Invalid length (not multiple of 4) */
+  ASSERT_EQ(EINVAL, base64_decode("abc", 3, &dec_data, &dec_len));
+
+  PASS();
+}
+
+TEST test_sha1_large_string(void) {
+  struct sha1_ctx ctx;
+  unsigned char out[20];
+  unsigned char data[128];
+  int i;
+  for (i = 0; i < 128; i++)
+    data[i] = 'a';
+
+  sha1_init(&ctx);
+  sha1_update(&ctx, data, 128);
+  sha1_final(&ctx, out);
+
+  PASS();
+}
+
 SUITE(crypto_suite) {
+  RUN_TEST(test_sha1_large_string);
+  RUN_TEST(test_crypto_errors);
   RUN_TEST(test_sha1_empty_string);
   RUN_TEST(test_sha1_fox_string);
   RUN_TEST(test_base64_encode_basic);

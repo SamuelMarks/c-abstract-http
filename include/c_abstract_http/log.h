@@ -7,9 +7,19 @@ extern "C" {
 
 #ifndef LOG_DEBUG
 #ifdef DEBUG
+/**
+ * @brief Write a debug log message.
+ * @param[in] fmt Formatting string.
+ * @param[in] ... Variadic arguments.
+ */
 void c_abstract_http_log_debug(const char *fmt, ...);
 #define LOG_DEBUG c_abstract_http_log_debug
 #else
+/**
+ * @brief Write a debug log message.
+ * @param[in] fmt Formatting string.
+ * @param[in] ... Variadic arguments.
+ */
 void c_abstract_http_log_debug(const char *fmt, ...);
 #define LOG_DEBUG 1 ? (void)0 : c_abstract_http_log_debug
 #endif /* DEBUG */

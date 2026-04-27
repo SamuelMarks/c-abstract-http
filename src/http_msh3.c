@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include <c_abstract_http/http_msh3.h>
+#include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
 #include <c_abstract_http/thread_pool.h>
 
@@ -41,14 +42,19 @@ static struct CddMutex *g_msh3_mutex = NULL;
 struct HttpTransportContext {
   MSH3_CONFIGURATION *config;
   int secure;
+  struct HttpConfig base_config;
 };
 
 int http_msh3_global_init(void) {
   int rc = 0;
   if (!g_msh3_mutex) {
-    cdd_mutex_init(&g_msh3_mutex);
+    rc = cdd_mutex_init(&g_msh3_mutex);
+    if (rc != 0)
+      return rc;
   }
-  cdd_mutex_lock(g_msh3_mutex);
+  rc = cdd_mutex_lock(g_msh3_mutex);
+  if (rc != 0)
+    return rc;
   if (g_msh3_init_count++ == 0) {
 #if defined(_WIN32)
     WSADATA wsaData;
@@ -67,7 +73,8 @@ int http_msh3_global_init(void) {
 void http_msh3_global_cleanup(void) {
   if (!g_msh3_mutex)
     return;
-  cdd_mutex_lock(g_msh3_mutex);
+  if (cdd_mutex_lock(g_msh3_mutex) != 0)
+    return;
   if (g_msh3_init_count > 0 && --g_msh3_init_count == 0) {
     if (g_msh3_api) {
       MsH3ApiClose(g_msh3_api);
@@ -82,34 +89,57 @@ void http_msh3_global_cleanup(void) {
 
 int http_msh3_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  if (!ctx)
+  int rc;
+  LOG_DEBUG("http_msh3_context_init: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_msh3_context_init: Error EINVAL");
     return EINVAL;
+  }
 
   c = (struct HttpTransportContext *)calloc(1, sizeof(*c));
-  if (!c)
+  if (!c) {
+    LOG_DEBUG("http_msh3_context_init: Error ENOMEM");
     return ENOMEM;
+  }
+
+  rc = http_config_init(&c->base_config);
+  if (rc != 0) {
+    LOG_DEBUG("http_msh3_context_init: Error http_config_init failed with %d",
+              rc);
+    free(c);
+    return rc;
+  }
 
   c->secure = 1;
 
   *ctx = c;
+  LOG_DEBUG("http_msh3_context_init: Success");
   return 0;
 }
 
 void http_msh3_context_free(struct HttpTransportContext *ctx) {
-  if (!ctx)
+  LOG_DEBUG("http_msh3_context_free: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_msh3_context_free: Exiting early (ctx == NULL)");
     return;
+  }
   if (ctx->config) {
     MsH3ConfigurationClose(ctx->config);
     ctx->config = NULL;
   }
+  http_config_free(&ctx->base_config);
   free(ctx);
+  LOG_DEBUG("http_msh3_context_free: Exiting");
 }
 
 int http_msh3_config_apply(struct HttpTransportContext *ctx,
                            const struct HttpConfig *config) {
   MSH3_SETTINGS settings;
-  if (!ctx || !config)
+  LOG_DEBUG("http_msh3_config_apply: Entering");
+  if (!ctx || !config) {
+    LOG_DEBUG("http_msh3_config_apply: Error EINVAL");
     return EINVAL;
+  }
 
   if (ctx->config) {
     MsH3ConfigurationClose(ctx->config);
@@ -118,8 +148,11 @@ int http_msh3_config_apply(struct HttpTransportContext *ctx,
 
   memset(&settings, 0, sizeof(settings));
   ctx->config = MsH3ConfigurationOpen(g_msh3_api, &settings, sizeof(settings));
-  if (!ctx->config)
+  if (!ctx->config) {
+    LOG_DEBUG(
+        "http_msh3_config_apply: Error ENOMEM (MsH3ConfigurationOpen failed)");
     return ENOMEM;
+  }
 
   if (config->verify_peer == 0 || config->verify_host == 0) {
     MSH3_CREDENTIAL_CONFIG cred;
@@ -136,6 +169,8 @@ int http_msh3_config_apply(struct HttpTransportContext *ctx,
     MsH3ConfigurationLoadCredential(ctx->config, &cred);
   }
 
+  ctx->base_config.cookie_jar = config->cookie_jar;
+  LOG_DEBUG("http_msh3_config_apply: Success");
   return 0;
 }
 
@@ -151,6 +186,7 @@ struct msh3_req_ctx {
 static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
                                              MSH3_REQUEST_EVENT *ev) {
   struct msh3_req_ctx *rctx = (struct msh3_req_ctx *)ctx;
+  int rc;
   (void)req;
 
   switch (ev->Type) {
@@ -168,6 +204,8 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
         nstr[vallen] = '\0';
         rctx->res->status_code = atoi(nstr);
         free(nstr);
+      } else {
+        LOG_DEBUG("msh3_request_cb: Error ENOMEM parsing status");
       }
     } else {
       nstr = (char *)malloc(namelen + 1);
@@ -177,7 +215,13 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
         nstr[namelen] = '\0';
         memcpy(vstr, val, vallen);
         vstr[vallen] = '\0';
-        http_headers_add(&rctx->res->headers, nstr, vstr);
+        rc = http_headers_add(&rctx->res->headers, nstr, vstr);
+        if (rc != 0) {
+          LOG_DEBUG("msh3_request_cb: Error http_headers_add failed with %d",
+                    rc);
+        }
+      } else {
+        LOG_DEBUG("msh3_request_cb: Error ENOMEM copying headers");
       }
       if (nstr)
         free(nstr);
@@ -195,19 +239,32 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
         memcpy((char *)rctx->res->body + rctx->res->body_len,
                ev->DATA_RECEIVED.Data, dlen);
         rctx->res->body_len += dlen;
+      } else {
+        LOG_DEBUG("msh3_request_cb: Error ENOMEM on realloc");
+        rctx->error_code = ENOMEM;
       }
     }
     break;
   }
   case MSH3_REQUEST_EVENT_SHUTDOWN_COMPLETE:
-    cdd_mutex_lock(rctx->mutex);
-    rctx->is_complete = 1;
-    if (ev->SHUTDOWN_COMPLETE.ConnectionClosedRemotely ||
-        ev->SHUTDOWN_COMPLETE.ConnectionErrorCode != 0) {
-      rctx->error_code = ECONNREFUSED;
+    rc = cdd_mutex_lock(rctx->mutex);
+    if (rc == 0) {
+      rctx->is_complete = 1;
+      if (ev->SHUTDOWN_COMPLETE.ConnectionClosedRemotely ||
+          ev->SHUTDOWN_COMPLETE.ConnectionErrorCode != 0) {
+        rctx->error_code = ECONNREFUSED;
+      }
+      rc = cdd_cond_signal(rctx->cond);
+      if (rc != 0) {
+        LOG_DEBUG("msh3_request_cb: Error cdd_cond_signal failed with %d", rc);
+      }
+      rc = cdd_mutex_unlock(rctx->mutex);
+      if (rc != 0) {
+        LOG_DEBUG("msh3_request_cb: Error cdd_mutex_unlock failed with %d", rc);
+      }
+    } else {
+      LOG_DEBUG("msh3_request_cb: Error cdd_mutex_lock failed with %d", rc);
     }
-    cdd_cond_signal(rctx->cond);
-    cdd_mutex_unlock(rctx->mutex);
     break;
   default:
     break;
@@ -323,10 +380,15 @@ int http_msh3_send(struct HttpTransportContext *ctx,
   int rc;
   int msh3_status = 0;
 
-  if (!ctx || !req || !res || !req->url)
+  LOG_DEBUG("http_msh3_send: Entering");
+  if (!ctx || !req || !res || !req->url) {
+    LOG_DEBUG("http_msh3_send: Error EINVAL");
     return EINVAL;
+  }
 
-  if (parse_url(req->url, &host, &port_str, &path, &scheme) != 0) {
+  rc = parse_url(req->url, &host, &port_str, &path, &scheme);
+  if (rc != 0) {
+    LOG_DEBUG("http_msh3_send: Error parse_url failed with %d", rc);
     return EINVAL;
   }
 
@@ -338,6 +400,7 @@ int http_msh3_send(struct HttpTransportContext *ctx,
 
   *res = (struct HttpResponse *)calloc(1, sizeof(**res));
   if (!*res) {
+    LOG_DEBUG("http_msh3_send: Error ENOMEM");
     free(host);
     free(port_str);
     free(path);
@@ -345,7 +408,17 @@ int http_msh3_send(struct HttpTransportContext *ctx,
     return ENOMEM;
   }
 
-  http_response_init(*res);
+  rc = http_response_init(*res);
+  if (rc != 0) {
+    LOG_DEBUG("http_msh3_send: Error http_response_init failed with %d", rc);
+    free(host);
+    free(port_str);
+    free(path);
+    free(scheme);
+    free(*res);
+    *res = NULL;
+    return rc;
+  }
   (*res)->status_code = 500; /* default failure */
 
   memset(&hints, 0, sizeof(hints));
@@ -354,6 +427,7 @@ int http_msh3_send(struct HttpTransportContext *ctx,
 
   rc = getaddrinfo(host, port_str, &hints, &result);
   if (rc != 0) {
+    LOG_DEBUG("http_msh3_send: Error getaddrinfo failed for host '%s'", host);
     free(host);
     free(port_str);
     free(path);
@@ -374,6 +448,7 @@ int http_msh3_send(struct HttpTransportContext *ctx,
 
   conn = MsH3ConnectionOpen(g_msh3_api, msh3_conn_cb, NULL);
   if (!conn) {
+    LOG_DEBUG("http_msh3_send: Error MsH3ConnectionOpen failed");
     free(host);
     free(port_str);
     free(path);
@@ -388,8 +463,33 @@ int http_msh3_send(struct HttpTransportContext *ctx,
 
   memset(&rctx, 0, sizeof(rctx));
   rctx.res = *res;
-  cdd_mutex_init(&rctx.mutex);
-  cdd_cond_init(&rctx.cond);
+  rc = cdd_mutex_init(&rctx.mutex);
+  if (rc != 0) {
+    LOG_DEBUG("http_msh3_send: Error cdd_mutex_init failed with %d", rc);
+    MsH3ConnectionClose(conn);
+    free(host);
+    free(port_str);
+    free(path);
+    free(scheme);
+    http_response_free(*res);
+    free(*res);
+    *res = NULL;
+    return rc;
+  }
+  rc = cdd_cond_init(&rctx.cond);
+  if (rc != 0) {
+    LOG_DEBUG("http_msh3_send: Error cdd_cond_init failed with %d", rc);
+    cdd_mutex_destroy(&rctx.mutex);
+    MsH3ConnectionClose(conn);
+    free(host);
+    free(port_str);
+    free(path);
+    free(scheme);
+    http_response_free(*res);
+    free(*res);
+    *res = NULL;
+    return rc;
+  }
 
   mreq = MsH3RequestOpen(conn, msh3_request_cb, &rctx, MSH3_REQUEST_FLAG_NONE);
   if (mreq) {
@@ -424,19 +524,34 @@ int http_msh3_send(struct HttpTransportContext *ctx,
 
     if (!MsH3RequestSend(mreq, MSH3_REQUEST_SEND_FLAG_FIN, headers, 4,
                          req->body, (uint32_t)req->body_len, rctx.res)) {
+      LOG_DEBUG("http_msh3_send: Error MsH3RequestSend failed");
       rctx.error_code = EIO;
       rctx.is_complete = 1;
     } else {
-      cdd_mutex_lock(rctx.mutex);
-      while (!rctx.is_complete) {
-        cdd_cond_wait(rctx.cond, rctx.mutex);
+      rc = cdd_mutex_lock(rctx.mutex);
+      if (rc == 0) {
+        while (!rctx.is_complete) {
+          rc = cdd_cond_wait(rctx.cond, rctx.mutex);
+          if (rc != 0) {
+            LOG_DEBUG("http_msh3_send: Error cdd_cond_wait failed with %d", rc);
+            break;
+          }
+        }
+        rc = cdd_mutex_unlock(rctx.mutex);
+        if (rc != 0) {
+          LOG_DEBUG("http_msh3_send: Error cdd_mutex_unlock failed with %d",
+                    rc);
+        }
+      } else {
+        LOG_DEBUG("http_msh3_send: Error cdd_mutex_lock failed with %d", rc);
+        rctx.error_code = rc;
       }
-      cdd_mutex_unlock(rctx.mutex);
     }
 
     msh3_status = rctx.error_code;
     MsH3RequestClose(mreq);
   } else {
+    LOG_DEBUG("http_msh3_send: Error MsH3RequestOpen failed");
     msh3_status = ENOMEM;
   }
 
@@ -450,49 +565,17 @@ int http_msh3_send(struct HttpTransportContext *ctx,
   free(scheme);
 
   if (msh3_status != 0) {
+    LOG_DEBUG("http_msh3_send: Error returning %d", msh3_status);
     http_response_free(*res);
     free(*res);
     *res = NULL;
     return msh3_status;
   }
 
+  LOG_DEBUG("http_msh3_send: Success");
   return 0;
 }
 
-int http_msh3_send_multi(struct HttpTransportContext *ctx,
-                         struct ModalityEventLoop *loop,
-                         const struct HttpMultiRequest *multi,
-                         struct HttpFuture **futures) {
-  (void)ctx;
-  (void)loop;
-  (void)multi;
-  (void)futures;
-  return ENOSYS;
-}
-
-#else
-
-/* Stubs for when MSH3 is disabled */
-int http_msh3_global_init(void) { return ENOSYS; }
-void http_msh3_global_cleanup(void) {}
-int http_msh3_context_init(struct HttpTransportContext **ctx) {
-  (void)ctx;
-  return ENOSYS;
-}
-void http_msh3_context_free(struct HttpTransportContext *ctx) { (void)ctx; }
-int http_msh3_config_apply(struct HttpTransportContext *ctx,
-                           const struct HttpConfig *config) {
-  (void)ctx;
-  (void)config;
-  return ENOSYS;
-}
-int http_msh3_send(struct HttpTransportContext *ctx,
-                   const struct HttpRequest *req, struct HttpResponse **res) {
-  (void)ctx;
-  (void)req;
-  (void)res;
-  return ENOSYS;
-}
 int http_msh3_send_multi(struct HttpTransportContext *ctx,
                          struct ModalityEventLoop *loop,
                          const struct HttpMultiRequest *multi,

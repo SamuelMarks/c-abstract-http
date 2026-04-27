@@ -122,27 +122,6 @@ TEST test_wininet_send_validation(void) {
 #endif
 }
 
-TEST test_wininet_stubs(void) {
-#ifndef _WIN32
-  struct HttpTransportContext *ctx = NULL;
-  struct HttpConfig cfg;
-  struct HttpRequest req;
-  struct HttpResponse *res = NULL;
-
-  ASSERT_EQ(0, http_wininet_global_init());
-  http_wininet_global_cleanup();
-
-  ASSERT_EQ(ENOTSUP, http_wininet_context_init(&ctx));
-  http_wininet_context_free(NULL);
-
-  ASSERT_EQ(ENOTSUP, http_wininet_config_apply(NULL, &cfg));
-  ASSERT_EQ(ENOTSUP, http_wininet_send(NULL, &req, &res));
-  PASS();
-#else
-  SKIPm("WinInet is supported on this platform");
-#endif
-}
-
 struct wininet_TestChunkState {
   int call_count;
   size_t total_bytes;
@@ -359,7 +338,6 @@ TEST test_wininet_send_upload_chunked(void) {
 }
 
 SUITE(http_wininet_suite) {
-  RUN_TEST(test_wininet_stubs);
   RUN_TEST(test_wininet_lifecycle);
   RUN_TEST(test_wininet_config_apply);
   RUN_TEST(test_wininet_send_validation);

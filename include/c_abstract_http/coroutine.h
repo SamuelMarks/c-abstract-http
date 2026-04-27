@@ -35,11 +35,12 @@ typedef void (*cdd_coroutine_cb)(void *arg);
  */
 struct CddCoroutineHooks {
   int (*init)(struct CddCoroutine **co, size_t stack_size, cdd_coroutine_cb cb,
-              void *arg);
-  void (*free)(struct CddCoroutine *co);
-  int (*resume)(struct CddCoroutine *co);
-  int (*yield)(void);
-  int (*is_done)(const struct CddCoroutine *co);
+              void *arg); /**< Hook for coroutine initialization */
+  void (*free)(struct CddCoroutine *co);  /**< Hook for coroutine destruction */
+  int (*resume)(struct CddCoroutine *co); /**< Hook for resuming execution */
+  int (*yield)(void);                     /**< Hook for yielding execution */
+  int (*is_done)(
+      const struct CddCoroutine *co); /**< Hook for checking status */
 };
 
 /**

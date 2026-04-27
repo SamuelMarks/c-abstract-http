@@ -198,24 +198,110 @@ TEST test_sse_init_headers(void) {
 
 TEST test_sse_sync_loop_exit_flag(void) {
   volatile int exit_flag = 1;
-  ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(NULL, NULL, NULL, NULL, NULL,
-                                                  NULL, &exit_flag));
+  struct HttpClient client = {0};
+  struct HttpRequest req = {0};
+  ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL,
+                                                  NULL, NULL, &exit_flag));
   PASS();
 }
 
-TEST test_sse_async_register_stub(void) {
-  ASSERT_EQ(-1, c_abstract_http_sse_async_register(NULL, NULL, NULL, NULL, NULL,
-                                                   NULL));
+TEST test_sse_sync_loop_null(void) {
+  ASSERT_EQ(EINVAL, c_abstract_http_sse_sync_read_loop(NULL, NULL, NULL, NULL,
+                                                       NULL, NULL, NULL));
+  PASS();
+}
+
+static int mock_send_success(struct HttpTransportContext *ctx,
+                             const struct HttpRequest *req,
+                             struct HttpResponse **res_out) {
+  struct HttpResponse *res;
+  (void)ctx;
+  (void)req;
+  res = (struct HttpResponse *)malloc(sizeof(struct HttpResponse));
+  memset(res, 0, sizeof(*res));
+  res->body = (unsigned char *)strdup("data: hello\n\n");
+  res->body_len = strlen((char *)res->body);
+  *res_out = res;
+  return 0;
+}
+
+static int mock_send_fail(struct HttpTransportContext *ctx,
+                          const struct HttpRequest *req,
+                          struct HttpResponse **res_out) {
+  (void)ctx;
+  (void)req;
+  (void)res_out;
+  return EIO;
+}
+
+static int mock_on_event_called = 0;
+static int mock_on_event_cb(const struct c_abstract_http_sse_event *ev,
+                            void *user_data) {
+  (void)ev;
+  (void)user_data;
+  mock_on_event_called = 1;
+  return 0;
+}
+
+TEST test_sse_sync_loop_success(void) {
+  struct HttpClient client = {0};
+  struct HttpRequest req = {0};
+  client.send = mock_send_success;
+  mock_on_event_called = 0;
+  ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(
+                   &client, &req, mock_on_event_cb, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(1, mock_on_event_called);
+  PASS();
+}
+
+TEST test_sse_sync_loop_fail(void) {
+  struct HttpClient client = {0};
+  struct HttpRequest req = {0};
+  client.send = mock_send_fail;
+  ASSERT_EQ(EIO, c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL,
+                                                    NULL, NULL, NULL));
+  PASS();
+}
+
+TEST test_sse_max_line_size(void) {
+  struct sse_parser_ctx parser;
+  char *huge_line;
+  size_t huge_len = 32768 + 100;
+  int rc;
+
+  ASSERT_EQ(0, sse_parser_init(&parser, NULL, NULL, NULL, NULL, NULL));
+
+  huge_line = (char *)malloc(huge_len);
+  memset(huge_line, 'a', huge_len);
+
+  /* Feed huge line */
+  rc = sse_parser_feed(&parser, huge_line, huge_len);
+  ASSERT_EQ(
+      12,
+      rc); /* ENOMEM equivalent used in sse_parser_feed for too large line */
+
+  sse_parser_destroy(&parser);
+  free(huge_line);
+  PASS();
+}
+
+TEST test_sse_async_register(void) {
+  struct HttpClient client = {0};
+  struct HttpRequest req = {0};
+  ASSERT_EQ(EINVAL, c_abstract_http_sse_async_register(NULL, NULL, NULL, NULL,
+                                                       NULL, NULL));
+  ASSERT_EQ(ENOSYS, c_abstract_http_sse_async_register(&client, &req, NULL,
+                                                       NULL, NULL, NULL));
   PASS();
 }
 
 TEST test_sse_init_headers_null(void) {
-  ASSERT_EQ(-1, c_abstract_http_sse_init(NULL, NULL));
+  ASSERT_EQ(EINVAL, c_abstract_http_sse_init(NULL, NULL));
   PASS();
 }
 
 TEST test_sse_parser_init_null(void) {
-  ASSERT_EQ(-1, sse_parser_init(NULL, NULL, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(EINVAL, sse_parser_init(NULL, NULL, NULL, NULL, NULL, NULL));
   PASS();
 }
 
@@ -230,7 +316,11 @@ SUITE(sse_suite) {
   RUN_TEST(test_sse_init_headers_null);
   RUN_TEST(test_sse_parser_init_null);
   RUN_TEST(test_sse_sync_loop_exit_flag);
-  RUN_TEST(test_sse_async_register_stub);
+  RUN_TEST(test_sse_sync_loop_null);
+  RUN_TEST(test_sse_sync_loop_success);
+  RUN_TEST(test_sse_sync_loop_fail);
+  RUN_TEST(test_sse_max_line_size);
+  RUN_TEST(test_sse_async_register);
 }
 GREATEST_MAIN_DEFS();
 

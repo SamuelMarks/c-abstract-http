@@ -93,7 +93,53 @@ TEST test_mutex_lock_unlock(void) {
   PASS();
 }
 
+TEST test_thread_pool_errors(void) {
+  struct CddMutex *lock = NULL;
+  struct CddCond *cond = NULL;
+  struct CddThreadPool *pool = NULL;
+
+  ASSERT_EQ(EINVAL, cdd_mutex_init(NULL));
+  ASSERT_EQ(EINVAL, cdd_mutex_lock(NULL));
+  ASSERT_EQ(EINVAL, cdd_mutex_unlock(NULL));
+  cdd_mutex_free(NULL);
+
+  ASSERT_EQ(EINVAL, cdd_cond_init(NULL));
+  ASSERT_EQ(EINVAL, cdd_cond_wait(NULL, NULL));
+  ASSERT_EQ(0, cdd_mutex_init(&lock));
+  ASSERT_EQ(EINVAL, cdd_cond_wait(NULL, lock));
+  ASSERT_EQ(EINVAL, cdd_cond_signal(NULL));
+  ASSERT_EQ(EINVAL, cdd_cond_broadcast(NULL));
+  cdd_cond_free(NULL);
+
+  ASSERT_EQ(0, cdd_cond_init(&cond));
+  ASSERT_EQ(0, cdd_cond_signal(cond));
+  ASSERT_EQ(0, cdd_cond_broadcast(cond));
+
+  cdd_cond_free(cond);
+  cdd_mutex_free(lock);
+
+  ASSERT_EQ(EINVAL, cdd_thread_pool_init(NULL, 1));
+  ASSERT_EQ(EINVAL, cdd_thread_pool_init(&pool, 0));
+  ASSERT_EQ(EINVAL, cdd_thread_pool_push(NULL, NULL, NULL));
+  cdd_thread_pool_free(NULL);
+
+  PASS();
+}
+
+static void dummy_cb_thread(void *arg) { (void)arg; }
+TEST test_thread_pool_external(void) {
+  struct CddThreadPool *pool;
+  struct CddThreadPoolHooks hooks;
+  memset(&hooks, 0, sizeof(hooks));
+  ASSERT_EQ(0, cdd_thread_pool_init_external(&pool, &hooks));
+  ASSERT_EQ(ENOTSUP, cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
+  cdd_thread_pool_free(pool);
+  PASS();
+}
+
 SUITE(thread_pool_suite) {
+  RUN_TEST(test_thread_pool_external);
+  RUN_TEST(test_thread_pool_errors);
   RUN_TEST(test_mutex_lock_unlock);
   RUN_TEST(test_thread_pool_execution);
 }

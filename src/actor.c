@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include <c_abstract_http/actor.h>
+#include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
 /* clang-format on */
 
@@ -45,27 +46,35 @@ struct CddMessageBus {
 
 int cdd_message_bus_init(struct CddMessageBus **bus) {
   struct CddMessageBus *b;
+  LOG_DEBUG("cdd_message_bus_init: Entering");
 
   if (g_actor_hooks.bus_init) {
+    LOG_DEBUG("cdd_message_bus_init: Hooking");
     return g_actor_hooks.bus_init(bus);
   }
 
-  if (!bus)
+  if (!bus) {
+    LOG_DEBUG("cdd_message_bus_init: Error EINVAL");
     return EINVAL;
+  }
 
   b = (struct CddMessageBus *)calloc(1, sizeof(struct CddMessageBus));
-  if (!b)
+  if (!b) {
+    LOG_DEBUG("cdd_message_bus_init: Error ENOMEM");
     return ENOMEM;
+  }
 
   b->actor_capacity = 16;
   b->actors =
       (struct CddActor **)malloc(b->actor_capacity * sizeof(struct CddActor *));
   if (!b->actors) {
+    LOG_DEBUG("cdd_message_bus_init: Error ENOMEM (actors array)");
     free(b);
     return ENOMEM;
   }
 
   *bus = b;
+  LOG_DEBUG("cdd_message_bus_init: Success");
   return 0;
 }
 
@@ -73,13 +82,17 @@ void cdd_message_bus_free(struct CddMessageBus *bus) {
   size_t i;
   struct MessageNode *node;
 
+  LOG_DEBUG("cdd_message_bus_free: Entering");
   if (g_actor_hooks.bus_free) {
+    LOG_DEBUG("cdd_message_bus_free: Hooking");
     g_actor_hooks.bus_free(bus);
     return;
   }
 
-  if (!bus)
+  if (!bus) {
+    LOG_DEBUG("cdd_message_bus_free: Exiting early (bus NULL)");
     return;
+  }
 
   /* Free pending messages */
   node = bus->head;
@@ -97,18 +110,23 @@ void cdd_message_bus_free(struct CddMessageBus *bus) {
   }
   free(bus->actors);
   free(bus);
+  LOG_DEBUG("cdd_message_bus_free: Exiting");
 }
 
 int cdd_message_bus_process(struct CddMessageBus *bus) {
   int count = 0;
   struct MessageNode *node;
 
+  LOG_DEBUG("cdd_message_bus_process: Entering");
   if (g_actor_hooks.bus_process) {
+    LOG_DEBUG("cdd_message_bus_process: Hooking");
     return g_actor_hooks.bus_process(bus);
   }
 
-  if (!bus)
+  if (!bus) {
+    LOG_DEBUG("cdd_message_bus_process: Error EINVAL");
     return EINVAL;
+  }
 
   while (bus->head) {
     node = bus->head;
@@ -125,6 +143,7 @@ int cdd_message_bus_process(struct CddMessageBus *bus) {
     count++;
   }
 
+  LOG_DEBUG("cdd_message_bus_process: Success (%d processed)", count);
   return count;
 }
 
@@ -134,29 +153,38 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
   struct CddActor *a;
   char *_ast_strdup_0 = NULL;
 
+  LOG_DEBUG("cdd_actor_spawn: Entering");
   if (g_actor_hooks.actor_spawn) {
+    LOG_DEBUG("cdd_actor_spawn: Hooking");
     return g_actor_hooks.actor_spawn(bus, name, handler, state, actor);
   }
 
-  if (!bus || !name || !handler || !actor)
+  if (!bus || !name || !handler || !actor) {
+    LOG_DEBUG("cdd_actor_spawn: Error EINVAL");
     return EINVAL;
+  }
 
   if (bus->actor_count >= bus->actor_capacity) {
     size_t new_cap = bus->actor_capacity * 2;
     struct CddActor **new_arr = (struct CddActor **)realloc(
         bus->actors, new_cap * sizeof(struct CddActor *));
-    if (!new_arr)
+    if (!new_arr) {
+      LOG_DEBUG("cdd_actor_spawn: Error ENOMEM reallocating actors array");
       return ENOMEM;
+    }
     bus->actors = new_arr;
     bus->actor_capacity = new_cap;
   }
 
   a = (struct CddActor *)calloc(1, sizeof(struct CddActor));
-  if (!a)
+  if (!a) {
+    LOG_DEBUG("cdd_actor_spawn: Error ENOMEM");
     return ENOMEM;
+  }
 
   a->name = (c_cdd_strdup(name, &_ast_strdup_0), _ast_strdup_0);
   if (!a->name) {
+    LOG_DEBUG("cdd_actor_spawn: Error ENOMEM allocating name");
     free(a);
     return ENOMEM;
   }
@@ -168,22 +196,29 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
   bus->actors[bus->actor_count++] = a;
   *actor = a;
 
+  LOG_DEBUG("cdd_actor_spawn: Success");
   return 0;
 }
 
 int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
   struct MessageNode *node;
 
+  LOG_DEBUG("cdd_actor_send: Entering");
   if (g_actor_hooks.actor_send) {
+    LOG_DEBUG("cdd_actor_send: Hooking");
     return g_actor_hooks.actor_send(bus, msg);
   }
 
-  if (!bus || !msg || !msg->receiver)
+  if (!bus || !msg || !msg->receiver) {
+    LOG_DEBUG("cdd_actor_send: Error EINVAL");
     return EINVAL;
+  }
 
   node = (struct MessageNode *)malloc(sizeof(struct MessageNode));
-  if (!node)
+  if (!node) {
+    LOG_DEBUG("cdd_actor_send: Error ENOMEM");
     return ENOMEM;
+  }
 
   node->msg = *msg; /* shallow copy */
   node->next = NULL;
@@ -196,25 +231,36 @@ int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
     bus->tail = node;
   }
 
+  LOG_DEBUG("cdd_actor_send: Success");
   return 0;
 }
 
 int cdd_actor_get_state(struct CddActor *actor, void **state) {
+  LOG_DEBUG("cdd_actor_get_state: Entering");
   if (g_actor_hooks.actor_get_state) {
+    LOG_DEBUG("cdd_actor_get_state: Hooking");
     return g_actor_hooks.actor_get_state(actor, state);
   }
-  if (!actor || !state)
+  if (!actor || !state) {
+    LOG_DEBUG("cdd_actor_get_state: Error EINVAL");
     return EINVAL;
+  }
   *state = actor->state;
+  LOG_DEBUG("cdd_actor_get_state: Success");
   return 0;
 }
 
 int cdd_actor_get_name(const struct CddActor *actor, const char **name) {
+  LOG_DEBUG("cdd_actor_get_name: Entering");
   if (g_actor_hooks.actor_get_name) {
+    LOG_DEBUG("cdd_actor_get_name: Hooking");
     return g_actor_hooks.actor_get_name(actor, name);
   }
-  if (!actor || !name)
+  if (!actor || !name) {
+    LOG_DEBUG("cdd_actor_get_name: Error EINVAL");
     return EINVAL;
+  }
   *name = actor->name;
+  LOG_DEBUG("cdd_actor_get_name: Success");
   return 0;
 }

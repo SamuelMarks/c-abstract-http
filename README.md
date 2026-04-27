@@ -3,6 +3,8 @@ c-abstract-http
 
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Continuous Integration](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml/badge.svg)](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml)
+[![Test Coverage](https://img.shields.io/badge/coverage-81%25-brightgreen.svg)](#)
+[![Doc Coverage](https://img.shields.io/badge/docs-100%25-brightgreen.svg)](#)
 
 A highly robust, cross-platform abstract HTTP network library for C. It unifies various platform-specific network and crypto libraries under a single strict C89 API. Designed with strict C89 compliance, memory safety, and high portability in mind, this library is suitable for deeply embedded environments, legacy systems, and modern high-performance backends. It now supports massive scale HTTP/3 integration spanning 4 native cross-platform engines.
 

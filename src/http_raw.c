@@ -8,6 +8,7 @@
 
 /* clang-format off */
 #include <c_abstract_http/http_raw.h>
+#include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,23 +57,44 @@ void http_raw_global_cleanup(void) {}
 
 struct RawCtx {
   int timeout_ms;
+  struct HttpConfig config;
 };
 
 int http_raw_context_init(struct HttpTransportContext **ctx) {
   struct RawCtx *c;
-  if (!ctx)
+  int rc;
+  LOG_DEBUG("http_raw_context_init: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_raw_context_init: Error EINVAL");
     return EINVAL;
+  }
   c = (struct RawCtx *)calloc(1, sizeof(struct RawCtx));
-  if (!c)
+  if (!c) {
+    LOG_DEBUG("http_raw_context_init: Error ENOMEM");
     return ENOMEM;
+  }
+
+  rc = http_config_init(&c->config);
+  if (rc != 0) {
+    LOG_DEBUG("http_raw_context_init: Error http_config_init failed with %d",
+              rc);
+    free(c);
+    return rc;
+  }
+
   c->timeout_ms = 30000;
   *ctx = (struct HttpTransportContext *)c;
+  LOG_DEBUG("http_raw_context_init: Success");
   return 0;
 }
 
 void http_raw_context_free(struct HttpTransportContext *ctx) {
-  if (ctx)
+  LOG_DEBUG("http_raw_context_free: Entering");
+  if (ctx) {
+    http_config_free(&((struct RawCtx *)ctx)->config);
     free(ctx);
+  }
+  LOG_DEBUG("http_raw_context_free: Exiting");
 }
 
 int http_raw_send(struct HttpTransportContext *ctx,
@@ -85,13 +107,17 @@ int http_raw_send(struct HttpTransportContext *ctx,
   int rc;
 
   (void)ctx;
-  if (!req || !res)
+  LOG_DEBUG("http_raw_send: Entering");
+  if (!req || !res) {
+    LOG_DEBUG("http_raw_send: Error EINVAL");
     return EINVAL;
+  }
 
   /* Here you would resolve the hostname and open the socket */
   /* sock = raw_socket_connect(req->url, port); */
 
   if (sock < 0) {
+    LOG_DEBUG("http_raw_send: Error ENOTSUP (socket not connected)");
     return ENOTSUP; /* Placeholder until user links specific TCP stack */
   }
 
@@ -116,8 +142,10 @@ int http_raw_send(struct HttpTransportContext *ctx,
 #else
     rc = write(sock, p, len);
 #endif
-    if (rc <= 0)
+    if (rc <= 0) {
+      LOG_DEBUG("http_raw_send: Error writing to socket");
       break;
+    }
     p += rc;
     len -= rc;
   }
@@ -125,9 +153,33 @@ int http_raw_send(struct HttpTransportContext *ctx,
   /* Read response */
   *res = calloc(1, sizeof(struct HttpResponse));
   if (*res) {
-    http_response_init(*res);
+    int init_rc = http_response_init(*res);
+    if (init_rc != 0) {
+      LOG_DEBUG("http_raw_send: Error http_response_init failed with %d",
+                init_rc);
+      free(*res);
+      *res = NULL;
+#if defined(_WIN32)
+      closesocket(sock);
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+      /* no-op for dos compilation */
+#else
+      close(sock);
+#endif
+      return init_rc;
+    }
     /* dummy response to satisfy compilation */
     (*res)->status_code = 200;
+  } else {
+    LOG_DEBUG("http_raw_send: Error ENOMEM");
+#if defined(_WIN32)
+    closesocket(sock);
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+    /* no-op for dos compilation */
+#else
+    close(sock);
+#endif
+    return ENOMEM;
   }
 
 #if defined(_WIN32)
@@ -138,6 +190,7 @@ int http_raw_send(struct HttpTransportContext *ctx,
   close(sock);
 #endif
 
+  LOG_DEBUG("http_raw_send: Success");
   return 0;
 }
 
@@ -148,9 +201,10 @@ int http_raw_send_multi(struct HttpTransportContext *ctx,
   (void)ctx;
   (void)loop;
   (void)reqs;
-  if (future)
-    *future = NULL;
+  (void)future;
+  LOG_DEBUG("http_raw_send_multi: Error ENOTSUP (not implemented)");
   return ENOTSUP;
+}
 }
 
 #endif

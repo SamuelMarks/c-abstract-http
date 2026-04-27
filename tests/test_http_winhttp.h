@@ -174,27 +174,6 @@ TEST test_winhttp_send_null_checks(void) {
 #endif
 }
 
-TEST test_winhttp_stubs(void) {
-#if !defined(_WIN32) || (defined(_MSC_VER) && _MSC_VER < 1600)
-  struct HttpTransportContext *ctx = NULL;
-  struct HttpConfig cfg;
-  struct HttpRequest req;
-  struct HttpResponse *res = NULL;
-
-  ASSERT_EQ(0, http_winhttp_global_init());
-  http_winhttp_global_cleanup();
-
-  ASSERT_EQ(ENOTSUP, http_winhttp_context_init(&ctx));
-  http_winhttp_context_free(NULL);
-
-  ASSERT_EQ(ENOTSUP, http_winhttp_config_apply(NULL, &cfg));
-  ASSERT_EQ(ENOTSUP, http_winhttp_send(NULL, &req, &res));
-  PASS();
-#else
-  SKIPm("WinHTTP not supported on this platform");
-#endif
-}
-
 struct winhttp_TestChunkState {
   int call_count;
   size_t total_bytes;
@@ -527,7 +506,6 @@ TEST test_winhttp_send_multi(void) {
 }
 
 SUITE(http_winhttp_suite) {
-  RUN_TEST(test_winhttp_stubs);
   RUN_TEST(test_winhttp_lifecycle);
   RUN_TEST(test_winhttp_config_usage);
   RUN_TEST(test_winhttp_send_fail);

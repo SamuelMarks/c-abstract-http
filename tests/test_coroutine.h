@@ -68,7 +68,67 @@ TEST test_coroutine_execution(void) {
   PASS();
 }
 
-SUITE(coroutine_suite) { RUN_TEST(test_coroutine_execution); }
+TEST test_coroutine_errors(void) {
+  struct CddCoroutine *co = NULL;
+  ASSERT_EQ(ENOSYS, cdd_coroutine_init(&co, 0, NULL, NULL));
+  ASSERT_EQ(ENOSYS, cdd_coroutine_resume(co));
+  ASSERT_EQ(ENOSYS, cdd_coroutine_yield());
+  ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
+  cdd_coroutine_free(co);
+  PASS();
+}
+
+static int mock_co_init(struct CddCoroutine **co, size_t stack_size,
+                        cdd_coroutine_cb cb, void *arg) {
+  (void)co;
+  (void)stack_size;
+  (void)cb;
+  (void)arg;
+  return 0;
+}
+static void mock_co_free(struct CddCoroutine *co) { (void)co; }
+static int mock_co_resume(struct CddCoroutine *co) {
+  (void)co;
+  return 0;
+}
+static int mock_co_yield(void) { return 0; }
+static int mock_co_is_done(const struct CddCoroutine *co) {
+  (void)co;
+  return 1;
+}
+
+TEST test_coroutine_hooks(void) {
+  struct CddCoroutineHooks hooks;
+  struct CddCoroutine *co = NULL;
+
+  hooks.init = mock_co_init;
+  hooks.free = mock_co_free;
+  hooks.resume = mock_co_resume;
+  hooks.yield = mock_co_yield;
+  hooks.is_done = mock_co_is_done;
+
+  cdd_coroutine_set_hooks(&hooks);
+
+  ASSERT_EQ(0, cdd_coroutine_init(&co, 0, NULL, NULL));
+  ASSERT_EQ(0, cdd_coroutine_resume(co));
+  ASSERT_EQ(0, cdd_coroutine_yield());
+  ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
+  cdd_coroutine_free(co);
+
+  {
+    struct CddCoroutineHooks z;
+    memset(&z, 0, sizeof(z));
+    cdd_coroutine_set_hooks(&z);
+  }
+
+  PASS();
+}
+
+SUITE(coroutine_suite) {
+  RUN_TEST(test_coroutine_errors);
+  RUN_TEST(test_coroutine_execution);
+  RUN_TEST(test_coroutine_hooks);
+}
 
 #ifdef __cplusplus
 }

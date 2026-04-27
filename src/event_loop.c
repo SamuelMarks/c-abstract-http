@@ -38,71 +38,8 @@
 #endif
 
 #include <c_abstract_http/event_loop.h>
+#include "c_abstract_http/log.h"
 /* clang-format on */
-
-#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-int http_loop_init(struct ModalityEventLoop **loop) {
-  (void)loop;
-  return ENOTSUP;
-}
-int http_loop_init_external(struct ModalityEventLoop **loop,
-                            const struct HttpLoopHooks *hooks) {
-  (void)loop;
-  (void)hooks;
-  return ENOTSUP;
-}
-void http_loop_free(struct ModalityEventLoop *loop) { (void)loop; }
-int http_loop_run(struct ModalityEventLoop *loop) {
-  (void)loop;
-  return ENOTSUP;
-}
-int http_loop_tick(struct ModalityEventLoop *loop) {
-  (void)loop;
-  return ENOTSUP;
-}
-int http_loop_stop(struct ModalityEventLoop *loop) {
-  (void)loop;
-  return ENOTSUP;
-}
-int http_loop_add_fd(struct ModalityEventLoop *loop, int fd, int events,
-                     http_loop_cb cb, void *user_data) {
-  (void)loop;
-  (void)fd;
-  (void)events;
-  (void)cb;
-  (void)user_data;
-  return ENOTSUP;
-}
-int http_loop_mod_fd(struct ModalityEventLoop *loop, int fd, int events) {
-  (void)loop;
-  (void)fd;
-  (void)events;
-  return ENOTSUP;
-}
-int http_loop_remove_fd(struct ModalityEventLoop *loop, int fd) {
-  (void)loop;
-  (void)fd;
-  return ENOTSUP;
-}
-int http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
-                        http_timer_cb cb, void *user_data, int *out_timer_id) {
-  (void)loop;
-  (void)timeout_ms;
-  (void)cb;
-  (void)user_data;
-  (void)out_timer_id;
-  return ENOTSUP;
-}
-int http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
-  (void)loop;
-  (void)timer_id;
-  return ENOTSUP;
-}
-int http_loop_wakeup(struct ModalityEventLoop *loop) {
-  (void)loop;
-  return ENOTSUP;
-}
-#else
 
 struct TimerNode {
   cdd_int64_t expiration;
@@ -224,12 +161,15 @@ int http_loop_init_external(struct ModalityEventLoop **loop,
 
 int http_loop_init(struct ModalityEventLoop **loop) {
   struct ModalityEventLoop *l;
+  LOG_DEBUG("http_loop_init: Entering");
   if (!loop) {
+    LOG_DEBUG("http_loop_init: Error EINVAL");
     return EINVAL;
   }
 
   l = (struct ModalityEventLoop *)malloc(sizeof(struct ModalityEventLoop));
   if (!l) {
+    LOG_DEBUG("http_loop_init: Error ENOMEM");
     return ENOMEM;
   }
   memset(l, 0, sizeof(struct ModalityEventLoop));
@@ -238,6 +178,7 @@ int http_loop_init(struct ModalityEventLoop **loop) {
   l->timers =
       (struct TimerNode *)malloc(l->timer_capacity * sizeof(struct TimerNode));
   if (!l->timers) {
+    LOG_DEBUG("http_loop_init: Error ENOMEM (timers array)");
     free(l);
     return ENOMEM;
   }
@@ -245,6 +186,7 @@ int http_loop_init(struct ModalityEventLoop **loop) {
   l->fd_capacity = 16;
   l->fds = (struct FdNode *)malloc(l->fd_capacity * sizeof(struct FdNode));
   if (!l->fds) {
+    LOG_DEBUG("http_loop_init: Error ENOMEM (fds array)");
     free(l->timers);
     free(l);
     return ENOMEM;
@@ -253,13 +195,15 @@ int http_loop_init(struct ModalityEventLoop **loop) {
 #if defined(_WIN32)
   l->wakeup_event = CreateEvent(NULL, FALSE, FALSE, NULL);
   if (!l->wakeup_event) {
+    LOG_DEBUG("http_loop_init: Error EIO (CreateEvent failed)");
     free(l->fds);
     free(l->timers);
     free(l);
     return EIO;
   }
 #else
-  if (pipe(l->wakeup_pipe) == -1) {
+  if (pipe(l->wakeup_pipe) < 0) {
+    LOG_DEBUG("http_loop_init: Error EIO (pipe failed)");
     free(l->fds);
     free(l->timers);
     free(l);
@@ -270,11 +214,14 @@ int http_loop_init(struct ModalityEventLoop **loop) {
 #endif
 
   *loop = l;
+  LOG_DEBUG("http_loop_init: Success");
   return 0;
 }
 
 void http_loop_free(struct ModalityEventLoop *loop) {
+  LOG_DEBUG("http_loop_free: Entering");
   if (!loop) {
+    LOG_DEBUG("http_loop_free: Exiting early (loop is NULL)");
     return;
   }
 
@@ -296,22 +243,28 @@ void http_loop_free(struct ModalityEventLoop *loop) {
       free(loop->fds);
   }
   free(loop);
+  LOG_DEBUG("http_loop_free: Exiting");
 }
 
 int http_loop_wakeup(struct ModalityEventLoop *loop) {
+  LOG_DEBUG("http_loop_wakeup: Entering");
   if (!loop) {
+    LOG_DEBUG("http_loop_wakeup: Error EINVAL");
     return EINVAL;
   }
 
   if (loop->has_hooks) {
     if (loop->hooks.wakeup) {
+      LOG_DEBUG("http_loop_wakeup: Hooking");
       return loop->hooks.wakeup(loop->hooks.external_context);
     }
+    LOG_DEBUG("http_loop_wakeup: Hooking (No-op)");
     return 0; /* No-op if not provided */
   }
 
 #if defined(_WIN32)
   SetEvent(loop->wakeup_event);
+  LOG_DEBUG("http_loop_wakeup: Success (Windows)");
   return 0;
 #else
   {
@@ -320,6 +273,7 @@ int http_loop_wakeup(struct ModalityEventLoop *loop) {
       /* Ignore EAGAIN, pipe is full and wakeup is already pending */
     }
   }
+  LOG_DEBUG("http_loop_wakeup: Success (POSIX)");
   return 0;
 #endif
 }
@@ -327,20 +281,25 @@ int http_loop_wakeup(struct ModalityEventLoop *loop) {
 int http_loop_add_fd(struct ModalityEventLoop *loop, int fd, int events,
                      http_loop_cb cb, void *user_data) {
   size_t i;
+  LOG_DEBUG("http_loop_add_fd: Entering");
   if (!loop || fd < 0) {
+    LOG_DEBUG("http_loop_add_fd: Error EINVAL");
     return EINVAL;
   }
 
   if (loop->has_hooks) {
     if (loop->hooks.add_fd) {
+      LOG_DEBUG("http_loop_add_fd: Hooking");
       return loop->hooks.add_fd(loop->hooks.external_context, fd, events, cb,
                                 user_data);
     }
+    LOG_DEBUG("http_loop_add_fd: Error ENOTSUP (hook missing)");
     return ENOTSUP;
   }
 
   for (i = 0; i < loop->fd_count; ++i) {
     if (loop->fds[i].active && loop->fds[i].fd == fd) {
+      LOG_DEBUG("http_loop_add_fd: Error EEXIST");
       return EEXIST;
     }
   }
@@ -356,8 +315,10 @@ int http_loop_add_fd(struct ModalityEventLoop *loop, int fd, int events,
       size_t new_cap = loop->fd_capacity * 2;
       struct FdNode *new_arr =
           (struct FdNode *)realloc(loop->fds, new_cap * sizeof(struct FdNode));
-      if (!new_arr)
+      if (!new_arr) {
+        LOG_DEBUG("http_loop_add_fd: Error ENOMEM");
         return ENOMEM;
+      }
       loop->fds = new_arr;
       loop->fd_capacity = new_cap;
     }
@@ -370,65 +331,82 @@ int http_loop_add_fd(struct ModalityEventLoop *loop, int fd, int events,
   loop->fds[i].user_data = user_data;
   loop->fds[i].active = 1;
 
+  LOG_DEBUG("http_loop_add_fd: Success");
   return 0;
 }
 
 int http_loop_mod_fd(struct ModalityEventLoop *loop, int fd, int events) {
   size_t i;
+  LOG_DEBUG("http_loop_mod_fd: Entering");
   if (!loop || fd < 0) {
+    LOG_DEBUG("http_loop_mod_fd: Error EINVAL");
     return EINVAL;
   }
 
   if (loop->has_hooks) {
     if (loop->hooks.mod_fd) {
+      LOG_DEBUG("http_loop_mod_fd: Hooking");
       return loop->hooks.mod_fd(loop->hooks.external_context, fd, events);
     }
+    LOG_DEBUG("http_loop_mod_fd: Error ENOTSUP (hook missing)");
     return ENOTSUP;
   }
 
   for (i = 0; i < loop->fd_count; ++i) {
     if (loop->fds[i].active && loop->fds[i].fd == fd) {
       loop->fds[i].events = events;
+      LOG_DEBUG("http_loop_mod_fd: Success");
       return 0;
     }
   }
+  LOG_DEBUG("http_loop_mod_fd: Error ENOENT");
   return ENOENT;
 }
 
 int http_loop_remove_fd(struct ModalityEventLoop *loop, int fd) {
   size_t i;
+  LOG_DEBUG("http_loop_remove_fd: Entering");
   if (!loop || fd < 0) {
+    LOG_DEBUG("http_loop_remove_fd: Error EINVAL");
     return EINVAL;
   }
 
   if (loop->has_hooks) {
     if (loop->hooks.remove_fd) {
+      LOG_DEBUG("http_loop_remove_fd: Hooking");
       return loop->hooks.remove_fd(loop->hooks.external_context, fd);
     }
+    LOG_DEBUG("http_loop_remove_fd: Error ENOTSUP (hook missing)");
     return ENOTSUP;
   }
 
   for (i = 0; i < loop->fd_count; ++i) {
     if (loop->fds[i].active && loop->fds[i].fd == fd) {
       loop->fds[i].active = 0;
+      LOG_DEBUG("http_loop_remove_fd: Success");
       return 0;
     }
   }
+  LOG_DEBUG("http_loop_remove_fd: Error ENOENT");
   return ENOENT;
 }
 
 int http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
                         http_timer_cb cb, void *user_data, int *out_timer_id) {
   int id;
+  LOG_DEBUG("http_loop_add_timer: Entering");
   if (!loop || !cb) {
+    LOG_DEBUG("http_loop_add_timer: Error EINVAL");
     return EINVAL;
   }
 
   if (loop->has_hooks) {
     if (loop->hooks.add_timer) {
+      LOG_DEBUG("http_loop_add_timer: Hooking");
       return loop->hooks.add_timer(loop->hooks.external_context, timeout_ms, cb,
                                    user_data, out_timer_id);
     }
+    LOG_DEBUG("http_loop_add_timer: Error ENOTSUP (hook missing)");
     return ENOTSUP;
   }
 
@@ -436,8 +414,10 @@ int http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
     size_t new_cap = loop->timer_capacity * 2;
     struct TimerNode *new_arr = (struct TimerNode *)realloc(
         loop->timers, new_cap * sizeof(struct TimerNode));
-    if (!new_arr)
+    if (!new_arr) {
+      LOG_DEBUG("http_loop_add_timer: Error ENOMEM");
       return ENOMEM;
+    }
     loop->timers = new_arr;
     loop->timer_capacity = new_cap;
   }
@@ -456,19 +436,24 @@ int http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
   timer_heap_up(loop, loop->timer_count);
   loop->timer_count++;
 
+  LOG_DEBUG("http_loop_add_timer: Success");
   return 0;
 }
 
 int http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
   size_t i;
+  LOG_DEBUG("http_loop_cancel_timer: Entering");
   if (!loop) {
+    LOG_DEBUG("http_loop_cancel_timer: Error EINVAL");
     return EINVAL;
   }
 
   if (loop->has_hooks) {
     if (loop->hooks.cancel_timer) {
+      LOG_DEBUG("http_loop_cancel_timer: Hooking");
       return loop->hooks.cancel_timer(loop->hooks.external_context, timer_id);
     }
+    LOG_DEBUG("http_loop_cancel_timer: Error ENOTSUP (hook missing)");
     return ENOTSUP;
   }
 
@@ -476,9 +461,11 @@ int http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
     if (loop->timers[i].id == timer_id && loop->timers[i].active) {
       loop->timers[i].active = 0;
       /* We lazily remove it when it reaches the top of the heap */
+      LOG_DEBUG("http_loop_cancel_timer: Success");
       return 0;
     }
   }
+  LOG_DEBUG("http_loop_cancel_timer: Error ENOENT");
   return ENOENT;
 }
 
@@ -520,13 +507,16 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
   struct timeval *ptv = NULL;
   int ret;
 
+  LOG_DEBUG("http_loop_tick: Entering");
   if (!loop) {
+    LOG_DEBUG("http_loop_tick: Error EINVAL");
     return EINVAL;
   }
 
   if (loop->has_hooks) {
     /* If hooked externally, ticketing should ideally be handled by the
      * framework */
+    LOG_DEBUG("http_loop_tick: Exiting (external loop)");
     return 0;
   }
 
@@ -636,16 +626,20 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
     }
   }
 
+  LOG_DEBUG("http_loop_tick: Success");
   return 0;
 }
 
 int http_loop_run(struct ModalityEventLoop *loop) {
+  LOG_DEBUG("http_loop_run: Entering");
   if (!loop) {
+    LOG_DEBUG("http_loop_run: Error EINVAL");
     return EINVAL;
   }
 
   if (loop->has_hooks) {
     /* If we have hooks, running the loop is not our responsibility */
+    LOG_DEBUG("http_loop_run: Error ENOTSUP (external loop)");
     return ENOTSUP;
   }
 
@@ -777,16 +771,18 @@ int http_loop_run(struct ModalityEventLoop *loop) {
   }
 
   loop->running = 0;
+  LOG_DEBUG("http_loop_run: Exiting cleanly");
   return 0;
 }
 
 int http_loop_stop(struct ModalityEventLoop *loop) {
+  LOG_DEBUG("http_loop_stop: Entering");
   if (!loop) {
+    LOG_DEBUG("http_loop_stop: Error EINVAL");
     return EINVAL;
   }
   loop->stop_requested = 1;
   http_loop_wakeup(loop);
+  LOG_DEBUG("http_loop_stop: Success");
   return 0;
 }
-
-#endif

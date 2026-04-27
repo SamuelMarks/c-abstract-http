@@ -60,7 +60,8 @@ static int mock_update_progress(void *ui_component, float percentage) {
 }
 
 TEST test_progress_adapter(void) {
-  struct CmpProgressBinding binding = {NULL, mock_update_progress, 0};
+  struct CmpProgressBinding binding = {NULL, mock_update_progress, 0, NULL,
+                                       NULL};
 
   g_last_pct = 0.0f;
   ASSERT_EQ(0, cmp_http_progress_adapter(50, 100, &binding));
@@ -72,10 +73,50 @@ TEST test_progress_adapter(void) {
   PASS();
 }
 
+TEST test_cmp_integration_errors(void) {
+  struct CmpAppConfig cmp_cfg;
+  struct HttpConfig http_cfg;
+  struct CmpProgressBinding binding;
+  enum ExecutionModality mod;
+
+  memset(&cmp_cfg, 0, sizeof(cmp_cfg));
+  memset(&http_cfg, 0, sizeof(http_cfg));
+  memset(&binding, 0, sizeof(binding));
+
+  ASSERT_EQ(EINVAL, cmp_http_modality_adapter(0, NULL));
+  ASSERT_EQ(EINVAL, cmp_http_modality_adapter(999, &mod));
+
+  ASSERT_EQ(EINVAL, cmp_http_inject_config(NULL, &http_cfg));
+  ASSERT_EQ(EINVAL, cmp_http_inject_config(&cmp_cfg, NULL));
+
+  cmp_cfg.modality = 999;
+  ASSERT_EQ(EINVAL, cmp_http_inject_config(&cmp_cfg, &http_cfg));
+
+  /* Progress adapter without binding returns 0 */
+  ASSERT_EQ(0, cmp_http_progress_adapter(0, 0, NULL));
+
+  binding.cancel_requested = 1;
+  ASSERT_EQ(1, cmp_http_progress_adapter(0, 0, &binding));
+
+  PASS();
+}
+
+TEST test_cmp_progress_adapter_continue(void) {
+  struct CmpProgressBinding binding;
+  memset(&binding, 0, sizeof(binding));
+  binding.cancel_requested = 0;
+  binding.update_progress = NULL;
+
+  ASSERT_EQ(0, cmp_http_progress_adapter(10, 100, &binding));
+  PASS();
+}
+
 SUITE(cmp_integration_suite) {
   RUN_TEST(test_modality_adapter);
   RUN_TEST(test_inject_config);
   RUN_TEST(test_progress_adapter);
+  RUN_TEST(test_cmp_integration_errors);
+  RUN_TEST(test_cmp_progress_adapter_continue);
 }
 
 #ifdef __cplusplus

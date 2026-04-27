@@ -39,35 +39,12 @@
 
 #include <c_abstract_http/coroutine.h>
 #include <c_abstract_http/cdd_tls.h>
+#include "c_abstract_http/log.h"
 /* clang-format on */
 
 #ifndef ENOTSUP
 #define ENOTSUP EINVAL
 #endif
-
-#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
-                       cdd_coroutine_cb cb, void *arg) {
-  (void)co;
-  (void)stack_size;
-  (void)cb;
-  (void)arg;
-  return ENOTSUP;
-}
-int cdd_coroutine_yield(void) { return ENOTSUP; }
-int cdd_coroutine_resume(struct CddCoroutine *co) {
-  (void)co;
-  return ENOTSUP;
-}
-int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
-  (void)co;
-  return 1;
-}
-void cdd_coroutine_free(struct CddCoroutine *co) { (void)co; }
-void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
-  (void)hooks;
-}
-#else
 
 static struct CddCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL, NULL,
                                                      NULL};
@@ -106,22 +83,30 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
   struct CddCoroutine *c;
 
+  LOG_DEBUG("cdd_coroutine_init: Entering");
   if (g_coroutine_hooks.init) {
+    LOG_DEBUG("cdd_coroutine_init: Hooking");
     return g_coroutine_hooks.init(co, stack_size, cb, arg);
   }
 
-  if (!co || !cb)
+  if (!co || !cb) {
+    LOG_DEBUG("cdd_coroutine_init: Error EINVAL");
     return EINVAL;
+  }
 
   if (dwTlsIndex == TLS_OUT_OF_INDEXES) {
     dwTlsIndex = TlsAlloc();
-    if (dwTlsIndex == TLS_OUT_OF_INDEXES)
+    if (dwTlsIndex == TLS_OUT_OF_INDEXES) {
+      LOG_DEBUG("cdd_coroutine_init: Error EIO (TlsAlloc failed)");
       return EIO;
+    }
   }
 
   c = (struct CddCoroutine *)calloc(1, sizeof(struct CddCoroutine));
-  if (!c)
+  if (!c) {
+    LOG_DEBUG("cdd_coroutine_init: Error ENOMEM");
     return ENOMEM;
+  }
 
   c->cb = cb;
   c->arg = arg;
@@ -132,16 +117,20 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
 
   c->fiber = CreateFiber(stack_size, fiber_entry, c);
   if (!c->fiber) {
+    LOG_DEBUG("cdd_coroutine_init: Error EIO (CreateFiber failed)");
     free(c);
     return EIO;
   }
 
   *co = c;
+  LOG_DEBUG("cdd_coroutine_init: Success");
   return 0;
 }
 
 void cdd_coroutine_free(struct CddCoroutine *co) {
+  LOG_DEBUG("cdd_coroutine_free: Entering");
   if (g_coroutine_hooks.free) {
+    LOG_DEBUG("cdd_coroutine_free: Hooking");
     g_coroutine_hooks.free(co);
     return;
   }
@@ -152,47 +141,63 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
     }
     free(co);
   }
+  LOG_DEBUG("cdd_coroutine_free: Exiting");
 }
 
 int cdd_coroutine_resume(struct CddCoroutine *co) {
   LPVOID current_fiber;
 
+  LOG_DEBUG("cdd_coroutine_resume: Entering");
   if (g_coroutine_hooks.resume) {
+    LOG_DEBUG("cdd_coroutine_resume: Hooking");
     return g_coroutine_hooks.resume(co);
   }
 
-  if (!co || co->is_done)
+  if (!co || co->is_done) {
+    LOG_DEBUG("cdd_coroutine_resume: Error EINVAL");
     return EINVAL;
+  }
 
   current_fiber = GetCurrentFiber();
   /* If thread is not a fiber yet, convert it */
   if (current_fiber == (LPVOID)0x1e00 || current_fiber == NULL) {
     current_fiber = ConvertThreadToFiber(NULL);
-    if (!current_fiber)
+    if (!current_fiber) {
+      LOG_DEBUG(
+          "cdd_coroutine_resume: Error EIO (ConvertThreadToFiber failed)");
       return EIO;
+    }
   }
 
   co->caller_fiber = current_fiber;
   SwitchToFiber(co->fiber);
 
+  LOG_DEBUG("cdd_coroutine_resume: Success");
   return 0;
 }
 
 int cdd_coroutine_yield(void) {
   struct CddCoroutine *co;
 
+  LOG_DEBUG("cdd_coroutine_yield: Entering");
   if (g_coroutine_hooks.yield) {
+    LOG_DEBUG("cdd_coroutine_yield: Hooking");
     return g_coroutine_hooks.yield();
   }
 
-  if (dwTlsIndex == TLS_OUT_OF_INDEXES)
+  if (dwTlsIndex == TLS_OUT_OF_INDEXES) {
+    LOG_DEBUG("cdd_coroutine_yield: Error EINVAL (TLS uninitialized)");
     return EINVAL;
+  }
 
   co = (struct CddCoroutine *)TlsGetValue(dwTlsIndex);
-  if (!co || !co->caller_fiber)
+  if (!co || !co->caller_fiber) {
+    LOG_DEBUG("cdd_coroutine_yield: Error EINVAL");
     return EINVAL;
+  }
 
   SwitchToFiber(co->caller_fiber);
+  LOG_DEBUG("cdd_coroutine_yield: Success");
   return 0;
 }
 
@@ -246,18 +251,24 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
   struct CddCoroutine *c;
 
+  LOG_DEBUG("cdd_coroutine_init: Entering");
   if (g_coroutine_hooks.init) {
+    LOG_DEBUG("cdd_coroutine_init: Hooking");
     return g_coroutine_hooks.init(co, stack_size, cb, arg);
   }
 
-  if (!co || !cb)
+  if (!co || !cb) {
+    LOG_DEBUG("cdd_coroutine_init: Error EINVAL");
     return EINVAL;
+  }
 
   init_tls_key();
 
   c = (struct CddCoroutine *)calloc(1, sizeof(struct CddCoroutine));
-  if (!c)
+  if (!c) {
+    LOG_DEBUG("cdd_coroutine_init: Error ENOMEM");
     return ENOMEM;
+  }
 
   c->cb = cb;
   c->arg = arg;
@@ -269,11 +280,13 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
   c->stack_size = stack_size;
   c->stack = malloc(stack_size);
   if (!c->stack) {
+    LOG_DEBUG("cdd_coroutine_init: Error ENOMEM allocating stack");
     free(c);
     return ENOMEM;
   }
 
   if (getcontext(&c->ctx) != 0) {
+    LOG_DEBUG("cdd_coroutine_init: Error getcontext failed");
     free(c->stack);
     free(c);
     return EIO;
@@ -289,11 +302,14 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
   makecontext(&c->ctx, (void (*)(void))ucontext_entry, 0);
 
   *co = c;
+  LOG_DEBUG("cdd_coroutine_init: Success");
   return 0;
 }
 
 void cdd_coroutine_free(struct CddCoroutine *co) {
+  LOG_DEBUG("cdd_coroutine_free: Entering");
   if (g_coroutine_hooks.free) {
+    LOG_DEBUG("cdd_coroutine_free: Hooking");
     g_coroutine_hooks.free(co);
     return;
   }
@@ -303,42 +319,57 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
       free(co->stack);
     free(co);
   }
+  LOG_DEBUG("cdd_coroutine_free: Exiting");
 }
 
 int cdd_coroutine_resume(struct CddCoroutine *co) {
+  LOG_DEBUG("cdd_coroutine_resume: Entering");
   if (g_coroutine_hooks.resume) {
+    LOG_DEBUG("cdd_coroutine_resume: Hooking");
     return g_coroutine_hooks.resume(co);
   }
 
-  if (!co || co->is_done)
+  if (!co || co->is_done) {
+    LOG_DEBUG("cdd_coroutine_resume: Error EINVAL");
     return EINVAL;
+  }
 
   init_tls_key();
   pthread_setspecific(co_tls_key, co);
 
   if (swapcontext(&co->caller_ctx, &co->ctx) != 0) {
+    LOG_DEBUG("cdd_coroutine_resume: Error EIO (swapcontext failed)");
     return EIO;
   }
+  LOG_DEBUG("cdd_coroutine_resume: Success");
   return 0;
 }
 
 int cdd_coroutine_yield(void) {
   struct CddCoroutine *co;
 
+  LOG_DEBUG("cdd_coroutine_yield: Entering");
   if (g_coroutine_hooks.yield) {
+    LOG_DEBUG("cdd_coroutine_yield: Hooking");
     return g_coroutine_hooks.yield();
   }
 
-  if (!co_tls_initialized)
+  if (!co_tls_initialized) {
+    LOG_DEBUG("cdd_coroutine_yield: Error EINVAL (TLS not initialized)");
     return EINVAL;
+  }
   co = (struct CddCoroutine *)pthread_getspecific(co_tls_key);
 
-  if (!co)
+  if (!co) {
+    LOG_DEBUG("cdd_coroutine_yield: Error EINVAL (no coroutine in TLS)");
     return EINVAL;
+  }
 
   if (swapcontext(&co->ctx, &co->caller_ctx) != 0) {
+    LOG_DEBUG("cdd_coroutine_yield: Error EIO (swapcontext failed)");
     return EIO;
   }
+  LOG_DEBUG("cdd_coroutine_yield: Success");
   return 0;
 }
 
@@ -364,28 +395,36 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
 }
 
 void cdd_coroutine_free(struct CddCoroutine *co) {
+  LOG_DEBUG("cdd_coroutine_free (fallback): Entering");
   if (g_coroutine_hooks.free) {
+    LOG_DEBUG("cdd_coroutine_free (fallback): Hooking");
     g_coroutine_hooks.free(co);
   }
 }
 
 int cdd_coroutine_resume(struct CddCoroutine *co) {
+  LOG_DEBUG("cdd_coroutine_resume (fallback): Entering");
   if (g_coroutine_hooks.resume) {
+    LOG_DEBUG("cdd_coroutine_resume (fallback): Hooking");
     return g_coroutine_hooks.resume(co);
   }
 #ifndef ENOSYS
 #define ENOSYS EINVAL
 #endif
+  LOG_DEBUG("cdd_coroutine_resume (fallback): Error ENOSYS");
   return ENOSYS;
 }
 
 int cdd_coroutine_yield(void) {
+  LOG_DEBUG("cdd_coroutine_yield (fallback): Entering");
   if (g_coroutine_hooks.yield) {
+    LOG_DEBUG("cdd_coroutine_yield (fallback): Hooking");
     return g_coroutine_hooks.yield();
   }
 #ifndef ENOSYS
 #define ENOSYS EINVAL
 #endif
+  LOG_DEBUG("cdd_coroutine_yield (fallback): Error ENOSYS");
   return ENOSYS;
 }
 
@@ -395,7 +434,5 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   }
   return 1;
 }
-
-#endif
 
 #endif

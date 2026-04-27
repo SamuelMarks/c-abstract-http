@@ -12,43 +12,63 @@
 #include <string.h>
 
 #include <c_abstract_http/http_aria2.h>
+#include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
 
 struct HttpTransportContext {
-  struct HttpConfig *config;
+  struct HttpConfig config;
 };
 
 int http_aria2_global_init(void) { return 0; }
 void http_aria2_global_cleanup(void) {}
 
 int http_aria2_context_init(struct HttpTransportContext **const ctx) {
-  if (!ctx)
+  int rc;
+  LOG_DEBUG("http_aria2_context_init: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_aria2_context_init: Error EINVAL");
     return EINVAL;
+  }
   *ctx = (struct HttpTransportContext *)calloc(
       1, sizeof(struct HttpTransportContext));
-  return *ctx ? 0 : ENOMEM;
+  if (!*ctx) {
+    LOG_DEBUG("http_aria2_context_init: Error ENOMEM");
+    return ENOMEM;
+  }
+
+  rc = http_config_init(&(*ctx)->config);
+  if (rc != 0) {
+    LOG_DEBUG("http_aria2_context_init: Error http_config_init failed with %d",
+              rc);
+    free(*ctx);
+    *ctx = NULL;
+    return rc;
+  }
+
+  LOG_DEBUG("http_aria2_context_init: Success");
+  return 0;
 }
 
 void http_aria2_context_free(struct HttpTransportContext *ctx) {
+  LOG_DEBUG("http_aria2_context_free: Entering");
   if (ctx) {
-    if (ctx->config) {
-      free(ctx->config);
-    }
+    http_config_free(&ctx->config);
     free(ctx);
   }
+  LOG_DEBUG("http_aria2_context_free: Exiting");
 }
 
 int http_aria2_config_apply(struct HttpTransportContext *ctx,
                             const struct HttpConfig *config) {
-  if (!ctx || !config)
+  LOG_DEBUG("http_aria2_config_apply: Entering");
+  if (!ctx || !config) {
+    LOG_DEBUG("http_aria2_config_apply: Error EINVAL");
     return EINVAL;
-  /* Shallow copy config for now */
-  if (!ctx->config)
-    ctx->config = (struct HttpConfig *)malloc(sizeof(struct HttpConfig));
-  if (ctx->config)
-    memcpy(ctx->config, config, sizeof(struct HttpConfig));
+  }
+  ctx->config = *config;
+  LOG_DEBUG("http_aria2_config_apply: Success");
   return 0;
 }
 
@@ -63,8 +83,11 @@ int http_aria2_send(struct HttpTransportContext *ctx,
   long file_size = 0;
   size_t bytes_read = 0;
 
-  if (!ctx || !req || !res || !req->url)
+  LOG_DEBUG("http_aria2_send: Entering");
+  if (!ctx || !req || !res || !req->url) {
+    LOG_DEBUG("http_aria2_send: Error EINVAL");
     return EINVAL;
+  }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(tmp_filename, sizeof(tmp_filename), "aria2c_tmp_%p.bin",
@@ -80,20 +103,24 @@ int http_aria2_send(struct HttpTransportContext *ctx,
 
   rc = system(cmd);
   if (rc != 0) {
+    LOG_DEBUG("http_aria2_send: Error system() failed with %d", rc);
     remove(tmp_filename);
     return EIO;
   }
 
   new_res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
   if (!new_res) {
+    LOG_DEBUG("http_aria2_send: Error ENOMEM");
     remove(tmp_filename);
     return ENOMEM;
   }
 
-  if (http_response_init(new_res) != 0) {
+  rc = http_response_init(new_res);
+  if (rc != 0) {
+    LOG_DEBUG("http_aria2_send: Error http_response_init failed with %d", rc);
     free(new_res);
     remove(tmp_filename);
-    return ENOMEM;
+    return rc;
   }
 
   new_res->status_code = 200;
@@ -118,24 +145,28 @@ int http_aria2_send(struct HttpTransportContext *ctx,
         new_res->body_len = bytes_read;
         ((char *)new_res->body)[bytes_read] = '\0';
       } else {
+        LOG_DEBUG("http_aria2_send: Error ENOMEM reading body");
         rc = ENOMEM;
       }
     }
     fclose(f);
   } else {
+    LOG_DEBUG("http_aria2_send: Error EIO (cannot open temp file)");
     rc = EIO;
   }
 
   remove(tmp_filename);
 
-  if (rc != 0) {
+  if (rc == 0) {
+    *res = new_res;
+    LOG_DEBUG("http_aria2_send: Success");
+  } else {
     http_response_free(new_res);
     free(new_res);
-    return rc;
+    *res = NULL;
+    LOG_DEBUG("http_aria2_send: Error returning %d", rc);
   }
-
-  *res = new_res;
-  return 0;
+  return rc;
 }
 
 int http_aria2_send_multi(struct HttpTransportContext *ctx,
@@ -146,5 +177,6 @@ int http_aria2_send_multi(struct HttpTransportContext *ctx,
   (void)loop;
   (void)multi;
   (void)futures;
-  return ENOTSUP;
+  LOG_DEBUG("http_aria2_send_multi: Error ENOSYS");
+  return ENOSYS;
 }

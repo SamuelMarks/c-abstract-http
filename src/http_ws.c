@@ -1,5 +1,6 @@
 /* clang-format off */
 #include "c_abstract_http/http_ws.h"
+#include "c_abstract_http/log.h"
 #include "ws_internal.h"
 #include "crypto_utils.h"
 
@@ -7,37 +8,9 @@
 #include <string.h>
 #include <time.h>
 
-int c_abstract_http_ws_async_register(struct HttpClient* client, struct HttpRequest* req,
-                                      c_abstract_http_ws_on_message on_msg,
-                                      c_abstract_http_ws_on_error on_err,
-                                      c_abstract_http_ws_on_close on_close,
-                                      void* user_data) {
-    (void)client;
-    (void)req;
-    (void)on_msg;
-    (void)on_err;
-    (void)on_close;
-    (void)user_data;
 
-    return -1; /* Stub */
-}
 
-int c_abstract_http_ws_async_send(struct HttpRequest* req, enum c_abstract_http_ws_opcode opcode, const unsigned char* payload, size_t len) {
-    (void)req;
-    (void)opcode;
-    (void)payload;
-    (void)len;
 
-    return -1; /* Stub */
-}
-
-#include "c_abstract_http/http_ws.h"
-#include "crypto_utils.h"
-#include "ws_internal.h"
-
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
 
 int ws_generate_key(char out_key[25]) {
   unsigned char random_bytes[16];
@@ -126,7 +99,7 @@ int c_abstract_http_ws_init(struct HttpRequest *req,
   int res;
 
   if (!req)
-    return -1;
+    return EINVAL;
 
   res = ws_generate_key(key);
   if (res != 0)
@@ -269,7 +242,7 @@ int ws_parser_init(struct ws_parser_ctx *ctx,
                    c_abstract_http_ws_on_error on_err,
                    c_abstract_http_ws_on_close on_cls, void *user_data) {
   if (!ctx)
-    return -1;
+    return EINVAL;
   memset(ctx, 0, sizeof(*ctx));
 
   ctx->payload_capacity = 4096;
@@ -297,6 +270,10 @@ void ws_parser_destroy(struct ws_parser_ctx *ctx) {
 int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
                    size_t len) {
   size_t i = 0;
+  if (!ctx || (!chunk && len > 0)) {
+    LOG_DEBUG("ws_parser_feed: Error EINVAL");
+    return EINVAL;
+  }
   while (i < len) {
     switch (ctx->state) {
     case WS_PARSER_READ_OPCODE: {
@@ -307,15 +284,16 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
       /* Fail if any RSV bits are set */
       if (b & 0x70) {
         if (ctx->on_error)
-          ctx->on_error(-1001, ctx->user_data);
-        return -1001; /* C_ABSTRACT_HTTP_ERR_WS_FRAMING */
+          ctx->on_error(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
+        return C_ABSTRACT_HTTP_ERR_WS_FRAMING; /* C_ABSTRACT_HTTP_ERR_WS_FRAMING
+                                                */
       }
 
       /* Fail if control frame is fragmented */
       if (!ctx->current_frame.fin && ctx->current_frame.opcode >= 0x08) {
         if (ctx->on_error)
-          ctx->on_error(-1001, ctx->user_data);
-        return -1001;
+          ctx->on_error(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
+        return C_ABSTRACT_HTTP_ERR_WS_FRAMING;
       }
 
       ctx->state = WS_PARSER_READ_LEN;
@@ -457,8 +435,8 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
                 ctx->reassembly_offset > 0) {
               /* EPROTO: new data frame before old continuation finished */
               if (ctx->on_error)
-                ctx->on_error(-1001, ctx->user_data);
-              return -1001;
+                ctx->on_error(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
+              return C_ABSTRACT_HTTP_ERR_WS_FRAMING;
             }
 
             /* Expand reassembly buffer */
@@ -551,17 +529,6 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
   return 0;
 }
 
-int c_abstract_http_ws_send(struct HttpRequest *req,
-                            enum c_abstract_http_ws_opcode opcode,
-                            const unsigned char *payload, size_t len) {
-  (void)req;
-  (void)opcode;
-  (void)payload;
-  (void)len;
-  /* Need transport implementation, will stub for now */
-  return -1;
-}
-
 int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
                                       struct HttpRequest *req,
                                       c_abstract_http_ws_on_message on_msg,
@@ -569,39 +536,52 @@ int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
                                       c_abstract_http_ws_on_close on_close,
                                       void *user_data,
                                       volatile int *exit_flag) {
-  /* For Modality 1: Sync, we need to map to the underlying transport's socket
-     read loop. Because c-abstract-http abstracts the socket, we'll hook into a
-     custom read mechanism provided by the transport layer, or use a generalized
-     approach. However, the transport layer currently doesn't expose a raw
-     `recv` mechanism on `HttpRequest`.
+  struct HttpResponse *res = NULL;
+  struct ws_parser_ctx parser;
+  int rc;
 
-     To adhere strictly to the architecture, if the user calls
-     `ws_sync_read_loop`, we assume the connection has already been established
-     via `client->send`. Wait, `client->send` blocks and returns an
-     `HttpResponse`. WebSocket 101 Switching Protocols implies the connection
-     stays alive. This requires a transport extension to yield the socket or
-     provide a stream read callback.
-
-     For now, we'll implement a stub that simulates a clean exit to pass tests,
-     until the transport abstraction (e.g. `http_raw.c`) is fully wired in
-     Phase 8. */
-
-  (void)client;
-  (void)req;
-  (void)on_msg;
-  (void)on_err;
-  (void)on_close;
-  (void)user_data;
+  if (!client || !req) {
+    LOG_DEBUG("c_abstract_http_ws_sync_read_loop: Error EINVAL");
+    return EINVAL;
+  }
 
   if (exit_flag && *exit_flag)
     return 0;
 
-  return -1; /* Stub */
-}
+  rc = c_abstract_http_ws_init(req, NULL);
+  if (rc != 0) {
+    if (on_err)
+      on_err(rc, user_data);
+    return rc;
+  }
 
-int c_abstract_http_ws_close(struct HttpRequest *req, int status_code) {
-  (void)req;
-  (void)status_code;
-  /* Need transport implementation, will stub for now */
-  return -1;
+  rc = ws_parser_init(&parser, on_msg, on_err, on_close, user_data);
+  if (rc != 0) {
+    if (on_err)
+      on_err(rc, user_data);
+    return rc;
+  }
+
+  rc = client->send(client->transport, req, &res);
+  if (rc != 0 || !res) {
+    ws_parser_destroy(&parser);
+    if (on_err)
+      on_err(rc, user_data);
+    return rc;
+  }
+
+  if (res->body && res->body_len > 0) {
+    rc = ws_parser_feed(&parser, res->body, res->body_len);
+    if (rc != 0 && on_err) {
+      on_err(rc, user_data);
+    }
+  }
+
+  ws_parser_destroy(&parser);
+  http_response_free(res);
+
+  if (on_close)
+    on_close(200, user_data);
+
+  return 0;
 }

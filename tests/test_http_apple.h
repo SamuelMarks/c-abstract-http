@@ -22,7 +22,82 @@ extern "C" {
 
 #include <c_abstract_http/http_apple.h>
 #include <c_abstract_http/http_types.h>
+#include "cdd_test_helpers/mock_server.h"
 /* clang-format on */
+
+static int mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
+  int *calls = (int *)user_data;
+  (void)chunk;
+  (void)len;
+  (*calls)++;
+  return 0;
+}
+
+TEST test_apple_send_mock_server(void) {
+#if defined(__APPLE__)
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  MockServerPtr server = NULL;
+  int port = 0;
+  char url[256];
+  int on_chunk_calls = 0;
+  struct MockServerRequest mock_req;
+
+  ASSERT_EQ(0, mock_server_init(&server));
+  ASSERT_EQ(0, mock_server_start(server));
+  port = math_mock_server_get_port(server);
+  ASSERT(port > 0);
+  sprintf(url, "http://127.0.0.1:%d/echo", port);
+
+  ASSERT_EQ(0, http_apple_context_init(&ctx));
+
+  /* Normal request */
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = (char *)malloc(strlen(url) + 1);
+  strcpy(req.url, url);
+  req.method = HTTP_POST;
+  req.body = strdup("Hello Apple!");
+  req.body_len = strlen("Hello Apple!");
+
+  ASSERT_EQ(0, http_apple_send(ctx, &req, &res));
+  ASSERT(res != NULL);
+  ASSERT_EQ(200, res->status_code);
+  ASSERT(res->body_len > 0);
+
+  http_response_free(res);
+  free(res);
+  http_request_free(&req);
+  res = NULL;
+
+  /* On-chunk request */
+  ASSERT_EQ(0, mock_server_wait_for_request(server, &mock_req));
+  mock_server_request_cleanup(&mock_req);
+
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = (char *)malloc(strlen(url) + 1);
+  strcpy(req.url, url);
+  req.method = HTTP_GET;
+  req.on_chunk = mock_on_chunk_cb;
+  req.on_chunk_user_data = &on_chunk_calls;
+
+  ASSERT_EQ(0, http_apple_send(ctx, &req, &res));
+  ASSERT(res != NULL);
+  ASSERT_EQ(200, res->status_code);
+  ASSERT(on_chunk_calls > 0);
+
+  http_response_free(res);
+  free(res);
+  http_request_free(&req);
+
+  ASSERT_EQ(0, mock_server_wait_for_request(server, &mock_req));
+  mock_server_request_cleanup(&mock_req);
+
+  http_apple_context_free(ctx);
+  mock_server_destroy(server);
+#endif
+  PASS();
+}
 
 TEST test_apple_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
@@ -101,10 +176,133 @@ TEST test_apple_send_invalid(void) {
   PASS();
 }
 
+TEST test_apple_send_all_methods(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpConfig cfg;
+  int i;
+  enum HttpMethod methods[] = {
+      HTTP_POST,    HTTP_PUT,   HTTP_DELETE,  HTTP_PATCH,         HTTP_HEAD,
+      HTTP_OPTIONS, HTTP_TRACE, HTTP_CONNECT, (enum HttpMethod)99 /* Invalid
+                                                                     method */
+  };
+
+  ASSERT_EQ(0, http_apple_context_init(&ctx));
+  ASSERT_EQ(0, http_config_init(&cfg));
+  cfg.verify_peer = 0;
+  ASSERT_EQ(0, http_apple_config_apply(ctx, &cfg));
+  http_config_free(&cfg);
+
+  for (i = 0; i < 9; i++) {
+    ASSERT_EQ(0, http_request_init(&req));
+    req.url = (char *)malloc(sizeof("http://localhost:1"));
+    strcpy(req.url, "http://localhost:1");
+    req.method = methods[i];
+    http_headers_add(&req.headers, "X-Test", "Value");
+
+    if (i == 8) {
+      /* Invalid method may fail differently, let's just see if it crashes */
+      http_apple_send(ctx, &req, &res);
+    } else {
+      int rc = http_apple_send(ctx, &req, &res);
+      if (rc == 0 && res) {
+        http_response_free(res);
+        free(res);
+        res = NULL;
+      }
+    }
+    http_request_free(&req);
+  }
+
+  http_apple_context_free(ctx);
+  PASS();
+}
+
+static int mock_read_chunk(void *user_data, void *buf, size_t buf_len,
+                           size_t *out_read) {
+  int *calls = (int *)user_data;
+  if (*calls >= 2) {
+    *out_read = 0;
+    return 0;
+  }
+  (*calls)++;
+  if (buf_len > 4)
+    buf_len = 4;
+  memcpy(buf, "test", buf_len);
+  *out_read = buf_len;
+  return 0;
+}
+
+static int mock_read_chunk_fail(void *user_data, void *buf, size_t buf_len,
+                                size_t *out_read) {
+  (void)user_data;
+  (void)buf;
+  (void)buf_len;
+  (void)out_read;
+  return EIO;
+}
+
+TEST test_apple_read_chunk(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpConfig cfg;
+  int calls = 0;
+
+  ASSERT_EQ(0, http_apple_context_init(&ctx));
+  ASSERT_EQ(0, http_config_init(&cfg));
+  cfg.verify_peer = 0;
+  ASSERT_EQ(0, http_apple_config_apply(ctx, &cfg));
+  http_config_free(&cfg);
+
+  /* Success chunk */
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = (char *)malloc(sizeof("http://localhost:1"));
+  strcpy(req.url, "http://localhost:1");
+  req.method = HTTP_POST;
+  req.read_chunk = mock_read_chunk;
+  req.read_chunk_user_data = &calls;
+  req.expected_body_len = 8;
+
+  /* Will fail to connect but it hits the read_chunk loop */
+  http_apple_send(ctx, &req, &res);
+  http_request_free(&req);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  /* Fail chunk */
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = (char *)malloc(sizeof("http://localhost:1"));
+  strcpy(req.url, "http://localhost:1");
+  req.method = HTTP_POST;
+  req.read_chunk = mock_read_chunk_fail;
+  req.read_chunk_user_data = NULL;
+  req.expected_body_len = 8;
+
+  /* Will fail with EIO */
+  ASSERT_EQ(EIO, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  http_apple_context_free(ctx);
+  PASS();
+}
+
 SUITE(http_apple_suite) {
+  RUN_TEST(test_apple_send_mock_server);
+  RUN_TEST(test_apple_read_chunk);
   RUN_TEST(test_apple_lifecycle);
   RUN_TEST(test_apple_config);
   RUN_TEST(test_apple_send_invalid);
+  RUN_TEST(test_apple_send_all_methods);
 }
 
 #ifdef __cplusplus

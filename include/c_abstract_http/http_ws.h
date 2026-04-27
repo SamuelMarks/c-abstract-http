@@ -131,12 +131,6 @@ int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
  * @param user_data Opaque pointer to pass to the callbacks.
  * @return 0 on success, negative error code on failure.
  */
-int c_abstract_http_ws_async_register(struct HttpClient *client,
-                                      struct HttpRequest *req,
-                                      c_abstract_http_ws_on_message on_msg,
-                                      c_abstract_http_ws_on_error on_err,
-                                      c_abstract_http_ws_on_close on_close,
-                                      void *user_data);
 
 /**
  * @brief Queue a WebSocket frame to be sent asynchronously or from a thread
@@ -148,9 +142,6 @@ int c_abstract_http_ws_async_register(struct HttpClient *client,
  * @param len The length of the payload data.
  * @return 0 on success, or a negative error code.
  */
-int c_abstract_http_ws_async_send(struct HttpRequest *req,
-                                  enum c_abstract_http_ws_opcode opcode,
-                                  const unsigned char *payload, size_t len);
 
 /**
  * @brief Send a WebSocket frame.
@@ -161,9 +152,6 @@ int c_abstract_http_ws_async_send(struct HttpRequest *req,
  * @param len The length of the payload data.
  * @return 0 on success, or a negative error code.
  */
-int c_abstract_http_ws_send(struct HttpRequest *req,
-                            enum c_abstract_http_ws_opcode opcode,
-                            const unsigned char *payload, size_t len);
 
 /**
  * @brief Close a WebSocket connection.
@@ -172,7 +160,6 @@ int c_abstract_http_ws_send(struct HttpRequest *req,
  * @param status_code The closure status code (e.g., 1000 for normal closure).
  * @return 0 on success, or a negative error code.
  */
-int c_abstract_http_ws_close(struct HttpRequest *req, int status_code);
 
 #ifdef __cplusplus
 }

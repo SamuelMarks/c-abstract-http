@@ -50,21 +50,22 @@ typedef void (*http_timer_cb)(struct ModalityEventLoop *loop, int timer_id,
  * c-multiplatform).
  */
 struct HttpLoopHooks {
-  void *external_context;
+  void *external_context; /**< Context passed to hooks */
 
   /* Polling Hooks */
   int (*add_fd)(void *ctx, int fd, int events, http_loop_cb cb,
-                void *user_data);
-  int (*mod_fd)(void *ctx, int fd, int events);
-  int (*remove_fd)(void *ctx, int fd);
+                void *user_data); /**< Register file descriptor */
+  int (*mod_fd)(void *ctx, int fd,
+                int events);           /**< Modify file descriptor events */
+  int (*remove_fd)(void *ctx, int fd); /**< Remove file descriptor */
 
   /* Timer Hooks */
   int (*add_timer)(void *ctx, long timeout_ms, http_timer_cb cb,
-                   void *user_data, int *out_timer_id);
-  int (*cancel_timer)(void *ctx, int timer_id);
+                   void *user_data, int *out_timer_id); /**< Register a timer */
+  int (*cancel_timer)(void *ctx, int timer_id);         /**< Cancel a timer */
 
   /* Wakeup Hook */
-  int (*wakeup)(void *ctx);
+  int (*wakeup)(void *ctx); /**< Wake up the event loop thread */
 };
 
 /**

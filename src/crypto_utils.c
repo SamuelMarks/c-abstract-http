@@ -2,6 +2,7 @@
 #include "crypto_utils.h"
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 /* clang-format on */
 
 /* SHA-1 implementation based on RFC 3174 */
@@ -62,7 +63,7 @@ static void sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
 
 int sha1_init(struct sha1_ctx *ctx) {
   if (!ctx)
-    return -1;
+    return EINVAL;
   ctx->count[0] = ctx->count[1] = 0;
   ctx->state[0] = 0x67452301;
   ctx->state[1] = 0xEFCDAB89;
@@ -77,7 +78,7 @@ int sha1_update(struct sha1_ctx *ctx, const unsigned char *data, size_t len) {
   uint32_t j;
 
   if (!ctx || (!data && len > 0))
-    return -1;
+    return EINVAL;
 
   j = (ctx->count[0] >> 3) & 63;
   if ((ctx->count[0] += (uint32_t)(len << 3)) < (len << 3)) {
@@ -107,7 +108,7 @@ int sha1_final(struct sha1_ctx *ctx, unsigned char out_hash[20]) {
   int i;
 
   if (!ctx || !out_hash)
-    return -1;
+    return EINVAL;
 
   for (i = 0; i < 8; i++) {
     finalcount[i] =
@@ -141,12 +142,12 @@ int base64_encode(const unsigned char *in, size_t in_len, char **out_str,
   char *out;
 
   if (!out_str || !out_len || (!in && in_len > 0))
-    return -1;
+    return EINVAL;
 
   len = 4 * ((in_len + 2) / 3);
   out = (char *)malloc(len + 1);
   if (!out)
-    return 12; /* ENOMEM fallback */
+    return ENOMEM;
 
   for (i = 0, j = 0; i < in_len;) {
     uint32_t octet_a, octet_b, octet_c, triple;
@@ -196,9 +197,9 @@ int base64_decode(const char *in, size_t in_len, unsigned char **out_data,
   unsigned char *out;
 
   if (!out_data || !out_len || (!in && in_len > 0))
-    return -1;
+    return EINVAL;
   if (in_len % 4 != 0)
-    return 22; /* EINVAL fallback */
+    return EINVAL;
 
   out_size = in_len / 4 * 3;
   if (in_len > 0 && in[in_len - 1] == '=')
@@ -208,7 +209,7 @@ int base64_decode(const char *in, size_t in_len, unsigned char **out_data,
 
   out = (unsigned char *)malloc(out_size);
   if (!out)
-    return 12; /* ENOMEM fallback */
+    return ENOMEM;
 
   for (i = 0, j = 0; i < in_len;) {
     uint32_t sextet_a, sextet_b, sextet_c, sextet_d, triple;

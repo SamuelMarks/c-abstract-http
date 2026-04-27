@@ -34,6 +34,7 @@
 #endif
 
 #include <c_abstract_http/process.h>
+#include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
 /* clang-format on */
 
@@ -50,181 +51,184 @@ void cdd_process_set_hooks(const struct CddProcessHooks *hooks) {
 struct CddProcess {
   HANDLE hProcess;
   HANDLE hThread;
-};
+  int cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
+    SECURITY_ATTRIBUTES saAttr;
+    HANDLE hRead, hWrite;
 
-int cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
-  SECURITY_ATTRIBUTES saAttr;
-  HANDLE hRead, hWrite;
+    LOG_DEBUG("cdd_ipc_pipe_init: Entering");
+    if (!pipe) {
+      LOG_DEBUG("cdd_ipc_pipe_init: Error EINVAL");
+      return EINVAL;
+    }
 
-  if (!pipe)
-    return EINVAL;
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;
+    saAttr.lpSecurityDescriptor = NULL;
 
-  saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-  saAttr.bInheritHandle = TRUE;
-  saAttr.lpSecurityDescriptor = NULL;
+    if (!CreatePipe(&hRead, &hWrite, &saAttr, 0)) {
+      LOG_DEBUG("cdd_ipc_pipe_init: Error CreatePipe failed");
+      return EIO;
+    }
 
-  if (!CreatePipe(&hRead, &hWrite, &saAttr, 0)) {
-    return EIO;
+    pipe->read_handle = hRead;
+    pipe->write_handle = hWrite;
+    LOG_DEBUG("cdd_ipc_pipe_init: Success");
+    return 0;
   }
 
-  pipe->read_handle = hRead;
-  pipe->write_handle = hWrite;
-  return 0;
-}
-
-void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
-  if (pipe) {
-    if (pipe->read_handle)
-      CloseHandle((HANDLE)pipe->read_handle);
-    if (pipe->write_handle)
-      CloseHandle((HANDLE)pipe->write_handle);
-    pipe->read_handle = NULL;
-    pipe->write_handle = NULL;
-  }
-}
-
-int cdd_process_spawn(struct CddProcess **proc,
-                      struct CddIpcPipe *parent_to_child,
-                      struct CddIpcPipe *child_to_parent) {
-  PROCESS_INFORMATION piProcInfo;
-  STARTUPINFOA siStartInfo;
-  BOOL bSuccess = FALSE;
-  char szCmdline[MAX_PATH];
-  struct CddProcess *p;
-
-  if (g_process_hooks.spawn) {
-    return g_process_hooks.spawn(proc, parent_to_child, child_to_parent);
+  void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
+    LOG_DEBUG("cdd_ipc_pipe_free: Entering");
+    if (pipe) {
+      if (pipe->read_handle) {
+        CloseHandle((HANDLE)pipe->read_handle);
+        pipe->read_handle = NULL;
+      }
+      if (pipe->write_handle) {
+        CloseHandle((HANDLE)pipe->write_handle);
+        pipe->write_handle = NULL;
+      }
+    }
+    LOG_DEBUG("cdd_ipc_pipe_free: Exiting");
   }
 
-  if (!proc || !parent_to_child || !child_to_parent)
-    return EINVAL;
+  int cdd_process_spawn(struct CddProcess **proc,
+                        struct CddIpcPipe *parent_to_child,
+                        struct CddIpcPipe *child_to_parent) {
+    PROCESS_INFORMATION piProcInfo;
+    STARTUPINFOA siStartInfo;
+    BOOL bSuccess = FALSE;
+    char szCmdline[MAX_PATH];
+    struct CddProcess *p;
 
-  p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
-  if (!p)
-    return ENOMEM;
+    LOG_DEBUG("cdd_process_spawn: Entering");
+    if (g_process_hooks.spawn) {
+      LOG_DEBUG("cdd_process_spawn: Hooking");
+      return g_process_hooks.spawn(proc, parent_to_child, child_to_parent);
+    }
 
-  ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
-  ZeroMemory(&siStartInfo, sizeof(STARTUPINFOA));
-  siStartInfo.cb = sizeof(STARTUPINFOA);
+    if (!proc || !parent_to_child || !child_to_parent) {
+      LOG_DEBUG("cdd_process_spawn: Error EINVAL");
+      return EINVAL;
+    }
 
-  siStartInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-  siStartInfo.hStdInput = (HANDLE)parent_to_child->read_handle;
-  siStartInfo.hStdOutput = (HANDLE)child_to_parent->write_handle;
-  siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+    p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
+    if (!p) {
+      LOG_DEBUG("cdd_process_spawn: Error ENOMEM");
+      return ENOMEM;
+    }
 
-  SetHandleInformation((HANDLE)parent_to_child->write_handle,
-                       HANDLE_FLAG_INHERIT, 0);
-  SetHandleInformation((HANDLE)child_to_parent->read_handle,
-                       HANDLE_FLAG_INHERIT, 0);
+    ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
+    ZeroMemory(&siStartInfo, sizeof(STARTUPINFOA));
+    siStartInfo.cb = sizeof(STARTUPINFOA);
 
-  GetModuleFileNameA(NULL, szCmdline, MAX_PATH);
+    siStartInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    siStartInfo.hStdInput = (HANDLE)parent_to_child->read_handle;
+    siStartInfo.hStdOutput = (HANDLE)child_to_parent->write_handle;
+    siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+
+    SetHandleInformation((HANDLE)parent_to_child->write_handle,
+                         HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation((HANDLE)child_to_parent->read_handle,
+                         HANDLE_FLAG_INHERIT, 0);
+
+    GetModuleFileNameA(NULL, szCmdline, MAX_PATH);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  strcat_s(szCmdline, MAX_PATH, " --cdd-worker");
+    strcat_s(szCmdline, MAX_PATH, " --cdd-worker");
 #else
-  strcat(szCmdline, " --cdd-worker");
+    strcat(szCmdline, " --cdd-worker");
 #endif
 
-  bSuccess = CreateProcessA(NULL, szCmdline, NULL, NULL, TRUE, 0, NULL, NULL,
-                            &siStartInfo, &piProcInfo);
+    bSuccess = CreateProcessA(NULL, szCmdline, NULL, NULL, TRUE, 0, NULL, NULL,
+                              &siStartInfo, &piProcInfo);
 
-  if (!bSuccess) {
-    free(p);
-    return EIO;
+    if (!bSuccess) {
+      LOG_DEBUG("cdd_process_spawn: Error EIO (CreateProcessA failed)");
+      free(p);
+      return EIO;
+    }
+
+    p->hProcess = piProcInfo.hProcess;
+    p->hThread = piProcInfo.hThread;
+    *proc = p;
+
+    LOG_DEBUG("cdd_process_spawn: Success");
+    return 0;
   }
 
-  p->hProcess = piProcInfo.hProcess;
-  p->hThread = piProcInfo.hThread;
-  *proc = p;
+  int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
+    DWORD dwExitCode = 0;
 
-  return 0;
-}
+    LOG_DEBUG("cdd_process_wait_and_free: Entering");
+    if (g_process_hooks.wait_and_free) {
+      LOG_DEBUG("cdd_process_wait_and_free: Hooking");
+      return g_process_hooks.wait_and_free(proc, exit_code);
+    }
 
-int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
-  DWORD dwExitCode = 0;
+    if (!proc) {
+      LOG_DEBUG("cdd_process_wait_and_free: Error EINVAL");
+      return EINVAL;
+    }
 
-  if (g_process_hooks.wait_and_free) {
-    return g_process_hooks.wait_and_free(proc, exit_code);
+    WaitForSingleObject(proc->hProcess, INFINITE);
+    if (exit_code) {
+      GetExitCodeProcess(proc->hProcess, &dwExitCode);
+      *exit_code = (int)dwExitCode;
+    }
+
+    CloseHandle(proc->hProcess);
+    CloseHandle(proc->hThread);
+    free(proc);
+    LOG_DEBUG("cdd_process_wait_and_free: Success");
+    return 0;
   }
 
-  if (!proc)
-    return EINVAL;
+  int cdd_ipc_write(void *handle, const void *data, size_t len) {
+    DWORD dwWritten;
+    BOOL bSuccess;
 
-  WaitForSingleObject(proc->hProcess, INFINITE);
-  if (exit_code) {
-    GetExitCodeProcess(proc->hProcess, &dwExitCode);
-    *exit_code = (int)dwExitCode;
+    LOG_DEBUG("cdd_ipc_write: Entering");
+    if (g_process_hooks.ipc_write) {
+      LOG_DEBUG("cdd_ipc_write: Hooking");
+      return g_process_hooks.ipc_write(handle, data, len);
+    }
+
+    if (!handle || !data) {
+      LOG_DEBUG("cdd_ipc_write: Error EINVAL");
+      return EINVAL;
+    }
+
+    bSuccess = WriteFile((HANDLE)handle, data, (DWORD)len, &dwWritten, NULL);
+    if (!bSuccess || dwWritten != len) {
+      LOG_DEBUG("cdd_ipc_write: Error EIO (WriteFile failed)");
+      return EIO;
+    }
+    LOG_DEBUG("cdd_ipc_write: Success");
+    return 0;
   }
 
-  CloseHandle(proc->hProcess);
-  CloseHandle(proc->hThread);
-  free(proc);
-  return 0;
-}
+  int cdd_ipc_read(void *handle, void *data, size_t len) {
+    DWORD dwRead;
+    BOOL bSuccess;
 
-int cdd_ipc_write(void *handle, const void *data, size_t len) {
-  DWORD dwWritten;
-  BOOL bSuccess;
+    LOG_DEBUG("cdd_ipc_read: Entering");
+    if (g_process_hooks.ipc_read) {
+      LOG_DEBUG("cdd_ipc_read: Hooking");
+      return g_process_hooks.ipc_read(handle, data, len);
+    }
 
-  if (g_process_hooks.ipc_write) {
-    return g_process_hooks.ipc_write(handle, data, len);
+    if (!handle || !data) {
+      LOG_DEBUG("cdd_ipc_read: Error EINVAL");
+      return EINVAL;
+    }
+
+    bSuccess = ReadFile((HANDLE)handle, data, (DWORD)len, &dwRead, NULL);
+    if (!bSuccess || dwRead != len) {
+      LOG_DEBUG("cdd_ipc_read: Error EIO (ReadFile failed)");
+      return EIO;
+    }
+    LOG_DEBUG("cdd_ipc_read: Success");
+    return 0;
   }
-
-  bSuccess = WriteFile((HANDLE)handle, data, (DWORD)len, &dwWritten, NULL);
-  if (!bSuccess || dwWritten != len)
-    return EIO;
-  return 0;
-}
-
-int cdd_ipc_read(void *handle, void *data, size_t len) {
-  DWORD dwRead;
-  BOOL bSuccess;
-
-  if (g_process_hooks.ipc_read) {
-    return g_process_hooks.ipc_read(handle, data, len);
-  }
-
-  bSuccess = ReadFile((HANDLE)handle, data, (DWORD)len, &dwRead, NULL);
-  if (!bSuccess || dwRead != len)
-    return EIO;
-  return 0;
-}
-
-#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-
-struct CddProcess {
-  int dummy;
-};
-
-int cdd_ipc_pipe_init(struct CddIpcPipe *p) {
-  (void)p;
-  return EINVAL;
-}
-void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) { (void)pipe; }
-int cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *p2c,
-                      struct CddIpcPipe *c2p) {
-  (void)proc;
-  (void)p2c;
-  (void)c2p;
-  return EINVAL;
-}
-int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
-  (void)proc;
-  if (exit_code)
-    *exit_code = -1;
-  return EINVAL;
-}
-int cdd_ipc_write(void *handle, const void *data, size_t len) {
-  (void)handle;
-  (void)data;
-  (void)len;
-  return EINVAL;
-}
-int cdd_ipc_read(void *handle, void *data, size_t len) {
-  (void)handle;
-  (void)data;
-  (void)len;
-  return EINVAL;
-}
 
 #else /* POSIX */
 
@@ -234,16 +238,23 @@ struct CddProcess {
 
 int cdd_ipc_pipe_init(struct CddIpcPipe *p) {
   int fd[2];
-  if (!p)
+  LOG_DEBUG("cdd_ipc_pipe_init: Entering");
+  if (!p) {
+    LOG_DEBUG("cdd_ipc_pipe_init: Error EINVAL");
     return EINVAL;
-  if (pipe(fd) == -1)
+  }
+  if (pipe(fd) == -1) {
+    LOG_DEBUG("cdd_ipc_pipe_init: Error EIO (pipe failed)");
     return EIO;
+  }
   p->read_handle = (void *)(size_t)fd[0];
   p->write_handle = (void *)(size_t)fd[1];
+  LOG_DEBUG("cdd_ipc_pipe_init: Success");
   return 0;
 }
 
 void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
+  LOG_DEBUG("cdd_ipc_pipe_free: Entering");
   if (pipe) {
     if (pipe->read_handle)
       close((int)(size_t)pipe->read_handle);
@@ -252,6 +263,7 @@ void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
     pipe->read_handle = NULL;
     pipe->write_handle = NULL;
   }
+  LOG_DEBUG("cdd_ipc_pipe_free: Exiting");
 }
 
 int cdd_process_spawn(struct CddProcess **proc,
@@ -260,19 +272,26 @@ int cdd_process_spawn(struct CddProcess **proc,
   pid_t pid;
   struct CddProcess *p;
 
+  LOG_DEBUG("cdd_process_spawn: Entering");
   if (g_process_hooks.spawn) {
+    LOG_DEBUG("cdd_process_spawn: Hooking");
     return g_process_hooks.spawn(proc, parent_to_child, child_to_parent);
   }
 
-  if (!proc || !parent_to_child || !child_to_parent)
+  if (!proc || !parent_to_child || !child_to_parent) {
+    LOG_DEBUG("cdd_process_spawn: Error EINVAL");
     return EINVAL;
+  }
 
   p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
-  if (!p)
+  if (!p) {
+    LOG_DEBUG("cdd_process_spawn: Error ENOMEM");
     return ENOMEM;
+  }
 
   pid = fork();
   if (pid == -1) {
+    LOG_DEBUG("cdd_process_spawn: Error EIO (fork failed)");
     free(p);
     return EIO;
   } else if (pid == 0) {
@@ -296,6 +315,7 @@ int cdd_process_spawn(struct CddProcess **proc,
 
     p->pid = pid;
     *proc = p;
+    LOG_DEBUG("cdd_process_spawn: Success");
     return 0;
   }
 }
@@ -303,12 +323,16 @@ int cdd_process_spawn(struct CddProcess **proc,
 int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
   int status;
 
+  LOG_DEBUG("cdd_process_wait_and_free: Entering");
   if (g_process_hooks.wait_and_free) {
+    LOG_DEBUG("cdd_process_wait_and_free: Hooking");
     return g_process_hooks.wait_and_free(proc, exit_code);
   }
 
-  if (!proc)
+  if (!proc) {
+    LOG_DEBUG("cdd_process_wait_and_free: Error EINVAL");
     return EINVAL;
+  }
 
   waitpid(proc->pid, &status, 0);
   if (exit_code) {
@@ -320,283 +344,294 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
   }
 
   free(proc);
+  LOG_DEBUG("cdd_process_wait_and_free: Success");
   return 0;
 }
 
 int cdd_ipc_write(void *handle, const void *data, size_t len) {
   ssize_t written;
 
+  LOG_DEBUG("cdd_ipc_write: Entering");
   if (g_process_hooks.ipc_write) {
+    LOG_DEBUG("cdd_ipc_write: Hooking");
     return g_process_hooks.ipc_write(handle, data, len);
   }
 
   written = write((int)(size_t)handle, data, len);
-  if (written < 0 || (size_t)written != len)
+  if (written < 0 || (size_t)written != len) {
+    LOG_DEBUG("cdd_ipc_write: Error EIO (write failed)");
     return EIO;
+  }
+  LOG_DEBUG("cdd_ipc_write: Success");
   return 0;
 }
 
 int cdd_ipc_read(void *handle, void *data, size_t len) {
   ssize_t r;
 
+  LOG_DEBUG("cdd_ipc_read: Entering");
   if (g_process_hooks.ipc_read) {
+    LOG_DEBUG("cdd_ipc_read: Hooking");
     return g_process_hooks.ipc_read(handle, data, len);
   }
 
   r = read((int)(size_t)handle, data, len);
-  if (r < 0 || (size_t)r != len)
+  if (r < 0 || (size_t)r != len) {
+    LOG_DEBUG("cdd_ipc_read: Error EIO (read failed)");
     return EIO;
+  }
+  LOG_DEBUG("cdd_ipc_read: Success");
   return 0;
 }
 
 #endif /* POSIX vs WIN32 */
 
-/* --- Simple Binary Serialization --- */
+  /* --- Simple Binary Serialization --- */
 
-static void write_int(char **p, int val) {
-  memcpy(*p, &val, sizeof(int));
-  *p += sizeof(int);
-}
-
-static void write_size(char **p, size_t val) {
-  memcpy(*p, &val, sizeof(size_t));
-  *p += sizeof(size_t);
-}
-
-static void write_str(char **p, const char *str) {
-  size_t len = str ? strlen(str) : 0;
-  write_size(p, len);
-  if (len > 0) {
-    memcpy(*p, str, len);
-    *p += len;
+  static void write_int(char **p, int val) {
+    memcpy(*p, &val, sizeof(int));
+    *p += sizeof(int);
   }
-}
 
-static int read_int(const char **p, const char *end, int *val) {
-  if (*p + sizeof(int) > end)
-    return EINVAL;
-  memcpy(val, *p, sizeof(int));
-  *p += sizeof(int);
-  return 0;
-}
+  static void write_size(char **p, size_t val) {
+    memcpy(*p, &val, sizeof(size_t));
+    *p += sizeof(size_t);
+  }
 
-static int read_size(const char **p, const char *end, size_t *val) {
-  if (*p + sizeof(size_t) > end)
-    return EINVAL;
-  memcpy(val, *p, sizeof(size_t));
-  *p += sizeof(size_t);
-  return 0;
-}
+  static void write_str(char **p, const char *str) {
+    size_t len = str ? strlen(str) : 0;
+    write_size(p, len);
+    if (len > 0) {
+      memcpy(*p, str, len);
+      *p += len;
+    }
+  }
 
-static int read_str(const char **p, const char *end, char **str) {
-  size_t len;
-  if (read_size(p, end, &len) != 0)
-    return EINVAL;
-  if (len == 0) {
-    *str = NULL;
+  static int read_int(const char **p, const char *end, int *val) {
+    if (*p + sizeof(int) > end)
+      return EINVAL;
+    memcpy(val, *p, sizeof(int));
+    *p += sizeof(int);
     return 0;
   }
-  if (*p + len > end)
-    return EINVAL;
 
-  *str = (char *)malloc(len + 1);
-  if (!*str)
-    return ENOMEM;
-  memcpy(*str, *p, len);
-  (*str)[len] = '\0';
-  *p += len;
-  return 0;
-}
-
-int cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
-                              size_t *out_len) {
-  size_t i;
-  size_t est_size = sizeof(int) + sizeof(size_t);
-  char *buf, *p;
-
-  if (!req || !out_buf || !out_len)
-    return EINVAL;
-
-  est_size += sizeof(size_t) + (req->url ? strlen(req->url) : 0);
-  est_size += sizeof(size_t);
-  for (i = 0; i < req->headers.count; ++i) {
-    est_size +=
-        sizeof(size_t) +
-        (req->headers.headers[i].key ? strlen(req->headers.headers[i].key) : 0);
-    est_size += sizeof(size_t) + (req->headers.headers[i].value
-                                      ? strlen(req->headers.headers[i].value)
-                                      : 0);
-  }
-  est_size += req->body_len;
-
-  buf = (char *)malloc(est_size);
-  if (!buf)
-    return ENOMEM;
-
-  p = buf;
-  write_int(&p, (int)req->method);
-  write_str(&p, req->url);
-  write_size(&p, req->headers.count);
-  for (i = 0; i < req->headers.count; ++i) {
-    write_str(&p, req->headers.headers[i].key);
-    write_str(&p, req->headers.headers[i].value);
-  }
-  write_size(&p, req->body_len);
-  if (req->body_len > 0 && req->body) {
-    memcpy(p, req->body, req->body_len);
-    p += req->body_len;
-  }
-
-  *out_buf = buf;
-  *out_len = p - buf;
-  return 0;
-}
-
-int cdd_ipc_deserialize_request(const char *buf, size_t len,
-                                struct HttpRequest *req) {
-  const char *p = buf;
-  const char *end = buf + len;
-  size_t hcount, body_len;
-  int method;
-  size_t i;
-  int rc;
-
-  if (!buf || !req)
-    return EINVAL;
-
-  if ((rc = http_request_init(req)) != 0)
-    return rc;
-
-  if (read_int(&p, end, &method) != 0)
-    return EINVAL;
-  req->method = (enum HttpMethod)method;
-
-  if (read_str(&p, end, &req->url) != 0)
-    return EINVAL;
-
-  if (read_size(&p, end, &hcount) != 0)
-    return EINVAL;
-  for (i = 0; i < hcount; ++i) {
-    char *key = NULL, *value = NULL;
-    if (read_str(&p, end, &key) != 0 || read_str(&p, end, &value) != 0) {
-      if (key)
-        free(key);
-      if (value)
-        free(value);
+  static int read_size(const char **p, const char *end, size_t *val) {
+    if (*p + sizeof(size_t) > end)
       return EINVAL;
+    memcpy(val, *p, sizeof(size_t));
+    *p += sizeof(size_t);
+    return 0;
+  }
+
+  static int read_str(const char **p, const char *end, char **str) {
+    size_t len;
+    if (read_size(p, end, &len) != 0)
+      return EINVAL;
+    if (len == 0) {
+      *str = NULL;
+      return 0;
     }
-    http_headers_add(&req->headers, key, value);
-    free(key);
-    free(value);
-  }
-
-  if (read_size(&p, end, &body_len) != 0)
-    return EINVAL;
-  req->body_len = body_len;
-  if (body_len > 0) {
-    if (p + body_len > end)
+    if (*p + len > end)
       return EINVAL;
-    req->body = malloc(body_len);
-    if (!req->body)
+
+    *str = (char *)malloc(len + 1);
+    if (!*str)
       return ENOMEM;
-    memcpy(req->body, p, body_len);
-    p += body_len;
-  } else {
-    req->body = NULL;
+    memcpy(*str, *p, len);
+    (*str)[len] = '\0';
+    *p += len;
+    return 0;
   }
 
-  return 0;
-}
+  int cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
+                                size_t *out_len) {
+    size_t i;
+    size_t est_size = sizeof(int) + sizeof(size_t);
+    char *buf, *p;
 
-int cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
-                               size_t *out_len) {
-  size_t i;
-  size_t est_size = sizeof(int) + sizeof(size_t);
-  char *buf, *p;
-
-  if (!res || !out_buf || !out_len)
-    return EINVAL;
-
-  est_size += sizeof(size_t);
-  for (i = 0; i < res->headers.count; ++i) {
-    est_size +=
-        sizeof(size_t) +
-        (res->headers.headers[i].key ? strlen(res->headers.headers[i].key) : 0);
-    est_size += sizeof(size_t) + (res->headers.headers[i].value
-                                      ? strlen(res->headers.headers[i].value)
-                                      : 0);
-  }
-  est_size += res->body_len;
-
-  buf = (char *)malloc(est_size);
-  if (!buf)
-    return ENOMEM;
-
-  p = buf;
-  write_int(&p, res->status_code);
-  write_size(&p, res->headers.count);
-  for (i = 0; i < res->headers.count; ++i) {
-    write_str(&p, res->headers.headers[i].key);
-    write_str(&p, res->headers.headers[i].value);
-  }
-  write_size(&p, res->body_len);
-  if (res->body_len > 0 && res->body) {
-    memcpy(p, res->body, res->body_len);
-    p += res->body_len;
-  }
-
-  *out_buf = buf;
-  *out_len = p - buf;
-  return 0;
-}
-
-int cdd_ipc_deserialize_response(const char *buf, size_t len,
-                                 struct HttpResponse *res) {
-  const char *p = buf;
-  const char *end = buf + len;
-  size_t hcount, body_len;
-  size_t i;
-  int rc;
-
-  if (!buf || !res)
-    return EINVAL;
-
-  if ((rc = http_response_init(res)) != 0)
-    return rc;
-
-  if (read_int(&p, end, &res->status_code) != 0)
-    return EINVAL;
-
-  if (read_size(&p, end, &hcount) != 0)
-    return EINVAL;
-  for (i = 0; i < hcount; ++i) {
-    char *key = NULL, *value = NULL;
-    if (read_str(&p, end, &key) != 0 || read_str(&p, end, &value) != 0) {
-      if (key)
-        free(key);
-      if (value)
-        free(value);
+    if (!req || !out_buf || !out_len)
       return EINVAL;
+
+    est_size += sizeof(size_t) + (req->url ? strlen(req->url) : 0);
+    est_size += sizeof(size_t);
+    for (i = 0; i < req->headers.count; ++i) {
+      est_size += sizeof(size_t) + (req->headers.headers[i].key
+                                        ? strlen(req->headers.headers[i].key)
+                                        : 0);
+      est_size += sizeof(size_t) + (req->headers.headers[i].value
+                                        ? strlen(req->headers.headers[i].value)
+                                        : 0);
     }
-    http_headers_add(&res->headers, key, value);
-    free(key);
-    free(value);
-  }
+    est_size += req->body_len;
 
-  if (read_size(&p, end, &body_len) != 0)
-    return EINVAL;
-  res->body_len = body_len;
-  if (body_len > 0) {
-    if (p + body_len > end)
-      return EINVAL;
-    res->body = malloc(body_len);
-    if (!res->body)
+    buf = (char *)malloc(est_size);
+    if (!buf)
       return ENOMEM;
-    memcpy(res->body, p, body_len);
-    p += body_len;
-  } else {
-    res->body = NULL;
+
+    p = buf;
+    write_int(&p, (int)req->method);
+    write_str(&p, req->url);
+    write_size(&p, req->headers.count);
+    for (i = 0; i < req->headers.count; ++i) {
+      write_str(&p, req->headers.headers[i].key);
+      write_str(&p, req->headers.headers[i].value);
+    }
+    write_size(&p, req->body_len);
+    if (req->body_len > 0 && req->body) {
+      memcpy(p, req->body, req->body_len);
+      p += req->body_len;
+    }
+
+    *out_buf = buf;
+    *out_len = p - buf;
+    return 0;
   }
 
-  return 0;
-}
+  int cdd_ipc_deserialize_request(const char *buf, size_t len,
+                                  struct HttpRequest *req) {
+    const char *p = buf;
+    const char *end = buf + len;
+    size_t hcount, body_len;
+    int method;
+    size_t i;
+    int rc;
+
+    if (!buf || !req)
+      return EINVAL;
+
+    if ((rc = http_request_init(req)) != 0)
+      return rc;
+
+    if (read_int(&p, end, &method) != 0)
+      return EINVAL;
+    req->method = (enum HttpMethod)method;
+
+    if (read_str(&p, end, &req->url) != 0)
+      return EINVAL;
+
+    if (read_size(&p, end, &hcount) != 0)
+      return EINVAL;
+    for (i = 0; i < hcount; ++i) {
+      char *key = NULL, *value = NULL;
+      if (read_str(&p, end, &key) != 0 || read_str(&p, end, &value) != 0) {
+        if (key)
+          free(key);
+        if (value)
+          free(value);
+        return EINVAL;
+      }
+      http_headers_add(&req->headers, key, value);
+      free(key);
+      free(value);
+    }
+
+    if (read_size(&p, end, &body_len) != 0)
+      return EINVAL;
+    req->body_len = body_len;
+    if (body_len > 0) {
+      if (p + body_len > end)
+        return EINVAL;
+      req->body = malloc(body_len);
+      if (!req->body)
+        return ENOMEM;
+      memcpy(req->body, p, body_len);
+      p += body_len;
+    } else {
+      req->body = NULL;
+    }
+
+    return 0;
+  }
+
+  int cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
+                                 size_t *out_len) {
+    size_t i;
+    size_t est_size = sizeof(int) + sizeof(size_t);
+    char *buf, *p;
+
+    if (!res || !out_buf || !out_len)
+      return EINVAL;
+
+    est_size += sizeof(size_t);
+    for (i = 0; i < res->headers.count; ++i) {
+      est_size += sizeof(size_t) + (res->headers.headers[i].key
+                                        ? strlen(res->headers.headers[i].key)
+                                        : 0);
+      est_size += sizeof(size_t) + (res->headers.headers[i].value
+                                        ? strlen(res->headers.headers[i].value)
+                                        : 0);
+    }
+    est_size += res->body_len;
+
+    buf = (char *)malloc(est_size);
+    if (!buf)
+      return ENOMEM;
+
+    p = buf;
+    write_int(&p, res->status_code);
+    write_size(&p, res->headers.count);
+    for (i = 0; i < res->headers.count; ++i) {
+      write_str(&p, res->headers.headers[i].key);
+      write_str(&p, res->headers.headers[i].value);
+    }
+    write_size(&p, res->body_len);
+    if (res->body_len > 0 && res->body) {
+      memcpy(p, res->body, res->body_len);
+      p += res->body_len;
+    }
+
+    *out_buf = buf;
+    *out_len = p - buf;
+    return 0;
+  }
+
+  int cdd_ipc_deserialize_response(const char *buf, size_t len,
+                                   struct HttpResponse *res) {
+    const char *p = buf;
+    const char *end = buf + len;
+    size_t hcount, body_len;
+    size_t i;
+    int rc;
+
+    if (!buf || !res)
+      return EINVAL;
+
+    if ((rc = http_response_init(res)) != 0)
+      return rc;
+
+    if (read_int(&p, end, &res->status_code) != 0)
+      return EINVAL;
+
+    if (read_size(&p, end, &hcount) != 0)
+      return EINVAL;
+    for (i = 0; i < hcount; ++i) {
+      char *key = NULL, *value = NULL;
+      if (read_str(&p, end, &key) != 0 || read_str(&p, end, &value) != 0) {
+        if (key)
+          free(key);
+        if (value)
+          free(value);
+        return EINVAL;
+      }
+      http_headers_add(&res->headers, key, value);
+      free(key);
+      free(value);
+    }
+
+    if (read_size(&p, end, &body_len) != 0)
+      return EINVAL;
+    res->body_len = body_len;
+    if (body_len > 0) {
+      if (p + body_len > end)
+        return EINVAL;
+      res->body = malloc(body_len);
+      if (!res->body)
+        return ENOMEM;
+      memcpy(res->body, p, body_len);
+      p += body_len;
+    } else {
+      res->body = NULL;
+    }
+
+    return 0;
+  }

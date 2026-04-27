@@ -46,6 +46,7 @@ option(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION "Enable c-multiplatform integra
 option(BUILD_SHARED_LIBS "Build Shared Library" OFF)
 option(C_ABSTRACT_HTTP_USE_ASAN "Enable AddressSanitizer" OFF)
 option(C_ABSTRACT_HTTP_USE_TSAN "Enable ThreadSanitizer" OFF)
+option(C_ABSTRACT_HTTP_ENABLE_COVERAGE "Enable code coverage (gcov)" OFF)
 option(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS "Enable WebSocket support" OFF)
 option(C_ABSTRACT_HTTP_ENABLE_SSE "Enable Server-Sent Events support" OFF)
 option(C_ABSTRACT_HTTP_ENABLE_FUZZING "Enable fuzzing targets" OFF)
@@ -54,6 +55,12 @@ option(TRY_SYS_LIB "Fallback to system packages if vcpkg is not available" ON)
 set(C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE 1048576 CACHE STRING "Max WS frame size")
 set(C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE 32768 CACHE STRING "Max SSE line size")
 
+if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
+  if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    add_compile_options(-fprofile-arcs -ftest-coverage)
+    add_link_options(--coverage)
+  endif()
+endif()
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ws_config.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/ws_config.h"
@@ -168,18 +175,30 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
     endif()
 endmacro()
 
+set(BUILD_TESTING_OLD ${BUILD_TESTING})
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+
 if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ml")
     set(CFS_MULTITHREADED OFF CACHE BOOL "" FORCE)
 else()
+    c_abstract_http_resolve_dependency(parson https://github.com/kgabis/parson.git master)
+    if(TARGET parson AND NOT TARGET parson::parson)
+        add_library(parson::parson ALIAS parson)
+        target_include_directories(parson PUBLIC "$<BUILD_INTERFACE:${parson_SOURCE_DIR}>")
+    endif()
+    c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
+    c_abstract_http_resolve_dependency(c_str_span https://github.com/SamuelMarks/c-str-span.git master)
     c_abstract_http_resolve_dependency(cdd_c https://github.com/SamuelMarks/cdd-c.git master)
     c_abstract_http_resolve_dependency(cfs https://github.com/SamuelMarks/c-fs.git master)
 endif()
 
-c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
+set(BUILD_TESTING ${BUILD_TESTING_OLD} CACHE BOOL "" FORCE)
+
 if(TARGET c89stringutils)
     
 endif()
+
 
 macro(c_abstract_http_apply_crypto tgt scope)
     if(C_ABSTRACT_HTTP_USE_MBEDTLS)
@@ -559,6 +578,7 @@ if(C_ABSTRACT_HTTP_USE_TSAN)
     add_link_options(-fsanitize=thread)
   endif()
 endif()
+
 
 
 

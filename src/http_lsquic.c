@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include <c_abstract_http/http_lsquic.h>
+#include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
 
 #ifdef C_ABSTRACT_HTTP_USE_LSQUIC
@@ -30,6 +31,7 @@ struct HttpTransportContext {
   struct lsquic_engine_api engine_api;
   struct lsquic_engine_settings settings;
   int is_configured;
+  struct HttpConfig config;
 };
 
 struct lsquic_req_ctx {
@@ -64,12 +66,18 @@ static void lsq_on_read(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
         rctx->res->body = new_body;
         memcpy((char *)rctx->res->body + rctx->res->body_len, buf, nr);
         rctx->res->body_len += nr;
+      } else {
+        LOG_DEBUG("lsq_on_read: Error ENOMEM reallocating body");
+        rctx->error_code = ENOMEM;
+        rctx->is_complete = 1;
+        lsquic_stream_close(s);
       }
     }
   } else if (nr == 0) {
     rctx->is_complete = 1;
     lsquic_stream_close(s);
   } else {
+    LOG_DEBUG("lsq_on_read: Error nr=%zd", nr);
     rctx->error_code = EIO;
     rctx->is_complete = 1;
     lsquic_stream_close(s);
@@ -114,12 +122,27 @@ void http_lsquic_global_cleanup(void) {
 }
 
 int http_lsquic_context_init(struct HttpTransportContext **ctx) {
-  if (!ctx)
+  struct HttpTransportContext *c;
+  int rc;
+  LOG_DEBUG("http_lsquic_context_init: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_lsquic_context_init: Error EINVAL");
     return EINVAL;
+  }
 
-  struct HttpTransportContext *c = calloc(1, sizeof(*c));
-  if (!c)
+  c = calloc(1, sizeof(*c));
+  if (!c) {
+    LOG_DEBUG("http_lsquic_context_init: Error ENOMEM");
     return ENOMEM;
+  }
+
+  rc = http_config_init(&c->config);
+  if (rc != 0) {
+    LOG_DEBUG("http_lsquic_context_init: Error http_config_init failed with %d",
+              rc);
+    free(c);
+    return rc;
+  }
 
   lsquic_engine_init_settings(&c->settings, LSENG_HTTP);
 
@@ -129,23 +152,32 @@ int http_lsquic_context_init(struct HttpTransportContext **ctx) {
   c->engine_api.ea_stream_if_ctx = c;
 
   *ctx = c;
+  LOG_DEBUG("http_lsquic_context_init: Success");
   return 0;
 }
 
 void http_lsquic_context_free(struct HttpTransportContext *ctx) {
-  if (!ctx)
+  LOG_DEBUG("http_lsquic_context_free: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_lsquic_context_free: Exiting (ctx is NULL)");
     return;
+  }
   if (ctx->engine) {
     lsquic_engine_destroy(ctx->engine);
     ctx->engine = NULL;
   }
+  http_config_free(&ctx->config);
   free(ctx);
+  LOG_DEBUG("http_lsquic_context_free: Exiting");
 }
 
 int http_lsquic_config_apply(struct HttpTransportContext *ctx,
                              const struct HttpConfig *config) {
-  if (!ctx || !config)
+  LOG_DEBUG("http_lsquic_config_apply: Entering");
+  if (!ctx || !config) {
+    LOG_DEBUG("http_lsquic_config_apply: Error EINVAL");
     return EINVAL;
+  }
 
   lsquic_engine_init_settings(&ctx->settings, LSENG_HTTP);
 
@@ -158,28 +190,45 @@ int http_lsquic_config_apply(struct HttpTransportContext *ctx,
     /* Abstraction fallback check */
   }
 
+  ctx->config = *config;
   ctx->is_configured = 1;
+  LOG_DEBUG("http_lsquic_config_apply: Success");
   return 0;
 }
 
 int http_lsquic_send(struct HttpTransportContext *ctx,
                      const struct HttpRequest *req, struct HttpResponse **res) {
-  if (!ctx || !req || !res)
+  int rc;
+  LOG_DEBUG("http_lsquic_send: Entering");
+  if (!ctx || !req || !res) {
+    LOG_DEBUG("http_lsquic_send: Error EINVAL");
     return EINVAL;
+  }
 
-  if (!ctx->is_configured)
+  if (!ctx->is_configured) {
+    LOG_DEBUG("http_lsquic_send: Error EINVAL (not configured)");
     return EINVAL;
+  }
 
   *res = calloc(1, sizeof(**res));
-  if (!*res)
+  if (!*res) {
+    LOG_DEBUG("http_lsquic_send: Error ENOMEM allocating response");
     return ENOMEM;
+  }
 
-  http_response_init(*res);
+  rc = http_response_init(*res);
+  if (rc != 0) {
+    LOG_DEBUG("http_lsquic_send: Error http_response_init failed with %d", rc);
+    free(*res);
+    *res = NULL;
+    return rc;
+  }
   (*res)->status_code = 500;
 
   if (!ctx->engine) {
     ctx->engine = lsquic_engine_new(LSENG_HTTP, &ctx->engine_api);
     if (!ctx->engine) {
+      LOG_DEBUG("http_lsquic_send: Error ENOMEM (lsquic_engine_new failed)");
       http_response_free(*res);
       free(*res);
       *res = NULL;
@@ -190,6 +239,7 @@ int http_lsquic_send(struct HttpTransportContext *ctx,
   /* Real integration: lsquic_engine_connect, map UDP, select loop. */
   /* This is the abstract layer mapping for tests and structural conformity */
 
+  LOG_DEBUG("http_lsquic_send: Success (Simulated abstract mapping)");
   return 0; /* Simulated success for abstract mapping */
 }
 
@@ -201,40 +251,7 @@ int http_lsquic_send_multi(struct HttpTransportContext *ctx,
   (void)loop;
   (void)multi;
   (void)futures;
-  return ENOSYS;
-}
-
-#else
-
-/* Stubs for when LSQUIC is disabled */
-int http_lsquic_global_init(void) { return ENOSYS; }
-void http_lsquic_global_cleanup(void) {}
-int http_lsquic_context_init(struct HttpTransportContext **ctx) {
-  (void)ctx;
-  return ENOSYS;
-}
-void http_lsquic_context_free(struct HttpTransportContext *ctx) { (void)ctx; }
-int http_lsquic_config_apply(struct HttpTransportContext *ctx,
-                             const struct HttpConfig *config) {
-  (void)ctx;
-  (void)config;
-  return ENOSYS;
-}
-int http_lsquic_send(struct HttpTransportContext *ctx,
-                     const struct HttpRequest *req, struct HttpResponse **res) {
-  (void)ctx;
-  (void)req;
-  (void)res;
-  return ENOSYS;
-}
-int http_lsquic_send_multi(struct HttpTransportContext *ctx,
-                           struct ModalityEventLoop *loop,
-                           const struct HttpMultiRequest *multi,
-                           struct HttpFuture **futures) {
-  (void)ctx;
-  (void)loop;
-  (void)multi;
-  (void)futures;
+  LOG_DEBUG("http_lsquic_send_multi: Error ENOSYS");
   return ENOSYS;
 }
 

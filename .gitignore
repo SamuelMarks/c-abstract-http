@@ -1,3 +1,4 @@
+*.gcov
 c-rest-framework
 vcpkg
 # Build directories
@@ -48,3 +49,196 @@ dummy.*
 test.cmd
 gdb_script.txt
 
+
+# Coverage build output
+.build-coverage/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup and temp files
+*.bak
+*.orig
+*~
+*.tmp
+*.temp
+*.log
+
+# C/C++ specific
+*.su
+*.idb
+*.ncb
+*.sdf
+*.opensdf
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xccheckout
+*.xcworkspace/
+!*.xcworkspace/xcshareddata/
+xcuserdata/
+*.xctest
+*.xcdatamodel
+*.xcdatamodeld
+*.dSYM/
+compile_commands.json
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+venv/
+.venv/
+env/
+.env/
+
+# Specific ad-hoc files from this repo
+ci_logs.txt
+current_run.txt
+current_run_log.txt
+test_android_dir/
+
+# Ad-hoc Python scripts
+fix_*.py
+fix.py
+patch_*.py
+*weaver*.py
+
+# Documentation generation
+Doxyfile
+docs/html/
+docs/latex/
+docs/man/
+
+# Additional builds
+out/
+build*/
+*.out
+
+# Standard OS and editor
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Extra wildcards for careless git add
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.conflict
+*.patch
+*.diff
+
+
+# C/C++ Builds
+*.o
+*.obj
+*.out
+*.elf
+*.hex
+*.bin
+*.exe
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+.AppleDouble
+.LSOverride
+*.stackdump
+
+# Node/Python Environments
+node_modules/
+venv/
+.venv/
+env/
+.env/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+
+# Logs and databases
+*.sqlite
+*.db
+
+# Additional untracked scripts generated during automation
+add_*.py
+clean_*.py
+remove_*.py
+
+# Coverage and test artifacts
+*.gcda
+*.gcno
+coverage.info
+fns.txt
+fndas.txt
+out.txt
+test_out.txt
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo
+
+# Build / coverage
+build/
+build-*/
+build_*/
+out/
+.build-coverage/
+*.gcov
+*.gcda
+*.gcno
+coverage.info
+
+# Py scripts / output
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.tmp
+*.temp
+add_*.py
+clean_*.py
+remove_*.py
+fns.txt
+fndas.txt
+out.txt
+test_out.txt

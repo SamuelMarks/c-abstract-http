@@ -1,3 +1,5 @@
+/* clang-format off */
+#include <c_abstract_http/log.h>
 #ifndef TEST_HTTP_TYPES_H
 #define TEST_HTTP_TYPES_H
 
@@ -5,7 +7,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* clang-format off */
 #if defined(_WIN32)
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -771,7 +772,111 @@ TEST test_oauth2_build_authorization_url(void) {
   PASS();
 }
 
+TEST test_http_types_errors(void) {
+  struct HttpHeaders h;
+  struct HttpRequest req;
+  struct HttpResponse res;
+  ASSERT_EQ(EINVAL, http_request_add_part(NULL, "n", "f", "ct", NULL, 0));
+  ASSERT_EQ(EINVAL, http_request_add_part(&req, NULL, "f", "ct", NULL, 0));
+
+  ASSERT_EQ(EINVAL, http_request_add_part_header_last(NULL, "k", "v"));
+  ASSERT_EQ(EINVAL, http_request_add_part_header_last(&req, NULL, "v"));
+  ASSERT_EQ(EINVAL, http_request_add_part_header_last(&req, "k", NULL));
+
+  ASSERT_EQ(0, http_request_flatten_parts(NULL));
+
+  PASS();
+}
+
+TEST test_http_client_init_free(void) {
+  struct HttpClient client;
+  ASSERT_EQ(0, http_client_init(&client));
+  http_client_free(&client);
+  PASS();
+}
+
+TEST test_http_request_set_auth_bearer(void) {
+  struct HttpRequest req;
+  http_request_init(&req);
+  ASSERT_EQ(0, http_request_set_auth_bearer(&req, "token123"));
+  ASSERT_STR_EQ("Bearer token123", req.headers.headers[0].value);
+  http_request_free(&req);
+  PASS();
+}
+
+TEST test_c_abstract_http_log_debug(void) {
+  c_abstract_http_log_debug("test log %d", 123);
+  PASS();
+}
+
+static int dummy_send(struct HttpTransportContext *ctx,
+                      const struct HttpRequest *req,
+                      struct HttpResponse **res) {
+  (void)ctx;
+  (void)req;
+  (void)res;
+  return 0;
+}
+
+TEST test_http_send_multi(void) {
+  struct HttpClient client;
+  struct HttpRequest reqs[2];
+  struct HttpResponse *resps[2] = {0};
+  struct HttpRequest *reqs_ptrs[2];
+  struct HttpFuture f1, f2;
+  struct HttpFuture *futures[2];
+  int i;
+
+  memset(&f1, 0, sizeof(f1));
+  memset(&f2, 0, sizeof(f2));
+  futures[0] = &f1;
+  futures[1] = &f2;
+
+  reqs_ptrs[0] = &reqs[0];
+  reqs_ptrs[1] = &reqs[1];
+
+  http_client_init(&client);
+  client.send = dummy_send;
+  client.config.modality = MODALITY_SYNC;
+  for (i = 0; i < 2; ++i) {
+    http_request_init(&reqs[i]);
+  }
+
+  http_client_send_multi(&client, (struct HttpRequest *const *)reqs_ptrs, 2,
+                         futures, NULL, NULL, 0);
+
+  for (i = 0; i < 2; ++i) {
+    http_request_free(&reqs[i]);
+    if (futures[i]->response)
+      http_response_free(futures[i]->response);
+  }
+  http_client_free(&client);
+  PASS();
+}
+
+TEST test_http_response_save_to_file(void) {
+  struct HttpResponse res;
+  http_response_init(&res);
+  res.body = "test";
+  res.body_len = 4;
+  ASSERT_EQ(0, http_response_save_to_file(&res, "test_out.txt"));
+
+  /* invalid */
+  ASSERT_EQ(EINVAL, http_response_save_to_file(NULL, "test_out.txt"));
+
+  res.body = NULL;
+  res.body_len = 0;
+  http_response_free(&res);
+  PASS();
+}
+
 SUITE(http_types_suite) {
+  RUN_TEST(test_http_response_save_to_file);
+  RUN_TEST(test_http_send_multi);
+  RUN_TEST(test_http_client_init_free);
+  RUN_TEST(test_http_request_set_auth_bearer);
+  RUN_TEST(test_c_abstract_http_log_debug);
+  RUN_TEST(test_http_types_errors);
   RUN_TEST(test_multipart_lifecycle);
   RUN_TEST(test_multipart_flatten);
   RUN_TEST(test_multipart_part_headers);

@@ -123,7 +123,79 @@ TEST test_process_spawn_wait(void) {
   PASS();
 }
 
+TEST test_cdd_serialize_errors(void) {
+  char *buf = NULL;
+  size_t len = 0;
+  struct HttpRequest req;
+  struct HttpResponse res;
+  memset(&req, 0, sizeof(req));
+  memset(&res, 0, sizeof(res));
+
+  ASSERT_EQ(EINVAL, cdd_ipc_serialize_request(NULL, &buf, &len));
+  ASSERT_EQ(EINVAL, cdd_ipc_serialize_request(&req, NULL, &len));
+  ASSERT_EQ(EINVAL, cdd_ipc_serialize_request(&req, &buf, NULL));
+
+  ASSERT_EQ(EINVAL, cdd_ipc_serialize_response(NULL, &buf, &len));
+  ASSERT_EQ(EINVAL, cdd_ipc_serialize_response(&res, NULL, &len));
+  ASSERT_EQ(EINVAL, cdd_ipc_serialize_response(&res, &buf, NULL));
+
+  ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request(NULL, 10, &req));
+  ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request("buf", 0, &req));
+  ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request("buf", 10, NULL));
+
+  ASSERT_EQ(EINVAL, cdd_ipc_deserialize_response(NULL, 10, &res));
+  ASSERT_EQ(EINVAL, cdd_ipc_deserialize_response("buf", 0, &res));
+  ASSERT_EQ(EINVAL, cdd_ipc_deserialize_response("buf", 10, NULL));
+
+  PASS();
+}
+
+TEST test_cdd_process_hooks(void) {
+  struct CddProcessHooks hooks;
+  memset(&hooks, 0, sizeof(hooks));
+  cdd_process_set_hooks(&hooks);
+  cdd_process_set_hooks(NULL); /* Should do nothing */
+
+  /* Reset hooks so it doesn't affect other tests */
+  cdd_process_set_hooks(&hooks);
+  PASS();
+}
+
+TEST test_cdd_ipc_rw(void) {
+  struct CddIpcPipe pipe;
+  char buf[5];
+
+  memset(buf, 0, sizeof(buf));
+
+  if (cdd_ipc_pipe_init(&pipe) != 0) {
+    PASS(); /* Can't test on this platform */
+  }
+
+  ASSERT_EQ(0, cdd_ipc_write(pipe.write_handle, "test", 4));
+  ASSERT_EQ(0, cdd_ipc_read(pipe.read_handle, buf, 4));
+  ASSERT_STR_EQ("test", buf);
+
+  /* Error cases */
+  ASSERT_EQ(EIO, cdd_ipc_write(pipe.read_handle, "fail", 4));
+
+  cdd_ipc_pipe_free(&pipe);
+  PASS();
+}
+
+TEST test_cdd_process_spawn_errors(void) {
+  struct CddIpcPipe rw;
+  ASSERT_EQ(EINVAL, cdd_process_spawn(NULL, NULL, NULL));
+  ASSERT_EQ(EINVAL, cdd_process_wait_and_free(NULL, NULL));
+  if (cdd_ipc_pipe_init(&rw) == 0)
+    cdd_ipc_pipe_free(&rw);
+  PASS();
+}
+
 SUITE(process_suite) {
+  RUN_TEST(test_cdd_process_hooks);
+  RUN_TEST(test_cdd_ipc_rw);
+  RUN_TEST(test_cdd_process_spawn_errors);
+  RUN_TEST(test_cdd_serialize_errors);
   RUN_TEST(test_ipc_pipe_init_free);
   RUN_TEST(test_serialize_deserialize_request);
   RUN_TEST(test_serialize_deserialize_response);

@@ -13,6 +13,7 @@
 
 #include <c_abstract_http/http_libevent.h>
 #include <c_abstract_http/http_types.h>
+#include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
 
 #ifdef C_ABSTRACT_HTTP_USE_LIBEVENT
@@ -56,22 +57,41 @@ void http_libevent_global_cleanup(void) {
 }
 
 int http_libevent_context_init(struct HttpTransportContext **ctx) {
+  int rc;
+  LOG_DEBUG("http_libevent_context_init: Entering");
   if (!ctx) {
+    LOG_DEBUG("http_libevent_context_init: Error EINVAL");
     return EINVAL;
   }
   *ctx = (struct HttpTransportContext *)malloc(
       sizeof(struct HttpTransportContext));
   if (!*ctx) {
+    LOG_DEBUG("http_libevent_context_init: Error ENOMEM");
     return ENOMEM;
   }
   memset(*ctx, 0, sizeof(struct HttpTransportContext));
+
+  rc = http_config_init(&(*ctx)->config);
+  if (rc != 0) {
+    LOG_DEBUG(
+        "http_libevent_context_init: Error http_config_init failed with %d",
+        rc);
+    free(*ctx);
+    *ctx = NULL;
+    return rc;
+  }
+
+  LOG_DEBUG("http_libevent_context_init: Success");
   return 0;
 }
 
 void http_libevent_context_free(struct HttpTransportContext *ctx) {
+  LOG_DEBUG("http_libevent_context_free: Entering");
   if (ctx) {
+    http_config_free(&ctx->config);
     free(ctx);
   }
+  LOG_DEBUG("http_libevent_context_free: Exiting");
 }
 
 int http_libevent_config_apply(struct HttpTransportContext *ctx,
@@ -127,17 +147,36 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
 
   if (!req_ev) {
     /* Request failed */
+    LOG_DEBUG("http_request_done: Request failed (req_ev NULL)");
     state->error_code = ECONNREFUSED;
     return;
   }
 
   if (state->error_code != 0) {
     /* Aborted */
+    LOG_DEBUG("http_request_done: Aborted with error %d", state->error_code);
     return;
   }
 
-  *state->res = (struct HttpResponse *)malloc(sizeof(struct HttpResponse));
-  memset(*state->res, 0, sizeof(struct HttpResponse));
+  *state->res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
+  if (!*state->res) {
+    LOG_DEBUG("http_request_done: Error ENOMEM allocating response");
+    state->error_code = ENOMEM;
+    return;
+  }
+
+  {
+    int rc = http_response_init(*state->res);
+    if (rc != 0) {
+      LOG_DEBUG("http_request_done: Error http_response_init failed with %d",
+                rc);
+      free(*state->res);
+      *state->res = NULL;
+      state->error_code = rc;
+      return;
+    }
+  }
+
   (*state->res)->status_code = evhttp_request_get_response_code(req_ev);
 
   {
@@ -145,10 +184,15 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
     size_t len = evbuffer_get_length(evb);
     if (len > 0) {
       char *body_char = (char *)malloc(len + 1);
-      evbuffer_remove(evb, body_char, len);
-      body_char[len] = '\0';
-      (*state->res)->body = body_char;
-      (*state->res)->body_len = len;
+      if (body_char) {
+        evbuffer_remove(evb, body_char, len);
+        body_char[len] = '\0';
+        (*state->res)->body = body_char;
+        (*state->res)->body_len = len;
+      } else {
+        LOG_DEBUG("http_request_done: Error ENOMEM allocating body");
+        state->error_code = ENOMEM;
+      }
     }
   }
 }
@@ -179,11 +223,15 @@ static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
 int http_libevent_send(struct HttpTransportContext *ctx,
                        const struct HttpRequest *req,
                        struct HttpResponse **res) {
+  LOG_DEBUG("http_libevent_send: Entering");
   if (!ctx || !req || !res) {
+    LOG_DEBUG("http_libevent_send: Error EINVAL");
     return EINVAL;
   }
 
 #ifndef C_ABSTRACT_HTTP_USE_LIBEVENT
+  LOG_DEBUG("http_libevent_send: Error ENOSYS (C_ABSTRACT_HTTP_USE_LIBEVENT "
+            "not defined)");
   return ENOSYS;
 #else
   {
@@ -238,11 +286,15 @@ int http_libevent_send(struct HttpTransportContext *ctx,
     }
 
     state.base = event_base_new();
-    if (!state.base)
+    if (!state.base) {
+      LOG_DEBUG("http_libevent_send: Error ENOMEM (event_base_new failed)");
       return ENOMEM;
+    }
 
     state.conn = evhttp_connection_base_new(state.base, NULL, host, port);
     if (!state.conn) {
+      LOG_DEBUG("http_libevent_send: Error ENOMEM (evhttp_connection_base_new "
+                "failed)");
       event_base_free(state.base);
       return ENOMEM;
     }
@@ -253,6 +305,7 @@ int http_libevent_send(struct HttpTransportContext *ctx,
 
     req_ev = evhttp_request_new(http_request_done, &state);
     if (!req_ev) {
+      LOG_DEBUG("http_libevent_send: Error ENOMEM (evhttp_request_new failed)");
       evhttp_connection_free(state.conn);
       event_base_free(state.base);
       return ENOMEM;
@@ -263,20 +316,33 @@ int http_libevent_send(struct HttpTransportContext *ctx,
     }
 
     output_headers = evhttp_request_get_output_headers(req_ev);
-    evhttp_add_header(output_headers, "Host", host);
-    evhttp_add_header(output_headers, "Connection", "close");
+    rc = evhttp_add_header(output_headers, "Host", host);
+    if (rc != 0) {
+      LOG_DEBUG("http_libevent_send: Error evhttp_add_header failed");
+    }
+    rc = evhttp_add_header(output_headers, "Connection", "close");
+    if (rc != 0) {
+      LOG_DEBUG("http_libevent_send: Error evhttp_add_header failed");
+    }
 
     if (req->headers.count > 0) {
       size_t i;
       for (i = 0; i < req->headers.count; i++) {
-        evhttp_add_header(output_headers, req->headers.headers[i].key,
-                          req->headers.headers[i].value);
+        rc = evhttp_add_header(output_headers, req->headers.headers[i].key,
+                               req->headers.headers[i].value);
+        if (rc != 0) {
+          LOG_DEBUG("http_libevent_send: Error evhttp_add_header failed for "
+                    "custom header");
+        }
       }
     }
 
     if (req->body && req->body_len > 0) {
       struct evbuffer *evb = evhttp_request_get_output_buffer(req_ev);
-      evbuffer_add(evb, req->body, req->body_len);
+      rc = evbuffer_add(evb, req->body, req->body_len);
+      if (rc != 0) {
+        LOG_DEBUG("http_libevent_send: Error evbuffer_add failed");
+      }
     } else if (req->read_chunk) {
       struct evbuffer *evb = evhttp_request_get_output_buffer(req_ev);
       char buf[4096];
@@ -286,13 +352,18 @@ int http_libevent_send(struct HttpTransportContext *ctx,
                                 &read_bytes);
         if (r != 0 || read_bytes == 0)
           break;
-        evbuffer_add(evb, buf, read_bytes);
+        rc = evbuffer_add(evb, buf, read_bytes);
+        if (rc != 0) {
+          LOG_DEBUG("http_libevent_send: Error evbuffer_add failed during "
+                    "chunk read");
+        }
       }
     }
 
     rc = evhttp_make_request(state.conn, req_ev, get_method_cmd(req->method),
                              path);
     if (rc != 0) {
+      LOG_DEBUG("http_libevent_send: Error evhttp_make_request failed");
       evhttp_connection_free(state.conn);
       event_base_free(state.base);
       return ECONNREFUSED;
@@ -309,6 +380,11 @@ int http_libevent_send(struct HttpTransportContext *ctx,
     evhttp_connection_free(state.conn);
     event_base_free(state.base);
 
+    if (rc == 0) {
+      LOG_DEBUG("http_libevent_send: Success");
+    } else {
+      LOG_DEBUG("http_libevent_send: Error returning %d", rc);
+    }
     return rc;
   }
 #endif

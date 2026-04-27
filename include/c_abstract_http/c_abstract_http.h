@@ -71,7 +71,6 @@ extern "C" {
 
 #ifdef C_ABSTRACT_HTTP_IMPLEMENTATION
 /* Single translation unit inclusion of the source */
-#include "../../src/fs.c"
 #include "../../src/http_types.c"
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) || !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
 #include "../../src/cmp_integration.c"

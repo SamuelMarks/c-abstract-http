@@ -228,8 +228,9 @@ TEST test_ws_parser_reject_fragmented_control(void) {
 
   ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
                  test_ws_on_close, &ctx);
-  ASSERT_EQ(-1001, ws_parser_feed(&parser, frame, sizeof(frame)));
-  ASSERT_EQ(-1001, ctx.error_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
+            ws_parser_feed(&parser, frame, sizeof(frame)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx.error_code);
 
   ws_parser_destroy(&parser);
   PASS();
@@ -254,24 +255,66 @@ TEST test_ws_parser_auto_pong(void) {
 
 TEST test_ws_sync_loop_exit_flag(void) {
   volatile int exit_flag = 1;
-  ASSERT_EQ(0, c_abstract_http_ws_sync_read_loop(NULL, NULL, NULL, NULL, NULL,
-                                                 NULL, &exit_flag));
+  struct HttpClient client = {0};
+  struct HttpRequest req = {0};
+  ASSERT_EQ(0, c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL,
+                                                 NULL, NULL, &exit_flag));
   PASS();
 }
 
-TEST test_ws_async_register_stub(void) {
-  ASSERT_EQ(-1, c_abstract_http_ws_async_register(NULL, NULL, NULL, NULL, NULL,
-                                                  NULL));
+TEST test_ws_sync_loop_null(void) {
+  ASSERT_EQ(EINVAL, c_abstract_http_ws_sync_read_loop(NULL, NULL, NULL, NULL,
+                                                      NULL, NULL, NULL));
   PASS();
 }
 
-TEST test_ws_async_send_stub(void) {
-  ASSERT_EQ(-1, c_abstract_http_ws_async_send(NULL, 0, NULL, 0));
+static int mock_send_success_ws(struct HttpTransportContext *ctx,
+                                const struct HttpRequest *req,
+                                struct HttpResponse **res_out) {
+  struct HttpResponse *res;
+  (void)ctx;
+  (void)req;
+  res = (struct HttpResponse *)malloc(sizeof(struct HttpResponse));
+  memset(res, 0, sizeof(*res));
+  res->body = (unsigned char *)strdup("\x81\x05Hello"); /* Text frame "Hello" */
+  res->body_len = 7;
+  *res_out = res;
+  return 0;
+}
+
+static int mock_send_fail_ws(struct HttpTransportContext *ctx,
+                             const struct HttpRequest *req,
+                             struct HttpResponse **res_out) {
+  (void)ctx;
+  (void)req;
+  (void)res_out;
+  return EIO;
+}
+
+TEST test_ws_sync_loop_success(void) {
+  struct HttpClient client = {0};
+  struct HttpRequest req = {0};
+  struct test_ws_ctx ctx = {0};
+  client.send = mock_send_success_ws;
+  ASSERT_EQ(0, c_abstract_http_ws_sync_read_loop(
+                   &client, &req, test_ws_on_message, test_ws_on_error,
+                   test_ws_on_close, &ctx, NULL));
+  PASS();
+}
+
+TEST test_ws_sync_loop_fail(void) {
+  struct HttpClient client = {0};
+  struct HttpRequest req = {0};
+  struct test_ws_ctx ctx = {0};
+  client.send = mock_send_fail_ws;
+  ASSERT_EQ(EIO, c_abstract_http_ws_sync_read_loop(
+                     &client, &req, test_ws_on_message, test_ws_on_error,
+                     test_ws_on_close, &ctx, NULL));
   PASS();
 }
 
 TEST test_ws_init_headers_null(void) {
-  ASSERT_EQ(-1, c_abstract_http_ws_init(NULL, NULL));
+  ASSERT_EQ(EINVAL, c_abstract_http_ws_init(NULL, NULL));
   PASS();
 }
 
@@ -309,7 +352,88 @@ TEST test_ws_apply_mask_invalid(void) {
   PASS();
 }
 
+TEST test_ws_endian(void) {
+  uint16_t s = ws_htons(0x1234);
+  uint16_t r_s = ws_ntohs(s);
+  uint64_t l = ws_htonll(0x1234567890ABCDEFULL);
+  uint64_t r_l = ws_ntohll(l);
+
+  ASSERT_EQ(0x1234, r_s);
+  ASSERT(r_l == 0x1234567890ABCDEFULL);
+  PASS();
+}
+
+TEST test_ws_generate_mask(void) {
+  unsigned char mask[4];
+  ws_generate_mask_key(mask);
+  PASS();
+}
+
+TEST test_ws_parser_ext_len(void) {
+  struct ws_parser_ctx ctx;
+  unsigned char frame16[4 + 126];
+  unsigned char frame64[10 + 65536];
+  int rc;
+
+  struct test_ws_ctx my_ctx = {0};
+
+  /* 16-bit length frame */
+  memset(frame16, 0, sizeof(frame16));
+  frame16[0] = 0x81; /* FIN | TEXT */
+  frame16[1] = 126;  /* Length 126 */
+  frame16[2] = 0;    /* High byte */
+  frame16[3] = 126;  /* Low byte */
+  /* payload follows, we'll feed exactly that much */
+  ws_parser_init(&ctx, test_ws_on_message, test_ws_on_error, test_ws_on_close,
+                 &my_ctx);
+  rc = ws_parser_feed(&ctx, frame16, sizeof(frame16));
+  ASSERT_EQ(0, rc);
+  ws_parser_destroy(&ctx);
+
+  /* 64-bit length frame */
+  memset(frame64, 0, sizeof(frame64));
+  frame64[0] = 0x81;
+  frame64[1] = 127;
+  /* Length 65536 is 0x00000000 00010000 */
+  frame64[8] = 0x01;
+  frame64[9] = 0x00;
+  ws_parser_init(&ctx, test_ws_on_message, test_ws_on_error, test_ws_on_close,
+                 &my_ctx);
+  rc = ws_parser_feed(&ctx, frame64, sizeof(frame64));
+  ASSERT_EQ(0, rc);
+  ws_parser_destroy(&ctx);
+
+  PASS();
+}
+
+TEST test_ws_parser_errors(void) {
+  struct ws_parser_ctx ctx;
+  unsigned char frame[2];
+
+  ASSERT_EQ(EINVAL, ws_parser_init(NULL, NULL, NULL, NULL, NULL));
+  ws_parser_init(&ctx, NULL, NULL, NULL, NULL);
+
+  frame[0] = 0x0F; /* Reserved opcode */
+  frame[1] = 0x00;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ws_parser_feed(&ctx, frame, 2));
+
+  ws_parser_destroy(&ctx);
+
+  /* NULL tests */
+  ASSERT_EQ(EINVAL, ws_parser_feed(NULL, frame, 2));
+  ASSERT_EQ(EINVAL, ws_parser_feed(&ctx, NULL, 2));
+
+  ws_parser_destroy(NULL);
+
+  PASS();
+}
+
 SUITE(ws_suite) {
+  RUN_TEST(test_ws_parser_ext_len);
+  RUN_TEST(test_ws_parser_errors);
+  RUN_TEST(test_ws_endian);
+  RUN_TEST(test_ws_generate_mask);
   RUN_TEST(test_ws_generate_key_length);
   RUN_TEST(test_ws_sign_key_rfc_example);
   RUN_TEST(test_ws_verify_accept_success);
@@ -328,8 +452,9 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_parser_reject_fragmented_control);
   RUN_TEST(test_ws_parser_auto_pong);
   RUN_TEST(test_ws_sync_loop_exit_flag);
-  RUN_TEST(test_ws_async_register_stub);
-  RUN_TEST(test_ws_async_send_stub);
+  RUN_TEST(test_ws_sync_loop_null);
+  RUN_TEST(test_ws_sync_loop_success);
+  RUN_TEST(test_ws_sync_loop_fail);
 }
 GREATEST_MAIN_DEFS();
 

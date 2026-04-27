@@ -24,12 +24,12 @@ extern "C" {
  * This mimics cmp_modality_t to avoid circular header dependencies.
  */
 enum CmpModality {
-  CMP_MODALITY_SYNC_SINGLE = 0,
-  CMP_MODALITY_SYNC_MULTI = 1,
-  CMP_MODALITY_ASYNC_SINGLE = 2,
-  CMP_MODALITY_ASYNC_MULTI = 3,
-  CMP_MODALITY_GREENTHREADS = 4,
-  CMP_MODALITY_MULTIPROCESS_ACTOR = 5
+  CMP_MODALITY_SYNC_SINGLE = 0,       /**< Single-threaded synchronous */
+  CMP_MODALITY_SYNC_MULTI = 1,        /**< Multi-threaded synchronous */
+  CMP_MODALITY_ASYNC_SINGLE = 2,      /**< Single-threaded asynchronous */
+  CMP_MODALITY_ASYNC_MULTI = 3,       /**< Multi-threaded asynchronous */
+  CMP_MODALITY_GREENTHREADS = 4,      /**< Greenthread coroutines */
+  CMP_MODALITY_MULTIPROCESS_ACTOR = 5 /**< Actor-based multiprocessing */
 };
 
 /**
@@ -45,10 +45,14 @@ struct CmpAppConfig {
  * @brief Progress binding context for UI updates.
  */
 struct CmpProgressBinding {
-  void *ui_component;
-  int (*update_progress)(void *ui_component, float percentage);
-  int cancel_requested; /* 1 if the user closed the UI view and wants to abort
+  void *ui_component; /**< Pointer to UI component state */
+  int (*update_progress)(
+      void *ui_component,
+      float percentage); /**< Callback for updating progress */
+  int cancel_requested; /**< 1 if the user closed the UI view and wants to abort
                          */
+  void *framework_cb;   /**< Generic pointer referencing framework hook */
+  void *context;        /**< Generic contextual payload */
 };
 
 /**

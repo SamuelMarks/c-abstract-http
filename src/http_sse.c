@@ -1,8 +1,6 @@
 /* clang-format off */
 #include "c_abstract_http/http_sse.h"
-#include "sse_internal.h"
-
-#include "c_abstract_http/http_sse.h"
+#include "c_abstract_http/log.h"
 #include "sse_internal.h"
 #include "sse_config.h"
 
@@ -20,28 +18,48 @@ int c_abstract_http_sse_init(struct HttpRequest *req,
                              const struct c_abstract_http_sse_config *config) {
   int res;
 
-  if (!req)
-    return -1;
+  LOG_DEBUG("c_abstract_http_sse_init: Entering");
+  if (!req) {
+    LOG_DEBUG("c_abstract_http_sse_init: Error EINVAL");
+    return EINVAL;
+  }
 
   res = http_headers_add(&req->headers, "Accept", "text/event-stream");
-  if (res != 0)
+  if (res != 0) {
+    LOG_DEBUG("c_abstract_http_sse_init: Error http_headers_add (Accept) "
+              "failed with %d",
+              res);
     return res;
+  }
 
   res = http_headers_add(&req->headers, "Connection", "keep-alive");
-  if (res != 0)
+  if (res != 0) {
+    LOG_DEBUG("c_abstract_http_sse_init: Error http_headers_add (Connection) "
+              "failed with %d",
+              res);
     return res;
+  }
 
   res = http_headers_add(&req->headers, "Cache-Control", "no-cache");
-  if (res != 0)
+  if (res != 0) {
+    LOG_DEBUG("c_abstract_http_sse_init: Error http_headers_add "
+              "(Cache-Control) failed with %d",
+              res);
     return res;
+  }
 
   if (config && config->last_event_id) {
     res =
         http_headers_add(&req->headers, "Last-Event-ID", config->last_event_id);
-    if (res != 0)
+    if (res != 0) {
+      LOG_DEBUG("c_abstract_http_sse_init: Error http_headers_add "
+                "(Last-Event-ID) failed with %d",
+                res);
       return res;
+    }
   }
 
+  LOG_DEBUG("c_abstract_http_sse_init: Success");
   return 0;
 }
 
@@ -49,7 +67,7 @@ static int sse_strdup(const char *s, char **out) {
   size_t len;
   char *copy;
   if (!s || !out)
-    return -1;
+    return EINVAL;
   len = strlen(s);
   copy = (char *)malloc(len + 1);
   if (copy) {
@@ -57,7 +75,8 @@ static int sse_strdup(const char *s, char **out) {
     *out = copy;
     return 0;
   }
-  return 12; /* ENOMEM */
+  LOG_DEBUG("sse_strdup: Error ENOMEM");
+  return ENOMEM;
 }
 
 int sse_parser_init(struct sse_parser_ctx *ctx,
@@ -65,26 +84,46 @@ int sse_parser_init(struct sse_parser_ctx *ctx,
                     c_abstract_http_sse_on_event on_evt,
                     c_abstract_http_sse_on_error on_err,
                     c_abstract_http_sse_on_close on_cls, void *user_data) {
-  if (!ctx)
-    return -1;
+  int rc;
+  LOG_DEBUG("sse_parser_init: Entering");
+  if (!ctx) {
+    LOG_DEBUG("sse_parser_init: Error EINVAL");
+    return EINVAL;
+  }
   memset(ctx, 0, sizeof(*ctx));
 
   ctx->line_capacity = 1024;
   ctx->line_buffer = (char *)malloc(ctx->line_capacity);
-  if (!ctx->line_buffer)
-    return 12; /* ENOMEM */
+  if (!ctx->line_buffer) {
+    LOG_DEBUG("sse_parser_init: Error ENOMEM (line_buffer)");
+    return ENOMEM;
+  }
 
   ctx->data_capacity = 4096;
   ctx->current_data = (char *)malloc(ctx->data_capacity);
   if (!ctx->current_data) {
+    LOG_DEBUG("sse_parser_init: Error ENOMEM (current_data)");
     free(ctx->line_buffer);
-    return 12; /* ENOMEM */
+    return ENOMEM;
   }
 
-  sse_strdup("message", &ctx->current_event);
+  rc = sse_strdup("message", &ctx->current_event);
+  if (rc != 0) {
+    LOG_DEBUG("sse_parser_init: Error sse_strdup failed with %d", rc);
+    free(ctx->current_data);
+    free(ctx->line_buffer);
+    return rc;
+  }
 
   if (config && config->last_event_id) {
-    sse_strdup(config->last_event_id, &ctx->last_event_id);
+    rc = sse_strdup(config->last_event_id, &ctx->last_event_id);
+    if (rc != 0) {
+      LOG_DEBUG("sse_parser_init: Error sse_strdup failed with %d", rc);
+      free(ctx->current_event);
+      free(ctx->current_data);
+      free(ctx->line_buffer);
+      return rc;
+    }
   }
   if (config && config->retry_timeout_ms > 0) {
     ctx->retry_ms = config->retry_timeout_ms;
@@ -97,6 +136,7 @@ int sse_parser_init(struct sse_parser_ctx *ctx,
   ctx->on_close = on_cls;
   ctx->user_data = user_data;
 
+  LOG_DEBUG("sse_parser_init: Success");
   return 0;
 }
 
@@ -112,6 +152,7 @@ void sse_parser_destroy(struct sse_parser_ctx *ctx) {
 
 static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
                             size_t len) {
+  int dup_rc;
   const char *colon;
   size_t field_len;
   const char *value;
@@ -141,7 +182,12 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
     }
     /* Reset for next event */
     free(ctx->current_event);
-    sse_strdup("message", &ctx->current_event);
+    ctx->current_event = NULL;
+    dup_rc = sse_strdup("message", &ctx->current_event);
+    if (dup_rc != 0) {
+      LOG_DEBUG("sse_process_line: Error sse_strdup failed with %d", dup_rc);
+      return dup_rc;
+    }
     ctx->data_offset = 0;
     if (ctx->current_data)
       ctx->current_data[0] = '\0';
@@ -173,6 +219,9 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
     if (ctx->current_event) {
       memcpy(ctx->current_event, value, value_len);
       ctx->current_event[value_len] = '\0';
+    } else {
+      LOG_DEBUG("sse_process_line: Error ENOMEM for current_event");
+      return ENOMEM;
     }
   } else if (field_len == 4 && memcmp(line, "data", 4) == 0) {
     if (ctx->data_offset + value_len + 1 > ctx->data_capacity) {
@@ -186,8 +235,10 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
       }
       {
         char *new_buf = (char *)realloc(ctx->current_data, new_cap);
-        if (!new_buf)
-          return 12; /* ENOMEM */
+        if (!new_buf) {
+          LOG_DEBUG("sse_process_line: Error ENOMEM reallocating current_data");
+          return ENOMEM;
+        }
         ctx->current_data = new_buf;
         ctx->data_capacity = new_cap;
       }
@@ -203,6 +254,9 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
     if (ctx->last_event_id) {
       memcpy(ctx->last_event_id, value, value_len);
       ctx->last_event_id[value_len] = '\0';
+    } else {
+      LOG_DEBUG("sse_process_line: Error ENOMEM for last_event_id");
+      return ENOMEM;
     }
   } else if (field_len == 5 && memcmp(line, "retry", 5) == 0) {
     char num_buf[32];
@@ -269,8 +323,10 @@ int sse_parser_feed(struct sse_parser_ctx *ctx, const char *chunk, size_t len) {
         }
         {
           char *new_buf = (char *)realloc(ctx->line_buffer, new_cap);
-          if (!new_buf)
-            return 12; /* ENOMEM */
+          if (!new_buf) {
+            LOG_DEBUG("sse_parser_feed: Error ENOMEM reallocating line_buffer");
+            return ENOMEM;
+          }
           ctx->line_buffer = new_buf;
           ctx->line_capacity = new_cap;
         }
@@ -287,17 +343,54 @@ int c_abstract_http_sse_sync_read_loop(struct HttpClient *client,
                                        c_abstract_http_sse_on_close on_close,
                                        void *user_data,
                                        volatile int *exit_flag) {
-  (void)client;
-  (void)req;
-  (void)on_evt;
-  (void)on_err;
-  (void)on_close;
-  (void)user_data;
+  struct HttpResponse *res = NULL;
+  struct sse_parser_ctx parser;
+  int rc;
+
+  if (!client || !req) {
+    LOG_DEBUG("c_abstract_http_sse_sync_read_loop: Error EINVAL");
+    return EINVAL;
+  }
 
   if (exit_flag && *exit_flag)
     return 0;
 
-  return -1; /* Stub */
+  rc = c_abstract_http_sse_init(req, NULL);
+  if (rc != 0) {
+    if (on_err)
+      on_err(rc, user_data);
+    return rc;
+  }
+
+  rc = sse_parser_init(&parser, NULL, on_evt, on_err, on_close, user_data);
+  if (rc != 0) {
+    if (on_err)
+      on_err(rc, user_data);
+    return rc;
+  }
+
+  rc = client->send(client->transport, req, &res);
+  if (rc != 0 || !res) {
+    sse_parser_destroy(&parser);
+    if (on_err)
+      on_err(rc, user_data);
+    return rc;
+  }
+
+  if (res->body && res->body_len > 0) {
+    rc = sse_parser_feed(&parser, (const char *)res->body, res->body_len);
+    if (rc != 0 && on_err) {
+      on_err(rc, user_data);
+    }
+  }
+
+  sse_parser_destroy(&parser);
+  http_response_free(res);
+
+  if (on_close)
+    on_close(user_data);
+
+  return 0;
 }
 
 int c_abstract_http_sse_async_register(struct HttpClient *client,
@@ -306,12 +399,22 @@ int c_abstract_http_sse_async_register(struct HttpClient *client,
                                        c_abstract_http_sse_on_error on_err,
                                        c_abstract_http_sse_on_close on_close,
                                        void *user_data) {
-  (void)client;
-  (void)req;
   (void)on_evt;
   (void)on_err;
   (void)on_close;
   (void)user_data;
 
-  return -1; /* Stub */
+  if (!client || !req) {
+    LOG_DEBUG("c_abstract_http_sse_async_register: Error EINVAL");
+    return EINVAL;
+  }
+
+  if (client->thread_pool) {
+    LOG_DEBUG("c_abstract_http_sse_async_register: Error ENOSYS (Thread pool "
+              "async not fully implemented)");
+    return ENOSYS;
+  }
+
+  LOG_DEBUG("c_abstract_http_sse_async_register: Error ENOSYS");
+  return ENOSYS;
 }

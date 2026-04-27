@@ -14,42 +14,62 @@
 #include <fetch.h>
 
 #include <c_abstract_http/http_fetch.h>
+#include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
 /* clang-format on */
 
 struct HttpTransportContext {
-  struct HttpConfig *config;
+  struct HttpConfig config;
 };
 
 int http_fetch_global_init(void) { return 0; }
 void http_fetch_global_cleanup(void) {}
 
 int http_fetch_context_init(struct HttpTransportContext **const ctx) {
-  if (!ctx)
+  int rc;
+  LOG_DEBUG("http_fetch_context_init: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_fetch_context_init: Error EINVAL");
     return EINVAL;
+  }
   *ctx = (struct HttpTransportContext *)calloc(
       1, sizeof(struct HttpTransportContext));
-  return *ctx ? 0 : ENOMEM;
+  if (!*ctx) {
+    LOG_DEBUG("http_fetch_context_init: Error ENOMEM");
+    return ENOMEM;
+  }
+
+  rc = http_config_init(&(*ctx)->config);
+  if (rc != 0) {
+    LOG_DEBUG("http_fetch_context_init: Error http_config_init failed with %d",
+              rc);
+    free(*ctx);
+    *ctx = NULL;
+    return rc;
+  }
+
+  LOG_DEBUG("http_fetch_context_init: Success");
+  return 0;
 }
 
 void http_fetch_context_free(struct HttpTransportContext *ctx) {
+  LOG_DEBUG("http_fetch_context_free: Entering");
   if (ctx) {
-    if (ctx->config) {
-      free(ctx->config);
-    }
+    http_config_free(&ctx->config);
     free(ctx);
   }
+  LOG_DEBUG("http_fetch_context_free: Exiting");
 }
 
 int http_fetch_config_apply(struct HttpTransportContext *ctx,
                             const struct HttpConfig *config) {
-  if (!ctx || !config)
+  LOG_DEBUG("http_fetch_config_apply: Entering");
+  if (!ctx || !config) {
+    LOG_DEBUG("http_fetch_config_apply: Error EINVAL");
     return EINVAL;
-  /* Shallow copy config for now */
-  if (!ctx->config)
-    ctx->config = (struct HttpConfig *)malloc(sizeof(struct HttpConfig));
-  if (ctx->config)
-    memcpy(ctx->config, config, sizeof(struct HttpConfig));
+  }
+  ctx->config = *config;
+  LOG_DEBUG("http_fetch_config_apply: Success");
   return 0;
 }
 
@@ -83,12 +103,17 @@ int http_fetch_send(struct HttpTransportContext *ctx,
   struct HttpResponse *new_res = NULL;
   char *tmp = NULL;
 
-  if (!ctx || !req || !res)
+  LOG_DEBUG("http_fetch_send: Entering");
+  if (!ctx || !req || !res) {
+    LOG_DEBUG("http_fetch_send: Error EINVAL");
     return EINVAL;
+  }
 
   u = fetchParseURL(req->url);
-  if (!u)
+  if (!u) {
+    LOG_DEBUG("http_fetch_send: Error fetchParseURL failed");
     return EINVAL;
+  }
 
   switch (req->method) {
   case HTTP_GET:
@@ -115,11 +140,11 @@ int http_fetch_send(struct HttpTransportContext *ctx,
   }
 
   /* Environment variables for proxy/user-agent */
-  if (ctx->config && ctx->config->user_agent) {
+  if (ctx->config.user_agent) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    _putenv_s("HTTP_USER_AGENT", ctx->config->user_agent);
+    _putenv_s("HTTP_USER_AGENT", ctx->config.user_agent);
 #else
-    setenv("HTTP_USER_AGENT", ctx->config->user_agent, 1);
+    setenv("HTTP_USER_AGENT", ctx->config.user_agent, 1);
 #endif
   }
 
@@ -130,18 +155,24 @@ int http_fetch_send(struct HttpTransportContext *ctx,
   fetchFreeURL(u);
 
   if (!f) {
-    return map_fetch_error(fetchLastErrCode);
+    rc = map_fetch_error(fetchLastErrCode);
+    LOG_DEBUG("http_fetch_send: Error fetchReqHTTP failed, rc=%d", rc);
+    return rc;
   }
 
   new_res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
   if (!new_res) {
+    LOG_DEBUG("http_fetch_send: Error ENOMEM allocating new_res");
     fclose(f);
     return ENOMEM;
   }
-  if (http_response_init(new_res) != 0) {
+
+  rc = http_response_init(new_res);
+  if (rc != 0) {
+    LOG_DEBUG("http_fetch_send: Error http_response_init failed with %d", rc);
     free(new_res);
     fclose(f);
-    return ENOMEM;
+    return rc;
   }
 
   /* libfetch doesn't easily give us the HTTP status code on success, but it
@@ -151,12 +182,15 @@ int http_fetch_send(struct HttpTransportContext *ctx,
   while ((bytes_read = fread(buf, 1, sizeof(buf), f)) > 0) {
     if (req->on_chunk) {
       rc = req->on_chunk(req->on_chunk_user_data, buf, bytes_read);
-      if (rc != 0)
+      if (rc != 0) {
+        LOG_DEBUG("http_fetch_send: Error on_chunk failed with %d", rc);
         break;
+      }
     } else {
       tmp = (char *)realloc((void *)new_res->body,
                             new_res->body_len + bytes_read + 1);
       if (!tmp) {
+        LOG_DEBUG("http_fetch_send: Error ENOMEM reallocating body");
         rc = ENOMEM;
         break;
       }
@@ -170,12 +204,15 @@ int http_fetch_send(struct HttpTransportContext *ctx,
   fclose(f);
 
   if (rc != 0) {
+    LOG_DEBUG("http_fetch_send: Error returning %d", rc);
     http_response_free(new_res);
     free(new_res);
+    *res = NULL;
     return rc;
   }
 
   *res = new_res;
+  LOG_DEBUG("http_fetch_send: Success");
   return 0;
 }
 int http_fetch_send_multi(struct HttpTransportContext *ctx,
@@ -186,5 +223,6 @@ int http_fetch_send_multi(struct HttpTransportContext *ctx,
   (void)loop;
   (void)multi;
   (void)futures;
+  LOG_DEBUG("http_fetch_send_multi: Error ENOTSUP");
   return ENOTSUP;
 }

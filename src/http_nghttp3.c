@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include <c_abstract_http/http_nghttp3.h>
+#include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
 
 #ifdef C_ABSTRACT_HTTP_USE_NGHTTP3
@@ -30,6 +31,7 @@ struct HttpTransportContext {
   nghttp3_settings settings;
   int is_configured;
   int verify_peer;
+  struct HttpConfig config;
 };
 
 /* Mock callbacks for nghttp3 */
@@ -125,12 +127,27 @@ void http_nghttp3_global_cleanup(void) {
 }
 
 int http_nghttp3_context_init(struct HttpTransportContext **ctx) {
-  if (!ctx)
+  struct HttpTransportContext *c;
+  int rc;
+  LOG_DEBUG("http_nghttp3_context_init: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_nghttp3_context_init: Error EINVAL");
     return EINVAL;
+  }
 
-  struct HttpTransportContext *c = calloc(1, sizeof(*c));
-  if (!c)
+  c = calloc(1, sizeof(*c));
+  if (!c) {
+    LOG_DEBUG("http_nghttp3_context_init: Error ENOMEM");
     return ENOMEM;
+  }
+
+  rc = http_config_init(&c->config);
+  if (rc != 0) {
+    LOG_DEBUG(
+        "http_nghttp3_context_init: Error http_config_init failed with %d", rc);
+    free(c);
+    return rc;
+  }
 
   nghttp3_settings_default(&c->settings);
 
@@ -145,28 +162,40 @@ int http_nghttp3_context_init(struct HttpTransportContext **ctx) {
 
   if (nghttp3_conn_client_new(&c->conn, &callbacks, &c->settings,
                               nghttp3_mem_default(), c) != 0) {
+    LOG_DEBUG(
+        "http_nghttp3_context_init: Error nghttp3_conn_client_new failed");
+    http_config_free(&c->config);
     free(c);
     return ENOMEM;
   }
 
   *ctx = c;
+  LOG_DEBUG("http_nghttp3_context_init: Success");
   return 0;
 }
 
 void http_nghttp3_context_free(struct HttpTransportContext *ctx) {
-  if (!ctx)
+  LOG_DEBUG("http_nghttp3_context_free: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_nghttp3_context_free: Exiting early (ctx is NULL)");
     return;
+  }
   if (ctx->conn) {
     nghttp3_conn_del(ctx->conn);
     ctx->conn = NULL;
   }
+  http_config_free(&ctx->config);
   free(ctx);
+  LOG_DEBUG("http_nghttp3_context_free: Exiting");
 }
 
 int http_nghttp3_config_apply(struct HttpTransportContext *ctx,
                               const struct HttpConfig *config) {
-  if (!ctx || !config)
+  LOG_DEBUG("http_nghttp3_config_apply: Entering");
+  if (!ctx || !config) {
+    LOG_DEBUG("http_nghttp3_config_apply: Error EINVAL");
     return EINVAL;
+  }
 
   ctx->verify_peer = config->verify_peer;
 
@@ -175,24 +204,40 @@ int http_nghttp3_config_apply(struct HttpTransportContext *ctx,
     /* Validate HTTP/3 fallback semantics */
   }
 
+  ctx->config = *config;
   ctx->is_configured = 1;
+  LOG_DEBUG("http_nghttp3_config_apply: Success");
   return 0;
 }
 
 int http_nghttp3_send(struct HttpTransportContext *ctx,
                       const struct HttpRequest *req,
                       struct HttpResponse **res) {
-  if (!ctx || !req || !res)
+  int rc;
+  LOG_DEBUG("http_nghttp3_send: Entering");
+  if (!ctx || !req || !res) {
+    LOG_DEBUG("http_nghttp3_send: Error EINVAL");
     return EINVAL;
+  }
 
-  if (!ctx->is_configured)
+  if (!ctx->is_configured) {
+    LOG_DEBUG("http_nghttp3_send: Error EINVAL (not configured)");
     return EINVAL;
+  }
 
   *res = calloc(1, sizeof(**res));
-  if (!*res)
+  if (!*res) {
+    LOG_DEBUG("http_nghttp3_send: Error ENOMEM");
     return ENOMEM;
+  }
 
-  http_response_init(*res);
+  rc = http_response_init(*res);
+  if (rc != 0) {
+    LOG_DEBUG("http_nghttp3_send: Error http_response_init failed with %d", rc);
+    free(*res);
+    *res = NULL;
+    return rc;
+  }
   (*res)->status_code = 500; /* default failure */
 
   /* Create the HTTP/3 stream using nghttp3 framing */
@@ -201,6 +246,7 @@ int http_nghttp3_send(struct HttpTransportContext *ctx,
   /* For this mock mapping block, we simulate success on the abstraction layer.
    */
 
+  LOG_DEBUG("http_nghttp3_send: Success (simulated)");
   return 0;
 }
 
@@ -213,41 +259,7 @@ int http_nghttp3_send_multi(struct HttpTransportContext *ctx,
   (void)loop;
   (void)multi;
   (void)futures;
-  return ENOSYS;
-}
-
-#else
-
-/* Stubs for when NGHTTP3 is disabled */
-int http_nghttp3_global_init(void) { return ENOSYS; }
-void http_nghttp3_global_cleanup(void) {}
-int http_nghttp3_context_init(struct HttpTransportContext **ctx) {
-  (void)ctx;
-  return ENOSYS;
-}
-void http_nghttp3_context_free(struct HttpTransportContext *ctx) { (void)ctx; }
-int http_nghttp3_config_apply(struct HttpTransportContext *ctx,
-                              const struct HttpConfig *config) {
-  (void)ctx;
-  (void)config;
-  return ENOSYS;
-}
-int http_nghttp3_send(struct HttpTransportContext *ctx,
-                      const struct HttpRequest *req,
-                      struct HttpResponse **res) {
-  (void)ctx;
-  (void)req;
-  (void)res;
-  return ENOSYS;
-}
-int http_nghttp3_send_multi(struct HttpTransportContext *ctx,
-                            struct ModalityEventLoop *loop,
-                            const struct HttpMultiRequest *multi,
-                            struct HttpFuture **futures) {
-  (void)ctx;
-  (void)loop;
-  (void)multi;
-  (void)futures;
+  LOG_DEBUG("http_nghttp3_send_multi: Error ENOSYS");
   return ENOSYS;
 }
 

@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include <c_abstract_http/http_picoquic.h>
+#include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
 /* clang-format on */
 
@@ -50,6 +51,7 @@ struct HttpTransportContext {
   int is_configured;
   int verify_peer;
   unsigned int timeout_ms;
+  struct HttpConfig config;
 };
 
 int http_picoquic_global_init(void) {
@@ -66,12 +68,28 @@ void http_picoquic_global_cleanup(void) {
 }
 
 int http_picoquic_context_init(struct HttpTransportContext **ctx) {
-  if (!ctx)
+  struct HttpTransportContext *c;
+  int rc;
+  LOG_DEBUG("http_picoquic_context_init: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_picoquic_context_init: Error EINVAL");
     return EINVAL;
+  }
 
-  struct HttpTransportContext *c = calloc(1, sizeof(*c));
-  if (!c)
+  c = calloc(1, sizeof(*c));
+  if (!c) {
+    LOG_DEBUG("http_picoquic_context_init: Error ENOMEM");
     return ENOMEM;
+  }
+
+  rc = http_config_init(&c->config);
+  if (rc != 0) {
+    LOG_DEBUG(
+        "http_picoquic_context_init: Error http_config_init failed with %d",
+        rc);
+    free(c);
+    return rc;
+  }
 
   /* Initialize an empty picoquic state machine configured as a client */
   /* Requires 16 bytes of random seed for statless resets, we pass zeros for the
@@ -81,28 +99,39 @@ int http_picoquic_context_init(struct HttpTransportContext **ctx) {
                             reset_seed, 0, NULL, NULL, NULL, 0);
 
   if (!c->quic) {
+    LOG_DEBUG("http_picoquic_context_init: Error picoquic_create failed");
+    http_config_free(&c->config);
     free(c);
     return ENOMEM;
   }
 
   *ctx = c;
+  LOG_DEBUG("http_picoquic_context_init: Success");
   return 0;
 }
 
 void http_picoquic_context_free(struct HttpTransportContext *ctx) {
-  if (!ctx)
+  LOG_DEBUG("http_picoquic_context_free: Entering");
+  if (!ctx) {
+    LOG_DEBUG("http_picoquic_context_free: Exiting early (ctx is NULL)");
     return;
+  }
   if (ctx->quic) {
     picoquic_free(ctx->quic);
     ctx->quic = NULL;
   }
+  http_config_free(&ctx->config);
   free(ctx);
+  LOG_DEBUG("http_picoquic_context_free: Exiting");
 }
 
 int http_picoquic_config_apply(struct HttpTransportContext *ctx,
                                const struct HttpConfig *config) {
-  if (!ctx || !config)
+  LOG_DEBUG("http_picoquic_config_apply: Entering");
+  if (!ctx || !config) {
+    LOG_DEBUG("http_picoquic_config_apply: Error EINVAL");
     return EINVAL;
+  }
 
   ctx->verify_peer = config->verify_peer;
   ctx->timeout_ms = config->timeout_ms;
@@ -112,24 +141,41 @@ int http_picoquic_config_apply(struct HttpTransportContext *ctx,
     /* Validate HTTP/3 fallback semantics */
   }
 
+  ctx->config = *config;
   ctx->is_configured = 1;
+  LOG_DEBUG("http_picoquic_config_apply: Success");
   return 0;
 }
 
 int http_picoquic_send(struct HttpTransportContext *ctx,
                        const struct HttpRequest *req,
                        struct HttpResponse **res) {
-  if (!ctx || !req || !res)
+  int rc;
+  LOG_DEBUG("http_picoquic_send: Entering");
+  if (!ctx || !req || !res) {
+    LOG_DEBUG("http_picoquic_send: Error EINVAL");
     return EINVAL;
+  }
 
-  if (!ctx->is_configured)
+  if (!ctx->is_configured) {
+    LOG_DEBUG("http_picoquic_send: Error EINVAL (not configured)");
     return EINVAL;
+  }
 
   *res = calloc(1, sizeof(**res));
-  if (!*res)
+  if (!*res) {
+    LOG_DEBUG("http_picoquic_send: Error ENOMEM");
     return ENOMEM;
+  }
 
-  http_response_init(*res);
+  rc = http_response_init(*res);
+  if (rc != 0) {
+    LOG_DEBUG("http_picoquic_send: Error http_response_init failed with %d",
+              rc);
+    free(*res);
+    *res = NULL;
+    return rc;
+  }
   (*res)->status_code = 500; /* default failure */
 
   /* In a synchronous map to picoquic, we would:
@@ -144,6 +190,7 @@ int http_picoquic_send(struct HttpTransportContext *ctx,
   /* Mock success execution block to demonstrate compilation against our
    * abstract API */
 
+  LOG_DEBUG("http_picoquic_send: Success (simulated)");
   return 0;
 }
 
@@ -156,41 +203,7 @@ int http_picoquic_send_multi(struct HttpTransportContext *ctx,
   (void)loop;
   (void)multi;
   (void)futures;
-  return ENOSYS;
-}
-
-#else
-
-/* Stubs for when PICOQUIC is disabled */
-int http_picoquic_global_init(void) { return ENOSYS; }
-void http_picoquic_global_cleanup(void) {}
-int http_picoquic_context_init(struct HttpTransportContext **ctx) {
-  (void)ctx;
-  return ENOSYS;
-}
-void http_picoquic_context_free(struct HttpTransportContext *ctx) { (void)ctx; }
-int http_picoquic_config_apply(struct HttpTransportContext *ctx,
-                               const struct HttpConfig *config) {
-  (void)ctx;
-  (void)config;
-  return ENOSYS;
-}
-int http_picoquic_send(struct HttpTransportContext *ctx,
-                       const struct HttpRequest *req,
-                       struct HttpResponse **res) {
-  (void)ctx;
-  (void)req;
-  (void)res;
-  return ENOSYS;
-}
-int http_picoquic_send_multi(struct HttpTransportContext *ctx,
-                             struct ModalityEventLoop *loop,
-                             const struct HttpMultiRequest *multi,
-                             struct HttpFuture **futures) {
-  (void)ctx;
-  (void)loop;
-  (void)multi;
-  (void)futures;
+  LOG_DEBUG("http_picoquic_send_multi: Error ENOSYS");
   return ENOSYS;
 }
 

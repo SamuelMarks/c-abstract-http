@@ -7,11 +7,14 @@
 
 /* clang-format off */
 #include "../include/c_abstract_http/cmp_integration.h"
+#include "c_abstract_http/log.h"
 #include <errno.h>
 /* clang-format on */
 
 int cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
+  LOG_DEBUG("cmp_http_modality_adapter: Entering");
   if (!out_mod) {
+    LOG_DEBUG("cmp_http_modality_adapter: Error EINVAL");
     return EINVAL;
   }
 
@@ -35,9 +38,12 @@ int cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
     *out_mod = MODALITY_MULTIPROCESS; /* OR MODALITY_MESSAGE_PASSING */
     break;
   default:
+    LOG_DEBUG("cmp_http_modality_adapter: Error EINVAL (unknown modality %d)",
+              cmp_mod);
     return EINVAL;
   }
 
+  LOG_DEBUG("cmp_http_modality_adapter: Success");
   return 0;
 }
 
@@ -46,13 +52,18 @@ int cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
   enum ExecutionModality http_mod;
   int rc;
 
+  LOG_DEBUG("cmp_http_inject_config: Entering");
   if (!cmp_config || !http_config) {
+    LOG_DEBUG("cmp_http_inject_config: Error EINVAL");
     return EINVAL;
   }
 
   /* Adapter converts the framework modality integer into HTTP enum */
   rc = cmp_http_modality_adapter(cmp_config->modality, &http_mod);
   if (rc != 0) {
+    LOG_DEBUG("cmp_http_inject_config: Error cmp_http_modality_adapter failed "
+              "with %d",
+              rc);
     return rc;
   }
 
@@ -64,6 +75,7 @@ int cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
     http_config->max_threads = cmp_config->max_threads;
   }
 
+  LOG_DEBUG("cmp_http_inject_config: Success");
   return 0;
 }
 
@@ -72,11 +84,14 @@ int cmp_http_progress_adapter(size_t current_bytes, size_t total_bytes,
   struct CmpProgressBinding *binding = (struct CmpProgressBinding *)user_data;
   float pct;
 
+  LOG_DEBUG("cmp_http_progress_adapter: Entering");
   if (!binding) {
+    LOG_DEBUG("cmp_http_progress_adapter: Success (no binding)");
     return 0; /* continue */
   }
 
   if (binding->cancel_requested) {
+    LOG_DEBUG("cmp_http_progress_adapter: Cancel requested");
     return 1; /* abort */
   }
 

@@ -24,6 +24,7 @@
 #endif
 
 #include <c_abstract_http/thread_pool.h>
+#include "c_abstract_http/log.h"
 /* clang-format on */
 
 #ifndef ENOTSUP
@@ -461,19 +462,26 @@ int cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
                          void *arg) {
   struct TaskNode *task;
 
-  if (!pool || !cb)
+  LOG_DEBUG("cdd_thread_pool_push: Entering");
+  if (!pool || !cb) {
+    LOG_DEBUG("cdd_thread_pool_push: Error EINVAL");
     return EINVAL;
+  }
 
   if (pool->is_external) {
     if (pool->hooks.push) {
+      LOG_DEBUG("cdd_thread_pool_push: Hooking");
       return pool->hooks.push(pool->hooks.external_context, cb, arg);
     }
+    LOG_DEBUG("cdd_thread_pool_push: Error ENOTSUP (hook missing)");
     return ENOTSUP;
   }
 
   task = (struct TaskNode *)malloc(sizeof(struct TaskNode));
-  if (!task)
+  if (!task) {
+    LOG_DEBUG("cdd_thread_pool_push: Error ENOMEM");
     return ENOMEM;
+  }
 
   task->cb = cb;
   task->arg = arg;
@@ -483,6 +491,7 @@ int cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
   if (pool->stop) {
     cdd_mutex_unlock(pool->lock);
     free(task);
+    LOG_DEBUG("cdd_thread_pool_push: Error EINVAL (pool stopped)");
     return EINVAL;
   }
 
@@ -497,16 +506,21 @@ int cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
   cdd_cond_signal(pool->cond);
   cdd_mutex_unlock(pool->lock);
 
+  LOG_DEBUG("cdd_thread_pool_push: Success");
   return 0;
 }
 
 void cdd_thread_pool_free(struct CddThreadPool *pool) {
   size_t i;
-  if (!pool)
+  LOG_DEBUG("cdd_thread_pool_free: Entering");
+  if (!pool) {
+    LOG_DEBUG("cdd_thread_pool_free: Exiting early (pool NULL)");
     return;
+  }
 
   if (pool->is_external) {
     free(pool);
+    LOG_DEBUG("cdd_thread_pool_free: Exiting (external pool freed)");
     return;
   }
 
@@ -530,4 +544,5 @@ void cdd_thread_pool_free(struct CddThreadPool *pool) {
   cdd_mutex_free(pool->lock);
   free(pool->threads);
   free(pool);
+  LOG_DEBUG("cdd_thread_pool_free: Exiting");
 }

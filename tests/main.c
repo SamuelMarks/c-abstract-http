@@ -21,6 +21,7 @@
 #include "test_process.h"
 #include "test_coroutine.h"
 #include "test_actor.h"
+#include "test_transport.h"
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) || !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
 #include "test_cmp_integration.h"
 #endif
@@ -79,6 +80,7 @@ int main(int argc, char **argv) {
   RUN_SUITE(process_suite);
   RUN_SUITE(coroutine_suite);
   RUN_SUITE(actor_suite);
+  RUN_SUITE(transport_suite);
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) ||                      \
     !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
   RUN_SUITE(cmp_integration_suite);

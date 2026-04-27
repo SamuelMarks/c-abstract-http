@@ -87,7 +87,178 @@ TEST test_actor_spawn_and_message(void) {
   PASS();
 }
 
-SUITE(actor_suite) { RUN_TEST(test_actor_spawn_and_message); }
+static int mock_bus_init(struct CddMessageBus **bus) {
+  if (!bus)
+    return EINVAL;
+  *bus = (struct CddMessageBus *)1;
+  return 0;
+}
+static void mock_bus_free(struct CddMessageBus *bus) { (void)bus; }
+static int mock_bus_process(struct CddMessageBus *bus) {
+  if (!bus)
+    return EINVAL;
+  return 0;
+}
+static int mock_actor_spawn(struct CddMessageBus *bus, const char *name,
+                            cdd_actor_handler_cb handler, void *state,
+                            struct CddActor **actor) {
+  if (!bus || !name || !actor)
+    return EINVAL;
+  (void)handler;
+  (void)state;
+  *actor = (struct CddActor *)1;
+  return 0;
+}
+static int mock_actor_send(struct CddMessageBus *bus,
+                           const struct CddMessage *msg) {
+  if (!bus || !msg)
+    return EINVAL;
+  return 0;
+}
+static int mock_actor_get_state(struct CddActor *actor, void **state) {
+  if (!actor || !state)
+    return EINVAL;
+  *state = NULL;
+  return 0;
+}
+static int mock_actor_get_name(const struct CddActor *actor,
+                               const char **name) {
+  if (!actor || !name)
+    return EINVAL;
+  *name = "mock";
+  return 0;
+}
+
+TEST test_actor_hooks(void) {
+  struct CddActorHooks hooks;
+  struct CddMessageBus *bus = NULL;
+  struct CddActor *actor = NULL;
+  struct CddMessage msg;
+  void *state = NULL;
+  const char *name = NULL;
+  memset(&msg, 0, sizeof(msg));
+
+  hooks.bus_init = mock_bus_init;
+  hooks.bus_free = mock_bus_free;
+  hooks.bus_process = mock_bus_process;
+  hooks.actor_spawn = mock_actor_spawn;
+  hooks.actor_send = mock_actor_send;
+  hooks.actor_get_state = mock_actor_get_state;
+  hooks.actor_get_name = mock_actor_get_name;
+
+  cdd_actor_set_hooks(&hooks);
+
+  ASSERT_EQ(0, cdd_message_bus_init(&bus));
+  ASSERT_EQ(0, cdd_message_bus_process(bus));
+  ASSERT_EQ(0, cdd_actor_spawn(bus, "mock", NULL, NULL, &actor));
+  ASSERT_EQ(0, cdd_actor_send(bus, &msg));
+  ASSERT_EQ(0, cdd_actor_get_state(actor, &state));
+  ASSERT_EQ(0, cdd_actor_get_name(actor, &name));
+  cdd_message_bus_free(bus);
+
+  {
+    struct CddActorHooks z;
+    memset(&z, 0, sizeof(z));
+    cdd_actor_set_hooks(&z);
+  }
+  PASS();
+}
+
+TEST test_actor_errors(void) {
+  struct CddMessageBus *bus = NULL;
+  struct CddActor *actor = NULL;
+  struct CddMessage msg;
+  memset(&msg, 0, sizeof(msg));
+
+  ASSERT_EQ(EINVAL, cdd_message_bus_init(NULL));
+  ASSERT_EQ(EINVAL, cdd_message_bus_process(NULL));
+  ASSERT_EQ(EINVAL, cdd_actor_spawn(NULL, "test", NULL, NULL, &actor));
+  ASSERT_EQ(EINVAL, cdd_actor_send(NULL, &msg));
+
+  ASSERT_EQ(0, cdd_message_bus_init(&bus));
+  ASSERT_EQ(EINVAL, cdd_actor_spawn(bus, NULL, NULL, NULL, &actor));
+  ASSERT_EQ(EINVAL, cdd_actor_spawn(bus, "test", NULL, NULL, NULL));
+  cdd_message_bus_free(bus);
+
+  PASS();
+}
+
+static int dummy_handler(struct CddActor *self, struct CddMessage *msg) {
+  (void)self;
+  (void)msg;
+  return 0;
+}
+
+TEST test_actor_capacity(void) {
+  struct CddMessageBus *bus = NULL;
+  struct CddActor *actor = NULL;
+  int i;
+
+  ASSERT_EQ(0, cdd_message_bus_init(&bus));
+
+  /* Exceed initial capacity of 16 */
+  for (i = 0; i < 20; i++) {
+    ASSERT_EQ(0, cdd_actor_spawn(bus, "test", dummy_handler, NULL, &actor));
+  }
+
+  cdd_message_bus_free(bus);
+  PASS();
+}
+
+TEST test_actor_getters(void) {
+  struct CddMessageBus *bus = NULL;
+  struct CddActor *actor = NULL;
+  void *state = NULL;
+  const char *name = NULL;
+
+  cdd_message_bus_init(&bus);
+  cdd_actor_spawn(bus, "myactor", dummy_handler, (void *)0x123, &actor);
+
+  ASSERT_EQ(0, cdd_actor_get_state(actor, &state));
+  ASSERT_EQ((void *)0x123, state);
+
+  ASSERT_EQ(0, cdd_actor_get_name(actor, &name));
+  ASSERT_STR_EQ("myactor", name);
+
+  ASSERT_EQ(EINVAL, cdd_actor_get_state(NULL, &state));
+  ASSERT_EQ(EINVAL, cdd_actor_get_state(actor, NULL));
+  ASSERT_EQ(EINVAL, cdd_actor_get_name(NULL, &name));
+  ASSERT_EQ(EINVAL, cdd_actor_get_name(actor, NULL));
+
+  cdd_message_bus_free(bus);
+  PASS();
+}
+
+TEST test_actor_queued_free_and_tail(void) {
+  struct CddMessageBus *bus = NULL;
+  struct CddActor *actor = NULL;
+  struct CddMessage msg1;
+  struct CddMessage msg2;
+
+  memset(&msg1, 0, sizeof(msg1));
+  memset(&msg2, 0, sizeof(msg2));
+  msg1.receiver = actor;
+  msg2.receiver = actor;
+
+  cdd_message_bus_init(&bus);
+  cdd_actor_spawn(bus, "myactor", dummy_handler, NULL, &actor);
+
+  cdd_actor_send(bus, &msg1);
+  cdd_actor_send(bus, &msg2); /* hits tail->next logic */
+
+  /* don't process, just free, hitting lines 100-102 */
+  cdd_message_bus_free(bus);
+  PASS();
+}
+
+SUITE(actor_suite) {
+  RUN_TEST(test_actor_getters);
+  RUN_TEST(test_actor_queued_free_and_tail);
+  RUN_TEST(test_actor_spawn_and_message);
+  RUN_TEST(test_actor_hooks);
+  RUN_TEST(test_actor_errors);
+  RUN_TEST(test_actor_capacity);
+}
 
 #ifdef __cplusplus
 }

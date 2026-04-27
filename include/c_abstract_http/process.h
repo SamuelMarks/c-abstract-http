@@ -29,8 +29,8 @@ struct CddProcess;
  * @brief IPC Pipe endpoints.
  */
 struct CddIpcPipe {
-  void *read_handle;
-  void *write_handle;
+  void *read_handle;  /**< Platform-specific read handle (e.g. fd or HANDLE) */
+  void *write_handle; /**< Platform-specific write handle (e.g. fd or HANDLE) */
 };
 
 /**
@@ -39,10 +39,14 @@ struct CddIpcPipe {
  */
 struct CddProcessHooks {
   int (*spawn)(struct CddProcess **proc, struct CddIpcPipe *p2c,
-               struct CddIpcPipe *c2p);
-  int (*wait_and_free)(struct CddProcess *proc, int *exit_code);
-  int (*ipc_write)(void *handle, const void *data, size_t len);
-  int (*ipc_read)(void *handle, void *data, size_t len);
+               struct CddIpcPipe *c2p); /**< Hook for spawning a process */
+  int (*wait_and_free)(
+      struct CddProcess *proc,
+      int *exit_code); /**< Hook for waiting and freeing a process */
+  int (*ipc_write)(void *handle, const void *data,
+                   size_t len); /**< Hook for IPC write */
+  int (*ipc_read)(void *handle, void *data,
+                  size_t len); /**< Hook for IPC read */
 };
 
 /**

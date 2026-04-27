@@ -106,8 +106,9 @@ typedef void (*cdd_thread_task_cb)(void *arg);
  * @brief Hooks for integrating with an external thread pool.
  */
 struct CddThreadPoolHooks {
-  void *external_context;
-  int (*push)(void *ctx, cdd_thread_task_cb cb, void *arg);
+  void *external_context; /**< Context passed to hooks */
+  int (*push)(void *ctx, cdd_thread_task_cb cb,
+              void *arg); /**< Hook for pushing a task */
 };
 
 /**

@@ -77,7 +77,17 @@ TEST test_tls_isolation(void) {
   PASS();
 }
 
-SUITE(tls_suite) { RUN_TEST(test_tls_isolation); }
+TEST test_tls_errors(void) {
+  ASSERT_EQ(EINVAL, cdd_tls_key_create(NULL, NULL));
+  ASSERT_EQ(EINVAL, cdd_tls_set(NULL, NULL));
+  ASSERT_EQ(EINVAL, cdd_tls_get(NULL, NULL));
+  PASS();
+}
+
+SUITE(tls_suite) {
+  RUN_TEST(test_tls_errors);
+  RUN_TEST(test_tls_isolation);
+}
 
 #ifdef __cplusplus
 }
