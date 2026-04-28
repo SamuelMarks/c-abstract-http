@@ -52,8 +52,11 @@ extern "C" {
  */
 extern /**
         * @brief Executes the c_cdd_strdup operation.
+        * @param s The s parameter.
+        * @param out_s The out_s parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     c_cdd_strdup(const char *s, char **out_s);
 
 /* --- Inspection Helpers --- */
@@ -68,8 +71,12 @@ extern /**
  */
 extern /**
         * @brief Executes the c_cdd_str_starts_with operation.
+        * @param str The str parameter.
+        * @param prefix The prefix parameter.
+        * @param out_b The out_b parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     c_cdd_str_starts_with(const char *str, const char *prefix, int *out_b);
 
 /**
@@ -111,8 +118,12 @@ extern int c_cdd_str_iequal(const char *a, const char *b, int *out_b);
  */
 extern /**
         * @brief Executes the c_cdd_str_after_last operation.
+        * @param str The str parameter.
+        * @param delimiter The delimiter parameter.
+        * @param out_s The out_s parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     c_cdd_str_after_last(const char *str, int delimiter, const char **out_s);
 
 /**
@@ -125,8 +136,12 @@ extern /**
  */
 extern /**
         * @brief Executes the c_cdd_ref_is_type operation.
+        * @param ref The ref parameter.
+        * @param type The type parameter.
+        * @param out_b The out_b parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     c_cdd_ref_is_type(const char *ref, const char *type, int *out_b);
 
 /* --- Modification Helpers --- */
@@ -138,8 +153,9 @@ extern /**
  */
 extern /**
         * @brief Executes the c_cdd_str_trim_trailing_whitespace operation.
+        * @param str The str parameter.
         */
-    void
+    extern void
     c_cdd_str_trim_trailing_whitespace(char *str);
 
 /**
@@ -156,8 +172,11 @@ extern /**
  */
 extern /**
         * @brief Executes the c_cdd_destringize operation.
+        * @param quoted The quoted parameter.
+        * @param out_s The out_s parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     c_cdd_destringize(const char *quoted, char **out_s);
 
 #ifdef __cplusplus

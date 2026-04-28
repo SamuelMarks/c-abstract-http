@@ -1,11 +1,3 @@
-/**
- * @file http_nghttp3.c
- * @brief Implementation of the nghttp3 backend for HTTP/3.
- *
- * Maps Abstract Network Interface requests to nghttp3 framing state machines.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>

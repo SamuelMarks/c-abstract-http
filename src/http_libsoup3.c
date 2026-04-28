@@ -1,11 +1,3 @@
-/**
- * @file http_libsoup3.c
- * @brief Implementation of the Libsoup3 backend.
- *
- * Handles HTTP requests via libsoup3.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>
@@ -28,21 +20,14 @@
 #include "functions/parse/str.h"
 /* clang-format on */
 
-/**
- * @brief Opaque context definition.
- */
 struct HttpTransportContext {
-  SoupSession *session;             /**< The libsoup3 session */
-  struct HttpCookieJar *cookie_jar; /**< Weak reference to shared cookie jar */
+  SoupSession *session;
+  struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
 };
 
-/**
- * @brief Executes the http_libsoup3_global_init operation.
- */
 static int g_libsoup3_init_count = 0;
 
-/** @brief Documented */
 int http_libsoup3_global_init(void) {
   if (g_libsoup3_init_count == 0) {
     /* glib/gio handles its own initialization mostly, but if we needed anything
@@ -52,9 +37,6 @@ int http_libsoup3_global_init(void) {
   return 0;
 }
 
-/**
- * @brief Executes the http_libsoup3_global_cleanup operation.
- */
 void http_libsoup3_global_cleanup(void) {
   if (g_libsoup3_init_count > 0) {
     g_libsoup3_init_count--;
@@ -64,9 +46,6 @@ void http_libsoup3_global_cleanup(void) {
   }
 }
 
-/**
- * @brief Executes the http_libsoup3_context_init operation.
- */
 int http_libsoup3_context_init(struct HttpTransportContext **const ctx) {
   int rc;
   LOG_DEBUG("http_libsoup3_context_init: Entering");
@@ -106,9 +85,6 @@ int http_libsoup3_context_init(struct HttpTransportContext **const ctx) {
   return 0;
 }
 
-/**
- * @brief Executes the http_libsoup3_context_free operation.
- */
 void http_libsoup3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libsoup3_context_free: Entering");
   if (ctx) {
@@ -121,9 +97,6 @@ void http_libsoup3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libsoup3_context_free: Exiting");
 }
 
-/**
- * @brief Executes the http_libsoup3_config_apply operation.
- */
 int http_libsoup3_config_apply(struct HttpTransportContext *ctx,
                                const struct HttpConfig *config) {
   LOG_DEBUG("http_libsoup3_config_apply: Entering");
@@ -168,9 +141,6 @@ int http_libsoup3_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-/**
- * @brief Executes the math_get_method_string operation.
- */
 static int math_get_method_string(enum HttpMethod method, const char **out) {
   if (!out)
     return EINVAL;
@@ -202,9 +172,6 @@ static int math_get_method_string(enum HttpMethod method, const char **out) {
   }
 }
 
-/**
- * @brief Executes the http_libsoup3_send operation.
- */
 int http_libsoup3_send(struct HttpTransportContext *ctx,
                        const struct HttpRequest *req,
                        struct HttpResponse **const res) {

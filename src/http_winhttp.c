@@ -1,14 +1,3 @@
-/**
- * @file http_winhttp.c
- * @brief Implementation of the WinHTTP backend.
- *
- * WinHTTP specific implementation that ensures binary-safe responses
- * by accurately tracking bytes read from `WinHttpReadData` and explicitly
- * null-terminating the buffer for text safety without truncating binary
- * content.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>
@@ -34,14 +23,6 @@
 #include "functions/parse/str.h"
 /* clang-format on */
 
-/**
- * @brief Helper to convert ASCII to wide string.
- * @param[in] s Source string.
- * @param[out] ws Destination wide string.
- * @param[in] buf_cap Capacity of destination buffer.
- * @param[out] out_len Pointer to store the number of characters written.
- * @return 0 on success, EINVAL on error.
- */
 static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
                          size_t *out_len) {
   cfs_size_t written = 0;
@@ -51,14 +32,6 @@ static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
   return 0;
 }
 
-/**
- * @brief Helper to convert wide string to ASCII.
- * @param[in] ws Source wide string.
- * @param[out] s Destination string.
- * @param[in] buf_cap Capacity of destination buffer.
- * @param[out] out_len Pointer to store the number of characters written.
- * @return 0 on success, EINVAL on error.
- */
 static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
                          size_t *out_len) {
   cfs_size_t written = 0;
@@ -75,10 +48,9 @@ static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
 #endif
 
 struct HttpTransportContext {
-  /** @brief hSession */
   HINTERNET hSession;
   DWORD security_flags;
-  int disable_redirects; /**< @brief Documented */
+  int disable_redirects;
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
 };
@@ -88,10 +60,7 @@ struct HttpTransportContext {
    correctness) ... */
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-static /**
-        * @brief Executes the method_to_wide operation.
-        */
-    int method_to_wide(enum HttpMethod method, const wchar_t **out) {
+static int method_to_wide(enum HttpMethod method, const wchar_t **out) {
   switch (method) {
   case HTTP_GET:
     *out = L"GET";
@@ -129,22 +98,15 @@ static /**
   }
 }
 
-static /**
-        * @brief Executes the safe_close_handle operation.
-        */
-    void
-    safe_close_handle(HINTERNET *h) {
+static extern void safe_close_handle(HINTERNET *h) {
   if (h && *h) {
     WinHttpCloseHandle(*h);
     *h = NULL;
   }
 }
 
-static /**
-        * @brief Executes the headers_to_wide_block operation.
-        */
-    int
-    headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
+static extern int headers_to_wide_block(const struct HttpHeaders *headers,
+                                        wchar_t **out) {
   size_t i;
   size_t total_wide_chars = 0;
   wchar_t *buf;
@@ -198,18 +160,9 @@ static /**
 }
 #endif /* _WIN32 */
 
-/**
- * @brief Executes the http_winhttp_global_init operation.
- */
 int http_winhttp_global_init(void) { return 0; }
-/**
- * @brief Executes the http_winhttp_global_cleanup operation.
- */
 void http_winhttp_global_cleanup(void) {}
 
-/**
- * @brief Executes the http_winhttp_context_init operation.
- */
 int http_winhttp_context_init(struct HttpTransportContext **ctx) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   HINTERNET hSession;
@@ -262,9 +215,6 @@ int http_winhttp_context_init(struct HttpTransportContext **ctx) {
 #endif
 }
 
-/**
- * @brief Executes the http_winhttp_context_free operation.
- */
 void http_winhttp_context_free(struct HttpTransportContext *ctx) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   LOG_DEBUG("http_winhttp_context_free: Entering");
@@ -278,9 +228,6 @@ void http_winhttp_context_free(struct HttpTransportContext *ctx) {
 #endif
 }
 
-/**
- * @brief Executes the http_winhttp_config_apply operation.
- */
 int http_winhttp_config_apply(struct HttpTransportContext *ctx,
                               const struct HttpConfig *config) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
@@ -410,16 +357,12 @@ int http_winhttp_config_apply(struct HttpTransportContext *ctx,
 #endif
 }
 
-/** @brief CLEANUP_AND_RET definition */
 #define CLEANUP_AND_RET(err)                                                   \
   do {                                                                         \
     rc = (err);                                                                \
     goto cleanup;                                                              \
   } while (0)
 
-/**
- * @brief Executes the http_winhttp_send operation.
- */
 int http_winhttp_send(struct HttpTransportContext *ctx,
                       const struct HttpRequest *req,
                       struct HttpResponse **res) {
@@ -767,7 +710,6 @@ int http_winhttp_send_multi(struct HttpTransportContext *ctx,
   return 0;
 }
 #else
-/** @brief Documented */
 int http_winhttp_send_multi(struct HttpTransportContext *ctx,
                             struct ModalityEventLoop *loop,
                             const struct HttpMultiRequest *multi,

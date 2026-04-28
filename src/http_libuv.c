@@ -1,9 +1,3 @@
-/**
- * @file http_libuv.c
- * @brief Implementation of the libuv backend.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>
@@ -21,35 +15,23 @@
 #endif
 /* clang-format on */
 
-/**
- * @brief Opaque context definition.
- */
 struct HttpTransportContext {
   struct HttpConfig config;
 };
 
 static int libuv_global_init_count = 0;
 
-/**
- * @brief Executes the http_libuv_global_init operation.
- */
 int http_libuv_global_init(void) {
   libuv_global_init_count++;
   return 0;
 }
 
-/**
- * @brief Executes the http_libuv_global_cleanup operation.
- */
 void http_libuv_global_cleanup(void) {
   if (libuv_global_init_count > 0) {
     libuv_global_init_count--;
   }
 }
 
-/**
- * @brief Executes the http_libuv_context_init operation.
- */
 int http_libuv_context_init(struct HttpTransportContext **ctx) {
   int rc;
   LOG_DEBUG("http_libuv_context_init: Entering");
@@ -78,9 +60,6 @@ int http_libuv_context_init(struct HttpTransportContext **ctx) {
   return 0;
 }
 
-/**
- * @brief Executes the http_libuv_context_free operation.
- */
 void http_libuv_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libuv_context_free: Entering");
   if (ctx) {
@@ -90,9 +69,6 @@ void http_libuv_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libuv_context_free: Exiting");
 }
 
-/**
- * @brief Executes the http_libuv_config_apply operation.
- */
 int http_libuv_config_apply(struct HttpTransportContext *ctx,
                             const struct HttpConfig *config) {
   LOG_DEBUG("http_libuv_config_apply: Entering");
@@ -499,9 +475,6 @@ static int parse_url(const char *url, char **host, int *port, char **path) {
 
 #endif /* C_ABSTRACT_HTTP_USE_LIBUV */
 
-/**
- * @brief Executes the http_libuv_send operation.
- */
 int http_libuv_send(struct HttpTransportContext *ctx,
                     const struct HttpRequest *req, struct HttpResponse **res) {
 #ifdef C_ABSTRACT_HTTP_USE_LIBUV

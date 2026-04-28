@@ -1,12 +1,3 @@
-/**
- * @file http_wininet.c
- * @brief Implementation of the WinInet backend.
- *
- * Checks for multipart data (which should be flattened by the caller or
- * wrapper) prior to transmission.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>
@@ -34,14 +25,6 @@
 #include "functions/parse/str.h"
 /* clang-format on */
 
-/**
- * @brief Helper to convert ASCII to wide string.
- * @param[in] s Source string.
- * @param[out] ws Destination wide string.
- * @param[in] buf_cap Capacity of destination buffer.
- * @param[out] out_len Pointer to store the number of characters written.
- * @return 0 on success, EINVAL on error.
- */
 static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
                          size_t *out_len) {
   cfs_size_t written = 0;
@@ -51,14 +34,6 @@ static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
   return 0;
 }
 
-/**
- * @brief Helper to convert wide string to ASCII.
- * @param[in] ws Source wide string.
- * @param[out] s Destination string.
- * @param[in] buf_cap Capacity of destination buffer.
- * @param[out] out_len Pointer to store the number of characters written.
- * @return 0 on success, EINVAL on error.
- */
 static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
                          size_t *out_len) {
   cfs_size_t written = 0;
@@ -68,22 +43,17 @@ static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
   return 0;
 }
 
-/** @brief CHECK_EINVAL definition */
 #define CHECK_EINVAL(x)                                                        \
   do {                                                                         \
     if (!(x))                                                                  \
       return EINVAL;                                                           \
   } while (0)
 
-/**
- * @brief Opaque context definition.
- * Holds the root internet session and cached security configuration.
- */
 struct HttpTransportContext {
-  HINTERNET hInternet;  /**< Root handle from InternetOpen */
-  DWORD security_flags; /**< Flags to apply to requests (e.g. ignore cert) */
-  char *proxy_username; /**< @brief Documented */
-  char *proxy_password; /**< @brief Documented */
+  HINTERNET hInternet;
+  DWORD security_flags;
+  char *proxy_username;
+  char *proxy_password;
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
 };
@@ -91,28 +61,14 @@ struct HttpTransportContext {
 /* --- Internal Helpers --- */
 
 #ifdef _WIN32
-/**
- * @brief Safely close a WinInet handle and NULL it.
- */
-static /**
-        * @brief Executes the safe_close_handle operation.
-        */
-    void
-    safe_close_handle(HINTERNET *h) {
+static extern void safe_close_handle(HINTERNET *h) {
   if (h && *h) {
     InternetCloseHandle(*h);
     *h = NULL;
   }
 }
 
-/**
- * @brief Convert HttpMethod enum to wide string verb.
- */
-static /**
-        * @brief Executes the method_to_wide operation.
-        */
-    int
-    method_to_wide(enum HttpMethod method, const wchar_t **out) {
+static extern int method_to_wide(enum HttpMethod method, const wchar_t **out) {
   switch (method) {
   case HTTP_GET:
     *out = L"GET";
@@ -150,15 +106,8 @@ static /**
   }
 }
 
-/**
- * @brief Construct raw header string block from HttpHeaders.
- * Returns a malloc'd wide string (Key: Value\r\n...) or NULL.
- */
-static /**
-        * @brief Executes the headers_to_wide_block operation.
-        */
-    int
-    headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
+static extern int headers_to_wide_block(const struct HttpHeaders *headers,
+                                        wchar_t **out) {
   size_t i;
   size_t total_wchars = 0;
   wchar_t *buf, *p;
@@ -220,19 +169,10 @@ static /**
 
 /* --- Public API Implementation --- */
 
-/**
- * @brief Executes the http_wininet_global_init operation.
- */
 int http_wininet_global_init(void) { return 0; }
 
-/**
- * @brief Executes the http_wininet_global_cleanup operation.
- */
 void http_wininet_global_cleanup(void) {}
 
-/**
- * @brief Executes the http_wininet_context_init operation.
- */
 int http_wininet_context_init(struct HttpTransportContext **ctx) {
 #ifdef _WIN32
   HINTERNET hInternet;
@@ -280,9 +220,6 @@ int http_wininet_context_init(struct HttpTransportContext **ctx) {
 #endif
 }
 
-/**
- * @brief Executes the http_wininet_context_free operation.
- */
 void http_wininet_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wininet_context_free: Entering");
 #ifdef _WIN32
@@ -296,9 +233,6 @@ void http_wininet_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wininet_context_free: Exiting");
 }
 
-/**
- * @brief Executes the http_wininet_config_apply operation.
- */
 int http_wininet_config_apply(struct HttpTransportContext *ctx,
                               const struct HttpConfig *config) {
   LOG_DEBUG("http_wininet_config_apply: Entering");
@@ -358,9 +292,6 @@ int http_wininet_config_apply(struct HttpTransportContext *ctx,
 #endif
 }
 
-/**
- * @brief Executes the http_wininet_send operation.
- */
 int http_wininet_send(struct HttpTransportContext *ctx,
                       const struct HttpRequest *req,
                       struct HttpResponse **res) {

@@ -1,11 +1,3 @@
-/**
- * @file http_lsquic.c
- * @brief Implementation of the lsquic backend for HTTP/3.
- *
- * Maps Abstract Network Interface requests to LiteSpeed QUIC.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>

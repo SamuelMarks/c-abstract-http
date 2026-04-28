@@ -132,11 +132,19 @@ extern int cdd_ipc_deserialize_response(const char *buf, size_t len,
 
 /**
  * @brief Write data to an IPC pipe endpoint securely.
+ * @param handle The handle parameter.
+ * @param data The data parameter.
+ * @param len The len parameter.
+ * @return 0 on success, or an error code.
  */
 extern int cdd_ipc_write(void *handle, const void *data, size_t len);
 
 /**
  * @brief Read data from an IPC pipe endpoint securely.
+ * @param handle The handle parameter.
+ * @param data The data parameter.
+ * @param len The len parameter.
+ * @return 0 on success, or an error code.
  */
 extern int cdd_ipc_read(void *handle, void *data, size_t len);
 

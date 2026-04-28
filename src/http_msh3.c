@@ -1,12 +1,3 @@
-/**
- * @file http_msh3.c
- * @brief Implementation of the MsH3 backend for HTTP/3.
- *
- * Handles HTTP requests via MsH3 natively, enabling HTTP/3 support across
- * all requested modalities.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>

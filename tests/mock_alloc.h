@@ -29,7 +29,8 @@ extern int g_mock_fork_fail;
 extern int g_mock_waitpid_fail;
 
 extern int g_mock_select_fail;
-int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds, struct timeval *timeout);
+int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
+                                fd_set *errorfds, struct timeval *timeout);
 
 extern int g_mock_time_jump;
 extern int g_mock_time_jump_count;

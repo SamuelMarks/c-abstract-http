@@ -15,6 +15,8 @@ extern "C" {
 #include <stddef.h>
 /* clang-format on */
 
+/** @brief Async SSE context */
+/** @brief Async SSE context */
 struct c_abstract_http_sse_async_ctx {
   struct HttpClient *client;
   struct HttpRequest *req;
@@ -25,7 +27,6 @@ struct c_abstract_http_sse_async_ctx {
 };
 
 void c_abstract_http_sse_async_task(void *arg);
-
 
 /**
  * @brief Context structure for parsing incoming Server-Sent Events.

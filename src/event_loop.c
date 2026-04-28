@@ -1,8 +1,3 @@
-/**
- * @file event_loop.c
- * @brief Implementation of the platform-agnostic event loop.
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>
@@ -41,49 +36,42 @@
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
-/** @brief Documented */
 struct TimerNode {
-  cdd_int64_t expiration; /**< @brief Documented */
-  int id;                 /**< @brief Documented */
-  http_timer_cb cb;       /**< @brief Documented */
-  void *user_data;        /**< @brief Documented */
-  int active;             /**< @brief Documented */
+  cdd_int64_t expiration;
+  int id;
+  http_timer_cb cb;
+  void *user_data;
+  int active;
 };
 
-/** @brief Documented */
 struct FdNode {
-  int fd;          /**< @brief Documented */
-  int events;      /**< @brief Documented */
-  http_loop_cb cb; /**< @brief Documented */
-  void *user_data; /**< @brief Documented */
-  int active;      /**< @brief Documented */
+  int fd;
+  int events;
+  http_loop_cb cb;
+  void *user_data;
+  int active;
 };
 
-/** @brief Documented */
 struct ModalityEventLoop {
-  int running;        /**< @brief Documented */
-  int stop_requested; /**< @brief Documented */
-
+  int running;
+  int stop_requested;
   /* External Hooks (if any) */
-  int has_hooks;              /**< @brief Documented */
-  struct HttpLoopHooks hooks; /**< @brief Documented */
-
+  int has_hooks;
+  struct HttpLoopHooks hooks;
   /* Timer Min-Heap */
-  struct TimerNode *timers; /**< @brief Documented */
-  size_t timer_count;       /**< @brief Documented */
-  size_t timer_capacity;    /**< @brief Documented */
-  int next_timer_id;        /**< @brief Documented */
-
+  struct TimerNode *timers;
+  size_t timer_count;
+  size_t timer_capacity;
+  int next_timer_id;
   /* FD Registry */
-  struct FdNode *fds; /**< @brief Documented */
-  size_t fd_count;    /**< @brief Documented */
-  size_t fd_capacity; /**< @brief Documented */
-
+  struct FdNode *fds;
+  size_t fd_count;
+  size_t fd_capacity;
   /* Wakeup mechanism (Self-pipe trick or Windows Event) */
 #if defined(_WIN32)
   HANDLE wakeup_event;
 #else
-  int wakeup_pipe[2]; /**< @brief Documented */
+  int wakeup_pipe[2];
 #endif
 };
 
@@ -148,7 +136,6 @@ static void timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
   }
 }
 
-/** @brief Documented */
 int http_loop_init_external(struct ModalityEventLoop **loop,
                             const struct HttpLoopHooks *hooks) {
   struct ModalityEventLoop *l;
@@ -169,7 +156,6 @@ int http_loop_init_external(struct ModalityEventLoop **loop,
   return 0;
 }
 
-/** @brief Documented */
 int http_loop_init(struct ModalityEventLoop **loop) {
   struct ModalityEventLoop *l;
   LOG_DEBUG("http_loop_init: Entering");
@@ -229,7 +215,6 @@ int http_loop_init(struct ModalityEventLoop **loop) {
   return 0;
 }
 
-/** @brief Documented */
 void http_loop_free(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_free: Entering");
   if (!loop) {
@@ -258,7 +243,6 @@ void http_loop_free(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_free: Exiting");
 }
 
-/** @brief Documented */
 int http_loop_wakeup(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_wakeup: Entering");
   if (!loop) {
@@ -291,7 +275,6 @@ int http_loop_wakeup(struct ModalityEventLoop *loop) {
 #endif
 }
 
-/** @brief Documented */
 int http_loop_add_fd(struct ModalityEventLoop *loop, int fd, int events,
                      http_loop_cb cb, void *user_data) {
   size_t i;
@@ -349,7 +332,6 @@ int http_loop_add_fd(struct ModalityEventLoop *loop, int fd, int events,
   return 0;
 }
 
-/** @brief Documented */
 int http_loop_mod_fd(struct ModalityEventLoop *loop, int fd, int events) {
   size_t i;
   LOG_DEBUG("http_loop_mod_fd: Entering");
@@ -378,7 +360,6 @@ int http_loop_mod_fd(struct ModalityEventLoop *loop, int fd, int events) {
   return ENOENT;
 }
 
-/** @brief Documented */
 int http_loop_remove_fd(struct ModalityEventLoop *loop, int fd) {
   size_t i;
   LOG_DEBUG("http_loop_remove_fd: Entering");
@@ -407,7 +388,6 @@ int http_loop_remove_fd(struct ModalityEventLoop *loop, int fd) {
   return ENOENT;
 }
 
-/** @brief Documented */
 int http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
                         http_timer_cb cb, void *user_data, int *out_timer_id) {
   int id;
@@ -457,7 +437,6 @@ int http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
   return 0;
 }
 
-/** @brief Documented */
 int http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
   size_t i;
   LOG_DEBUG("http_loop_cancel_timer: Entering");
@@ -511,7 +490,6 @@ static void process_timers(struct ModalityEventLoop *loop) {
   }
 }
 
-/** @brief Documented */
 int http_loop_tick(struct ModalityEventLoop *loop) {
   cdd_int64_t now;
   cdd_int64_t next_timeout = -1;
@@ -646,7 +624,6 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
   return 0;
 }
 
-/** @brief Documented */
 int http_loop_run(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_run: Entering");
   if (!loop) {
@@ -792,7 +769,6 @@ int http_loop_run(struct ModalityEventLoop *loop) {
   return 0;
 }
 
-/** @brief Documented */
 int http_loop_stop(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_stop: Entering");
   if (!loop) {
@@ -808,6 +784,7 @@ int http_loop_stop(struct ModalityEventLoop *loop) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop);
 void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop) {
-    if (loop) loop->stop_requested = 0;
+  if (loop)
+    loop->stop_requested = 0;
 }
 #endif

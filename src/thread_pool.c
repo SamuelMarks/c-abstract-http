@@ -1,8 +1,3 @@
-/**
- * @file thread_pool.c
- * @brief Implementation of the cross-platform Thread Pool API.
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <stdio.h>
@@ -29,13 +24,11 @@
 /* clang-format on */
 
 #ifndef ENOTSUP
-/** @brief Documented */
 #define ENOTSUP EINVAL
 #endif
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
-/** @brief Documented */
 struct CddMutex {
   CRITICAL_SECTION cs;
 };
@@ -167,7 +160,6 @@ static void thread_join(cdd_thread_t thread) {
 
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 
-/** @brief Documented */
 struct CddMutex {
   int dummy;
 };
@@ -228,17 +220,14 @@ static void thread_join(cdd_thread_t thread) { (void)thread; }
 
 #else /* POSIX */
 
-/** @brief Documented */
 struct CddMutex {
-  pthread_mutex_t mtx; /**< @brief Documented */
+  pthread_mutex_t mtx;
 };
 
-/** @brief Documented */
 struct CddCond {
-  pthread_cond_t cond; /**< @brief Documented */
+  pthread_cond_t cond;
 };
 
-/** @brief Documented */
 int cdd_mutex_init(struct CddMutex **mutex) {
   if (!mutex)
     return EINVAL;
@@ -252,21 +241,18 @@ int cdd_mutex_init(struct CddMutex **mutex) {
   return 0;
 }
 
-/** @brief Documented */
 int cdd_mutex_lock(struct CddMutex *mutex) {
   if (!mutex)
     return EINVAL;
   return (pthread_mutex_lock(&mutex->mtx) == 0) ? 0 : EIO;
 }
 
-/** @brief Documented */
 int cdd_mutex_unlock(struct CddMutex *mutex) {
   if (!mutex)
     return EINVAL;
   return (pthread_mutex_unlock(&mutex->mtx) == 0) ? 0 : EIO;
 }
 
-/** @brief Documented */
 void cdd_mutex_free(struct CddMutex *mutex) {
   if (mutex) {
     pthread_mutex_destroy(&mutex->mtx);
@@ -274,7 +260,6 @@ void cdd_mutex_free(struct CddMutex *mutex) {
   }
 }
 
-/** @brief Documented */
 int cdd_cond_init(struct CddCond **cond) {
   if (!cond)
     return EINVAL;
@@ -288,28 +273,24 @@ int cdd_cond_init(struct CddCond **cond) {
   return 0;
 }
 
-/** @brief Documented */
 int cdd_cond_wait(struct CddCond *cond, struct CddMutex *mutex) {
   if (!cond || !mutex)
     return EINVAL;
   return (pthread_cond_wait(&cond->cond, &mutex->mtx) == 0) ? 0 : EIO;
 }
 
-/** @brief Documented */
 int cdd_cond_signal(struct CddCond *cond) {
   if (!cond)
     return EINVAL;
   return (pthread_cond_signal(&cond->cond) == 0) ? 0 : EIO;
 }
 
-/** @brief Documented */
 int cdd_cond_broadcast(struct CddCond *cond) {
   if (!cond)
     return EINVAL;
   return (pthread_cond_broadcast(&cond->cond) == 0) ? 0 : EIO;
 }
 
-/** @brief Documented */
 void cdd_cond_free(struct CddCond *cond) {
   if (cond) {
     pthread_cond_destroy(&cond->cond);
@@ -317,11 +298,8 @@ void cdd_cond_free(struct CddCond *cond) {
   }
 }
 
-/** @brief Documented */
 typedef pthread_t cdd_thread_t;
-/** @brief Documented */
 #define CDD_THREAD_FUNC void *
-/** @brief Documented */
 typedef void *cdd_thread_arg_t;
 
 static int thread_create(cdd_thread_t *thread,
@@ -336,28 +314,22 @@ static void thread_join(cdd_thread_t thread) { pthread_join(thread, NULL); }
 
 /* --- Thread Pool Implementation --- */
 
-/** @brief Documented */
 struct TaskNode {
-  cdd_thread_task_cb cb; /**< @brief Documented */
-  void *arg;             /**< @brief Documented */
-  struct TaskNode *next; /**< @brief Documented */
+  cdd_thread_task_cb cb;
+  void *arg;
+  struct TaskNode *next;
 };
 
-/** @brief Documented */
 struct CddThreadPool {
-  int is_external;                 /**< @brief Documented */
-  struct CddThreadPoolHooks hooks; /**< @brief Documented */
-
-  cdd_thread_t *threads; /**< @brief Documented */
-  size_t num_threads;    /**< @brief Documented */
-
-  struct TaskNode *head; /**< @brief Documented */
-  struct TaskNode *tail; /**< @brief Documented */
-
-  struct CddMutex *lock; /**< @brief Documented */
-  struct CddCond *cond;  /**< @brief Documented */
-
-  int stop; /**< @brief Documented */
+  int is_external;
+  struct CddThreadPoolHooks hooks;
+  cdd_thread_t *threads;
+  size_t num_threads;
+  struct TaskNode *head;
+  struct TaskNode *tail;
+  struct CddMutex *lock;
+  struct CddCond *cond;
+  int stop;
 };
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
@@ -404,7 +376,6 @@ static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
 #endif
 }
 
-/** @brief Documented */
 int cdd_thread_pool_init(struct CddThreadPool **pool, size_t num_threads) {
   struct CddThreadPool *p;
   size_t i;
@@ -461,7 +432,6 @@ int cdd_thread_pool_init(struct CddThreadPool **pool, size_t num_threads) {
   return 0;
 }
 
-/** @brief Documented */
 int cdd_thread_pool_init_external(struct CddThreadPool **pool,
                                   const struct CddThreadPoolHooks *hooks) {
   struct CddThreadPool *p;
@@ -481,7 +451,6 @@ int cdd_thread_pool_init_external(struct CddThreadPool **pool,
   return 0;
 }
 
-/** @brief Documented */
 int cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
                          void *arg) {
   struct TaskNode *task;
@@ -534,7 +503,6 @@ int cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
   return 0;
 }
 
-/** @brief Documented */
 void cdd_thread_pool_free(struct CddThreadPool *pool) {
   size_t i;
   LOG_DEBUG("cdd_thread_pool_free: Entering");
@@ -575,34 +543,35 @@ void cdd_thread_pool_free(struct CddThreadPool *pool) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool);
 void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool) {
-    if (pool) {
-        cdd_mutex_lock(pool->lock);
-        pool->stop = 1;
-        cdd_mutex_unlock(pool->lock);
-    }
+  if (pool) {
+    cdd_mutex_lock(pool->lock);
+    pool->stop = 1;
+    cdd_mutex_unlock(pool->lock);
+  }
 }
 void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool);
 void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool) {
-    if (pool) {
-        struct TaskNode *t = (struct TaskNode *)malloc(sizeof(struct TaskNode));
-        if (t) {
-            extern void dummy_cb_thread(void *arg);
-            t->cb = dummy_cb_thread;
-            t->arg = NULL;
-            t->next = pool->head;
-            pool->head = t;
-        }
+  if (pool) {
+    struct TaskNode *t = (struct TaskNode *)malloc(sizeof(struct TaskNode));
+    if (t) {
+      extern void dummy_cb_thread(void *arg);
+      t->cb = dummy_cb_thread;
+      t->arg = NULL;
+      t->next = pool->head;
+      pool->head = t;
     }
+  }
 }
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 void cdd_thread_pool_test_free_with_tasks(void);
 void cdd_thread_pool_test_free_with_tasks(void) {
-    struct CddThreadPool *fake_pool = (struct CddThreadPool *)malloc(sizeof(struct CddThreadPool));
-    memset(fake_pool, 0, sizeof(struct CddThreadPool));
-    fake_pool->num_threads = 0;
-    cdd_thread_pool_test_inject_task(fake_pool);
-    cdd_thread_pool_free(fake_pool);
+  struct CddThreadPool *fake_pool =
+      (struct CddThreadPool *)malloc(sizeof(struct CddThreadPool));
+  memset(fake_pool, 0, sizeof(struct CddThreadPool));
+  fake_pool->num_threads = 0;
+  cdd_thread_pool_test_inject_task(fake_pool);
+  cdd_thread_pool_free(fake_pool);
 }
 #endif

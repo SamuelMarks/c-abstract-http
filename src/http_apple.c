@@ -1,11 +1,3 @@
-/**
- * @file http_apple.c
- * @brief Apple CFNetwork implementation of the Abstract Network Interface.
- *
- * Implements the HTTP transport using Apple's CFNetwork framework.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <c_abstract_http/http_apple.h>
@@ -28,19 +20,10 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
-/**
- * @brief Executes the http_apple_global_init operation.
- */
 int http_apple_global_init(void) { return 0; }
 
-/**
- * @brief Executes the http_apple_global_cleanup operation.
- */
 void http_apple_global_cleanup(void) {}
 
-/**
- * @brief Executes the http_apple_context_init operation.
- */
 int http_apple_context_init(struct HttpTransportContext **ctx) {
   int rc;
   LOG_DEBUG("http_apple_context_init: Entering");
@@ -62,9 +45,6 @@ int http_apple_context_init(struct HttpTransportContext **ctx) {
   return 0;
 }
 
-/**
- * @brief Executes the http_apple_context_free operation.
- */
 void http_apple_context_free(struct HttpTransportContext *ctx) {
   if (ctx) {
     http_config_free(&ctx->config);
@@ -72,9 +52,6 @@ void http_apple_context_free(struct HttpTransportContext *ctx) {
   }
 }
 
-/**
- * @brief Executes the http_apple_config_apply operation.
- */
 int http_apple_config_apply(struct HttpTransportContext *ctx,
                             const struct HttpConfig *config) {
   LOG_DEBUG("http_apple_config_apply: Entering");
@@ -94,9 +71,6 @@ int http_apple_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-/**
- * @brief Executes the http_apple_send operation.
- */
 int http_apple_send(struct HttpTransportContext *ctx,
                     const struct HttpRequest *req, struct HttpResponse **res) {
   CFURLRef url;
@@ -126,22 +100,25 @@ int http_apple_send(struct HttpTransportContext *ctx,
 
   http_response_init(*res);
 
-
   urlStr = CFStringCreateWithCString(kCFAllocatorDefault, req->url,
                                      kCFStringEncodingUTF8);
   if (!urlStr || (req->url && strcmp(req->url, "http://fail_url_str") == 0)) {
-    if (urlStr) CFRelease(urlStr);
+    if (urlStr)
+      CFRelease(urlStr);
     LOG_DEBUG("http_apple_send: Error urlStr is NULL");
-    free(*res); *res = NULL;
+    free(*res);
+    *res = NULL;
     return EINVAL;
   }
 
   url = CFURLCreateWithString(kCFAllocatorDefault, urlStr, NULL);
   CFRelease(urlStr);
   if (!url || (req->url && strcmp(req->url, "http://fail_url") == 0)) {
-    if (url) CFRelease(url);
+    if (url)
+      CFRelease(url);
     LOG_DEBUG("http_apple_send: Error url is NULL");
-    free(*res); *res = NULL;
+    free(*res);
+    *res = NULL;
     return EINVAL;
   }
 
@@ -167,11 +144,14 @@ int http_apple_send(struct HttpTransportContext *ctx,
                                           kCFHTTPVersion1_1);
   CFRelease(url);
   if (req->url && strcmp(req->url, "http://fail_request_ref") == 0) {
-      if (requestRef) CFRelease(requestRef);
-      requestRef = NULL;
-    }
+    if (requestRef)
+      CFRelease(requestRef);
+    requestRef = NULL;
+  }
   if (!requestRef) {
-    free(*res); *res = NULL; return ENOMEM;
+    free(*res);
+    *res = NULL;
+    return ENOMEM;
   }
 
   for (i = 0; i < req->headers.count; ++i) {
@@ -194,16 +174,18 @@ int http_apple_send(struct HttpTransportContext *ctx,
     CFMutableDataRef mutableBodyData = CFDataCreateMutable(
         kCFAllocatorDefault, (CFIndex)req->expected_body_len);
     if (req->url && strcmp(req->url, "http://fail_mutable_data") == 0) {
-        if (mutableBodyData) CFRelease(mutableBodyData);
-        mutableBodyData = NULL;
-      }
-      if (!mutableBodyData) {
-      if (mutableBodyData) CFRelease(mutableBodyData);
+      if (mutableBodyData)
+        CFRelease(mutableBodyData);
+      mutableBodyData = NULL;
+    }
+    if (!mutableBodyData) {
+      if (mutableBodyData)
+        CFRelease(mutableBodyData);
       CFRelease(requestRef);
-      free(*res); *res = NULL;
+      free(*res);
+      *res = NULL;
       return ENOMEM;
     }
-    
 
     while (1) {
       UInt8 chunkBuf[8192];
@@ -227,12 +209,16 @@ int http_apple_send(struct HttpTransportContext *ctx,
     CFDataRef body = CFDataCreate(kCFAllocatorDefault, (const UInt8 *)req->body,
                                   (CFIndex)req->body_len);
     if (req->url && strcmp(req->url, "http://fail_body_data") == 0) {
-        if (body) CFRelease(body);
-        body = NULL;
-      }
-      if (!body) {
-        CFRelease(requestRef); free(*res); *res = NULL; return ENOMEM;
-      }
+      if (body)
+        CFRelease(body);
+      body = NULL;
+    }
+    if (!body) {
+      CFRelease(requestRef);
+      free(*res);
+      *res = NULL;
+      return ENOMEM;
+    }
     if (body) {
       CFHTTPMessageSetBody(requestRef, body);
       CFRelease(body);
@@ -242,11 +228,12 @@ int http_apple_send(struct HttpTransportContext *ctx,
   readStream =
       CFReadStreamCreateForHTTPRequest(kCFAllocatorDefault, requestRef);
   CFRelease(requestRef);
-    if (req->url && strcmp(req->url, "http://fail_read_stream") == 0) {
-      if (readStream) CFRelease(readStream);
-      readStream = NULL;
-    }
-    if (!readStream)
+  if (req->url && strcmp(req->url, "http://fail_read_stream") == 0) {
+    if (readStream)
+      CFRelease(readStream);
+    readStream = NULL;
+  }
+  if (!readStream)
     return ENOMEM;
 
   if (!ctx->config.verify_peer) {
@@ -264,7 +251,8 @@ int http_apple_send(struct HttpTransportContext *ctx,
   }
 
   /* Since this is a synchronous call, we wait until it's done */
-  if (!CFReadStreamOpen(readStream) || (req->url && strcmp(req->url, "http://fail_read_stream_open") == 0)) {
+  if (!CFReadStreamOpen(readStream) ||
+      (req->url && strcmp(req->url, "http://fail_read_stream_open") == 0)) {
     CFRelease(readStream);
     return EIO;
   }
@@ -289,13 +277,14 @@ int http_apple_send(struct HttpTransportContext *ctx,
       int cb_rc =
           req->on_chunk(req->on_chunk_user_data, buf, (size_t)bytesRead);
       if (req->url && strcmp(req->url, "http://fail_cb_rc") == 0) {
-          cb_rc = ENOMEM;
-        }
+        cb_rc = ENOMEM;
+      }
       if (cb_rc != 0) {
         CFRelease(readStream);
         if (bodyData)
           CFRelease(bodyData);
-        free(*res); *res = NULL;
+        free(*res);
+        *res = NULL;
         return cb_rc;
       }
     } else {

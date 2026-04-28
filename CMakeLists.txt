@@ -592,7 +592,14 @@ target_compile_definitions(c-abstract-http PUBLIC
     malloc=c_abstract_http_mock_malloc
     calloc=c_abstract_http_mock_calloc
     realloc=c_abstract_http_mock_realloc
-    free=c_abstract_http_mock_free 
+    free=c_abstract_http_mock_free
+    fwrite=c_abstract_http_mock_fwrite
+    fclose=c_abstract_http_mock_fclose
+    socket=c_abstract_http_mock_socket
+    bind=c_abstract_http_mock_bind
+    listen=c_abstract_http_mock_listen
+    accept=c_abstract_http_mock_accept
+    recv=c_abstract_http_mock_recv 
     pthread_key_create=c_abstract_http_mock_pthread_key_create
     pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
     pthread_cond_init=c_abstract_http_mock_pthread_cond_init

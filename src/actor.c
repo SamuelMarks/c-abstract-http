@@ -1,8 +1,3 @@
-/**
- * @file actor.c
- * @brief Implementation of the Message Passing / Actor Model bus.
- * @author Samuel Marks
- */
 
 /* clang-format off */
 extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
@@ -38,38 +33,32 @@ extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 static struct CddActorHooks g_actor_hooks = {NULL, NULL, NULL, NULL,
                                              NULL, NULL, NULL};
 
-/** @brief Documented */
 void cdd_actor_set_hooks(const struct CddActorHooks *hooks) {
   if (hooks) {
     g_actor_hooks = *hooks;
   }
 }
 
-/** @brief Documented */
 struct CddActor {
-  char *name;                   /**< @brief Documented */
-  cdd_actor_handler_cb handler; /**< @brief Documented */
-  void *state;                  /**< @brief Documented */
-  struct CddMessageBus *bus;    /**< @brief Documented */
+  char *name;
+  cdd_actor_handler_cb handler;
+  void *state;
+  struct CddMessageBus *bus;
 };
 
-/** @brief Documented */
 struct MessageNode {
-  struct CddMessage msg;    /**< @brief Documented */
-  struct MessageNode *next; /**< @brief Documented */
+  struct CddMessage msg;
+  struct MessageNode *next;
 };
 
-/** @brief Documented */
 struct CddMessageBus {
-  struct CddActor **actors; /**< @brief Documented */
-  size_t actor_count;       /**< @brief Documented */
-  size_t actor_capacity;    /**< @brief Documented */
-
-  struct MessageNode *head; /**< @brief Documented */
-  struct MessageNode *tail; /**< @brief Documented */
+  struct CddActor **actors;
+  size_t actor_count;
+  size_t actor_capacity;
+  struct MessageNode *head;
+  struct MessageNode *tail;
 };
 
-/** @brief Documented */
 int cdd_message_bus_init(struct CddMessageBus **bus) {
   struct CddMessageBus *b;
   LOG_DEBUG("cdd_message_bus_init: Entering");
@@ -104,7 +93,6 @@ int cdd_message_bus_init(struct CddMessageBus **bus) {
   return 0;
 }
 
-/** @brief Documented */
 void cdd_message_bus_free(struct CddMessageBus *bus) {
   size_t i;
   struct MessageNode *node;
@@ -140,7 +128,6 @@ void cdd_message_bus_free(struct CddMessageBus *bus) {
   LOG_DEBUG("cdd_message_bus_free: Exiting");
 }
 
-/** @brief Documented */
 int cdd_message_bus_process(struct CddMessageBus *bus) {
   int count = 0;
   struct MessageNode *node;
@@ -175,7 +162,6 @@ int cdd_message_bus_process(struct CddMessageBus *bus) {
   return count;
 }
 
-/** @brief Documented */
 int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
                     cdd_actor_handler_cb handler, void *state,
                     struct CddActor **actor) {
@@ -231,7 +217,6 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
   return 0;
 }
 
-/** @brief Documented */
 int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
   struct MessageNode *node;
 
@@ -267,7 +252,6 @@ int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
   return 0;
 }
 
-/** @brief Documented */
 int cdd_actor_get_state(struct CddActor *actor, void **state) {
   LOG_DEBUG("cdd_actor_get_state: Entering");
   if (g_actor_hooks.actor_get_state) {
@@ -283,7 +267,6 @@ int cdd_actor_get_state(struct CddActor *actor, void **state) {
   return 0;
 }
 
-/** @brief Documented */
 int cdd_actor_get_name(const struct CddActor *actor, const char **name) {
   LOG_DEBUG("cdd_actor_get_name: Entering");
   if (g_actor_hooks.actor_get_name) {

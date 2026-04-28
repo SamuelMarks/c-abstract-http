@@ -1,11 +1,3 @@
-/**
- * @file http_picoquic.c
- * @brief Implementation of the Picoquic backend for HTTP/3.
- *
- * Maps Abstract Network Interface requests to Picoquic (and h3zero).
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>

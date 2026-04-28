@@ -1,14 +1,3 @@
-/**
- * @file transport.c
- * @brief Platform-aware Abstract Network Interface (ANI) Factory.
- *
- * Implements a unified initialization entry point that selects the appropriate
- * HTTP backend (WinHTTP for Windows, Libcurl for POSIX) at compile time.
- * This simplifies client usage by abstracting the `#ifdef` logic into a single
- * translation unit.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
@@ -48,14 +37,6 @@
 #include <stddef.h>
 /* clang-format on */
 
-/**
- * @brief Initialize the global transport layer dependencies.
- *
- * Calls `http_winhttp_global_init` on Windows or `http_curl_global_init` on
- * POSIX. Should be called once at application startup.
- *
- * @return 0 on success, or an error code from the underlying backend.
- */
 int transport_global_init(void) {
 #if defined(C_ABSTRACT_HTTP_USE_ARIA2)
   return http_aria2_global_init();
@@ -89,11 +70,6 @@ int transport_global_init(void) {
 #endif
 }
 
-/**
- * @brief Cleanup global transport layer dependencies.
- *
- * Calls the platform-specific cleanup function.
- */
 void transport_global_cleanup(void) {
 #if defined(C_ABSTRACT_HTTP_USE_ARIA2)
   http_aria2_global_cleanup();
@@ -127,16 +103,6 @@ void transport_global_cleanup(void) {
 #endif
 }
 
-/**
- * @brief Initialize a transport context and bind the `send` method.
- *
- * Allocates the backend-specific context structure and assigns the correct
- * function pointer to `client->send`.
- *
- * @param[out] client The high-level client structure to populate.
- *                    Must be pre-allocated.
- * @return 0 on success, error code (EINVAL/ENOMEM/EIO) on failure.
- */
 int transport_factory_init_client(struct HttpClient *client) {
   int rc;
 
@@ -232,16 +198,6 @@ int transport_factory_init_client(struct HttpClient *client) {
   return rc;
 }
 
-/**
- * @brief Free the transport context within a client.
- *
- * Calls the platform-specific context free function on `client->transport`.
- * NOTE: This function does *not* free the `client` pointer itself, nor
- * other members like `base_url` or `config`; it only handles the opaque
- * transport handle.
- *
- * @param[in] client The client containing the transport handle.
- */
 void transport_factory_cleanup_client(struct HttpClient *client) {
   if (!client || !client->transport) {
     return;

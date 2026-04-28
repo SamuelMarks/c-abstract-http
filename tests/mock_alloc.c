@@ -87,8 +87,9 @@ char *c_abstract_http_mock_strdup(const char *s, char **out) {
 extern int pthread_key_create(pthread_key_t *, void (*)(void *));
 extern int pthread_mutex_init(pthread_mutex_t *, const pthread_mutexattr_t *);
 extern int pthread_cond_init(pthread_cond_t *, const pthread_condattr_t *);
-extern int pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
-extern int pipe(int [2]);
+extern int pthread_create(pthread_t *, const pthread_attr_t *,
+                          void *(*)(void *), void *);
+extern int pipe(int[2]);
 extern pid_t fork(void);
 extern pid_t waitpid(pid_t, int *, int);
 extern int select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
@@ -96,49 +97,71 @@ extern long long real_math_get_current_time_ms(void);
 extern int pthread_setspecific(pthread_key_t, const void *);
 extern void *pthread_getspecific(pthread_key_t);
 
-int c_abstract_http_mock_pthread_key_create(pthread_key_t *key, void (*destructor)(void*));
-int c_abstract_http_mock_pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
-int c_abstract_http_mock_pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
-int c_abstract_http_mock_pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
+int c_abstract_http_mock_pthread_key_create(pthread_key_t *key,
+                                            void (*destructor)(void *));
+int c_abstract_http_mock_pthread_mutex_init(pthread_mutex_t *mutex,
+                                            const pthread_mutexattr_t *attr);
+int c_abstract_http_mock_pthread_cond_init(pthread_cond_t *cond,
+                                           const pthread_condattr_t *attr);
+int c_abstract_http_mock_pthread_create(pthread_t *thread,
+                                        const pthread_attr_t *attr,
+                                        void *(*start_routine)(void *),
+                                        void *arg);
 int c_abstract_http_mock_pipe(int fildes[2]);
 pid_t c_abstract_http_mock_fork(void);
 pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options);
-int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds, struct timeval *timeout);
+int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
+                                fd_set *errorfds, struct timeval *timeout);
 long long c_abstract_http_mock_math_get_current_time_ms(void);
-int c_abstract_http_mock_pthread_setspecific(pthread_key_t key, const void *value);
+int c_abstract_http_mock_pthread_setspecific(pthread_key_t key,
+                                             const void *value);
 void *c_abstract_http_mock_pthread_getspecific(pthread_key_t key);
 
 int g_mock_pthread_fail = 0;
 
-int c_abstract_http_mock_pthread_key_create(pthread_key_t *key, void (*destructor)(void*)) {
-    if (g_mock_pthread_fail == 1) return 1; /* Return non-zero on failure */
-    return pthread_key_create(key, destructor);
+int c_abstract_http_mock_pthread_key_create(pthread_key_t *key,
+                                            void (*destructor)(void *)) {
+  if (g_mock_pthread_fail == 1)
+    return 1; /* Return non-zero on failure */
+  return pthread_key_create(key, destructor);
 }
 
-int c_abstract_http_mock_pthread_setspecific(pthread_key_t key, const void *value) {
-    if (g_mock_pthread_fail == 1) return 1;
-    return pthread_setspecific(key, value);
+int c_abstract_http_mock_pthread_setspecific(pthread_key_t key,
+                                             const void *value) {
+  if (g_mock_pthread_fail == 1)
+    return 1;
+  return pthread_setspecific(key, value);
 }
 
 void *c_abstract_http_mock_pthread_getspecific(pthread_key_t key) {
-    if (g_mock_pthread_fail == 1) return NULL;
-    return pthread_getspecific(key);
+  if (g_mock_pthread_fail == 1)
+    return NULL;
+  return pthread_getspecific(key);
 }
 
-int c_abstract_http_mock_pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr) {
-    if (g_mock_pthread_fail == 1) return 1;
-    return pthread_mutex_init(mutex, attr);
+int c_abstract_http_mock_pthread_mutex_init(pthread_mutex_t *mutex,
+                                            const pthread_mutexattr_t *attr) {
+  if (g_mock_pthread_fail == 1)
+    return 1;
+  return pthread_mutex_init(mutex, attr);
 }
 
-int c_abstract_http_mock_pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr) {
-    if (g_mock_pthread_fail == 1) return 1;
-    return pthread_cond_init(cond, attr);
+int c_abstract_http_mock_pthread_cond_init(pthread_cond_t *cond,
+                                           const pthread_condattr_t *attr) {
+  if (g_mock_pthread_fail == 1)
+    return 1;
+  return pthread_cond_init(cond, attr);
 }
 
-int c_abstract_http_mock_pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg) {
-    if (g_mock_pthread_fail == 1) return 1;
-    if (g_mock_pthread_fail == 2 && g_mock_alloc_count-- == 0) return 1;
-    return pthread_create(thread, attr, start_routine, arg);
+int c_abstract_http_mock_pthread_create(pthread_t *thread,
+                                        const pthread_attr_t *attr,
+                                        void *(*start_routine)(void *),
+                                        void *arg) {
+  if (g_mock_pthread_fail == 1)
+    return 1;
+  if (g_mock_pthread_fail == 2 && g_mock_alloc_count-- == 0)
+    return 1;
+  return pthread_create(thread, attr, start_routine, arg);
 }
 
 int g_mock_pipe_fail = 0;
@@ -146,45 +169,47 @@ int g_mock_fork_fail = 0;
 int g_mock_waitpid_fail = 0;
 
 int c_abstract_http_mock_pipe(int fildes[2]) {
-    if (g_mock_pipe_fail) {
-        errno = EMFILE;
-        return -1;
-    }
-    return pipe(fildes);
+  if (g_mock_pipe_fail) {
+    errno = EMFILE;
+    return -1;
+  }
+  return pipe(fildes);
 }
 
 pid_t c_abstract_http_mock_fork(void) {
-    if (g_mock_fork_fail) {
-        errno = EAGAIN;
-        return -1;
-    }
-    return fork();
+  if (g_mock_fork_fail) {
+    errno = EAGAIN;
+    return -1;
+  }
+  return fork();
 }
 
 pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options) {
-    if (g_mock_waitpid_fail == 1) {
-        errno = ECHILD;
-        return -1;
-    }
-    if (g_mock_waitpid_fail == 2) {
-        /* WIFEXITED == false */
-        if (stat_loc) *stat_loc = 0x007F; /* simulate stopped by signal */
-        return pid;
-    }
-    return waitpid(pid, stat_loc, options);
+  if (g_mock_waitpid_fail == 1) {
+    errno = ECHILD;
+    return -1;
+  }
+  if (g_mock_waitpid_fail == 2) {
+    /* WIFEXITED == false */
+    if (stat_loc)
+      *stat_loc = 0x007F; /* simulate stopped by signal */
+    return pid;
+  }
+  return waitpid(pid, stat_loc, options);
 }
 
 int g_mock_select_fail = 0;
-int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds, struct timeval *timeout) {
-    if (g_mock_select_fail == 1 && errorfds) {
-        /* Force error flag on all fds */
-        int i;
-        for (i = 0; i < nfds; ++i) {
-            FD_SET(i, errorfds);
-        }
-        return nfds;
+int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
+                                fd_set *errorfds, struct timeval *timeout) {
+  if (g_mock_select_fail == 1 && errorfds) {
+    /* Force error flag on all fds */
+    int i;
+    for (i = 0; i < nfds; ++i) {
+      FD_SET(i, errorfds);
     }
-    return select(nfds, readfds, writefds, errorfds, timeout);
+    return nfds;
+  }
+  return select(nfds, readfds, writefds, errorfds, timeout);
 }
 
 int g_mock_time_jump = 0;
@@ -194,35 +219,141 @@ int g_mock_time_jump_count = 0;
 extern long long real_math_get_current_time_ms(void);
 
 long long c_abstract_http_mock_math_get_current_time_ms(void) {
-    long long now = real_math_get_current_time_ms();
-    if (g_mock_time_jump) {
-        if (g_mock_time_jump_count-- <= 0) {
-            now += 1000;
-        }
+  long long now = real_math_get_current_time_ms();
+  if (g_mock_time_jump) {
+    if (g_mock_time_jump_count-- <= 0) {
+      now += 1000;
     }
-    return now;
+  }
+  return now;
 }
 
 void dummy_cb_thread(void *arg) { (void)arg; }
 
 int c_abstract_http_mock_cdd_strdup(const char *s, char **out) {
-    if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
-        if (out) *out = NULL;
-        return 12; /* ENOMEM */
+  if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
+    if (out)
+      *out = NULL;
+    return 12; /* ENOMEM */
+  }
+  if (!s) {
+    if (out)
+      *out = NULL;
+    return 22; /* EINVAL */
+  }
+  {
+    size_t len = strlen(s);
+    char *d = (char *)malloc(len + 1);
+    if (!d) {
+      if (out)
+        *out = NULL;
+      return 12;
     }
-    if (!s) {
-        if (out) *out = NULL;
-        return 22; /* EINVAL */
-    }
-    {
-        size_t len = strlen(s);
-        char *d = (char*)malloc(len + 1);
-        if (!d) {
-            if (out) *out = NULL;
-            return 12;
-        }
-        memcpy(d, s, len + 1);
-        if (out) *out = d;
-        return 0;
-    }
+    memcpy(d, s, len + 1);
+    if (out)
+      *out = d;
+    return 0;
+  }
+}
+
+#include <stddef.h>
+#include <stdio.h>
+
+extern size_t fwrite(const void *, size_t, size_t, FILE *);
+extern int fclose(FILE *);
+
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <sys/socket.h>
+#endif
+
+extern int g_mock_fwrite_fail;
+extern int g_mock_fclose_fail;
+extern int g_mock_socket_fail;
+extern int g_mock_bind_fail;
+extern int g_mock_listen_fail;
+extern int g_mock_accept_fail;
+extern int g_mock_recv_fail;
+
+int g_mock_fwrite_fail = 0;
+int g_mock_fclose_fail = 0;
+int g_mock_socket_fail = 0;
+int g_mock_bind_fail = 0;
+int g_mock_listen_fail = 0;
+int g_mock_accept_fail = 0;
+int g_mock_recv_fail = 0;
+
+#undef fwrite
+#undef fclose
+#undef socket
+#undef bind
+#undef listen
+#undef accept
+#undef recv
+
+extern size_t fwrite(const void *, size_t, size_t, FILE *);
+extern int fclose(FILE *);
+
+#ifdef _WIN32
+extern SOCKET socket(int, int, int);
+extern int bind(SOCKET, const struct sockaddr *, int);
+extern int listen(SOCKET, int);
+extern SOCKET accept(SOCKET, struct sockaddr *, int *);
+extern int recv(SOCKET, char *, int, int);
+#else
+extern int socket(int, int, int);
+extern int bind(int, const struct sockaddr *, socklen_t);
+extern int listen(int, int);
+extern int accept(int, struct sockaddr *, socklen_t *);
+extern ssize_t recv(int, void *, size_t, int);
+#endif
+
+size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nitems,
+                                   FILE *stream) {
+  if (g_mock_fwrite_fail)
+    return 0;
+  return fwrite(ptr, size, nitems, stream);
+}
+
+int c_abstract_http_mock_fclose(FILE *stream) {
+
+  if (g_mock_fclose_fail) {
+    fclose(stream);
+    return EOF;
+  }
+  return fclose(stream);
+}
+
+int c_abstract_http_mock_socket(int domain, int type, int protocol) {
+  if (g_mock_socket_fail)
+    return -1;
+  return socket(domain, type, protocol);
+}
+
+int c_abstract_http_mock_bind(int socket, const struct sockaddr *address,
+                              socklen_t address_len) {
+  if (g_mock_bind_fail)
+    return -1;
+  return bind(socket, address, address_len);
+}
+
+int c_abstract_http_mock_listen(int socket, int backlog) {
+  if (g_mock_listen_fail)
+    return -1;
+  return listen(socket, backlog);
+}
+
+int c_abstract_http_mock_accept(int socket, struct sockaddr *address,
+                                socklen_t *address_len) {
+  if (g_mock_accept_fail)
+    return -1;
+  return accept(socket, address, address_len);
+}
+
+ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
+                                  int flags) {
+  if (g_mock_recv_fail)
+    return -1;
+  return recv(socket, buffer, length, flags);
 }

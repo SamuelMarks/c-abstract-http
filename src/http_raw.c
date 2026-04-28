@@ -1,10 +1,3 @@
-/**
- * @file http_raw.c
- * @brief Raw POSIX socket fallback implementation for HTTP client.
- *
- * Implements an HTTP/1.1 client using basic select/read/write/open/close
- * with optional crypto library integration.
- */
 
 /* clang-format off */
 #include <c_abstract_http/http_raw.h>

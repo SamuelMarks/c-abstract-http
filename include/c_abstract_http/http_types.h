@@ -20,14 +20,17 @@ extern "C" {
 #include <stddef.h>
 
 #ifndef ENOTSUP
+/** @brief ENOTSUP macro */
 #define ENOTSUP EINVAL
 #endif
 
 #ifndef ENOSYS
+/** @brief ENOSYS macro */
 #define ENOSYS EINVAL
 #endif
 
 #ifndef ECANCELED
+/** @brief ECANCELED macro */
 #define ECANCELED EINVAL
 #endif
 
@@ -48,10 +51,13 @@ extern "C" {
 
 #ifndef C_ABSTRACT_HTTP_NUM_FORMAT
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+/** @brief C_ABSTRACT_HTTP_NUM_FORMAT macro */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%I64d"
 #elif defined(__LP64__) || defined(_LP64) || defined(__x86_64__) || defined(__aarch64__)
+/** @brief C_ABSTRACT_HTTP_NUM_FORMAT macro */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%ld"
 #else
+/** @brief C_ABSTRACT_HTTP_NUM_FORMAT macro */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%lld"
 #endif
 #endif
@@ -59,6 +65,7 @@ extern "C" {
 #if defined(_MSC_VER) && (_MSC_VER < 1600)
 typedef __int64 cdd_int64_t;
 typedef unsigned __int64 cdd_uint64_t;
+/** @brief CDD_INT64_FMT macro */
 #define CDD_INT64_FMT "%I64d"
 #else
 #if defined(_MSC_VER) && _MSC_VER < 1600
@@ -118,8 +125,11 @@ typedef unsigned __int64 uint64_t;
 #endif
 #endif
 /* clang-format on */
+/** @brief cdd_int64_t typedef */
 typedef int64_t cdd_int64_t;
+/** @brief cdd_uint64_t typedef */
 typedef uint64_t cdd_uint64_t;
+/** @brief CDD_INT64_FMT macro */
 #define CDD_INT64_FMT C_ABSTRACT_HTTP_NUM_FORMAT
 #endif
 
@@ -442,24 +452,28 @@ extern int http_client_send_multi(struct HttpClient *client,
 /* --- Lifecycle Management --- */
 
 /** @brief http_headers_init definition */
-extern /**
-        * @brief Executes the http_headers_init operation.
-        */
-    int
-    http_headers_init(struct HttpHeaders *headers);
+/**
+ * @brief Executes the http_headers_init operation.
+ * @param headers The headers parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int http_headers_init(struct HttpHeaders *headers);
 /** @brief http_headers_free definition */
-extern /**
-        * @brief Executes the http_headers_free operation.
-        */
-    void
-    http_headers_free(struct HttpHeaders *headers);
+/**
+ * @brief Executes the http_headers_free operation.
+ * @param headers The headers parameter.
+ */
+extern void http_headers_free(struct HttpHeaders *headers);
 /** @brief http_headers_add definition */
-extern /**
-        * @brief Executes the http_headers_add operation.
-        */
-    int
-    http_headers_add(struct HttpHeaders *headers, const char *key,
-                     const char *value);
+/**
+ * @brief Executes the http_headers_add operation.
+ * @param headers The headers parameter.
+ * @param key The key parameter.
+ * @param value The value parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int http_headers_add(struct HttpHeaders *headers, const char *key,
+                            const char *value);
 
 /**
  * @brief Retrieves the value for a specific header key.
@@ -513,43 +527,46 @@ extern int http_cookie_jar_get(const struct HttpCookieJar *jar,
                                const char *name, const char **out);
 
 /** @brief http_config_init definition */
-extern /**
-        * @brief Executes the http_config_init operation.
-        */
-    int
-    http_config_init(struct HttpConfig *config);
+/**
+ * @brief Executes the http_config_init operation.
+ * @param config The config parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int http_config_init(struct HttpConfig *config);
 /** @brief http_config_free definition */
-extern /**
-        * @brief Executes the http_config_free operation.
-        */
-    void
-    http_config_free(struct HttpConfig *config);
+/**
+ * @brief Executes the http_config_free operation.
+ * @param config The config parameter.
+ */
+extern void http_config_free(struct HttpConfig *config);
 
 /** @brief http_client_init definition */
-extern /**
-        * @brief Executes the http_client_init operation.
-        */
-    int
-    http_client_init(struct HttpClient *client);
+/**
+ * @brief Executes the http_client_init operation.
+ * @param client The client parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int http_client_init(struct HttpClient *client);
 /** @brief http_client_free definition */
-extern /**
-        * @brief Executes the http_client_free operation.
-        */
-    void
-    http_client_free(struct HttpClient *client);
+/**
+ * @brief Executes the http_client_free operation.
+ * @param client The client parameter.
+ */
+extern void http_client_free(struct HttpClient *client);
 
 /** @brief http_request_init definition */
-extern /**
-        * @brief Executes the http_request_init operation.
-        */
-    int
-    http_request_init(struct HttpRequest *req);
+/**
+ * @brief Executes the http_request_init operation.
+ * @param req The req parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_init(struct HttpRequest *req);
 /** @brief http_request_free definition */
-extern /**
-        * @brief Executes the http_request_free operation.
-        */
-    void
-    http_request_free(struct HttpRequest *req);
+/**
+ * @brief Executes the http_request_free operation.
+ * @param req The req parameter.
+ */
+extern void http_request_free(struct HttpRequest *req);
 
 /**
  * @brief Initialize a ModalityContext.
@@ -600,11 +617,14 @@ extern int http_multi_request_add(struct HttpMultiRequest *multi,
                                   struct HttpRequest *req);
 
 /** @brief http_request_set_auth_bearer definition */
-extern /**
-        * @brief Executes the http_request_set_auth_bearer operation.
-        */
-    int
-    http_request_set_auth_bearer(struct HttpRequest *req, const char *token);
+/**
+ * @brief Executes the http_request_set_auth_bearer operation.
+ * @param req The req parameter.
+ * @param token The token parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int http_request_set_auth_bearer(struct HttpRequest *req,
+                                        const char *token);
 /**
  * @brief Set HTTP Basic Authorization header with a pre-encoded token.
  *
@@ -846,18 +866,24 @@ extern int http_oauth2_localhost_intercept(unsigned short port,
                                            char **out_error_desc);
 
 /** @brief http_response_init definition */
-extern /**
-        * @brief Executes the http_response_init operation.
-        */
-    int
-    http_response_init(struct HttpResponse *res);
+/**
+ * @brief Executes the http_response_init operation.
+ * @param res The res parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int http_response_init(struct HttpResponse *res);
 /** @brief http_response_free definition */
-extern /**
-        * @brief Executes the http_response_free operation.
-        */
-    void
-    http_response_free(struct HttpResponse *res);
-/** @brief http_response_save_to_file definition */
+/**
+ * @brief Executes the http_response_free operation.
+ * @param res The res parameter.
+ */
+extern void http_response_free(struct HttpResponse *res);
+/**
+ * @brief Saves an HTTP response to a file.
+ * @param res The HTTP response object.
+ * @param path The path to the file.
+ * @return 0 on success, or an error code.
+ */
 extern int http_response_save_to_file(const struct HttpResponse *res,
                                       const char *path);
 

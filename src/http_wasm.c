@@ -1,9 +1,3 @@
-/**
- * @file http_wasm.c
- * @brief Implementation of the Wasm (Emscripten builtin-fetch) backend.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>
@@ -21,35 +15,23 @@
 #endif
 /* clang-format on */
 
-/**
- * @brief Opaque context definition.
- */
 struct HttpTransportContext {
   struct HttpConfig config;
 };
 
 static int wasm_global_init_count = 0;
 
-/**
- * @brief Executes the http_wasm_global_init operation.
- */
 int http_wasm_global_init(void) {
   wasm_global_init_count++;
   return 0;
 }
 
-/**
- * @brief Executes the http_wasm_global_cleanup operation.
- */
 void http_wasm_global_cleanup(void) {
   if (wasm_global_init_count > 0) {
     wasm_global_init_count--;
   }
 }
 
-/**
- * @brief Executes the http_wasm_context_init operation.
- */
 int http_wasm_context_init(struct HttpTransportContext **ctx) {
   int rc;
   LOG_DEBUG("http_wasm_context_init: Entering");
@@ -77,9 +59,6 @@ int http_wasm_context_init(struct HttpTransportContext **ctx) {
   return 0;
 }
 
-/**
- * @brief Executes the http_wasm_context_free operation.
- */
 void http_wasm_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wasm_context_free: Entering");
   if (ctx) {
@@ -89,9 +68,6 @@ void http_wasm_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wasm_context_free: Exiting");
 }
 
-/**
- * @brief Executes the http_wasm_config_apply operation.
- */
 int http_wasm_config_apply(struct HttpTransportContext *ctx,
                            const struct HttpConfig *config) {
   LOG_DEBUG("http_wasm_config_apply: Entering");
@@ -143,9 +119,6 @@ static int get_method_str(enum HttpMethod method, const char **out_str) {
   return 0;
 }
 
-/**
- * @brief Executes the http_wasm_send operation.
- */
 int http_wasm_send(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, struct HttpResponse **res) {
 #ifdef __EMSCRIPTEN__

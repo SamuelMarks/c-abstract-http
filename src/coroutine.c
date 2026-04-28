@@ -1,8 +1,3 @@
-/**
- * @file coroutine.c
- * @brief Implementation of the minimalistic Greenthread / Coroutine API.
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <stdio.h>
@@ -44,14 +39,12 @@
 /* clang-format on */
 
 #ifndef ENOTSUP
-/** @brief Documented */
 #define ENOTSUP EINVAL
 #endif
 
 static struct CddCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL, NULL,
                                                      NULL};
 
-/** @brief Documented */
 void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
   if (hooks) {
     g_coroutine_hooks = *hooks;
@@ -60,7 +53,6 @@ void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
-/** @brief Documented */
 struct CddCoroutine {
   LPVOID fiber;
   LPVOID caller_fiber;
@@ -216,15 +208,14 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
 
 #elif !defined(CDD_NO_UCONTEXT) /* POSIX ucontext */
 
-/** @brief Documented */
 struct CddCoroutine {
-  ucontext_t ctx;        /**< @brief Documented */
-  ucontext_t caller_ctx; /**< @brief Documented */
-  void *stack;           /**< @brief Documented */
-  size_t stack_size;     /**< @brief Documented */
-  cdd_coroutine_cb cb;   /**< @brief Documented */
-  void *arg;             /**< @brief Documented */
-  int is_done;           /**< @brief Documented */
+  ucontext_t ctx;
+  ucontext_t caller_ctx;
+  void *stack;
+  size_t stack_size;
+  cdd_coroutine_cb cb;
+  void *arg;
+  int is_done;
 };
 
 /* We use a simple global thread-local pointer to track the current active
@@ -253,7 +244,6 @@ static void ucontext_entry(void) {
   }
 }
 
-/** @brief Documented */
 int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
   struct CddCoroutine *c;
@@ -314,7 +304,6 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
   return 0;
 }
 
-/** @brief Documented */
 void cdd_coroutine_free(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_free: Entering");
   if (g_coroutine_hooks.free) {
@@ -331,7 +320,6 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_free: Exiting");
 }
 
-/** @brief Documented */
 int cdd_coroutine_resume(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_resume: Entering");
   if (g_coroutine_hooks.resume) {
@@ -355,7 +343,6 @@ int cdd_coroutine_resume(struct CddCoroutine *co) {
   return 0;
 }
 
-/** @brief Documented */
 int cdd_coroutine_yield(void) {
   struct CddCoroutine *co;
 
@@ -384,7 +371,6 @@ int cdd_coroutine_yield(void) {
   return 0;
 }
 
-/** @brief Documented */
 int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co);
@@ -394,7 +380,6 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
 }
 
 #else
-
 
 struct CddCoroutine {
   pthread_t thread;
@@ -488,7 +473,8 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
     g_coroutine_hooks.free(co);
     return;
   }
-  if (!co) return;
+  if (!co)
+    return;
 
   if (co->is_started && !co->is_done) {
     pthread_mutex_lock(&co->mutex);
@@ -513,8 +499,10 @@ int cdd_coroutine_resume(struct CddCoroutine *co) {
     LOG_DEBUG("cdd_coroutine_resume (fallback): Hooking");
     return g_coroutine_hooks.resume(co);
   }
-  if (!co) return EINVAL;
-  if (co->is_done) return EINVAL;
+  if (!co)
+    return EINVAL;
+  if (co->is_done)
+    return EINVAL;
 
   pthread_mutex_lock(&co->mutex);
   if (!co->is_started) {
@@ -545,7 +533,8 @@ int cdd_coroutine_yield(void) {
 
   init_fallback_key();
   co = (struct CddCoroutine *)pthread_getspecific(co_fallback_key);
-  if (!co) return EINVAL;
+  if (!co)
+    return EINVAL;
 
   pthread_mutex_lock(&co->mutex);
   co->should_run = 0;
@@ -566,11 +555,11 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co);
   }
-  if (!co) return 1;
-  
+  if (!co)
+    return 1;
+
   /* We check safely */
   return co->is_done;
 }
-
 
 #endif

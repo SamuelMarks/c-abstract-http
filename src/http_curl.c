@@ -1,14 +1,3 @@
-/**
- * @file http_curl.c
- * @brief Implementation of the Libcurl backend.
- *
- * Handles HTTP requests via libcurl.
- * Includes support for Multipart/Form-Data by ensuring parts are flattened
- * before transmission if internal curl_mime isn't used (to maintain ABI
- * consistency with other transports).
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>
@@ -32,35 +21,23 @@
 #include "functions/parse/str.h"
 /* clang-format on */
 
-/**
- * @brief Opaque context definition.
- */
 struct HttpTransportContext {
-  CURL *curl;                       /**< The libcurl handle */
-  struct HttpCookieJar *cookie_jar; /**< Weak reference to shared cookie jar */
-  CURLM *multi;                     /**< The libcurl multi handle */
-  struct ModalityEventLoop *loop;   /**< @brief Documented */
-  int timer_id;                     /**< @brief Documented */
+  CURL *curl;
+  struct HttpCookieJar *cookie_jar;
+  CURLM *multi;
+  struct ModalityEventLoop *loop;
+  int timer_id;
 };
 
-/**
- * @brief Context for the Curl write callback.
- */
 struct CurlWriteContext {
-  /** @brief Documented */
   struct MemoryStruct {
-    char *memory;                /**< @brief Documented */
-    size_t size;                 /**< @brief Documented */
-  } chunk;                       /**< @brief Documented */
-  const struct HttpRequest *req; /**< @brief Documented */
-  int user_aborted;              /**< @brief Documented */
+    char *memory;
+    size_t size;
+  } chunk;
+  const struct HttpRequest *req;
+  int user_aborted;
 };
 
-/**
- * @brief Libcurl write callback.
- * Appends data to buffer and maintains null-terminator safety,
- * or delegates to a user-provided on_chunk callback.
- */
 static size_t math_write_memory_callback(void *contents, size_t size,
                                          size_t nmemb, void *userp) {
   size_t realsize = size * nmemb;
@@ -92,15 +69,8 @@ static size_t math_write_memory_callback(void *contents, size_t size,
   return realsize;
 }
 
-/**
- * @brief Libcurl read callback for streaming uploads.
- */
-static /**
-        * @brief Executes the math_curl_read_callback operation.
-        */
-    size_t
-    math_curl_read_callback(char *buffer, size_t size, size_t nitems,
-                            void *userdata) {
+static size_t math_curl_read_callback(char *buffer, size_t size, size_t nitems,
+                                      void *userdata) {
   const struct HttpRequest *req = (const struct HttpRequest *)userdata;
   size_t max_bytes = size * nitems;
   size_t out_read = 0;
@@ -118,11 +88,8 @@ static /**
   return out_read;
 }
 
-static /**
-        * @brief Executes the format_header operation.
-        */
-    int
-    format_header(const char *key, const char *value, char **_out_val) {
+static extern int format_header(const char *key, const char *value,
+                                char **_out_val) {
   size_t len = strlen(key) + 2 + strlen(value) + 1;
   char *buf = (char *)malloc(len);
   if (buf) {
@@ -138,11 +105,7 @@ static /**
   }
 }
 
-static /**
-        * @brief Executes the map_curl_error operation.
-        */
-    int
-    map_curl_error(CURLcode res) {
+static extern int map_curl_error(CURLcode res) {
   switch (res) {
   case CURLE_OK:
     return 0;
@@ -170,11 +133,7 @@ static /**
   }
 }
 
-/**
- * @brief Executes the http_curl_global_init operation.
- */
 static int g_curl_init_count = 0;
-/** @brief Documented */
 int http_curl_global_init(void) {
   if (g_curl_init_count == 0) {
     if (curl_global_init(CURL_GLOBAL_ALL) != 0) {
@@ -185,9 +144,6 @@ int http_curl_global_init(void) {
   return 0;
 }
 
-/**
- * @brief Executes the http_curl_global_cleanup operation.
- */
 void http_curl_global_cleanup(void) {
   if (g_curl_init_count > 0) {
     g_curl_init_count--;
@@ -197,9 +153,6 @@ void http_curl_global_cleanup(void) {
   }
 }
 
-/**
- * @brief Executes the http_curl_context_init operation.
- */
 int http_curl_context_init(struct HttpTransportContext **const ctx) {
   LOG_DEBUG("http_curl_context_init: Entering");
   if (!ctx) {
@@ -234,9 +187,6 @@ int http_curl_context_init(struct HttpTransportContext **const ctx) {
   return 0;
 }
 
-/**
- * @brief Executes the http_curl_context_free operation.
- */
 void http_curl_context_free(struct HttpTransportContext *const ctx) {
   LOG_DEBUG("http_curl_context_free: Entering");
   if (ctx) {
@@ -249,9 +199,6 @@ void http_curl_context_free(struct HttpTransportContext *const ctx) {
   LOG_DEBUG("http_curl_context_free: Exiting");
 }
 
-/**
- * @brief Executes the http_curl_config_apply operation.
- */
 int http_curl_config_apply(struct HttpTransportContext *ctx,
                            const struct HttpConfig *config) {
   LOG_DEBUG("http_curl_config_apply: Entering");
@@ -635,9 +582,6 @@ cleanup:
   return rc;
 }
 
-/**
- * @brief Executes the http_curl_send operation.
- */
 int http_curl_send(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req,
                    struct HttpResponse **const res) {
@@ -673,14 +617,13 @@ int http_curl_send(struct HttpTransportContext *ctx,
   }
   return rc;
 }
-/** @brief Documented */
 struct CurlMultiTask {
-  CURL *easy;                        /**< @brief Documented */
-  struct curl_slist *headers;        /**< @brief Documented */
-  struct CurlWriteContext write_ctx; /**< @brief Documented */
-  struct HttpFuture *future;         /**< @brief Documented */
-  struct HttpTransportContext *ctx;  /**< @brief Documented */
-  const struct HttpRequest *req;     /**< @brief Documented */
+  CURL *easy;
+  struct curl_slist *headers;
+  struct CurlWriteContext write_ctx;
+  struct HttpFuture *future;
+  struct HttpTransportContext *ctx;
+  const struct HttpRequest *req;
 };
 
 static void check_multi_info(struct HttpTransportContext *ctx) {
@@ -779,7 +722,6 @@ static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
   return 0;
 }
 
-/** @brief Documented */
 int http_curl_send_multi(struct HttpTransportContext *ctx,
                          struct ModalityEventLoop *loop,
                          const struct HttpMultiRequest *multi,

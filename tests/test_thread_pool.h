@@ -40,7 +40,6 @@ extern "C" {
 extern void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool);
 extern void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool);
 
-
 static void sleep_ms(int ms) {
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   Sleep(ms);
@@ -154,30 +153,31 @@ static int dummy_hook_push(void *ctx, cdd_thread_task_cb cb, void *arg) {
 TEST test_thread_pool_edge_cases(void) {
   struct CddThreadPool *pool;
   struct CddThreadPoolHooks hooks;
-  
+
   /* 470: pool == NULL */
   ASSERT_EQ(EINVAL, cdd_thread_pool_init_external(NULL, &hooks));
-  
+
   /* 498: test hook push */
   memset(&hooks, 0, sizeof(hooks));
   hooks.push = dummy_hook_push;
   ASSERT_EQ(0, cdd_thread_pool_init_external(&pool, &hooks));
   ASSERT_EQ(0, cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
   cdd_thread_pool_free(pool);
-  
+
   /* 516-519: push when stopped */
   /* and 563-565: tasks left in queue */
   ASSERT_EQ(0, cdd_thread_pool_init(&pool, 1));
   cdd_thread_pool_test_set_stop(pool);
   ASSERT_EQ(EINVAL, cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
-  
-  /* Stop the pool first, let it join threads, THEN inject task to test cleanup */
+
+  /* Stop the pool first, let it join threads, THEN inject task to test cleanup
+   */
   cdd_thread_pool_free(pool);
-  
+
   /* I can create a fake pool to free! */
   {
-      extern void cdd_thread_pool_test_free_with_tasks(void);
-      cdd_thread_pool_test_free_with_tasks();
+    extern void cdd_thread_pool_test_free_with_tasks(void);
+    cdd_thread_pool_test_free_with_tasks();
   }
 
   PASS();
@@ -201,7 +201,7 @@ TEST test_thread_pool_pthread_create_failures(void) {
   ASSERT_EQ(EIO, rc);
 
   g_mock_pthread_fail = 0;
-  
+
   /* also test external init failure */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -239,7 +239,7 @@ TEST test_thread_pool_fallback_paths(void) {
   struct CddMutex *lock = NULL;
   struct CddCond *cond = NULL;
   int rc;
-  
+
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_mutex_init(&lock);
@@ -254,7 +254,7 @@ TEST test_thread_pool_fallback_paths(void) {
   g_mock_alloc_count = 0;
   rc = cdd_thread_pool_init(&pool, 1);
   ASSERT_EQ(ENOMEM, rc);
-  
+
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
   rc = cdd_thread_pool_init(&pool, 1);
@@ -269,7 +269,7 @@ TEST test_thread_pool_fallback_paths(void) {
   g_mock_alloc_count = 3;
   rc = cdd_thread_pool_init(&pool, 1);
   ASSERT_EQ(EIO, rc);
-  
+
   g_mock_alloc_fail = 0;
   rc = cdd_thread_pool_init(&pool, 1);
   ASSERT_EQ(0, rc);

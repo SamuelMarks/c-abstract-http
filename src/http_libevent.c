@@ -1,9 +1,3 @@
-/**
- * @file http_libevent.c
- * @brief Implementation of the libevent backend using evhttp.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>
@@ -34,7 +28,6 @@ struct HttpTransportContext {
 
 static int libevent_global_init_count = 0;
 
-/** @brief Documented */
 int http_libevent_global_init(void) {
   libevent_global_init_count++;
 #ifdef _WIN32
@@ -46,7 +39,6 @@ int http_libevent_global_init(void) {
   return 0;
 }
 
-/** @brief Documented */
 void http_libevent_global_cleanup(void) {
   if (libevent_global_init_count > 0) {
     libevent_global_init_count--;
@@ -58,7 +50,6 @@ void http_libevent_global_cleanup(void) {
   }
 }
 
-/** @brief Documented */
 int http_libevent_context_init(struct HttpTransportContext **ctx) {
   int rc;
   LOG_DEBUG("http_libevent_context_init: Entering");
@@ -88,7 +79,6 @@ int http_libevent_context_init(struct HttpTransportContext **ctx) {
   return 0;
 }
 
-/** @brief Documented */
 void http_libevent_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libevent_context_free: Entering");
   if (ctx) {
@@ -98,7 +88,6 @@ void http_libevent_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libevent_context_free: Exiting");
 }
 
-/** @brief Documented */
 int http_libevent_config_apply(struct HttpTransportContext *ctx,
                                const struct HttpConfig *config) {
   if (!ctx || !config) {
@@ -225,7 +214,6 @@ static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
 
 #endif /* C_ABSTRACT_HTTP_USE_LIBEVENT */
 
-/** @brief Documented */
 int http_libevent_send(struct HttpTransportContext *ctx,
                        const struct HttpRequest *req,
                        struct HttpResponse **res) {

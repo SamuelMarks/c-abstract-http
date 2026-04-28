@@ -392,7 +392,6 @@ int c_abstract_http_sse_sync_read_loop(struct HttpClient *client,
   return 0;
 }
 
-
 void c_abstract_http_sse_async_task(void *arg) {
   struct c_abstract_http_sse_async_ctx *ctx =
       (struct c_abstract_http_sse_async_ctx *)arg;

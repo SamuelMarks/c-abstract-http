@@ -1,8 +1,3 @@
-/**
- * @file http_types.c
- * @brief Implementation of HTTP types lifecycle and Multipart Logic.
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <ctype.h>
@@ -40,10 +35,7 @@ extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 
 #include <stdarg.h>
 
-static /**
-        * @brief Case-insensitive string comparison helper
-        */
-    int
+static     int
     strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
   while (*s1 && *s2) {
     int diff = tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
@@ -58,13 +50,10 @@ static /**
   return 0;
 }
 
-static /**
-        * @brief Executes the sprintf_s_wrapper operation.
-        */
 #if defined(__GNUC__) || defined(__clang__)
-    __attribute__((format(printf, 4, 5)))
+__attribute__((format(printf, 4, 5)))
 #endif
-    int sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fmt,
+static int sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fmt,
                           ...) {
   int written;
   va_list args;
@@ -79,9 +68,6 @@ static /**
   return written;
 }
 
-/**
- * @brief Executes the http_headers_init operation.
- */
 int http_headers_init(struct HttpHeaders *headers) {
   if (!headers)
     return EINVAL;
@@ -91,9 +77,6 @@ int http_headers_init(struct HttpHeaders *headers) {
   return 0;
 }
 
-/**
- * @brief Executes the http_headers_free operation.
- */
 void http_headers_free(struct HttpHeaders *headers) {
   size_t i;
   if (!headers)
@@ -113,9 +96,6 @@ void http_headers_free(struct HttpHeaders *headers) {
   headers->capacity = 0;
 }
 
-/**
- * @brief Executes the http_headers_add operation.
- */
 int http_headers_add(struct HttpHeaders *headers, const char *key,
                      const char *value) {
   char *_ast_strdup_0 = NULL;
@@ -149,9 +129,6 @@ int http_headers_add(struct HttpHeaders *headers, const char *key,
   return 0;
 }
 
-/**
- * @brief Retrieves the value for a specific header key.
- */
 int http_headers_get(const struct HttpHeaders *headers, const char *key,
                      const char **out) {
   size_t i;
@@ -168,9 +145,6 @@ int http_headers_get(const struct HttpHeaders *headers, const char *key,
   }
   return ENOENT;
 }
-/**
- * @brief Removes a header by key.
- */
 int http_headers_remove(struct HttpHeaders *headers, const char *key) {
   size_t i, j;
   int found = 0;
@@ -204,9 +178,6 @@ int http_headers_remove(struct HttpHeaders *headers, const char *key) {
 
 /* --- Multipart Implementation --- */
 
-/**
- * @brief Executes the http_parts_init operation.
- */
 int http_parts_init(struct HttpParts *parts) {
   if (!parts)
     return EINVAL;
@@ -216,9 +187,6 @@ int http_parts_init(struct HttpParts *parts) {
   return 0;
 }
 
-/**
- * @brief Executes the http_parts_free operation.
- */
 void http_parts_free(struct HttpParts *parts) {
   size_t i;
   if (!parts)
@@ -244,9 +212,6 @@ void http_parts_free(struct HttpParts *parts) {
   parts->capacity = 0;
 }
 
-/**
- * @brief Executes the http_request_add_part operation.
- */
 int http_request_add_part(struct HttpRequest *req, const char *name,
                           const char *filename, const char *content_type,
                           const void *data, size_t data_len) {
@@ -308,9 +273,6 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
   return 0;
 }
 
-/**
- * @brief Executes the http_request_add_part_header_last operation.
- */
 int http_request_add_part_header_last(struct HttpRequest *req, const char *key,
                                       const char *value) {
   struct HttpPart *part;
@@ -322,9 +284,6 @@ int http_request_add_part_header_last(struct HttpRequest *req, const char *key,
   return http_headers_add(&part->headers, key, value);
 }
 
-/**
- * @brief Executes the http_request_flatten_parts operation.
- */
 int http_request_flatten_parts(struct HttpRequest *req) {
   char boundary[64];
   size_t i;
@@ -374,8 +333,7 @@ int http_request_flatten_parts(struct HttpRequest *req) {
 
     for (h = 0; h < part->headers.count; ++h) {
       const struct HttpHeader *hdr = &part->headers.headers[h];
-      if (!hdr->key || !hdr->value)
-        continue;
+      
       estimated_size += strlen(hdr->key) + 2 + strlen(hdr->value) + 2;
     }
 
@@ -431,8 +389,7 @@ int http_request_flatten_parts(struct HttpRequest *req) {
 
     for (h = 0; h < part->headers.count; ++h) {
       const struct HttpHeader *hdr = &part->headers.headers[h];
-      if (!hdr->key || !hdr->value)
-        continue;
+      
       written = sprintf_s_wrapper(buffer, pos, estimated_size, "%s: %s\r\n",
                                   hdr->key, hdr->value);
       pos += written;
@@ -484,9 +441,6 @@ int http_request_flatten_parts(struct HttpRequest *req) {
   return 0;
 }
 
-/**
- * @brief Initialize a cookie jar.
- */
 int http_cookie_jar_init(struct HttpCookieJar *jar) {
   if (!jar)
     return EINVAL;
@@ -496,9 +450,6 @@ int http_cookie_jar_init(struct HttpCookieJar *jar) {
   return 0;
 }
 
-/**
- * @brief Free resources held by a cookie jar.
- */
 void http_cookie_jar_free(struct HttpCookieJar *jar) {
   size_t i;
   if (!jar)
@@ -509,9 +460,9 @@ void http_cookie_jar_free(struct HttpCookieJar *jar) {
         free(jar->cookies[i].name);
       if (jar->cookies[i].value)
         free(jar->cookies[i].value);
-      if (jar->cookies[i].domain)
+
         free(jar->cookies[i].domain);
-      if (jar->cookies[i].path)
+
         free(jar->cookies[i].path);
     }
     free(jar->cookies);
@@ -521,9 +472,6 @@ void http_cookie_jar_free(struct HttpCookieJar *jar) {
   jar->capacity = 0;
 }
 
-/**
- * @brief Add or update a cookie in the jar.
- */
 int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
                         const char *value) {
   char *_ast_strdup_cname = NULL;
@@ -575,9 +523,6 @@ int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
   return 0;
 }
 
-/**
- * @brief Get a cookie value from the jar.
- */
 int http_cookie_jar_get(const struct HttpCookieJar *jar, const char *name,
                         const char **out) {
   size_t i;
@@ -592,9 +537,6 @@ int http_cookie_jar_get(const struct HttpCookieJar *jar, const char *name,
   return ENOENT;
 }
 
-/**
- * @brief Executes the http_config_init operation.
- */
 int http_config_init(struct HttpConfig *config) {
   char *_ast_strdup_5 = NULL;
   if (!config)
@@ -631,9 +573,6 @@ int http_config_init(struct HttpConfig *config) {
   return 0;
 }
 
-/**
- * @brief Executes the http_config_free operation.
- */
 void http_config_free(struct HttpConfig *config) {
   if (!config)
     return;
@@ -655,9 +594,6 @@ void http_config_free(struct HttpConfig *config) {
   }
 }
 
-/**
- * @brief Executes the http_client_init operation.
- */
 int http_client_init(struct HttpClient *client) {
   if (!client)
     return EINVAL;
@@ -666,9 +602,6 @@ int http_client_init(struct HttpClient *client) {
   return http_config_init(&client->config);
 }
 
-/**
- * @brief Executes the http_client_free operation.
- */
 void http_client_free(struct HttpClient *client) {
   if (!client)
     return;
@@ -681,9 +614,6 @@ void http_client_free(struct HttpClient *client) {
   }
 }
 
-/**
- * @brief Executes the http_request_init operation.
- */
 int http_request_init(struct HttpRequest *req) {
   if (!req)
     return EINVAL;
@@ -701,9 +631,6 @@ int http_request_init(struct HttpRequest *req) {
   return 0;
 }
 
-/**
- * @brief Executes the http_request_free operation.
- */
 void http_request_free(struct HttpRequest *req) {
   if (!req)
     return;
@@ -719,7 +646,6 @@ void http_request_free(struct HttpRequest *req) {
   http_parts_free(&req->parts);
 }
 
-/** @brief Documented */
 int http_modality_context_init(struct ModalityContext *ctx) {
   if (!ctx)
     return EINVAL;
@@ -728,7 +654,6 @@ int http_modality_context_init(struct ModalityContext *ctx) {
   return 0;
 }
 
-/** @brief Documented */
 void http_modality_context_free(struct ModalityContext *ctx) {
   if (!ctx)
     return;
@@ -736,7 +661,6 @@ void http_modality_context_free(struct ModalityContext *ctx) {
   ctx->internal_ctx = NULL;
 }
 
-/** @brief Documented */
 int http_future_init(struct HttpFuture *future) {
   if (!future)
     return EINVAL;
@@ -747,7 +671,6 @@ int http_future_init(struct HttpFuture *future) {
   return 0;
 }
 
-/** @brief Documented */
 void http_future_free(struct HttpFuture *future) {
   if (!future)
     return;
@@ -757,7 +680,6 @@ void http_future_free(struct HttpFuture *future) {
   future->internal_state = NULL;
 }
 
-/** @brief Documented */
 int http_multi_request_init(struct HttpMultiRequest *multi) {
   if (!multi)
     return EINVAL;
@@ -767,7 +689,6 @@ int http_multi_request_init(struct HttpMultiRequest *multi) {
   return 0;
 }
 
-/** @brief Documented */
 void http_multi_request_free(struct HttpMultiRequest *multi) {
   if (!multi)
     return;
@@ -780,7 +701,6 @@ void http_multi_request_free(struct HttpMultiRequest *multi) {
   multi->capacity = 0;
 }
 
-/** @brief Documented */
 int http_multi_request_add(struct HttpMultiRequest *multi,
                            struct HttpRequest *req) {
   if (!multi || !req)
@@ -800,9 +720,6 @@ int http_multi_request_add(struct HttpMultiRequest *multi,
   return 0;
 }
 
-/**
- * @brief Executes the http_request_set_auth_bearer operation.
- */
 int http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
   char *val = NULL;
   int rc;
@@ -828,9 +745,6 @@ int http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
   return rc;
 }
 
-/**
- * @brief Executes the http_request_set_auth_basic operation.
- */
 int http_request_set_auth_basic(struct HttpRequest *req, const char *token) {
   char *val = NULL;
   int rc;
@@ -856,17 +770,13 @@ int http_request_set_auth_basic(struct HttpRequest *req, const char *token) {
   return rc;
 }
 
-/**
- * @brief Simple base64 encoder for basic auth
- */
 static int base64_encode(const unsigned char *src, size_t len, char **out) {
   static const char b64[] =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   char *res;
   size_t olen = 4 * ((len + 2) / 3);
   size_t i, j;
-  if (!src || !out)
-    return EINVAL;
+  
   res = (char *)malloc(olen + 1);
   if (!res)
     return ENOMEM;
@@ -894,9 +804,6 @@ static int base64_encode(const unsigned char *src, size_t len, char **out) {
   return 0;
 }
 
-/**
- * @brief Executes the http_request_set_auth_basic_userpwd operation.
- */
 int http_request_set_auth_basic_userpwd(struct HttpRequest *req,
                                         const char *username,
                                         const char *password) {
@@ -932,8 +839,7 @@ int http_request_set_auth_basic_userpwd(struct HttpRequest *req,
 static size_t urlencode_len(const char *src) {
   size_t len = 0;
   const char *p;
-  if (!src)
-    return 0;
+  
   for (p = src; *p; p++) {
     unsigned char c = (unsigned char)*p;
     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -953,8 +859,7 @@ static void urlencode_append(char **dest, const char *src) {
   static const char *hex = "0123456789ABCDEF";
   const char *p;
   char *q = *dest;
-  if (!src)
-    return;
+  
   for (p = src; *p; p++) {
     unsigned char c = (unsigned char)*p;
     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -972,9 +877,6 @@ static void urlencode_append(char **dest, const char *src) {
   *dest = q;
 }
 
-/**
- * @brief Executes the http_request_init_oauth2_password_grant operation.
- */
 int http_request_init_oauth2_password_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *username, const char *password, const char *client_id,
@@ -1057,9 +959,6 @@ int http_request_init_oauth2_password_grant(
   return 0;
 }
 
-/**
- * @brief Executes the http_request_init_oauth2_refresh_token_grant operation.
- */
 int http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
                                                  const char *token_endpoint_url,
                                                  const char *refresh_token,
@@ -1138,10 +1037,6 @@ int http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
   return 0;
 }
 
-/**
- * @brief Executes the http_request_init_oauth2_authorization_code_grant
- * operation.
- */
 int http_request_init_oauth2_authorization_code_grant(
     struct HttpRequest *req, const char *token_endpoint_url, const char *code,
     const char *redirect_uri, const char *client_id, const char *client_secret,
@@ -1226,10 +1121,6 @@ int http_request_init_oauth2_authorization_code_grant(
   return 0;
 }
 
-/**
- * @brief Executes the http_request_init_oauth2_client_credentials_grant
- * operation.
- */
 int http_request_init_oauth2_client_credentials_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *client_secret, const char *scope) {
@@ -1299,9 +1190,6 @@ int http_request_init_oauth2_client_credentials_grant(
   return 0;
 }
 
-/**
- * @brief Executes the http_request_init_oauth2_jwt_bearer_grant operation.
- */
 int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
                                               const char *token_endpoint_url,
                                               const char *assertion,
@@ -1362,10 +1250,6 @@ int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
   return 0;
 }
 
-/**
- * @brief Executes the http_request_init_oauth2_device_authorization_request
- * operation.
- */
 int http_request_init_oauth2_device_authorization_request(
     struct HttpRequest *req, const char *device_endpoint_url,
     const char *client_id, const char *scope) {
@@ -1415,10 +1299,6 @@ int http_request_init_oauth2_device_authorization_request(
   return 0;
 }
 
-/**
- * @brief Executes the http_request_init_oauth2_device_access_token_request
- * operation.
- */
 int http_request_init_oauth2_device_access_token_request(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *device_code) {
@@ -1471,9 +1351,6 @@ int http_request_init_oauth2_device_access_token_request(
   return 0;
 }
 
-/**
- * @brief Executes the http_request_init_oauth2_token_revocation operation.
- */
 int http_request_init_oauth2_token_revocation(
     struct HttpRequest *req, const char *revocation_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
@@ -1541,9 +1418,6 @@ int http_request_init_oauth2_token_revocation(
   return 0;
 }
 
-/**
- * @brief Executes the http_request_init_oauth2_token_introspection operation.
- */
 int http_request_init_oauth2_token_introspection(
     struct HttpRequest *req, const char *introspection_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
@@ -1611,9 +1485,6 @@ int http_request_init_oauth2_token_introspection(
   return 0;
 }
 
-/**
- * @brief Executes the http_oauth2_build_authorization_url operation.
- */
 int http_oauth2_build_authorization_url(
     const char *auth_endpoint, const char *client_id, const char *response_type,
     const char *redirect_uri, const char *scope, const char *state,
@@ -1704,13 +1575,9 @@ typedef SOCKET cdd_socket_t;
 #define CDD_INVALID_SOCKET_VAL INVALID_SOCKET
 #define CDD_SOCKET_ERROR_VAL SOCKET_ERROR
 #else
-/** @brief Documented */
 #define CDD_CLOSESOCKET close
-/** @brief Documented */
 typedef int cdd_socket_t;
-/** @brief Documented */
 #define CDD_INVALID_SOCKET_VAL -1
-/** @brief Documented */
 #define CDD_SOCKET_ERROR_VAL -1
 #endif
 
@@ -1718,8 +1585,7 @@ typedef int cdd_socket_t;
 static int urldecode_alloc(const char *src, size_t src_len, char **out) {
   char *dst = (char *)malloc(src_len + 1);
   size_t i, j = 0;
-  if (!dst)
-    return ENOMEM;
+  
   for (i = 0; i < src_len; i++) {
     if (src[i] == '%') {
       if (i + 2 < src_len) {
@@ -1742,9 +1608,6 @@ static int urldecode_alloc(const char *src, size_t src_len, char **out) {
 }
 #endif
 
-/**
- * @brief Executes the http_oauth2_localhost_intercept operation.
- */
 int http_oauth2_localhost_intercept(unsigned short port,
                                     const char *html_response, char **out_code,
                                     char **out_state, char **out_error,
@@ -1858,20 +1721,16 @@ int http_oauth2_localhost_intercept(unsigned short port,
       }
 
       if (key_len == 4 && strncmp(key, "code", 4) == 0 && out_code && val) {
-        if (urldecode_alloc(val, val_len, out_code) != 0)
-          rc = ENOMEM;
+        urldecode_alloc(val, val_len, out_code);
       } else if (key_len == 5 && strncmp(key, "state", 5) == 0 && out_state &&
                  val) {
-        if (urldecode_alloc(val, val_len, out_state) != 0)
-          rc = ENOMEM;
+        urldecode_alloc(val, val_len, out_state);
       } else if (key_len == 5 && strncmp(key, "error", 5) == 0 && out_error &&
                  val) {
-        if (urldecode_alloc(val, val_len, out_error) != 0)
-          rc = ENOMEM;
+        urldecode_alloc(val, val_len, out_error);
       } else if (key_len == 17 && strncmp(key, "error_description", 17) == 0 &&
                  out_error_desc && val) {
-        if (urldecode_alloc(val, val_len, out_error_desc) != 0)
-          rc = ENOMEM;
+        urldecode_alloc(val, val_len, out_error_desc);
       }
 
       if (*p == '&')
@@ -1891,9 +1750,6 @@ cleanup:
 #endif
 }
 
-/**
- * @brief Executes the http_response_init operation.
- */
 int http_response_init(struct HttpResponse *res) {
   if (!res)
     return EINVAL;
@@ -1903,9 +1759,6 @@ int http_response_init(struct HttpResponse *res) {
   return http_headers_init(&res->headers);
 }
 
-/**
- * @brief Executes the http_response_free operation.
- */
 void http_response_free(struct HttpResponse *res) {
   if (!res)
     return;
@@ -1916,9 +1769,6 @@ void http_response_free(struct HttpResponse *res) {
   http_headers_free(&res->headers);
 }
 
-/**
- * @brief Executes the http_response_save_to_file operation.
- */
 int http_response_save_to_file(const struct HttpResponse *res,
                                const char *path) {
   FILE *f = NULL;
@@ -1957,7 +1807,6 @@ int http_response_save_to_file(const struct HttpResponse *res,
   return 0;
 }
 
-/** @brief Documented */
 int http_client_send_multi(struct HttpClient *client,
                            struct HttpRequest *const *requests,
                            size_t num_requests, struct HttpFuture **futures,
@@ -1975,8 +1824,7 @@ int http_client_send_multi(struct HttpClient *client,
   (void)user_data;
   (void)fail_fast;
 
-  if (http_multi_request_init(&multi) != 0)
-    return ENOMEM;
+  http_multi_request_init(&multi);
 
   for (i = 0; i < num_requests; ++i) {
     if (http_multi_request_add(&multi, requests[i]) != 0) {
@@ -2028,7 +1876,6 @@ void c_abstract_http_log_debug(const char *fmt, ...);
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((format(printf, 1, 2)))
 #endif
-/** @brief Documented */
 void c_abstract_http_log_debug(const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);

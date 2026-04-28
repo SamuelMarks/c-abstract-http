@@ -34,17 +34,21 @@ extern "C" {
 #endif
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+/** @brief SIZE_T_FMT macro */
 #define SIZE_T_FMT "Iu"
 
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
 #include <inttypes.h>
 /* clang-format on */
+/** @brief SIZE_T_FMT macro */
 #define SIZE_T_FMT "zu"
 
 #elif defined(__LP64__) || defined(_LP64)
+/** @brief SIZE_T_FMT macro */
 #define SIZE_T_FMT "lu"
 
 #else
+/** @brief SIZE_T_FMT macro */
 #define SIZE_T_FMT "lu"
 
 #endif

@@ -1,9 +1,3 @@
-/**
- * @file http_aria2.c
- * @brief Implementation of the aria2 backend.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <errno.h>
@@ -18,15 +12,12 @@
 /* clang-format on */
 
 struct HttpTransportContext {
-  struct HttpConfig config; /**< @brief Documented */
+  struct HttpConfig config;
 };
 
-/** @brief Documented */
 int http_aria2_global_init(void) { return 0; }
-/** @brief Documented */
 void http_aria2_global_cleanup(void) {}
 
-/** @brief Documented */
 int http_aria2_context_init(struct HttpTransportContext **const ctx) {
   int rc;
   LOG_DEBUG("http_aria2_context_init: Entering");
@@ -54,7 +45,6 @@ int http_aria2_context_init(struct HttpTransportContext **const ctx) {
   return 0;
 }
 
-/** @brief Documented */
 void http_aria2_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_aria2_context_free: Entering");
   if (ctx) {
@@ -64,7 +54,6 @@ void http_aria2_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_aria2_context_free: Exiting");
 }
 
-/** @brief Documented */
 int http_aria2_config_apply(struct HttpTransportContext *ctx,
                             const struct HttpConfig *config) {
   LOG_DEBUG("http_aria2_config_apply: Entering");
@@ -77,7 +66,6 @@ int http_aria2_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-/** @brief Documented */
 int http_aria2_send(struct HttpTransportContext *ctx,
                     const struct HttpRequest *req,
                     struct HttpResponse **const res) {
@@ -175,7 +163,6 @@ int http_aria2_send(struct HttpTransportContext *ctx,
   return rc;
 }
 
-/** @brief Documented */
 int http_aria2_send_multi(struct HttpTransportContext *ctx,
                           struct ModalityEventLoop *loop,
                           const struct HttpMultiRequest *multi,

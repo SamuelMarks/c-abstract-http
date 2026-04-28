@@ -158,7 +158,8 @@ TEST test_crypto_oom(void) {
   extern int g_mock_alloc_count;
   g_mock_alloc_fail = 1;
 
-  ASSERT_EQ(ENOMEM, base64_encode((const unsigned char *)"a", 1, &b64_str, &b64_len));
+  ASSERT_EQ(ENOMEM,
+            base64_encode((const unsigned char *)"a", 1, &b64_str, &b64_len));
   g_mock_alloc_count = 0;
   ASSERT_EQ(ENOMEM, base64_decode("abcd", 4, &dec_data, &dec_len));
 
@@ -169,15 +170,15 @@ TEST test_crypto_oom(void) {
 TEST test_sha1_rollover(void) {
   struct sha1_ctx ctx;
   unsigned char out[20];
-  
+
   sha1_init(&ctx);
   /* Simulate that we have hashed almost 2^32 bits */
   ctx.count[0] = 0xFFFFFFF8; /* 2^32 - 8 bits */
   ctx.count[1] = 0;
-  
+
   sha1_update(&ctx, (const unsigned char *)"a", 1); /* adds 8 bits, rollover */
   sha1_final(&ctx, out);
-  
+
   PASS();
 }
 
@@ -203,7 +204,3 @@ int main(int argc, char **argv) {
   RUN_SUITE(crypto_suite);
   GREATEST_MAIN_END();
 }
-
-
-
-

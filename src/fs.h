@@ -57,10 +57,12 @@ typedef struct stat c_stat;
  * @return 1 if UNC, 0 otherwise.
  */
 extern /**
-        * @brief Executes the path_is_unc operation.
-        */
-    int
-    path_is_unc(const char *path, int *out_is_unc);
+ * @brief Executes the path_is_unc operation.
+ * @param path The path parameter.
+ * @param out_is_unc The out_is_unc parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int path_is_unc(const char *path, int *out_is_unc);
 
 /**
  * @brief Convert ASCII string to Wide string (Windows only).
@@ -72,10 +74,14 @@ extern /**
  * @return 0 on success, non-zero error code on failure.
  */
 extern /**
-        * @brief Executes the ascii_to_wide operation.
-        */
-    int
-    ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out_len);
+ * @brief Executes the ascii_to_wide operation.
+ * @param s The s parameter.
+ * @param ws The ws parameter.
+ * @param buf_cap The buf_cap parameter.
+ * @param out_len The out_len parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out_len);
 
 /**
  * @brief Convert Wide string to ASCII string (Windows only).
@@ -87,10 +93,14 @@ extern /**
  * @return 0 on success, non-zero error code on failure.
  */
 extern /**
-        * @brief Executes the wide_to_ascii operation.
-        */
-    int
-    wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out_len);
+ * @brief Executes the wide_to_ascii operation.
+ * @param ws The ws parameter.
+ * @param s The s parameter.
+ * @param buf_cap The buf_cap parameter.
+ * @param out_len The out_len parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out_len);
 
 #else
 /* POSIX systems */
@@ -174,8 +184,11 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  */
 extern /**
         * @brief Executes the get_basename operation.
+        * @param path The path parameter.
+        * @param out The out parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     get_basename(const char *path, char **out);
 
 /**
@@ -188,8 +201,11 @@ extern /**
  */
 extern /**
         * @brief Executes the get_dirname operation.
+        * @param path The path parameter.
+        * @param out The out parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     get_dirname(const char *path, char **out);
 
 /**
@@ -204,8 +220,13 @@ extern /**
  */
 extern /**
         * @brief Executes the read_to_file operation.
+        * @param path The path parameter.
+        * @param mode The mode parameter.
+        * @param out_data The out_data parameter.
+        * @param out_size The out_size parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     read_to_file(const char *path, const char *mode, char **out_data,
                  size_t *out_size);
 
@@ -218,8 +239,11 @@ extern /**
  */
 extern /**
         * @brief Executes the fs_write_to_file operation.
+        * @param path The path parameter.
+        * @param content The content parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     fs_write_to_file(const char *path, const char *content);
 
 /**
@@ -233,8 +257,12 @@ extern /**
  */
 extern /**
         * @brief Executes the read_from_fh operation.
+        * @param fh The fh parameter.
+        * @param out_data The out_data parameter.
+        * @param out_size The out_size parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     read_from_fh(FILE *fh, char **out_data, size_t *out_size);
 
 /**
@@ -247,8 +275,11 @@ extern /**
  */
 extern /**
         * @brief Executes the cp operation.
+        * @param dst The dst parameter.
+        * @param src The src parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     cp(const char *dst, const char *src);
 
 /**
@@ -261,8 +292,10 @@ extern /**
  */
 extern /**
         * @brief Executes the makedir operation.
+        * @param path The path parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     makedir(const char *path);
 
 /**
@@ -273,8 +306,10 @@ extern /**
  */
 extern /**
         * @brief Executes the makedirs operation.
+        * @param path The path parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     makedirs(const char *path);
 
 /**
@@ -286,8 +321,10 @@ extern /**
  */
 extern /**
         * @brief Executes the tempdir operation.
+        * @param out_path The out_path parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     tempdir(char **out_path);
 
 /**
@@ -297,8 +334,9 @@ extern /**
  */
 extern /**
         * @brief Executes the FilenameAndPtr_cleanup operation.
+        * @param file The file parameter.
         */
-    void
+    extern void
     FilenameAndPtr_cleanup(struct FilenameAndPtr *file);
 
 /**
@@ -308,8 +346,9 @@ extern /**
  */
 extern /**
         * @brief Executes the FilenameAndPtr_delete_and_cleanup operation.
+        * @param file The file parameter.
         */
-    void
+    extern void
     FilenameAndPtr_delete_and_cleanup(struct FilenameAndPtr *file);
 
 /**
@@ -324,8 +363,13 @@ extern /**
  */
 extern /**
         * @brief Executes the mktmpfilegetnameandfile operation.
+        * @param prefix The prefix parameter.
+        * @param suffix The suffix parameter.
+        * @param mode The mode parameter.
+        * @param file The file parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     mktmpfilegetnameandfile(const char *prefix, const char *suffix,
                             const char *mode, struct FilenameAndPtr *file);
 
@@ -349,8 +393,12 @@ typedef int (*fs_walk_cb)(const char *path, void *user_data);
  */
 extern /**
         * @brief Executes the walk_directory operation.
+        * @param path The path parameter.
+        * @param cb The cb parameter.
+        * @param user_data The user_data parameter.
+        * @return 0 on success, or an error code.
         */
-    int
+    extern int
     walk_directory(const char *path, fs_walk_cb cb, void *user_data);
 
 #ifdef __cplusplus

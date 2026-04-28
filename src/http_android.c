@@ -1,12 +1,3 @@
-/**
- * @file http_android.c
- * @brief Android JNI implementation of the Abstract Network Interface.
- *
- * Implements the HTTP transport using Android's java.net.HttpURLConnection.
- * Due to JNI requirements, this depends heavily on the Android JVM.
- *
- * @author Samuel Marks
- */
 
 /* clang-format off */
 #include <c_abstract_http/http_android.h>
@@ -32,22 +23,13 @@ struct HttpTransportContext {
   int verify_host;
 };
 
-/**
- * @brief Executes the http_android_global_init operation.
- */
 int http_android_global_init(void) {
   /* Typically JVM is retrieved via JNI_OnLoad, assuming it's done elsewhere */
   return 0;
 }
 
-/**
- * @brief Executes the http_android_global_cleanup operation.
- */
 void http_android_global_cleanup(void) { /* No-op */ }
 
-/**
- * @brief Executes the http_android_context_init operation.
- */
 int http_android_context_init(struct HttpTransportContext **ctx) {
   int rc;
   LOG_DEBUG("http_android_context_init: Entering");
@@ -80,9 +62,6 @@ int http_android_context_init(struct HttpTransportContext **ctx) {
   return 0;
 }
 
-/**
- * @brief Executes the http_android_context_free operation.
- */
 void http_android_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_android_context_free: Entering");
   if (ctx) {
@@ -92,9 +71,6 @@ void http_android_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_android_context_free: Exiting");
 }
 
-/**
- * @brief Executes the http_android_config_apply operation.
- */
 int http_android_config_apply(struct HttpTransportContext *ctx,
                               const struct HttpConfig *config) {
   LOG_DEBUG("http_android_config_apply: Entering");
@@ -111,9 +87,6 @@ int http_android_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-/**
- * @brief Executes the http_android_send operation.
- */
 int http_android_send(struct HttpTransportContext *ctx,
                       const struct HttpRequest *req,
                       struct HttpResponse **res) {

@@ -138,10 +138,10 @@ TEST test_coroutine_hooks(void) {
 TEST test_coroutine_fallback_paths(void) {
   struct CddCoroutine *co = NULL;
   int rc;
-  
+
   struct CoroutineTestState state;
   state.counter = 0;
-  
+
   /* coverage for ENOMEM */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -153,7 +153,7 @@ TEST test_coroutine_fallback_paths(void) {
   /* coverage for free while running */
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
   ASSERT_EQ(0, rc);
-  
+
   /* We start it, let it yield, then free it */
   ASSERT_EQ(0, cdd_coroutine_resume(co));
   cdd_coroutine_free(co);
@@ -173,4 +173,3 @@ SUITE(coroutine_suite) {
 #endif /* __cplusplus */
 
 #endif
-
