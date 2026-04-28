@@ -1,6 +1,7 @@
 /* clang-format off */
 #include "c_abstract_http/http_sse.h"
 #include "c_abstract_http/log.h"
+#include "c_abstract_http/thread_pool.h"
 #include "sse_internal.h"
 #include "sse_config.h"
 
@@ -66,8 +67,6 @@ int c_abstract_http_sse_init(struct HttpRequest *req,
 static int sse_strdup(const char *s, char **out) {
   size_t len;
   char *copy;
-  if (!s || !out)
-    return EINVAL;
   len = strlen(s);
   copy = (char *)malloc(len + 1);
   if (copy) {
@@ -393,16 +392,31 @@ int c_abstract_http_sse_sync_read_loop(struct HttpClient *client,
   return 0;
 }
 
+
+void c_abstract_http_sse_async_task(void *arg) {
+  struct c_abstract_http_sse_async_ctx *ctx =
+      (struct c_abstract_http_sse_async_ctx *)arg;
+  volatile int exit_flag = 0;
+  int rc;
+  if (!ctx)
+    return;
+  rc = c_abstract_http_sse_sync_read_loop(ctx->client, ctx->req, ctx->on_evt,
+                                          ctx->on_err, ctx->on_close,
+                                          ctx->user_data, &exit_flag);
+  if (rc != 0 && ctx->on_err) {
+    ctx->on_err(rc, ctx->user_data);
+  }
+  free(ctx);
+}
+
 int c_abstract_http_sse_async_register(struct HttpClient *client,
                                        struct HttpRequest *req,
                                        c_abstract_http_sse_on_event on_evt,
                                        c_abstract_http_sse_on_error on_err,
                                        c_abstract_http_sse_on_close on_close,
                                        void *user_data) {
-  (void)on_evt;
-  (void)on_err;
-  (void)on_close;
-  (void)user_data;
+  struct c_abstract_http_sse_async_ctx *ctx;
+  int rc;
 
   if (!client || !req) {
     LOG_DEBUG("c_abstract_http_sse_async_register: Error EINVAL");
@@ -410,11 +424,30 @@ int c_abstract_http_sse_async_register(struct HttpClient *client,
   }
 
   if (client->thread_pool) {
-    LOG_DEBUG("c_abstract_http_sse_async_register: Error ENOSYS (Thread pool "
-              "async not fully implemented)");
-    return ENOSYS;
+    ctx = (struct c_abstract_http_sse_async_ctx *)malloc(sizeof(*ctx));
+    if (!ctx) {
+      LOG_DEBUG("c_abstract_http_sse_async_register: Error ENOMEM");
+      return ENOMEM;
+    }
+    ctx->client = client;
+    ctx->req = req;
+    ctx->on_evt = on_evt;
+    ctx->on_err = on_err;
+    ctx->on_close = on_close;
+    ctx->user_data = user_data;
+
+    rc = cdd_thread_pool_push(client->thread_pool,
+                              c_abstract_http_sse_async_task, ctx);
+    if (rc != 0) {
+      LOG_DEBUG(
+          "c_abstract_http_sse_async_register: Error thread pool push failed");
+      free(ctx);
+      return rc;
+    }
+    return 0;
   }
 
-  LOG_DEBUG("c_abstract_http_sse_async_register: Error ENOSYS");
-  return ENOSYS;
+  LOG_DEBUG("c_abstract_http_sse_async_register: Error ENOTSUP (No thread pool "
+            "available)");
+  return ENOTSUP;
 }

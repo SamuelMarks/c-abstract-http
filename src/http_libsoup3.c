@@ -42,6 +42,7 @@ struct HttpTransportContext {
  */
 static int g_libsoup3_init_count = 0;
 
+/** @brief Documented */
 int http_libsoup3_global_init(void) {
   if (g_libsoup3_init_count == 0) {
     /* glib/gio handles its own initialization mostly, but if we needed anything

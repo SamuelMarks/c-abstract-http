@@ -1,3 +1,0 @@
-rm
--rf
-/workspace_build/build_*

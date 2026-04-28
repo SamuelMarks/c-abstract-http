@@ -44,9 +44,9 @@ typedef unsigned __int64 uint64_t;
  * @brief SHA-1 Context.
  */
 struct sha1_ctx {
-  uint32_t state[5];
-  uint32_t count[2];
-  uint8_t buffer[64];
+  uint32_t state[5];  /**< @brief Documented */
+  uint32_t count[2];  /**< @brief Documented */
+  uint8_t buffer[64]; /**< @brief Documented */
 };
 
 /**

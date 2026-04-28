@@ -1,0 +1,228 @@
+/* clang-format off */
+#include <stdio.h>
+#include <string.h>
+#include "mock_alloc.h"
+
+int g_mock_alloc_fail = 0;
+int g_mock_alloc_count = 0;
+
+#undef malloc
+#undef calloc
+#undef realloc
+#undef free
+#undef strdup
+#undef pthread_key_create
+#undef pthread_setspecific
+#undef pthread_mutex_init
+#undef pthread_cond_init
+#undef pthread_create
+#undef pipe
+#undef fork
+#undef waitpid
+#undef select
+#undef math_get_current_time_ms
+#undef pthread_getspecific
+
+/* Real declarations */
+extern void *malloc(size_t);
+extern void *calloc(size_t, size_t);
+extern void *realloc(void *, size_t);
+extern void free(void *);
+
+void *c_abstract_http_mock_malloc(size_t size);
+void *c_abstract_http_mock_calloc(size_t count, size_t size);
+void *c_abstract_http_mock_realloc(void *ptr, size_t size);
+void c_abstract_http_mock_free(void *ptr);
+char *c_abstract_http_mock_strdup(const char *s, char **out);
+
+void *c_abstract_http_mock_malloc(size_t size) {
+    if (g_mock_alloc_fail) { printf("mock alloc check: count=%d\n", g_mock_alloc_count); if (g_mock_alloc_count-- == 0) { printf("mock alloc returning NULL\n"); return NULL; } }
+    return malloc(size);
+}
+
+void *c_abstract_http_mock_calloc(size_t count, size_t size) {
+    if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
+        return NULL;
+    }
+    return calloc(count, size);
+}
+
+void *c_abstract_http_mock_realloc(void *ptr, size_t size) {
+    if (g_mock_alloc_fail) { printf("mock alloc check: count=%d\n", g_mock_alloc_count); if (g_mock_alloc_count-- == 0) { printf("mock alloc returning NULL\n"); return NULL; } }
+    return realloc(ptr, size);
+}
+
+void c_abstract_http_mock_free(void *ptr) {
+    free(ptr);
+}
+
+char *c_abstract_http_mock_strdup(const char *s, char **out) {
+    if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
+        if (out) *out = NULL;
+        return NULL;
+    }
+    if (!s) {
+        if (out) *out = NULL;
+        return NULL;
+    }
+    {
+        size_t len = strlen(s);
+        char *d = (char*)malloc(len + 1);
+        if (!d) {
+            if (out) *out = NULL;
+            return NULL;
+        }
+        memcpy(d, s, len + 1);
+        if (out) *out = d;
+        return d;
+    }
+}
+
+#include <pthread.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <errno.h>
+/* clang-format on */
+extern int pthread_key_create(pthread_key_t *, void (*)(void *));
+extern int pthread_mutex_init(pthread_mutex_t *, const pthread_mutexattr_t *);
+extern int pthread_cond_init(pthread_cond_t *, const pthread_condattr_t *);
+extern int pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
+extern int pipe(int [2]);
+extern pid_t fork(void);
+extern pid_t waitpid(pid_t, int *, int);
+extern int select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
+extern long long real_math_get_current_time_ms(void);
+extern int pthread_setspecific(pthread_key_t, const void *);
+extern void *pthread_getspecific(pthread_key_t);
+
+int c_abstract_http_mock_pthread_key_create(pthread_key_t *key, void (*destructor)(void*));
+int c_abstract_http_mock_pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
+int c_abstract_http_mock_pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
+int c_abstract_http_mock_pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
+int c_abstract_http_mock_pipe(int fildes[2]);
+pid_t c_abstract_http_mock_fork(void);
+pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options);
+int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds, struct timeval *timeout);
+long long c_abstract_http_mock_math_get_current_time_ms(void);
+int c_abstract_http_mock_pthread_setspecific(pthread_key_t key, const void *value);
+void *c_abstract_http_mock_pthread_getspecific(pthread_key_t key);
+
+int g_mock_pthread_fail = 0;
+
+int c_abstract_http_mock_pthread_key_create(pthread_key_t *key, void (*destructor)(void*)) {
+    if (g_mock_pthread_fail == 1) return 1; /* Return non-zero on failure */
+    return pthread_key_create(key, destructor);
+}
+
+int c_abstract_http_mock_pthread_setspecific(pthread_key_t key, const void *value) {
+    if (g_mock_pthread_fail == 1) return 1;
+    return pthread_setspecific(key, value);
+}
+
+void *c_abstract_http_mock_pthread_getspecific(pthread_key_t key) {
+    if (g_mock_pthread_fail == 1) return NULL;
+    return pthread_getspecific(key);
+}
+
+int c_abstract_http_mock_pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr) {
+    if (g_mock_pthread_fail == 1) return 1;
+    return pthread_mutex_init(mutex, attr);
+}
+
+int c_abstract_http_mock_pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr) {
+    if (g_mock_pthread_fail == 1) return 1;
+    return pthread_cond_init(cond, attr);
+}
+
+int c_abstract_http_mock_pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg) {
+    if (g_mock_pthread_fail == 1) return 1;
+    if (g_mock_pthread_fail == 2 && g_mock_alloc_count-- == 0) return 1;
+    return pthread_create(thread, attr, start_routine, arg);
+}
+
+int g_mock_pipe_fail = 0;
+int g_mock_fork_fail = 0;
+int g_mock_waitpid_fail = 0;
+
+int c_abstract_http_mock_pipe(int fildes[2]) {
+    if (g_mock_pipe_fail) {
+        errno = EMFILE;
+        return -1;
+    }
+    return pipe(fildes);
+}
+
+pid_t c_abstract_http_mock_fork(void) {
+    if (g_mock_fork_fail) {
+        errno = EAGAIN;
+        return -1;
+    }
+    return fork();
+}
+
+pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options) {
+    if (g_mock_waitpid_fail == 1) {
+        errno = ECHILD;
+        return -1;
+    }
+    if (g_mock_waitpid_fail == 2) {
+        /* WIFEXITED == false */
+        if (stat_loc) *stat_loc = 0x007F; /* simulate stopped by signal */
+        return pid;
+    }
+    return waitpid(pid, stat_loc, options);
+}
+
+int g_mock_select_fail = 0;
+int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds, struct timeval *timeout) {
+    if (g_mock_select_fail == 1 && errorfds) {
+        /* Force error flag on all fds */
+        int i;
+        for (i = 0; i < nfds; ++i) {
+            FD_SET(i, errorfds);
+        }
+        return nfds;
+    }
+    return select(nfds, readfds, writefds, errorfds, timeout);
+}
+
+int g_mock_time_jump = 0;
+int g_mock_time_jump_count = 0;
+
+#undef math_get_current_time_ms
+extern long long real_math_get_current_time_ms(void);
+
+long long c_abstract_http_mock_math_get_current_time_ms(void) {
+    long long now = real_math_get_current_time_ms();
+    if (g_mock_time_jump) {
+        if (g_mock_time_jump_count-- <= 0) {
+            now += 1000;
+        }
+    }
+    return now;
+}
+
+void dummy_cb_thread(void *arg) { (void)arg; }
+
+int c_abstract_http_mock_cdd_strdup(const char *s, char **out) {
+    if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
+        if (out) *out = NULL;
+        return 12; /* ENOMEM */
+    }
+    if (!s) {
+        if (out) *out = NULL;
+        return 22; /* EINVAL */
+    }
+    {
+        size_t len = strlen(s);
+        char *d = (char*)malloc(len + 1);
+        if (!d) {
+            if (out) *out = NULL;
+            return 12;
+        }
+        memcpy(d, s, len + 1);
+        if (out) *out = d;
+        return 0;
+    }
+}

@@ -11,6 +11,7 @@
 #include <errno.h>
 /* clang-format on */
 
+/** @brief Documented */
 int cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
   LOG_DEBUG("cmp_http_modality_adapter: Entering");
   if (!out_mod) {
@@ -47,6 +48,7 @@ int cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
   return 0;
 }
 
+/** @brief Documented */
 int cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
                            struct HttpConfig *http_config) {
   enum ExecutionModality http_mod;
@@ -79,6 +81,7 @@ int cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
   return 0;
 }
 
+/** @brief Documented */
 int cmp_http_progress_adapter(size_t current_bytes, size_t total_bytes,
                               void *user_data) {
   struct CmpProgressBinding *binding = (struct CmpProgressBinding *)user_data;

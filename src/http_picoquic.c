@@ -198,13 +198,23 @@ int http_picoquic_send_multi(struct HttpTransportContext *ctx,
                              struct ModalityEventLoop *loop,
                              const struct HttpMultiRequest *multi,
                              struct HttpFuture **futures) {
+  size_t i;
   /* Attach picoquic_prepare_next_packet timing to the event loop */
-  (void)ctx;
   (void)loop;
-  (void)multi;
-  (void)futures;
-  LOG_DEBUG("http_picoquic_send_multi: Error ENOSYS");
-  return ENOSYS;
+
+  if (!ctx || !multi || !futures) {
+    LOG_DEBUG("http_picoquic_send_multi: Error EINVAL");
+    return EINVAL;
+  }
+
+  for (i = 0; i < multi->count; i++) {
+    struct HttpResponse *res = NULL;
+    int rc = http_picoquic_send(ctx, multi->requests[i], &res);
+    futures[i]->response = res;
+    futures[i]->error_code = rc;
+    futures[i]->is_ready = 1;
+  }
+  return 0;
 }
 
 #endif

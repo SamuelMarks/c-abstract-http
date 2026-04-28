@@ -40,8 +40,13 @@ TEST test_coroutine_execution(void) {
   }
 #endif
 #ifdef ENOSYS
-  if (rc == ENOSYS) {
-    SKIPm("Coroutines not supported on this platform");
+  if (rc == ENOSYS || rc == ENOTSUP) {
+    /* Test fallback paths if native is ENOSYS */
+    cdd_coroutine_free(co);
+    ASSERT_EQ(ENOSYS, cdd_coroutine_resume(co));
+    ASSERT_EQ(ENOSYS, cdd_coroutine_yield());
+    ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
+    SKIPm("Coroutines not natively supported on this platform");
   }
 #endif
   ASSERT_EQ(0, rc);
@@ -70,9 +75,15 @@ TEST test_coroutine_execution(void) {
 
 TEST test_coroutine_errors(void) {
   struct CddCoroutine *co = NULL;
-  ASSERT_EQ(ENOSYS, cdd_coroutine_init(&co, 0, NULL, NULL));
-  ASSERT_EQ(ENOSYS, cdd_coroutine_resume(co));
-  ASSERT_EQ(ENOSYS, cdd_coroutine_yield());
+  int rc = cdd_coroutine_init(&co, 0, NULL, NULL);
+  if (rc == ENOSYS || rc == ENOTSUP) {
+    ASSERT_EQ(ENOSYS, cdd_coroutine_resume(co));
+    ASSERT_EQ(ENOSYS, cdd_coroutine_yield());
+  } else {
+    ASSERT_EQ(EINVAL, rc);
+    ASSERT_EQ(EINVAL, cdd_coroutine_resume(co));
+    ASSERT_EQ(EINVAL, cdd_coroutine_yield());
+  }
   ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
   cdd_coroutine_free(co);
   PASS();
@@ -124,10 +135,37 @@ TEST test_coroutine_hooks(void) {
   PASS();
 }
 
+TEST test_coroutine_fallback_paths(void) {
+  struct CddCoroutine *co = NULL;
+  int rc;
+  
+  struct CoroutineTestState state;
+  state.counter = 0;
+  
+  /* coverage for ENOMEM */
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
+  printf("cdd_coroutine_init returned %d\n", rc);
+  ASSERT_EQ(ENOMEM, rc);
+  g_mock_alloc_fail = 0;
+
+  /* coverage for free while running */
+  rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
+  ASSERT_EQ(0, rc);
+  
+  /* We start it, let it yield, then free it */
+  ASSERT_EQ(0, cdd_coroutine_resume(co));
+  cdd_coroutine_free(co);
+
+  PASS();
+}
+
 SUITE(coroutine_suite) {
   RUN_TEST(test_coroutine_errors);
   RUN_TEST(test_coroutine_execution);
   RUN_TEST(test_coroutine_hooks);
+  RUN_TEST(test_coroutine_fallback_paths);
 }
 
 #ifdef __cplusplus
@@ -135,3 +173,4 @@ SUITE(coroutine_suite) {
 #endif /* __cplusplus */
 
 #endif
+

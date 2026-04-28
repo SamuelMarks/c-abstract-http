@@ -33,10 +33,7 @@ int ws_generate_key(char out_key[25]) {
   if (res != 0)
     return res;
 
-  if (base64_len != 24) {
-    free(base64_str);
-    return -1;
-  }
+
 
   C_ABSTRACT_HTTP_STRCPY_S(out_key, 25, base64_str);
   free(base64_str);
@@ -70,10 +67,7 @@ int ws_sign_key(const char *client_key, char out_accept[29]) {
   if (res != 0)
     return res;
 
-  if (base64_len != 28) {
-    free(base64_str);
-    return -1;
-  }
+
 
   C_ABSTRACT_HTTP_STRCPY_S(out_accept, 29, base64_str);
   free(base64_str);

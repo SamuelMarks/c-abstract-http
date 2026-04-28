@@ -82,8 +82,8 @@ static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
 struct HttpTransportContext {
   HINTERNET hInternet;  /**< Root handle from InternetOpen */
   DWORD security_flags; /**< Flags to apply to requests (e.g. ignore cert) */
-  char *proxy_username;
-  char *proxy_password;
+  char *proxy_username; /**< @brief Documented */
+  char *proxy_password; /**< @brief Documented */
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
 };

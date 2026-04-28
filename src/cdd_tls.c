@@ -92,10 +92,12 @@ void cdd_tls_key_delete(struct CddTlsKey *key) {
 
 #else
 
+/** @brief Documented */
 struct CddTlsKey {
-  pthread_key_t key;
+  pthread_key_t key; /**< @brief Documented */
 };
 
+/** @brief Documented */
 int cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *)) {
   int rc;
   LOG_DEBUG("cdd_tls_key_create: Entering");
@@ -119,6 +121,7 @@ int cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *)) {
   return 0;
 }
 
+/** @brief Documented */
 int cdd_tls_set(struct CddTlsKey *key, void *value) {
   int rc;
   LOG_DEBUG("cdd_tls_set: Entering");
@@ -135,6 +138,7 @@ int cdd_tls_set(struct CddTlsKey *key, void *value) {
   return 0;
 }
 
+/** @brief Documented */
 int cdd_tls_get(struct CddTlsKey *key, void **out_value) {
   LOG_DEBUG("cdd_tls_get: Entering");
   if (!key || !out_value) {
@@ -146,6 +150,7 @@ int cdd_tls_get(struct CddTlsKey *key, void **out_value) {
   return 0;
 }
 
+/** @brief Documented */
 void cdd_tls_key_delete(struct CddTlsKey *key) {
   LOG_DEBUG("cdd_tls_key_delete: Entering");
   if (key) {

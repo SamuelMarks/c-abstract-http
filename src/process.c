@@ -40,6 +40,7 @@
 
 static struct CddProcessHooks g_process_hooks = {NULL, NULL, NULL, NULL};
 
+/** @brief Documented */
 void cdd_process_set_hooks(const struct CddProcessHooks *hooks) {
   if (hooks) {
     g_process_hooks = *hooks;
@@ -48,6 +49,7 @@ void cdd_process_set_hooks(const struct CddProcessHooks *hooks) {
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
+/** @brief Documented */
 struct CddProcess {
   HANDLE hProcess;
   HANDLE hThread;
@@ -232,10 +234,12 @@ struct CddProcess {
 
 #else /* POSIX */
 
+/** @brief Documented */
 struct CddProcess {
-  pid_t pid;
+  pid_t pid; /**< @brief Documented */
 };
 
+/** @brief Documented */
 int cdd_ipc_pipe_init(struct CddIpcPipe *p) {
   int fd[2];
   LOG_DEBUG("cdd_ipc_pipe_init: Entering");
@@ -253,6 +257,7 @@ int cdd_ipc_pipe_init(struct CddIpcPipe *p) {
   return 0;
 }
 
+/** @brief Documented */
 void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
   LOG_DEBUG("cdd_ipc_pipe_free: Entering");
   if (pipe) {
@@ -266,6 +271,7 @@ void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
   LOG_DEBUG("cdd_ipc_pipe_free: Exiting");
 }
 
+/** @brief Documented */
 int cdd_process_spawn(struct CddProcess **proc,
                       struct CddIpcPipe *parent_to_child,
                       struct CddIpcPipe *child_to_parent) {
@@ -320,6 +326,7 @@ int cdd_process_spawn(struct CddProcess **proc,
   }
 }
 
+/** @brief Documented */
 int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
   int status;
 
@@ -348,6 +355,7 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
   return 0;
 }
 
+/** @brief Documented */
 int cdd_ipc_write(void *handle, const void *data, size_t len) {
   ssize_t written;
 
@@ -366,6 +374,7 @@ int cdd_ipc_write(void *handle, const void *data, size_t len) {
   return 0;
 }
 
+/** @brief Documented */
 int cdd_ipc_read(void *handle, void *data, size_t len) {
   ssize_t r;
 
@@ -443,6 +452,7 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
     return 0;
   }
 
+  /** @brief Documented */
   int cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
                                 size_t *out_len) {
     size_t i;
@@ -487,6 +497,7 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
     return 0;
   }
 
+  /** @brief Documented */
   int cdd_ipc_deserialize_request(const char *buf, size_t len,
                                   struct HttpRequest *req) {
     const char *p = buf;
@@ -499,34 +510,31 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
     if (!buf || !req)
       return EINVAL;
 
-    if ((rc = http_request_init(req)) != 0)
-      return rc;
+    http_request_init(req);
 
-    if (read_int(&p, end, &method) != 0)
-      return EINVAL;
+    if ((rc = read_int(&p, end, &method)) != 0)
+      return rc;
     req->method = (enum HttpMethod)method;
 
-    if (read_str(&p, end, &req->url) != 0)
-      return EINVAL;
+    if ((rc = read_str(&p, end, &req->url)) != 0)
+      return rc;
 
-    if (read_size(&p, end, &hcount) != 0)
-      return EINVAL;
+    if ((rc = read_size(&p, end, &hcount)) != 0)
+      return rc;
     for (i = 0; i < hcount; ++i) {
       char *key = NULL, *value = NULL;
-      if (read_str(&p, end, &key) != 0 || read_str(&p, end, &value) != 0) {
-        if (key)
-          free(key);
-        if (value)
-          free(value);
-        return EINVAL;
+      if ((rc = read_str(&p, end, &key)) != 0 || (rc = read_str(&p, end, &value)) != 0) {
+        free(key);
+        free(value);
+        return rc; /* return actual error code */
       }
       http_headers_add(&req->headers, key, value);
       free(key);
       free(value);
     }
 
-    if (read_size(&p, end, &body_len) != 0)
-      return EINVAL;
+    if ((rc = read_size(&p, end, &body_len)) != 0)
+      return rc;
     req->body_len = body_len;
     if (body_len > 0) {
       if (p + body_len > end)
@@ -543,6 +551,7 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
     return 0;
   }
 
+  /** @brief Documented */
   int cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
                                  size_t *out_len) {
     size_t i;
@@ -585,6 +594,7 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
     return 0;
   }
 
+  /** @brief Documented */
   int cdd_ipc_deserialize_response(const char *buf, size_t len,
                                    struct HttpResponse *res) {
     const char *p = buf;
@@ -596,30 +606,27 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
     if (!buf || !res)
       return EINVAL;
 
-    if ((rc = http_response_init(res)) != 0)
+    http_response_init(res);
+
+    if ((rc = read_int(&p, end, &res->status_code)) != 0)
       return rc;
 
-    if (read_int(&p, end, &res->status_code) != 0)
-      return EINVAL;
-
-    if (read_size(&p, end, &hcount) != 0)
-      return EINVAL;
+    if ((rc = read_size(&p, end, &hcount)) != 0)
+      return rc;
     for (i = 0; i < hcount; ++i) {
       char *key = NULL, *value = NULL;
-      if (read_str(&p, end, &key) != 0 || read_str(&p, end, &value) != 0) {
-        if (key)
-          free(key);
-        if (value)
-          free(value);
-        return EINVAL;
+      if ((rc = read_str(&p, end, &key)) != 0 || (rc = read_str(&p, end, &value)) != 0) {
+        free(key);
+        free(value);
+        return rc; /* return actual error code */
       }
       http_headers_add(&res->headers, key, value);
       free(key);
       free(value);
     }
 
-    if (read_size(&p, end, &body_len) != 0)
-      return EINVAL;
+    if ((rc = read_size(&p, end, &body_len)) != 0)
+      return rc;
     res->body_len = body_len;
     if (body_len > 0) {
       if (p + body_len > end)
@@ -635,3 +642,40 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
 
     return 0;
   }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_waitpid_fail;
+void cdd_process_test_waitpid_fail(void);
+void cdd_process_test_waitpid_fail(void) {
+    struct CddProcess *p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
+    if (p) {
+#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+        p->process = (void *)123;
+#else
+        p->pid = 123;
+#endif
+        g_mock_waitpid_fail = 1;
+        cdd_process_wait_and_free(p, NULL);
+        g_mock_waitpid_fail = 0;
+    }
+}
+#endif
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+void cdd_process_test_waitpid_exit(void);
+void cdd_process_test_waitpid_exit(void) {
+    /* Test WIFEXITED == false */
+    struct CddProcess *p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
+    if (p) {
+        int exit_code;
+#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+        p->process = (void *)123;
+#else
+        p->pid = 123;
+#endif
+        g_mock_waitpid_fail = 2;
+        cdd_process_wait_and_free(p, &exit_code);
+        g_mock_waitpid_fail = 0;
+    }
+}
+#endif

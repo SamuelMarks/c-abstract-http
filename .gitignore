@@ -242,3 +242,27 @@ fns.txt
 fndas.txt
 out.txt
 test_out.txt
+
+# Ad-hoc LLM / Agent scripts and logs
+build*.txt
+doxygen_warnings*.txt
+check_*.py
+format_*.py
+inject_*.py
+c_abstract_http_clean.sh
+
+# Extra coverage files
+coverage.*
+coverage*
+cov.txt
+llm.txt
+
+# Extra scripts and output
+patch*.py
+patch*.sh
+parse*.py
+restore*.py
+run_*.sh
+run_*.txt
+run_*.py
+test_*_oom.py

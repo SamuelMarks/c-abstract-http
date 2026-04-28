@@ -39,20 +39,21 @@ struct HttpTransportContext {
   CURL *curl;                       /**< The libcurl handle */
   struct HttpCookieJar *cookie_jar; /**< Weak reference to shared cookie jar */
   CURLM *multi;                     /**< The libcurl multi handle */
-  struct ModalityEventLoop *loop;
-  int timer_id;
+  struct ModalityEventLoop *loop;   /**< @brief Documented */
+  int timer_id;                     /**< @brief Documented */
 };
 
 /**
  * @brief Context for the Curl write callback.
  */
 struct CurlWriteContext {
+  /** @brief Documented */
   struct MemoryStruct {
-    char *memory;
-    size_t size;
-  } chunk;
-  const struct HttpRequest *req;
-  int user_aborted;
+    char *memory;                /**< @brief Documented */
+    size_t size;                 /**< @brief Documented */
+  } chunk;                       /**< @brief Documented */
+  const struct HttpRequest *req; /**< @brief Documented */
+  int user_aborted;              /**< @brief Documented */
 };
 
 /**
@@ -173,6 +174,7 @@ static /**
  * @brief Executes the http_curl_global_init operation.
  */
 static int g_curl_init_count = 0;
+/** @brief Documented */
 int http_curl_global_init(void) {
   if (g_curl_init_count == 0) {
     if (curl_global_init(CURL_GLOBAL_ALL) != 0) {
@@ -671,13 +673,14 @@ int http_curl_send(struct HttpTransportContext *ctx,
   }
   return rc;
 }
+/** @brief Documented */
 struct CurlMultiTask {
-  CURL *easy;
-  struct curl_slist *headers;
-  struct CurlWriteContext write_ctx;
-  struct HttpFuture *future;
-  struct HttpTransportContext *ctx;
-  const struct HttpRequest *req;
+  CURL *easy;                        /**< @brief Documented */
+  struct curl_slist *headers;        /**< @brief Documented */
+  struct CurlWriteContext write_ctx; /**< @brief Documented */
+  struct HttpFuture *future;         /**< @brief Documented */
+  struct HttpTransportContext *ctx;  /**< @brief Documented */
+  const struct HttpRequest *req;     /**< @brief Documented */
 };
 
 static void check_multi_info(struct HttpTransportContext *ctx) {
@@ -776,6 +779,7 @@ static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
   return 0;
 }
 
+/** @brief Documented */
 int http_curl_send_multi(struct HttpTransportContext *ctx,
                          struct ModalityEventLoop *loop,
                          const struct HttpMultiRequest *multi,

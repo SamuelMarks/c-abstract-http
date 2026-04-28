@@ -198,12 +198,21 @@ int http_raw_send_multi(struct HttpTransportContext *ctx,
                         struct ModalityEventLoop *loop,
                         const struct HttpMultiRequest *reqs,
                         struct HttpFuture **future) {
-  (void)ctx;
+  size_t i;
   (void)loop;
-  (void)reqs;
-  (void)future;
-  LOG_DEBUG("http_raw_send_multi: Error ENOTSUP (not implemented)");
-  return ENOTSUP;
+
+  if (!ctx || !reqs || !future) {
+    LOG_DEBUG("http_raw_send_multi: Error EINVAL");
+    return EINVAL;
+  }
+
+  for (i = 0; i < reqs->count; i++) {
+    struct HttpResponse *res = NULL;
+    future[i]->response = res;
+    future[i]->error_code = rc;
+    future[i]->is_ready = 1;
+  }
+  return 0;
 }
 }
 

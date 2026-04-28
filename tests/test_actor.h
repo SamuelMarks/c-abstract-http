@@ -84,6 +84,7 @@ TEST test_actor_spawn_and_message(void) {
   ASSERT_EQ(1, state1.shutdown);
 
   cdd_message_bus_free(bus);
+  cdd_message_bus_free(NULL);
   PASS();
 }
 
@@ -155,6 +156,7 @@ TEST test_actor_hooks(void) {
   ASSERT_EQ(0, cdd_actor_get_state(actor, &state));
   ASSERT_EQ(0, cdd_actor_get_name(actor, &name));
   cdd_message_bus_free(bus);
+  cdd_message_bus_free(NULL);
 
   {
     struct CddActorHooks z;
@@ -179,6 +181,7 @@ TEST test_actor_errors(void) {
   ASSERT_EQ(EINVAL, cdd_actor_spawn(bus, NULL, NULL, NULL, &actor));
   ASSERT_EQ(EINVAL, cdd_actor_spawn(bus, "test", NULL, NULL, NULL));
   cdd_message_bus_free(bus);
+  cdd_message_bus_free(NULL);
 
   PASS();
 }
@@ -202,6 +205,7 @@ TEST test_actor_capacity(void) {
   }
 
   cdd_message_bus_free(bus);
+  cdd_message_bus_free(NULL);
   PASS();
 }
 
@@ -226,6 +230,79 @@ TEST test_actor_getters(void) {
   ASSERT_EQ(EINVAL, cdd_actor_get_name(actor, NULL));
 
   cdd_message_bus_free(bus);
+  cdd_message_bus_free(NULL);
+  PASS();
+}
+
+
+#include "mock_alloc.h"
+
+TEST test_actor_oom(void) {
+  struct CddMessageBus *bus = NULL;
+  struct CddActor *actor = NULL;
+  struct CddMessage msg;
+  int rc;
+  char *out_str = NULL;
+  int str_rc;
+  
+  memset(&msg, 0, sizeof(msg));
+
+  /* Test bus init OOM on calloc */
+  g_mock_alloc_fail = 1; g_mock_alloc_count = 0;
+  rc = cdd_message_bus_init(&bus);
+  printf("cdd_message_bus_init returned %d\n", rc);
+  ASSERT_EQ(ENOMEM, rc);
+  
+  /* Test bus init OOM on actors array */
+  g_mock_alloc_fail = 1; g_mock_alloc_count = 1;
+  rc = cdd_message_bus_init(&bus);
+  ASSERT_EQ(ENOMEM, rc);
+  g_mock_alloc_fail = 0;
+
+  rc = cdd_message_bus_init(&bus);
+  if (rc != 0) { printf("bus init failed with %d\n", rc); }
+  str_rc = c_cdd_strdup("dummy", &out_str);
+  printf("c_cdd_strdup returned %d, out_str=%p\n", str_rc, (void*)out_str);
+  rc = cdd_actor_spawn(bus, "dummy", dummy_handler, NULL, &actor);
+  if (rc != 0) { printf("spawn failed with %d, actor=%p\n", rc, (void*)actor); }
+  msg.receiver = actor;
+
+  /* Test actor send OOM */
+  g_mock_alloc_fail = 1; g_mock_alloc_count = 0;
+  rc = cdd_actor_send(bus, &msg);
+  if (rc != ENOMEM) { printf("send failed with %d\n", rc); }
+  ASSERT_EQ(ENOMEM, rc);
+  g_mock_alloc_fail = 0;
+
+  /* Test actor spawn OOM on realloc */
+  {
+    int i;
+    for (i = 0; i < 15; i++) { /* 15 + dummy = 16 actors */
+      cdd_actor_spawn(bus, "test", dummy_handler, NULL, &actor);
+    }
+    g_mock_alloc_fail = 1; g_mock_alloc_count = 0;
+    rc = cdd_actor_spawn(bus, "test_oom", dummy_handler, NULL, &actor);
+    ASSERT_EQ(ENOMEM, rc);
+    g_mock_alloc_fail = 0;
+    
+    /* Now successfully spawn one so the next tests don't shift */
+    cdd_actor_spawn(bus, "test_success", dummy_handler, NULL, &actor);
+  }
+
+  /* Test actor spawn OOM on calloc */
+  g_mock_alloc_fail = 1; g_mock_alloc_count = 0;
+  rc = cdd_actor_spawn(bus, "test2", dummy_handler, NULL, &actor);
+  ASSERT_EQ(ENOMEM, rc);
+  
+  /* Test actor spawn OOM on strdup */
+  g_mock_alloc_fail = 1; g_mock_alloc_count = 1;
+  rc = cdd_actor_spawn(bus, "test3", dummy_handler, NULL, &actor);
+  printf("test3 spawn returned %d\n", rc);
+  ASSERT_EQ(ENOMEM, rc);
+  g_mock_alloc_fail = 0;
+
+  cdd_message_bus_free(bus);
+  cdd_message_bus_free(NULL);
   PASS();
 }
 
@@ -237,23 +314,26 @@ TEST test_actor_queued_free_and_tail(void) {
 
   memset(&msg1, 0, sizeof(msg1));
   memset(&msg2, 0, sizeof(msg2));
-  msg1.receiver = actor;
-  msg2.receiver = actor;
 
   cdd_message_bus_init(&bus);
   cdd_actor_spawn(bus, "myactor", dummy_handler, NULL, &actor);
+
+  msg1.receiver = actor;
+  msg2.receiver = actor;
 
   cdd_actor_send(bus, &msg1);
   cdd_actor_send(bus, &msg2); /* hits tail->next logic */
 
   /* don't process, just free, hitting lines 100-102 */
   cdd_message_bus_free(bus);
+  cdd_message_bus_free(NULL);
   PASS();
 }
 
 SUITE(actor_suite) {
   RUN_TEST(test_actor_getters);
   RUN_TEST(test_actor_queued_free_and_tail);
+  RUN_TEST(test_actor_oom);
   RUN_TEST(test_actor_spawn_and_message);
   RUN_TEST(test_actor_hooks);
   RUN_TEST(test_actor_errors);

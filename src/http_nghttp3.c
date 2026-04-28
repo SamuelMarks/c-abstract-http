@@ -254,13 +254,23 @@ int http_nghttp3_send_multi(struct HttpTransportContext *ctx,
                             struct ModalityEventLoop *loop,
                             const struct HttpMultiRequest *multi,
                             struct HttpFuture **futures) {
+  size_t i;
   /* Attach to the UDP event loop driving ngtcp2 */
-  (void)ctx;
   (void)loop;
-  (void)multi;
-  (void)futures;
-  LOG_DEBUG("http_nghttp3_send_multi: Error ENOSYS");
-  return ENOSYS;
+
+  if (!ctx || !multi || !futures) {
+    LOG_DEBUG("http_nghttp3_send_multi: Error EINVAL");
+    return EINVAL;
+  }
+
+  for (i = 0; i < multi->count; i++) {
+    struct HttpResponse *res = NULL;
+    int rc = http_nghttp3_send(ctx, multi->requests[i], &res);
+    futures[i]->response = res;
+    futures[i]->error_code = rc;
+    futures[i]->is_ready = 1;
+  }
+  return 0;
 }
 
 #endif

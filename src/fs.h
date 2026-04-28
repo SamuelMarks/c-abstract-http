@@ -138,17 +138,12 @@ enum FopenError {
 
 /**
  * @param[out] _out_val Pointer to store the result
- * @param[out] _out_val Pointer to store the result
  * @brief Helper to convert internal standard library errno to FopenError.
  *
  * @param[in] fopen_error The errno value representing an error.
  * @return The corresponding FopenError enum value.
  */
-extern /**
-        * @brief Executes the fopen_error_from operation.
-        */
-    int
-    fopen_error_from(int fopen_error, enum FopenError *_out_val);
+extern int fopen_error_from(int fopen_error, enum FopenError *_out_val);
 
 /**
  * @brief Struct to hold a file handle and its associated filename.
@@ -164,13 +159,10 @@ struct FilenameAndPtr {
  * @brief Check if the given path is a directory.
  *
  * @param[in] path The path to check.
- * @return 1 if directory, 0 if not or error.
+ * @param[out] out_is_dir Pointer to int to store 1 if directory, 0 otherwise.
+ * @return 0 on success.
  */
-extern /**
-        * @brief Executes the fs_is_directory operation.
-        */
-    int
-    fs_is_directory(const char *path, int *out_is_dir);
+extern int fs_is_directory(const char *path, int *out_is_dir);
 
 /**
  * @brief Extract the base name (filename component) from a path.

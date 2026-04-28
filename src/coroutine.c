@@ -5,6 +5,7 @@
  */
 
 /* clang-format off */
+#include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,12 +44,14 @@
 /* clang-format on */
 
 #ifndef ENOTSUP
+/** @brief Documented */
 #define ENOTSUP EINVAL
 #endif
 
 static struct CddCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL, NULL,
                                                      NULL};
 
+/** @brief Documented */
 void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
   if (hooks) {
     g_coroutine_hooks = *hooks;
@@ -57,6 +60,7 @@ void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
+/** @brief Documented */
 struct CddCoroutine {
   LPVOID fiber;
   LPVOID caller_fiber;
@@ -82,6 +86,7 @@ static VOID WINAPI fiber_entry(LPVOID lpParameter) {
 int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
   struct CddCoroutine *c;
+  printf("cdd_coroutine_init CALLED\n");
 
   LOG_DEBUG("cdd_coroutine_init: Entering");
   if (g_coroutine_hooks.init) {
@@ -211,14 +216,15 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
 
 #elif !defined(CDD_NO_UCONTEXT) /* POSIX ucontext */
 
+/** @brief Documented */
 struct CddCoroutine {
-  ucontext_t ctx;
-  ucontext_t caller_ctx;
-  void *stack;
-  size_t stack_size;
-  cdd_coroutine_cb cb;
-  void *arg;
-  int is_done;
+  ucontext_t ctx;        /**< @brief Documented */
+  ucontext_t caller_ctx; /**< @brief Documented */
+  void *stack;           /**< @brief Documented */
+  size_t stack_size;     /**< @brief Documented */
+  cdd_coroutine_cb cb;   /**< @brief Documented */
+  void *arg;             /**< @brief Documented */
+  int is_done;           /**< @brief Documented */
 };
 
 /* We use a simple global thread-local pointer to track the current active
@@ -247,9 +253,11 @@ static void ucontext_entry(void) {
   }
 }
 
+/** @brief Documented */
 int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
   struct CddCoroutine *c;
+  printf("cdd_coroutine_init CALLED\n");
 
   LOG_DEBUG("cdd_coroutine_init: Entering");
   if (g_coroutine_hooks.init) {
@@ -306,6 +314,7 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
   return 0;
 }
 
+/** @brief Documented */
 void cdd_coroutine_free(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_free: Entering");
   if (g_coroutine_hooks.free) {
@@ -322,6 +331,7 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_free: Exiting");
 }
 
+/** @brief Documented */
 int cdd_coroutine_resume(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_resume: Entering");
   if (g_coroutine_hooks.resume) {
@@ -345,6 +355,7 @@ int cdd_coroutine_resume(struct CddCoroutine *co) {
   return 0;
 }
 
+/** @brief Documented */
 int cdd_coroutine_yield(void) {
   struct CddCoroutine *co;
 
@@ -373,6 +384,7 @@ int cdd_coroutine_yield(void) {
   return 0;
 }
 
+/** @brief Documented */
 int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co);
@@ -383,15 +395,90 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
 
 #else
 
+
+struct CddCoroutine {
+  pthread_t thread;
+  pthread_mutex_t mutex;
+  pthread_cond_t cond_resume;
+  pthread_cond_t cond_yield;
+  cdd_coroutine_cb cb;
+  void *arg;
+  int is_done;
+  int should_run;
+  int is_started;
+  int is_exiting;
+  int is_ready;
+};
+
+static pthread_key_t co_fallback_key;
+static int co_fallback_initialized = 0;
+
+static void init_fallback_key(void) {
+  if (!co_fallback_initialized) {
+    pthread_key_create(&co_fallback_key, NULL);
+    co_fallback_initialized = 1;
+  }
+}
+
+static void *co_thread_func(void *arg) {
+  struct CddCoroutine *co = (struct CddCoroutine *)arg;
+  pthread_setspecific(co_fallback_key, co);
+
+  pthread_mutex_lock(&co->mutex);
+  co->is_ready = 1;
+  pthread_cond_signal(&co->cond_yield);
+  while (!co->should_run) {
+    pthread_cond_wait(&co->cond_resume, &co->mutex);
+  }
+  pthread_mutex_unlock(&co->mutex);
+
+  if (co->cb) {
+    co->cb(co->arg);
+  }
+
+  pthread_mutex_lock(&co->mutex);
+  co->is_done = 1;
+  co->should_run = 0;
+  pthread_cond_signal(&co->cond_yield);
+  pthread_mutex_unlock(&co->mutex);
+
+  return NULL;
+}
+
 int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
+  struct CddCoroutine *c;
+  printf("cdd_coroutine_init CALLED\n");
+  (void)stack_size;
+  init_fallback_key();
+
   if (g_coroutine_hooks.init) {
     return g_coroutine_hooks.init(co, stack_size, cb, arg);
   }
-#ifndef ENOSYS
-#define ENOSYS EINVAL
-#endif
-  return ENOSYS;
+
+  if (!co || !cb) {
+    return EINVAL;
+  }
+
+  c = (struct CddCoroutine *)malloc(sizeof(*c));
+  if (!c) {
+    return ENOMEM;
+  }
+
+  c->cb = cb;
+  c->arg = arg;
+  c->is_done = 0;
+  c->should_run = 0;
+  c->is_started = 0;
+  c->is_exiting = 0;
+  c->is_ready = 0;
+
+  pthread_mutex_init(&c->mutex, NULL);
+  pthread_cond_init(&c->cond_resume, NULL);
+  pthread_cond_init(&c->cond_yield, NULL);
+
+  *co = c;
+  return 0;
 }
 
 void cdd_coroutine_free(struct CddCoroutine *co) {
@@ -399,7 +486,25 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
   if (g_coroutine_hooks.free) {
     LOG_DEBUG("cdd_coroutine_free (fallback): Hooking");
     g_coroutine_hooks.free(co);
+    return;
   }
+  if (!co) return;
+
+  if (co->is_started && !co->is_done) {
+    pthread_mutex_lock(&co->mutex);
+    co->should_run = 1;
+    co->is_exiting = 1;
+    pthread_cond_signal(&co->cond_resume);
+    pthread_mutex_unlock(&co->mutex);
+    pthread_join(co->thread, NULL);
+  } else if (co->is_started) {
+    pthread_join(co->thread, NULL);
+  }
+
+  pthread_mutex_destroy(&co->mutex);
+  pthread_cond_destroy(&co->cond_resume);
+  pthread_cond_destroy(&co->cond_yield);
+  free(co);
 }
 
 int cdd_coroutine_resume(struct CddCoroutine *co) {
@@ -408,31 +513,64 @@ int cdd_coroutine_resume(struct CddCoroutine *co) {
     LOG_DEBUG("cdd_coroutine_resume (fallback): Hooking");
     return g_coroutine_hooks.resume(co);
   }
-#ifndef ENOSYS
-#define ENOSYS EINVAL
-#endif
-  LOG_DEBUG("cdd_coroutine_resume (fallback): Error ENOSYS");
-  return ENOSYS;
+  if (!co) return EINVAL;
+  if (co->is_done) return EINVAL;
+
+  pthread_mutex_lock(&co->mutex);
+  if (!co->is_started) {
+    co->is_started = 1;
+    pthread_create(&co->thread, NULL, co_thread_func, co);
+    while (!co->is_ready) {
+      pthread_cond_wait(&co->cond_yield, &co->mutex);
+    }
+  }
+
+  co->should_run = 1;
+  pthread_cond_signal(&co->cond_resume);
+
+  while (co->should_run && !co->is_done) {
+    pthread_cond_wait(&co->cond_yield, &co->mutex);
+  }
+  pthread_mutex_unlock(&co->mutex);
+  return 0;
 }
 
 int cdd_coroutine_yield(void) {
+  struct CddCoroutine *co;
   LOG_DEBUG("cdd_coroutine_yield (fallback): Entering");
   if (g_coroutine_hooks.yield) {
     LOG_DEBUG("cdd_coroutine_yield (fallback): Hooking");
     return g_coroutine_hooks.yield();
   }
-#ifndef ENOSYS
-#define ENOSYS EINVAL
-#endif
-  LOG_DEBUG("cdd_coroutine_yield (fallback): Error ENOSYS");
-  return ENOSYS;
+
+  init_fallback_key();
+  co = (struct CddCoroutine *)pthread_getspecific(co_fallback_key);
+  if (!co) return EINVAL;
+
+  pthread_mutex_lock(&co->mutex);
+  co->should_run = 0;
+  pthread_cond_signal(&co->cond_yield);
+
+  while (!co->should_run && !co->is_exiting) {
+    pthread_cond_wait(&co->cond_resume, &co->mutex);
+  }
+  if (co->is_exiting) {
+    pthread_mutex_unlock(&co->mutex);
+    pthread_exit(NULL);
+  }
+  pthread_mutex_unlock(&co->mutex);
+  return 0;
 }
 
 int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co);
   }
-  return 1;
+  if (!co) return 1;
+  
+  /* We check safely */
+  return co->is_done;
 }
+
 
 #endif

@@ -5,6 +5,7 @@
  */
 
 /* clang-format off */
+extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,38 +13,63 @@
 #include <c_abstract_http/actor.h>
 #include "c_abstract_http/log.h"
 #include "functions/parse/str.h"
+
+#ifndef CDD_MALLOC
+#define CDD_MALLOC malloc
+#endif
+
+#ifndef CDD_CALLOC
+#define CDD_CALLOC calloc
+#endif
+
+#ifndef CDD_REALLOC
+#define CDD_REALLOC realloc
+#endif
+
+#ifndef CDD_FREE
+#define CDD_FREE free
+#endif
+
+#ifndef CDD_STRDUP
+#define CDD_STRDUP c_cdd_strdup
+#endif
 /* clang-format on */
 
 static struct CddActorHooks g_actor_hooks = {NULL, NULL, NULL, NULL,
                                              NULL, NULL, NULL};
 
+/** @brief Documented */
 void cdd_actor_set_hooks(const struct CddActorHooks *hooks) {
   if (hooks) {
     g_actor_hooks = *hooks;
   }
 }
 
+/** @brief Documented */
 struct CddActor {
-  char *name;
-  cdd_actor_handler_cb handler;
-  void *state;
-  struct CddMessageBus *bus;
+  char *name;                   /**< @brief Documented */
+  cdd_actor_handler_cb handler; /**< @brief Documented */
+  void *state;                  /**< @brief Documented */
+  struct CddMessageBus *bus;    /**< @brief Documented */
 };
 
+/** @brief Documented */
 struct MessageNode {
-  struct CddMessage msg;
-  struct MessageNode *next;
+  struct CddMessage msg;    /**< @brief Documented */
+  struct MessageNode *next; /**< @brief Documented */
 };
 
+/** @brief Documented */
 struct CddMessageBus {
-  struct CddActor **actors;
-  size_t actor_count;
-  size_t actor_capacity;
+  struct CddActor **actors; /**< @brief Documented */
+  size_t actor_count;       /**< @brief Documented */
+  size_t actor_capacity;    /**< @brief Documented */
 
-  struct MessageNode *head;
-  struct MessageNode *tail;
+  struct MessageNode *head; /**< @brief Documented */
+  struct MessageNode *tail; /**< @brief Documented */
 };
 
+/** @brief Documented */
 int cdd_message_bus_init(struct CddMessageBus **bus) {
   struct CddMessageBus *b;
   LOG_DEBUG("cdd_message_bus_init: Entering");
@@ -58,18 +84,18 @@ int cdd_message_bus_init(struct CddMessageBus **bus) {
     return EINVAL;
   }
 
-  b = (struct CddMessageBus *)calloc(1, sizeof(struct CddMessageBus));
+  b = (struct CddMessageBus *)CDD_CALLOC(1, sizeof(struct CddMessageBus));
   if (!b) {
     LOG_DEBUG("cdd_message_bus_init: Error ENOMEM");
     return ENOMEM;
   }
 
   b->actor_capacity = 16;
-  b->actors =
-      (struct CddActor **)malloc(b->actor_capacity * sizeof(struct CddActor *));
+  b->actors = (struct CddActor **)CDD_MALLOC(b->actor_capacity *
+                                             sizeof(struct CddActor *));
   if (!b->actors) {
     LOG_DEBUG("cdd_message_bus_init: Error ENOMEM (actors array)");
-    free(b);
+    CDD_FREE(b);
     return ENOMEM;
   }
 
@@ -78,6 +104,7 @@ int cdd_message_bus_init(struct CddMessageBus **bus) {
   return 0;
 }
 
+/** @brief Documented */
 void cdd_message_bus_free(struct CddMessageBus *bus) {
   size_t i;
   struct MessageNode *node;
@@ -98,21 +125,22 @@ void cdd_message_bus_free(struct CddMessageBus *bus) {
   node = bus->head;
   while (node) {
     struct MessageNode *next = node->next;
-    free(node);
+    CDD_FREE(node);
     node = next;
   }
 
   /* Free actors */
   for (i = 0; i < bus->actor_count; ++i) {
     if (bus->actors[i]->name)
-      free(bus->actors[i]->name);
-    free(bus->actors[i]);
+      CDD_FREE(bus->actors[i]->name);
+    CDD_FREE(bus->actors[i]);
   }
-  free(bus->actors);
-  free(bus);
+  CDD_FREE(bus->actors);
+  CDD_FREE(bus);
   LOG_DEBUG("cdd_message_bus_free: Exiting");
 }
 
+/** @brief Documented */
 int cdd_message_bus_process(struct CddMessageBus *bus) {
   int count = 0;
   struct MessageNode *node;
@@ -139,7 +167,7 @@ int cdd_message_bus_process(struct CddMessageBus *bus) {
       node->msg.receiver->handler(node->msg.receiver, &node->msg);
     }
 
-    free(node);
+    CDD_FREE(node);
     count++;
   }
 
@@ -147,6 +175,7 @@ int cdd_message_bus_process(struct CddMessageBus *bus) {
   return count;
 }
 
+/** @brief Documented */
 int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
                     cdd_actor_handler_cb handler, void *state,
                     struct CddActor **actor) {
@@ -166,7 +195,7 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
 
   if (bus->actor_count >= bus->actor_capacity) {
     size_t new_cap = bus->actor_capacity * 2;
-    struct CddActor **new_arr = (struct CddActor **)realloc(
+    struct CddActor **new_arr = (struct CddActor **)CDD_REALLOC(
         bus->actors, new_cap * sizeof(struct CddActor *));
     if (!new_arr) {
       LOG_DEBUG("cdd_actor_spawn: Error ENOMEM reallocating actors array");
@@ -176,17 +205,19 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
     bus->actor_capacity = new_cap;
   }
 
-  a = (struct CddActor *)calloc(1, sizeof(struct CddActor));
+  a = (struct CddActor *)CDD_CALLOC(1, sizeof(struct CddActor));
   if (!a) {
-    LOG_DEBUG("cdd_actor_spawn: Error ENOMEM");
+    printf("cdd_actor_spawn: Error ENOMEM a is null\n");
     return ENOMEM;
   }
 
-  a->name = (c_cdd_strdup(name, &_ast_strdup_0), _ast_strdup_0);
-  if (!a->name) {
-    LOG_DEBUG("cdd_actor_spawn: Error ENOMEM allocating name");
-    free(a);
-    return ENOMEM;
+  {
+    CDD_STRDUP(name, &_ast_strdup_0);
+    a->name = _ast_strdup_0;
+    if (!a->name) {
+      CDD_FREE(a);
+      return ENOMEM;
+    }
   }
 
   a->handler = handler;
@@ -200,6 +231,7 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
   return 0;
 }
 
+/** @brief Documented */
 int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
   struct MessageNode *node;
 
@@ -214,7 +246,7 @@ int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
     return EINVAL;
   }
 
-  node = (struct MessageNode *)malloc(sizeof(struct MessageNode));
+  node = (struct MessageNode *)CDD_MALLOC(sizeof(struct MessageNode));
   if (!node) {
     LOG_DEBUG("cdd_actor_send: Error ENOMEM");
     return ENOMEM;
@@ -235,6 +267,7 @@ int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
   return 0;
 }
 
+/** @brief Documented */
 int cdd_actor_get_state(struct CddActor *actor, void **state) {
   LOG_DEBUG("cdd_actor_get_state: Entering");
   if (g_actor_hooks.actor_get_state) {
@@ -250,6 +283,7 @@ int cdd_actor_get_state(struct CddActor *actor, void **state) {
   return 0;
 }
 
+/** @brief Documented */
 int cdd_actor_get_name(const struct CddActor *actor, const char **name) {
   LOG_DEBUG("cdd_actor_get_name: Entering");
   if (g_actor_hooks.actor_get_name) {

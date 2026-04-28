@@ -580,11 +580,22 @@ int http_msh3_send_multi(struct HttpTransportContext *ctx,
                          struct ModalityEventLoop *loop,
                          const struct HttpMultiRequest *multi,
                          struct HttpFuture **futures) {
-  (void)ctx;
+  size_t i;
   (void)loop;
-  (void)multi;
-  (void)futures;
-  return ENOSYS;
+
+  if (!ctx || !multi || !futures) {
+    LOG_DEBUG("http_msh3_send_multi: Error EINVAL");
+    return EINVAL;
+  }
+
+  for (i = 0; i < multi->count; i++) {
+    struct HttpResponse *res = NULL;
+    int rc = http_msh3_send(ctx, multi->requests[i], &res);
+    futures[i]->response = res;
+    futures[i]->error_code = rc;
+    futures[i]->is_ready = 1;
+  }
+  return 0;
 }
 
 #endif

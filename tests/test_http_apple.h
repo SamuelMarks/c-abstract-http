@@ -33,6 +33,111 @@ static int mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   return 0;
 }
 
+
+TEST test_apple_oom_branches(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  
+  ASSERT_EQ(0, http_apple_context_init(&ctx));
+  
+#if defined(__APPLE__)
+
+  
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = strdup("http://fail_url_str");
+  req.method = HTTP_GET;
+  ASSERT_EQ(EINVAL, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
+  
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = strdup("http://fail_url");
+  req.method = HTTP_GET;
+  ASSERT_EQ(EINVAL, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
+  
+  /* fail_url_ref removed because urlRef parsing was optimized out */
+  
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = strdup("http://fail_request_ref");
+  req.method = HTTP_GET;
+  {
+      int debug_rc = http_apple_send(ctx, &req, &res);
+      if (debug_rc != ENOMEM) printf("test_apple_oom_branches: expected ENOMEM (%d), got %d\n", ENOMEM, debug_rc);
+      ASSERT_EQ(ENOMEM, debug_rc);
+  }
+  http_request_free(&req);
+  
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = strdup("http://fail_body_data");
+  req.method = HTTP_POST;
+  req.body = strdup("test");
+  req.body_len = 4;
+  ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
+  
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = strdup("http://fail_read_stream");
+  req.method = HTTP_GET;
+  ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
+  
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = strdup("http://fail_read_stream_open");
+  req.method = HTTP_GET;
+  ASSERT_EQ(EIO, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
+  
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = strdup("http://fail_mutable_data");
+  req.method = HTTP_POST;
+  req.read_chunk = (http_read_chunk_fn)1;
+  req.expected_body_len = 10;
+  ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
+  
+  ASSERT_EQ(0, http_request_init(&req));
+  req.url = strdup("http://fail_cb_rc");
+  req.method = HTTP_POST;
+  req.body = strdup("test");
+  req.body_len = 4;
+  req.on_chunk = mock_on_chunk_cb;
+  {
+      int calls = 0;
+      req.on_chunk_user_data = &calls;
+      ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
+  }
+  http_request_free(&req);
+#endif
+
+  http_apple_context_free(ctx);
+  PASS();
+}
+
+TEST test_apple_oom(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  
+  g_mock_alloc_fail = 1; g_mock_alloc_count = 0;
+  ASSERT_EQ(ENOMEM, http_apple_context_init(&ctx));
+  g_mock_alloc_fail = 0;
+  
+  ASSERT_EQ(0, http_apple_context_init(&ctx));
+  ASSERT_EQ(0, http_request_init(&req));
+  
+  req.url = "http://example.com";
+  req.method = HTTP_GET;
+  
+  /* Test 124: malloc for *res fails */
+  g_mock_alloc_fail = 1; g_mock_alloc_count = 0;
+  ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
+  g_mock_alloc_fail = 0;
+  
+  http_apple_context_free(ctx);
+  PASS();
+}
+
 TEST test_apple_send_mock_server(void) {
 #if defined(__APPLE__)
   struct HttpTransportContext *ctx = NULL;
@@ -303,6 +408,8 @@ SUITE(http_apple_suite) {
   RUN_TEST(test_apple_config);
   RUN_TEST(test_apple_send_invalid);
   RUN_TEST(test_apple_send_all_methods);
+  RUN_TEST(test_apple_oom_branches);
+  RUN_TEST(test_apple_oom);
 }
 
 #ifdef __cplusplus

@@ -73,28 +73,15 @@ extern /**
     c_cdd_str_starts_with(const char *str, const char *prefix, int *out_b);
 
 /**
- * @brief Check if two strings are equal (content-wise).
+ * @brief Check if two strings are exactly equal.
  *
  * @param[in] a First string.
- * @param[out] out_b Pointer to store the result
  * @param[in] b Second string.
+ * @param[out] out_b Pointer to store the result.
  * @return 1 if strings match or both are NULL, 0 otherwise.
  */
-extern /**
-        * @brief Executes the c_cdd_str_equal operation.
-        */
-    int
-    c_cdd_str_equal(const char *a, const char *b, int *out_b);
+extern int c_cdd_str_equal(const char *a, const char *b, int *out_b);
 
-/**
- * @brief Check if two strings are equal ignoring ASCII case.
- *
- * @param[in] a First string.
- * @param[out] out_b Pointer to store the result
- * @param[in] b Second string.
- * @return 1 if strings match case-insensitively or both are NULL, 0
- * otherwise.
- */
 /**
  * @brief Compare strings case-insensitively like stricmp/strcasecmp.
  *
@@ -102,17 +89,17 @@ extern /**
  * @param[in] b Second string.
  * @return 0 if equal, non-zero otherwise.
  */
-extern /**
-        * @brief Executes the math_c_cdd_stricmp operation.
-        */
-    int
-    math_c_cdd_stricmp(const char *a, const char *b);
+extern int math_c_cdd_stricmp(const char *a, const char *b);
 
-extern /**
-        * @brief Executes the c_cdd_str_iequal operation.
-        */
-    int
-    c_cdd_str_iequal(const char *a, const char *b, int *out_b);
+/**
+ * @brief Check if two strings are equal ignoring ASCII case.
+ *
+ * @param[in] a First string.
+ * @param[in] b Second string.
+ * @param[out] out_b Pointer to store the result
+ * @return 1 if strings match case-insensitively or both are NULL, 0 otherwise.
+ */
+extern int c_cdd_str_iequal(const char *a, const char *b, int *out_b);
 
 /**
  * @brief Find the substring after the last occurrence of a character.

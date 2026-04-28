@@ -527,7 +527,10 @@ else()
         )
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(LIBSOUP3 REQUIRED libsoup-3.0)
-        target_include_directories(c-abstract-http PUBLIC ${LIBSOUP3_INCLUDE_DIRS})
+        
+
+
+target_include_directories(c-abstract-http PUBLIC ${LIBSOUP3_INCLUDE_DIRS})
         target_link_libraries(c-abstract-http PUBLIC ${LIBSOUP3_LIBRARIES})
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LIBSOUP3)
     elseif(C_ABSTRACT_HTTP_USE_LIBFETCH)
@@ -583,3 +586,24 @@ endif()
 
 
 
+
+target_compile_definitions(c-abstract-http PUBLIC 
+    C_ABSTRACT_HTTP_TEST_OOM=1
+    malloc=c_abstract_http_mock_malloc
+    calloc=c_abstract_http_mock_calloc
+    realloc=c_abstract_http_mock_realloc
+    free=c_abstract_http_mock_free 
+    pthread_key_create=c_abstract_http_mock_pthread_key_create
+    pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
+    pthread_cond_init=c_abstract_http_mock_pthread_cond_init
+    pthread_create=c_abstract_http_mock_pthread_create
+    pipe=c_abstract_http_mock_pipe
+    fork=c_abstract_http_mock_fork
+    waitpid=c_abstract_http_mock_waitpid
+    select=c_abstract_http_mock_select
+    math_get_current_time_ms=c_abstract_http_mock_math_get_current_time_ms
+    pthread_setspecific=c_abstract_http_mock_pthread_setspecific
+    pthread_getspecific=c_abstract_http_mock_pthread_getspecific
+
+    CDD_STRDUP=c_abstract_http_mock_cdd_strdup
+)

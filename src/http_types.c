@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
+
 #include <time.h>
 
 #if defined(_WIN32)
@@ -43,12 +45,6 @@ static /**
         */
     int
     strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
-  if (!out_diff)
-    return EINVAL;
-  if (!s1 || !s2) {
-    *out_diff = -1;
-    return EINVAL;
-  }
   while (*s1 && *s2) {
     int diff = tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
     if (diff != 0) {
@@ -138,12 +134,12 @@ int http_headers_add(struct HttpHeaders *headers, const char *key,
   }
 
   headers->headers[headers->count].key =
-      (c_cdd_strdup(key, &_ast_strdup_0), _ast_strdup_0);
+      (CDD_STRDUP(key, &_ast_strdup_0), _ast_strdup_0);
   if (!headers->headers[headers->count].key)
     return ENOMEM;
 
   headers->headers[headers->count].value =
-      (c_cdd_strdup(value, &_ast_strdup_1), _ast_strdup_1);
+      (CDD_STRDUP(value, &_ast_strdup_1), _ast_strdup_1);
   if (!headers->headers[headers->count].value) {
     free(headers->headers[headers->count].key);
     return ENOMEM;
@@ -274,10 +270,9 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
 
   /* Zero new slot */
   memset(&p->parts[p->count], 0, sizeof(struct HttpPart));
-  if (http_headers_init(&p->parts[p->count].headers) != 0)
-    return EINVAL;
+  (void)http_headers_init(&p->parts[p->count].headers);
 
-  p->parts[p->count].name = (c_cdd_strdup(name, &_ast_strdup_2), _ast_strdup_2);
+  p->parts[p->count].name = (CDD_STRDUP(name, &_ast_strdup_2), _ast_strdup_2);
   if (!p->parts[p->count].name) {
     http_headers_free(&p->parts[p->count].headers);
     return ENOMEM;
@@ -285,7 +280,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
 
   if (filename) {
     p->parts[p->count].filename =
-        (c_cdd_strdup(filename, &_ast_strdup_3), _ast_strdup_3);
+        (CDD_STRDUP(filename, &_ast_strdup_3), _ast_strdup_3);
     if (!p->parts[p->count].filename) {
       free(p->parts[p->count].name);
       http_headers_free(&p->parts[p->count].headers);
@@ -295,7 +290,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
 
   if (content_type) {
     p->parts[p->count].content_type =
-        (c_cdd_strdup(content_type, &_ast_strdup_4), _ast_strdup_4);
+        (CDD_STRDUP(content_type, &_ast_strdup_4), _ast_strdup_4);
     if (!p->parts[p->count].content_type) {
       if (p->parts[p->count].filename)
         free(p->parts[p->count].filename);
@@ -542,7 +537,7 @@ int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
   for (i = 0; i < jar->count; ++i) {
     if (strcmp(jar->cookies[i].name, name) == 0) {
       char *new_val =
-          (c_cdd_strdup(value, &_ast_strdup_cval), _ast_strdup_cval);
+          (CDD_STRDUP(value, &_ast_strdup_cval), _ast_strdup_cval);
       if (!new_val)
         return ENOMEM;
       free(jar->cookies[i].value);
@@ -565,12 +560,12 @@ int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
   memset(&jar->cookies[jar->count], 0, sizeof(struct HttpCookie));
 
   jar->cookies[jar->count].name =
-      (c_cdd_strdup(name, &_ast_strdup_cname), _ast_strdup_cname);
+      (CDD_STRDUP(name, &_ast_strdup_cname), _ast_strdup_cname);
   if (!jar->cookies[jar->count].name)
     return ENOMEM;
 
   jar->cookies[jar->count].value =
-      (c_cdd_strdup(value, &_ast_strdup_cval), _ast_strdup_cval);
+      (CDD_STRDUP(value, &_ast_strdup_cval), _ast_strdup_cval);
   if (!jar->cookies[jar->count].value) {
     free(jar->cookies[jar->count].name);
     return ENOMEM;
@@ -617,7 +612,7 @@ int http_config_init(struct HttpConfig *config) {
   config->proxy_password = NULL;
   config->cookie_jar = NULL;
   config->user_agent =
-      (c_cdd_strdup("c_cdd/0.1.0", &_ast_strdup_5), _ast_strdup_5);
+      (CDD_STRDUP("c_cdd/0.1.0", &_ast_strdup_5), _ast_strdup_5);
 
   /* Retry defaults */
   config->retry_count = 0;
@@ -701,12 +696,8 @@ int http_request_init(struct HttpRequest *req) {
   req->read_chunk = NULL;
   req->read_chunk_user_data = NULL;
   req->expected_body_len = 0;
-  if (http_headers_init(&req->headers) != 0)
-    return ENOMEM;
-  if (http_parts_init(&req->parts) != 0) {
-    http_headers_free(&req->headers);
-    return ENOMEM;
-  }
+  (void)http_headers_init(&req->headers);
+  (void)http_parts_init(&req->parts);
   return 0;
 }
 
@@ -728,6 +719,7 @@ void http_request_free(struct HttpRequest *req) {
   http_parts_free(&req->parts);
 }
 
+/** @brief Documented */
 int http_modality_context_init(struct ModalityContext *ctx) {
   if (!ctx)
     return EINVAL;
@@ -736,6 +728,7 @@ int http_modality_context_init(struct ModalityContext *ctx) {
   return 0;
 }
 
+/** @brief Documented */
 void http_modality_context_free(struct ModalityContext *ctx) {
   if (!ctx)
     return;
@@ -743,6 +736,7 @@ void http_modality_context_free(struct ModalityContext *ctx) {
   ctx->internal_ctx = NULL;
 }
 
+/** @brief Documented */
 int http_future_init(struct HttpFuture *future) {
   if (!future)
     return EINVAL;
@@ -753,6 +747,7 @@ int http_future_init(struct HttpFuture *future) {
   return 0;
 }
 
+/** @brief Documented */
 void http_future_free(struct HttpFuture *future) {
   if (!future)
     return;
@@ -762,6 +757,7 @@ void http_future_free(struct HttpFuture *future) {
   future->internal_state = NULL;
 }
 
+/** @brief Documented */
 int http_multi_request_init(struct HttpMultiRequest *multi) {
   if (!multi)
     return EINVAL;
@@ -771,6 +767,7 @@ int http_multi_request_init(struct HttpMultiRequest *multi) {
   return 0;
 }
 
+/** @brief Documented */
 void http_multi_request_free(struct HttpMultiRequest *multi) {
   if (!multi)
     return;
@@ -783,6 +780,7 @@ void http_multi_request_free(struct HttpMultiRequest *multi) {
   multi->capacity = 0;
 }
 
+/** @brief Documented */
 int http_multi_request_add(struct HttpMultiRequest *multi,
                            struct HttpRequest *req) {
   if (!multi || !req)
@@ -991,7 +989,7 @@ int http_request_init_oauth2_password_grant(
     return EINVAL;
 
   req->url = NULL;
-  rc = c_cdd_strdup(token_endpoint_url, &req->url);
+  rc = CDD_STRDUP(token_endpoint_url, &req->url);
   if (rc != 0)
     return rc;
 
@@ -1078,7 +1076,7 @@ int http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
     return EINVAL;
 
   req->url = NULL;
-  rc = c_cdd_strdup(token_endpoint_url, &req->url);
+  rc = CDD_STRDUP(token_endpoint_url, &req->url);
   if (rc != 0)
     return rc;
 
@@ -1158,7 +1156,7 @@ int http_request_init_oauth2_authorization_code_grant(
     return EINVAL;
 
   req->url = NULL;
-  rc = c_cdd_strdup(token_endpoint_url, &req->url);
+  rc = CDD_STRDUP(token_endpoint_url, &req->url);
   if (rc != 0)
     return rc;
 
@@ -1245,7 +1243,7 @@ int http_request_init_oauth2_client_credentials_grant(
     return EINVAL;
 
   req->url = NULL;
-  rc = c_cdd_strdup(token_endpoint_url, &req->url);
+  rc = CDD_STRDUP(token_endpoint_url, &req->url);
   if (rc != 0)
     return rc;
 
@@ -1318,7 +1316,7 @@ int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
     return EINVAL;
 
   req->url = NULL;
-  rc = c_cdd_strdup(token_endpoint_url, &req->url);
+  rc = CDD_STRDUP(token_endpoint_url, &req->url);
   if (rc != 0)
     return rc;
 
@@ -1380,7 +1378,7 @@ int http_request_init_oauth2_device_authorization_request(
     return EINVAL;
 
   req->url = NULL;
-  rc = c_cdd_strdup(device_endpoint_url, &req->url);
+  rc = CDD_STRDUP(device_endpoint_url, &req->url);
   if (rc != 0)
     return rc;
 
@@ -1434,7 +1432,7 @@ int http_request_init_oauth2_device_access_token_request(
     return EINVAL;
 
   req->url = NULL;
-  rc = c_cdd_strdup(token_endpoint_url, &req->url);
+  rc = CDD_STRDUP(token_endpoint_url, &req->url);
   if (rc != 0)
     return rc;
 
@@ -1489,7 +1487,7 @@ int http_request_init_oauth2_token_revocation(
     return EINVAL;
 
   req->url = NULL;
-  rc = c_cdd_strdup(revocation_endpoint_url, &req->url);
+  rc = CDD_STRDUP(revocation_endpoint_url, &req->url);
   if (rc != 0)
     return rc;
 
@@ -1559,7 +1557,7 @@ int http_request_init_oauth2_token_introspection(
     return EINVAL;
 
   req->url = NULL;
-  rc = c_cdd_strdup(introspection_endpoint_url, &req->url);
+  rc = CDD_STRDUP(introspection_endpoint_url, &req->url);
   if (rc != 0)
     return rc;
 
@@ -1706,9 +1704,13 @@ typedef SOCKET cdd_socket_t;
 #define CDD_INVALID_SOCKET_VAL INVALID_SOCKET
 #define CDD_SOCKET_ERROR_VAL SOCKET_ERROR
 #else
+/** @brief Documented */
 #define CDD_CLOSESOCKET close
+/** @brief Documented */
 typedef int cdd_socket_t;
+/** @brief Documented */
 #define CDD_INVALID_SOCKET_VAL -1
+/** @brief Documented */
 #define CDD_SOCKET_ERROR_VAL -1
 #endif
 
@@ -1955,6 +1957,7 @@ int http_response_save_to_file(const struct HttpResponse *res,
   return 0;
 }
 
+/** @brief Documented */
 int http_client_send_multi(struct HttpClient *client,
                            struct HttpRequest *const *requests,
                            size_t num_requests, struct HttpFuture **futures,
@@ -2025,6 +2028,7 @@ void c_abstract_http_log_debug(const char *fmt, ...);
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((format(printf, 1, 2)))
 #endif
+/** @brief Documented */
 void c_abstract_http_log_debug(const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);

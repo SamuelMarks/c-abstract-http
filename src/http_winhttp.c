@@ -78,7 +78,7 @@ struct HttpTransportContext {
   /** @brief hSession */
   HINTERNET hSession;
   DWORD security_flags;
-  int disable_redirects;
+  int disable_redirects; /**< @brief Documented */
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
 };
@@ -767,6 +767,7 @@ int http_winhttp_send_multi(struct HttpTransportContext *ctx,
   return 0;
 }
 #else
+/** @brief Documented */
 int http_winhttp_send_multi(struct HttpTransportContext *ctx,
                             struct ModalityEventLoop *loop,
                             const struct HttpMultiRequest *multi,

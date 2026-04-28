@@ -22,9 +22,12 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
+/** @brief Documented */
 int http_fetch_global_init(void) { return 0; }
+/** @brief Documented */
 void http_fetch_global_cleanup(void) {}
 
+/** @brief Documented */
 int http_fetch_context_init(struct HttpTransportContext **const ctx) {
   int rc;
   LOG_DEBUG("http_fetch_context_init: Entering");
@@ -52,6 +55,7 @@ int http_fetch_context_init(struct HttpTransportContext **const ctx) {
   return 0;
 }
 
+/** @brief Documented */
 void http_fetch_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_fetch_context_free: Entering");
   if (ctx) {
@@ -61,6 +65,7 @@ void http_fetch_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_fetch_context_free: Exiting");
 }
 
+/** @brief Documented */
 int http_fetch_config_apply(struct HttpTransportContext *ctx,
                             const struct HttpConfig *config) {
   LOG_DEBUG("http_fetch_config_apply: Entering");
@@ -91,6 +96,7 @@ static int map_fetch_error(int err) {
   }
 }
 
+/** @brief Documented */
 int http_fetch_send(struct HttpTransportContext *ctx,
                     const struct HttpRequest *req,
                     struct HttpResponse **const res) {
@@ -215,14 +221,25 @@ int http_fetch_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_fetch_send: Success");
   return 0;
 }
+/** @brief Documented */
 int http_fetch_send_multi(struct HttpTransportContext *ctx,
                           struct ModalityEventLoop *loop,
                           const struct HttpMultiRequest *multi,
                           struct HttpFuture **futures) {
-  (void)ctx;
+  size_t i;
   (void)loop;
-  (void)multi;
-  (void)futures;
-  LOG_DEBUG("http_fetch_send_multi: Error ENOTSUP");
-  return ENOTSUP;
+
+  if (!ctx || !multi || !futures) {
+    LOG_DEBUG("http_fetch_send_multi: Error EINVAL");
+    return EINVAL;
+  }
+
+  for (i = 0; i < multi->count; i++) {
+    struct HttpResponse *res = NULL;
+    int rc = http_fetch_send(ctx, multi->requests[i], &res);
+    futures[i]->response = res;
+    futures[i]->error_code = rc;
+    futures[i]->is_ready = 1;
+  }
+  return 0;
 }
