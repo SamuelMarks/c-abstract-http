@@ -34,21 +34,6 @@ TEST test_coroutine_execution(void) {
   state.counter = 0;
 
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
-#ifdef ENOTSUP
-  if (rc == ENOTSUP) {
-    SKIPm("Coroutines not supported on this platform");
-  }
-#endif
-#ifdef ENOSYS
-  if (rc == ENOSYS || rc == ENOTSUP) {
-    /* Test fallback paths if native is ENOSYS */
-    cdd_coroutine_free(co);
-    ASSERT_EQ(ENOSYS, cdd_coroutine_resume(co));
-    ASSERT_EQ(ENOSYS, cdd_coroutine_yield());
-    ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
-    SKIPm("Coroutines not natively supported on this platform");
-  }
-#endif
   ASSERT_EQ(0, rc);
 
   ASSERT_EQ(0, state.counter);
@@ -76,14 +61,9 @@ TEST test_coroutine_execution(void) {
 TEST test_coroutine_errors(void) {
   struct CddCoroutine *co = NULL;
   int rc = cdd_coroutine_init(&co, 0, NULL, NULL);
-  if (rc == ENOSYS || rc == ENOTSUP) {
-    ASSERT_EQ(ENOSYS, cdd_coroutine_resume(co));
-    ASSERT_EQ(ENOSYS, cdd_coroutine_yield());
-  } else {
-    ASSERT_EQ(EINVAL, rc);
-    ASSERT_EQ(EINVAL, cdd_coroutine_resume(co));
-    ASSERT_EQ(EINVAL, cdd_coroutine_yield());
-  }
+  ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(EINVAL, cdd_coroutine_resume(co));
+  ASSERT_EQ(EINVAL, cdd_coroutine_yield());
   ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
   cdd_coroutine_free(co);
   PASS();

@@ -179,8 +179,6 @@ int http_apple_send(struct HttpTransportContext *ctx,
       mutableBodyData = NULL;
     }
     if (!mutableBodyData) {
-      if (mutableBodyData)
-        CFRelease(mutableBodyData);
       CFRelease(requestRef);
       free(*res);
       *res = NULL;

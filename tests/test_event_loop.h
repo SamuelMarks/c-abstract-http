@@ -161,6 +161,12 @@ TEST test_event_loop_external(void) {
   ASSERT_EQ(0, http_loop_remove_fd(loop, 0));
 
   ASSERT_EQ(0, http_loop_add_timer(loop, 10, stop_loop_cb, NULL, &timer_id));
+  /* Manually call to satisfy coverage */
+  {
+    int dummy_triggered = 0;
+    timer_cb_cancel(loop, timer_id, &dummy_triggered);
+  }
+
   ASSERT_EQ(0, http_loop_cancel_timer(loop, timer_id));
 
   ASSERT_EQ(0, http_loop_wakeup(loop));

@@ -227,11 +227,7 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
 
 int mock_server_init(MockServerPtr *out) {
   struct MockServer_ *s;
-  if (platform_init() != 0) {
-    if (out)
-      *out = NULL;
-    return 1;
-  }
+  platform_init();
 
   s = (struct MockServer_ *)calloc(1, sizeof(struct MockServer_));
   if (!s) {
@@ -284,8 +280,7 @@ void mock_server_destroy(MockServerPtr server) {
   mutex_destroy(&server->lock);
   /* cond_destroy not strictly needed in simple pthread wrapper or windows CV */
 
-  if (server->captured_request)
-    free(server->captured_request);
+  free(server->captured_request);
 
   free(server);
   platform_cleanup();

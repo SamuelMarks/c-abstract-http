@@ -85,7 +85,7 @@ int http_picoquic_context_init(struct HttpTransportContext **ctx) {
 
   /* Initialize an empty picoquic state machine configured as a client */
   /* Requires 16 bytes of random seed for statless resets, we pass zeros for the
-   * stub mapping. */
+   * mock mapping. */
   uint8_t reset_seed[16] = {0};
   c->quic = picoquic_create(8, NULL, NULL, NULL, "h3", NULL, NULL, NULL, NULL,
                             reset_seed, 0, NULL, NULL, NULL, 0);

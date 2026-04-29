@@ -112,8 +112,8 @@ TEST test_process_spawn_wait(void) {
   ASSERT(proc != NULL);
 
   /* Write something to unblock it if it waits on stdin,
-     but our stub currently exits with code 1 immediately if not matching proper
-     binary. */
+     but our mock binary currently exits with code 1 immediately if not matching
+     proper binary. */
 
   ASSERT_EQ(0, cdd_process_wait_and_free(proc, &exit_code));
 
@@ -167,9 +167,7 @@ TEST test_cdd_ipc_rw(void) {
 
   memset(buf, 0, sizeof(buf));
 
-  if (cdd_ipc_pipe_init(&pipe) != 0) {
-    PASS(); /* Can't test on this platform */
-  }
+  ASSERT_EQ(0, cdd_ipc_pipe_init(&pipe));
 
   ASSERT_EQ(0, cdd_ipc_write(pipe.write_handle, "test", 4));
   ASSERT_EQ(0, cdd_ipc_read(pipe.read_handle, buf, 4));

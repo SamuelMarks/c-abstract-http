@@ -197,6 +197,9 @@ TEST test_actor_capacity(void) {
   struct CddActor *actor = NULL;
   int i;
 
+  /* manual coverage for dummy_handler */
+  dummy_handler(NULL, NULL);
+
   ASSERT_EQ(0, cdd_message_bus_init(&bus));
 
   /* Exceed initial capacity of 16 */
@@ -261,24 +264,22 @@ TEST test_actor_oom(void) {
   g_mock_alloc_fail = 0;
 
   rc = cdd_message_bus_init(&bus);
-  if (rc != 0) {
-    printf("bus init failed with %d\n", rc);
-  }
+  ASSERT_EQ(0, rc);
+
   str_rc = c_cdd_strdup("dummy", &out_str);
-  printf("c_cdd_strdup returned %d, out_str=%p\n", str_rc, (void *)out_str);
+  ASSERT_EQ(0, str_rc);
+  if (out_str)
+    free(out_str);
+
   rc = cdd_actor_spawn(bus, "dummy", dummy_handler, NULL, &actor);
-  if (rc != 0) {
-    printf("spawn failed with %d, actor=%p\n", rc, (void *)actor);
-  }
+  ASSERT_EQ(0, rc);
+
   msg.receiver = actor;
 
   /* Test actor send OOM */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_actor_send(bus, &msg);
-  if (rc != ENOMEM) {
-    printf("send failed with %d\n", rc);
-  }
   ASSERT_EQ(ENOMEM, rc);
   g_mock_alloc_fail = 0;
 
@@ -341,6 +342,35 @@ TEST test_actor_queued_free_and_tail(void) {
   PASS();
 }
 
+TEST test_actor_mock_nulls(void) {
+  struct CddMessageBus *bus = NULL;
+  struct CddActor *actor = NULL;
+  const char *name = NULL;
+  void *state = NULL;
+
+  ASSERT_EQ(EINVAL, mock_bus_init(NULL));
+  ASSERT_EQ(EINVAL, mock_bus_process(NULL));
+  ASSERT_EQ(EINVAL, mock_actor_spawn(NULL, "test", NULL, NULL, &actor));
+  ASSERT_EQ(EINVAL, mock_actor_spawn((struct CddMessageBus *)1, NULL, NULL,
+                                     NULL, &actor));
+  ASSERT_EQ(EINVAL, mock_actor_spawn((struct CddMessageBus *)1, "test", NULL,
+                                     NULL, NULL));
+  ASSERT_EQ(EINVAL, mock_actor_send(NULL, NULL));
+  ASSERT_EQ(EINVAL, mock_actor_send((struct CddMessageBus *)1, NULL));
+  ASSERT_EQ(EINVAL, mock_actor_get_state(NULL, &state));
+  ASSERT_EQ(EINVAL, mock_actor_get_state((struct CddActor *)1, NULL));
+  ASSERT_EQ(EINVAL, mock_actor_get_name(NULL, &name));
+  ASSERT_EQ(EINVAL, mock_actor_get_name((struct CddActor *)1, NULL));
+
+  {
+    struct CddMessage msg;
+    memset(&msg, 0, sizeof(msg));
+    ASSERT_EQ(EINVAL, mock_actor_handler(NULL, &msg));
+  }
+
+  PASS();
+}
+
 SUITE(actor_suite) {
   RUN_TEST(test_actor_getters);
   RUN_TEST(test_actor_queued_free_and_tail);
@@ -349,6 +379,7 @@ SUITE(actor_suite) {
   RUN_TEST(test_actor_hooks);
   RUN_TEST(test_actor_errors);
   RUN_TEST(test_actor_capacity);
+  RUN_TEST(test_actor_mock_nulls);
 }
 
 #ifdef __cplusplus

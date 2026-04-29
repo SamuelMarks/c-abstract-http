@@ -97,11 +97,10 @@ TEST test_oauth2_localhost_intercept(void) {
     usleep(10000);
 #endif
     sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == TEST_INVALID_SOCKET)
-      continue;
+    ASSERT(sock != TEST_INVALID_SOCKET);
     memset(&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
-    saddr.sin_port = htons(args.port);
+    saddr.sin_port = htons(i == 0 ? 1 : args.port);
     saddr.sin_addr.s_addr = inet_addr("127.0.0.1");
     if (connect(sock, (struct sockaddr *)&saddr, sizeof(saddr)) == 0) {
       connected = 1;
@@ -147,9 +146,8 @@ TEST test_oauth2_localhost_intercept(void) {
     usleep(10000);
 #endif
     sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == TEST_INVALID_SOCKET)
-      continue;
-    saddr.sin_port = htons(args.port);
+    ASSERT(sock != TEST_INVALID_SOCKET);
+    saddr.sin_port = htons(i == 0 ? 1 : args.port);
     if (connect(sock, (struct sockaddr *)&saddr, sizeof(saddr)) == 0) {
       connected = 1;
       send(sock, "POST / HTTP/1.1\r\n\r\n", 19, 0);
@@ -175,9 +173,8 @@ TEST test_oauth2_localhost_intercept(void) {
     usleep(10000);
 #endif
     sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == TEST_INVALID_SOCKET)
-      continue;
-    saddr.sin_port = htons(args.port);
+    ASSERT(sock != TEST_INVALID_SOCKET);
+    saddr.sin_port = htons(i == 0 ? 1 : args.port);
     if (connect(sock, (struct sockaddr *)&saddr, sizeof(saddr)) == 0) {
       connected = 1;
       TEST_CLOSESOCKET(sock);
@@ -911,8 +908,7 @@ TEST test_http_send_multi(void) {
 
   for (i = 0; i < 2; ++i) {
     http_request_free(&reqs[i]);
-    if (futures[i]->response)
-      http_response_free(futures[i]->response);
+    ASSERT_EQ(NULL, futures[i]->response);
   }
   http_client_free(&client);
   PASS();
@@ -999,8 +995,10 @@ TEST test_http_types_leftover_errs(void) {
     g_mock_alloc_count = i;
     rc = http_request_set_auth_basic_userpwd(&req, "u", "p");
     g_mock_alloc_fail = 0;
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
     ASSERT_EQ(ENOMEM, rc);
   }
 
@@ -1021,8 +1019,10 @@ TEST test_http_types_leftover_errs(void) {
     rc = http_request_init_oauth2_password_grant(&req, "u", "client", "p", "s",
                                                  "u", "p");
     g_mock_alloc_fail = 0;
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
     ASSERT_EQ(ENOMEM, rc);
   }
   printf("6\n");
@@ -1033,8 +1033,10 @@ TEST test_http_types_leftover_errs(void) {
     rc = http_request_init_oauth2_client_credentials_grant(&req, "u", "client",
                                                            "s", "p");
     g_mock_alloc_fail = 0;
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
     ASSERT_EQ(ENOMEM, rc);
   }
   printf("6\n");
@@ -1045,8 +1047,10 @@ TEST test_http_types_leftover_errs(void) {
     rc = http_request_init_oauth2_refresh_token_grant(&req, "u", "client", "r",
                                                       "s", "p");
     g_mock_alloc_fail = 0;
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
     ASSERT_EQ(ENOMEM, rc);
   }
   for (i = 0; i < 5; i++) {
@@ -1055,8 +1059,10 @@ TEST test_http_types_leftover_errs(void) {
     rc = http_request_init_oauth2_authorization_code_grant(&req, "u", "c", "r",
                                                            "id", "sec", "p");
     g_mock_alloc_fail = 0;
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
     ASSERT_EQ(ENOMEM, rc);
   }
   for (i = 0; i < 5; i++) {
@@ -1065,8 +1071,10 @@ TEST test_http_types_leftover_errs(void) {
     rc = http_request_init_oauth2_device_access_token_request(&req, "u",
                                                               "client", "c");
     g_mock_alloc_fail = 0;
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
     ASSERT_EQ(ENOMEM, rc);
   }
   for (i = 0; i < 5; i++) {
@@ -1075,8 +1083,10 @@ TEST test_http_types_leftover_errs(void) {
     rc = http_request_init_oauth2_token_revocation(&req, "u", "t", "hint",
                                                    "client", "p");
     g_mock_alloc_fail = 0;
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
     ASSERT_EQ(ENOMEM, rc);
   }
 
@@ -1201,8 +1211,10 @@ TEST test_http_types_more_errs_2(void) {
     rc = http_request_init_oauth2_device_authorization_request(&req, "u",
                                                                "client", "s");
     g_mock_alloc_fail = 0;
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
     ASSERT_EQ(ENOMEM, rc);
   }
   printf("6\n");
@@ -1213,8 +1225,10 @@ TEST test_http_types_more_errs_2(void) {
     rc = http_request_init_oauth2_token_introspection(&req, "u", "t", "hint",
                                                       "client", "s");
     g_mock_alloc_fail = 0;
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
     ASSERT_EQ(ENOMEM, rc);
   }
 
@@ -1275,9 +1289,6 @@ TEST test_http_types_end_errs(void) {
   g_mock_alloc_fail = 0;
   http_multi_request_free(&multi);
   http_request_free(&req);
-  if (future) {
-    free(future);
-  }
 
   for (i = 0; i < 4; i++) {
     http_request_init(&req);
@@ -1287,8 +1298,10 @@ TEST test_http_types_end_errs(void) {
                                                                "client", "s");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
     ASSERT_EQ(ENOMEM, rc);
   }
 
@@ -1338,8 +1351,10 @@ TEST test_http_types_final_errs(void) {
                                                               "client", "c");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
 
   g_mock_alloc_fail = 1;
@@ -1375,8 +1390,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
                                                    "scope");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
   for (i = 0; i < 5; i++) {
     http_request_init(&req);
@@ -1386,8 +1403,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
                                                            "s", "scope");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
   for (i = 0; i < 5; i++) {
     http_request_init(&req);
@@ -1397,8 +1416,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
                                                            "r", "c", "s", NULL);
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
   for (i = 0; i < 5; i++) {
     http_request_init(&req);
@@ -1408,8 +1429,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
                                                       "s", "scope");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
   for (i = 0; i < 5; i++) {
     http_request_init(&req);
@@ -1419,8 +1442,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
                                                  "s", "scope");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
 
   /* Additional tests */
@@ -1433,8 +1458,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
     rc = http_cookie_jar_set(&jar, "name2", "val2");
     g_mock_alloc_fail = 0;
     http_cookie_jar_free(&jar);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
   for (i = 0; i < 5; i++) {
     struct HttpCookieJar jar;
@@ -1445,8 +1472,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
     rc = http_cookie_jar_set(&jar, "name1", "val2"); /* update */
     g_mock_alloc_fail = 0;
     http_cookie_jar_free(&jar);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
   for (i = 0; i < 5; i++) {
     struct HttpMultiRequest m;
@@ -1462,8 +1491,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
     g_mock_alloc_fail = 0;
     http_multi_request_free(&m);
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
   for (i = 0; i < 5; i++) {
     char *url = NULL;
@@ -1474,20 +1505,17 @@ TEST test_http_types_oom_bruteforce_all(void) {
     g_mock_alloc_fail = 0;
     if (url)
       free(url);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
-  for (i = 0; i < 5; i++) {
+  {
     struct HttpResponse res;
     http_response_init(&res);
     res.body = (unsigned char *)"test";
     res.body_len = 4;
-    g_mock_alloc_fail = 1;
-    g_mock_alloc_count = i;
     rc = http_response_save_to_file(&res, "out.txt");
-    g_mock_alloc_fail = 0;
-    if (rc == 0)
-      break;
   }
   for (i = 0; i < 5; i++) {
     struct HttpFuture f;
@@ -1505,8 +1533,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
     rc = http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0);
     g_mock_alloc_fail = 0;
     http_request_free(&req2);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
 
   /* Flatten part with filename but no content_type */
@@ -1523,8 +1553,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
                                4);
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
   for (i = 0; i < 5; i++) {
     struct HttpConfig config;
@@ -1533,8 +1565,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
     rc = http_config_init(&config);
     g_mock_alloc_fail = 0;
     http_config_free(&config);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
   for (i = 0; i < 5; i++) {
     http_request_init(&req);
@@ -1543,8 +1577,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
     rc = http_request_set_auth_basic(&req, "Basic dXNlcjpwYXNz");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
   for (i = 0; i < 5; i++) {
     http_request_init(&req);
@@ -1553,8 +1589,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
     rc = http_request_set_auth_bearer(&req, "token123");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    if (rc == 0)
-      break;
+    if (rc == 0) {
+      i = 9999;
+      continue;
+    }
   }
 
   /* 320: add_part_header_last with 0 parts */

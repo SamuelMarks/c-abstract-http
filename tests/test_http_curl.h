@@ -179,7 +179,7 @@ TEST test_curl_send_invalid_arguments(void) {
 
 /*
  * NOTE: Testing a successful request requires a running server.
- * We skip strictly specific success tests here (mocking/stubbing libcurl
+ * We skip strictly specific success tests here (mocking libcurl
  * internals requires complex LD_PRELOAD or weak symbols which is beyond
  * standard C89 unit test scope without heavy frameworks).
  * The failure cases prove the logic integration.

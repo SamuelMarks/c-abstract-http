@@ -61,9 +61,6 @@ TEST test_apple_oom_branches(void) {
   req.method = HTTP_GET;
   {
     int debug_rc = http_apple_send(ctx, &req, &res);
-    if (debug_rc != ENOMEM)
-      printf("test_apple_oom_branches: expected ENOMEM (%d), got %d\n", ENOMEM,
-             debug_rc);
     ASSERT_EQ(ENOMEM, debug_rc);
   }
   http_request_free(&req);
@@ -267,11 +264,7 @@ TEST test_apple_send_invalid(void) {
   /* Might fail with EIO due to no connection or return an allocated res */
   {
     int rc = http_apple_send(ctx, &req, &res);
-    if (rc == 0) {
-      if (res)
-        http_response_free(res);
-      free(res);
-    }
+    ASSERT(rc != 0);
   }
 #else
   /* Valid input but not implemented (or no Apple OS) should return ENOSYS */
@@ -313,11 +306,7 @@ TEST test_apple_send_all_methods(void) {
       http_apple_send(ctx, &req, &res);
     } else {
       int rc = http_apple_send(ctx, &req, &res);
-      if (rc == 0 && res) {
-        http_response_free(res);
-        free(res);
-        res = NULL;
-      }
+      ASSERT(rc != 0);
     }
     http_request_free(&req);
   }

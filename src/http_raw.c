@@ -18,7 +18,7 @@
 #include <mbedtls/error.h>
 #endif
 
-/* Fallback stubs for missing socket headers in strict DOS environments.
+/* Fallback headers for missing socket headers in strict DOS environments.
    A user compiling for DOS with Watt-32 or mTCP will provide these via 
    external headers or compiler flags. We declare them weakly or just rely
    on standard POSIX signatures. */

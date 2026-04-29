@@ -17,7 +17,7 @@ extern "C" {
 
 /**
  * @brief Callback for assertion failures in dependencies.
- * Usually stubbed out or prints to stderr.
+ * Usually mocked out or prints to stderr.
  */
 extern void cdd_precondition_failed(void);
 

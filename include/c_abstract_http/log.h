@@ -3,7 +3,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 #ifndef LOG_DEBUG
 #ifdef DEBUG
@@ -27,6 +27,6 @@ void c_abstract_http_log_debug(const char *fmt, ...);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
 #endif /* C_ABSTRACT_HTTP_LOG_H */
