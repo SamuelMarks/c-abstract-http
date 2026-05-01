@@ -33,6 +33,7 @@ static int mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   return 0;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_apple_oom_branches(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -110,7 +111,9 @@ TEST test_apple_oom_branches(void) {
   http_apple_context_free(ctx);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_apple_oom(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -136,6 +139,7 @@ TEST test_apple_oom(void) {
   http_apple_context_free(ctx);
   PASS();
 }
+#endif
 
 TEST test_apple_send_mock_server(void) {
 #if defined(__APPLE__)
@@ -399,8 +403,12 @@ SUITE(http_apple_suite) {
   RUN_TEST(test_apple_config);
   RUN_TEST(test_apple_send_invalid);
   RUN_TEST(test_apple_send_all_methods);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_apple_oom_branches);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_apple_oom);
+#endif
 }
 
 #ifdef __cplusplus

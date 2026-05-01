@@ -1,3 +1,9 @@
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM)
+__declspec(dllexport) int g_mock_waitpid_fail = 0;
+#else
+__declspec(dllimport) extern int g_mock_waitpid_fail;
+#endif
+
 
 /* clang-format off */
 #include <errno.h>
@@ -30,7 +36,7 @@
 
 #include <c_abstract_http/process.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 /* clang-format on */
 
 static struct CddProcessHooks g_process_hooks = {NULL, NULL, NULL, NULL};
@@ -46,7 +52,9 @@ void cdd_process_set_hooks(const struct CddProcessHooks *hooks) {
 struct CddProcess {
   HANDLE hProcess;
   HANDLE hThread;
-  int cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
+};
+
+int cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
     SECURITY_ATTRIBUTES saAttr;
     HANDLE hRead, hWrite;
 
@@ -627,15 +635,14 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
     return 0;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  extern int g_mock_waitpid_fail;
-  void cdd_process_test_waitpid_fail(void);
-  void cdd_process_test_waitpid_fail(void) {
+#if 1
+    __declspec(dllexport) void cdd_process_test_waitpid_fail(void);
+  __declspec(dllexport) void cdd_process_test_waitpid_fail(void) {
     struct CddProcess *p =
         (struct CddProcess *)malloc(sizeof(struct CddProcess));
     if (p) {
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-      p->process = (void *)123;
+      p->hProcess = (HANDLE)123;
 #else
       p->pid = 123;
 #endif
@@ -655,7 +662,7 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
     if (p) {
       int exit_code;
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-      p->process = (void *)123;
+      p->hProcess = (HANDLE)123;
 #else
       p->pid = 123;
 #endif

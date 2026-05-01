@@ -20,7 +20,7 @@
 #include <c_abstract_http/event_loop.h>
 #include <cfs/cfs.h>
 #include <c_abstract_http/http_winhttp.h>
-#include "functions/parse/str.h"
+#include "str.h"
 /* clang-format on */
 
 static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
@@ -98,14 +98,14 @@ static int method_to_wide(enum HttpMethod method, const wchar_t **out) {
   }
 }
 
-static extern void safe_close_handle(HINTERNET *h) {
+static void safe_close_handle(HINTERNET *h) {
   if (h && *h) {
     WinHttpCloseHandle(*h);
     *h = NULL;
   }
 }
 
-static extern int headers_to_wide_block(const struct HttpHeaders *headers,
+static int headers_to_wide_block(const struct HttpHeaders *headers,
                                         wchar_t **out) {
   size_t i;
   size_t total_wide_chars = 0;
@@ -221,7 +221,10 @@ void http_winhttp_context_free(struct HttpTransportContext *ctx) {
   if (ctx) {
     if (ctx->hSession)
       WinHttpCloseHandle(ctx->hSession);
-    http_config_free(&ctx->config);
+    if (ctx->config.proxy_username) free((void *)ctx->config.proxy_username);
+    if (ctx->config.proxy_password) free((void *)ctx->config.proxy_password);
+    if (ctx->config.user_agent) free((void *)ctx->config.user_agent);
+    if (ctx->config.proxy_url) free((void *)ctx->config.proxy_url);
     free(ctx);
   }
   LOG_DEBUG("http_winhttp_context_free: Exiting");

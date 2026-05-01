@@ -9,7 +9,7 @@
 
 #include <c_abstract_http/http_fetch.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 /* clang-format on */
 
 struct HttpTransportContext {

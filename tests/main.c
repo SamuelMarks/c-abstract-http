@@ -12,6 +12,7 @@
 #endif
 
 #include "greatest.h"
+#include "mock_alloc.h"
 
 /* Include test suites */
 
@@ -71,7 +72,17 @@
 
 GREATEST_MAIN_DEFS();
 
+#if defined(_MSC_VER)
+#include <crtdbg.h>
+#endif
+
 int main(int argc, char **argv) {
+#if defined(_MSC_VER)
+  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+#endif
   GREATEST_MAIN_BEGIN();
 
   RUN_SUITE(http_types_suite);

@@ -540,21 +540,25 @@ void cdd_thread_pool_free(struct CddThreadPool *pool) {
   LOG_DEBUG("cdd_thread_pool_free: Exiting");
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool);
-void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool) {
+#if 1
+__declspec(dllexport) void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool);
+__declspec(dllexport) void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool) {
   if (pool) {
     cdd_mutex_lock(pool->lock);
     pool->stop = 1;
     cdd_mutex_unlock(pool->lock);
   }
 }
-void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool);
-void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool) {
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM)
+void dummy_cb_thread(void *arg) { (void)arg; }
+#else
+extern void dummy_cb_thread(void *arg);
+#endif
+__declspec(dllexport) void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool);
+__declspec(dllexport) void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool) {
   if (pool) {
     struct TaskNode *t = (struct TaskNode *)malloc(sizeof(struct TaskNode));
     if (t) {
-      extern void dummy_cb_thread(void *arg);
       t->cb = dummy_cb_thread;
       t->arg = NULL;
       t->next = pool->head;
@@ -564,9 +568,9 @@ void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool) {
 }
 #endif
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-void cdd_thread_pool_test_free_with_tasks(void);
-void cdd_thread_pool_test_free_with_tasks(void) {
+#if 1
+__declspec(dllexport) void cdd_thread_pool_test_free_with_tasks(void);
+__declspec(dllexport) void cdd_thread_pool_test_free_with_tasks(void) {
   struct CddThreadPool *fake_pool =
       (struct CddThreadPool *)malloc(sizeof(struct CddThreadPool));
   memset(fake_pool, 0, sizeof(struct CddThreadPool));

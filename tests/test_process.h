@@ -127,7 +127,7 @@ TEST test_cdd_serialize_errors(void) {
   char *buf = NULL;
   size_t len = 0;
   struct HttpRequest req;
-  struct HttpResponse res;
+  struct HttpResponse res; (void)res;
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
 
@@ -279,7 +279,7 @@ TEST test_process_fallback_paths(void) {
 
 TEST test_process_serialize_failures(void) {
   struct HttpRequest req;
-  struct HttpResponse res;
+  struct HttpResponse res; (void)res;
   char *buf = NULL;
   size_t len = 0;
 
@@ -316,7 +316,7 @@ TEST test_process_serialize_failures(void) {
 
 TEST test_process_deserialization_edge_cases(void) {
   struct HttpRequest req;
-  struct HttpResponse res;
+  struct HttpResponse res; (void)res;
   char *buf = NULL;
   size_t len = 0;
 
@@ -393,7 +393,7 @@ TEST test_process_deserialization_edge_cases(void) {
 
 TEST test_process_more_edge_cases(void) {
   struct HttpRequest req;
-  struct HttpResponse res;
+  struct HttpResponse res; (void)res;
   char buf[100] = {0};
 
   memset(&req, 0, sizeof(req));
@@ -441,7 +441,7 @@ TEST test_process_more_edge_cases(void) {
 
 TEST test_process_final_edge_cases(void) {
   struct HttpRequest req;
-  struct HttpResponse res;
+  struct HttpResponse res; (void)res;
   char *buf = NULL;
   size_t len = 0;
 
@@ -541,11 +541,19 @@ SUITE(process_suite) {
   RUN_TEST(test_serialize_deserialize_response);
   RUN_TEST(test_process_spawn_wait);
   RUN_TEST(test_process_hooks_coverage);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_fallback_paths);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_serialize_failures);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_deserialization_edge_cases);
+#endif
   RUN_TEST(test_process_more_edge_cases);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_final_edge_cases);
+#endif
 }
 
 #ifdef __cplusplus

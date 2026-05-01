@@ -451,6 +451,7 @@ TEST test_ws_parser_errors(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_oom_branches(void) {
   struct HttpRequest req;
   struct c_abstract_http_ws_config config = {0};
@@ -476,7 +477,9 @@ TEST test_ws_oom_branches(void) {
   }
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_init_oom(void) {
   struct ws_parser_ctx parser;
   int rc;
@@ -487,6 +490,7 @@ TEST test_ws_parser_init_oom(void) {
   ASSERT_EQ(12, rc); /* ENOMEM */
   PASS();
 }
+#endif
 
 TEST test_ws_rsv_bit_set(void) {
   struct ws_parser_ctx parser;
@@ -534,6 +538,7 @@ TEST test_ws_masked_frame(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_realloc_oom(void) {
   struct ws_parser_ctx parser;
   struct test_ws_ctx ctx = {0};
@@ -553,6 +558,7 @@ TEST test_ws_realloc_oom(void) {
     free(parser.payload_buffer);
   PASS();
 }
+#endif
 
 TEST test_ws_parser_close_frame(void) {
   struct ws_parser_ctx parser;
@@ -651,6 +657,7 @@ TEST test_ws_parser_reassembly_expand_twice(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_fin_oom(void) {
   struct ws_parser_ctx parser;
   unsigned char chunk1[] = {0x01, 0x01, 'a'};
@@ -679,7 +686,9 @@ TEST test_ws_parser_reassembly_fin_oom(void) {
     free(parser.reassembly_buffer);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_fin_expand_oom(void) {
   struct ws_parser_ctx parser;
   unsigned char chunk1[] = {0x01, 0x01, 'a'};
@@ -713,7 +722,9 @@ TEST test_ws_parser_reassembly_fin_expand_oom(void) {
     free(parser.reassembly_buffer);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_sign_key_oom(void) {
   char out_accept[29];
   int rc;
@@ -724,6 +735,7 @@ TEST test_ws_sign_key_oom(void) {
   ASSERT_EQ(12, rc); /* ENOMEM */
   PASS();
 }
+#endif
 
 TEST test_ws_sign_key_too_long(void) {
   char out_accept[29];
@@ -765,6 +777,7 @@ TEST test_ws_parser_reassembly_fin_expand_success(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_frag_oom(void) {
   struct ws_parser_ctx parser;
   unsigned char chunk1[] = {0x01, 0x01, 'a'};
@@ -798,7 +811,9 @@ TEST test_ws_parser_reassembly_frag_oom(void) {
     free(parser.reassembly_buffer);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_sync_loop_init_oom(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
@@ -813,7 +828,9 @@ TEST test_ws_sync_loop_init_oom(void) {
   g_mock_alloc_fail = 0;
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_sync_loop_parser_oom(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
@@ -844,6 +861,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
   }
   PASS();
 }
+#endif
 
 static int mock_send_bad_payload(struct HttpTransportContext *tctx,
                                  const struct HttpRequest *req,
@@ -884,23 +902,39 @@ TEST test_ws_verify_accept_sign_error(void) {
 
 SUITE(ws_suite) {
 
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_oom_branches);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_init_oom);
+#endif
   RUN_TEST(test_ws_rsv_bit_set);
   RUN_TEST(test_ws_payload_too_large);
   RUN_TEST(test_ws_masked_frame);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_realloc_oom);
+#endif
   RUN_TEST(test_ws_parser_close_frame);
   RUN_TEST(test_ws_parser_pong_frame);
   RUN_TEST(test_ws_parser_invalid_fragmentation);
   RUN_TEST(test_ws_parser_reassembly_too_large);
   RUN_TEST(test_ws_parser_reassembly_expand_twice);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_fin_oom);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_frag_oom);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_fin_expand_oom);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_frag_oom);
+#endif
   RUN_TEST(test_ws_parser_reassembly_fin_expand_success);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_sign_key_oom);
+#endif
   RUN_TEST(test_ws_sign_key_too_long);
   RUN_TEST(test_ws_parser_ext_len);
   RUN_TEST(test_ws_parser_errors);
@@ -929,8 +963,12 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_sync_loop_success);
   RUN_TEST(test_ws_sync_loop_fail);
 
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_sync_loop_init_oom);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_sync_loop_parser_oom);
+#endif
   RUN_TEST(test_ws_sync_loop_feed_error);
 }
 GREATEST_MAIN_DEFS();

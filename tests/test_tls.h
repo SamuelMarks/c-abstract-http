@@ -79,6 +79,7 @@ TEST test_tls_isolation(void) {
 
 #include "mock_alloc.h"
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_tls_oom(void) {
   struct CddTlsKey *key = NULL;
 
@@ -105,6 +106,7 @@ TEST test_tls_oom(void) {
 
   PASS();
 }
+#endif
 
 TEST test_tls_errors(void) {
   ASSERT_EQ(EINVAL, cdd_tls_key_create(NULL, NULL));
@@ -115,7 +117,9 @@ TEST test_tls_errors(void) {
 
 SUITE(tls_suite) {
   RUN_TEST(test_tls_errors);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_tls_oom);
+#endif
   RUN_TEST(test_tls_isolation);
 }
 

@@ -7,7 +7,7 @@
 
 #include <c_abstract_http/http_msh3.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 #include <c_abstract_http/thread_pool.h>
 
 #ifdef C_ABSTRACT_HTTP_USE_MSH3

@@ -22,7 +22,7 @@
 
 #include <cfs/cfs.h>
 #include <c_abstract_http/http_wininet.h>
-#include "functions/parse/str.h"
+#include "str.h"
 /* clang-format on */
 
 static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
@@ -61,14 +61,14 @@ struct HttpTransportContext {
 /* --- Internal Helpers --- */
 
 #ifdef _WIN32
-static extern void safe_close_handle(HINTERNET *h) {
+static void safe_close_handle(HINTERNET *h) {
   if (h && *h) {
     InternetCloseHandle(*h);
     *h = NULL;
   }
 }
 
-static extern int method_to_wide(enum HttpMethod method, const wchar_t **out) {
+static int method_to_wide(enum HttpMethod method, const wchar_t **out) {
   switch (method) {
   case HTTP_GET:
     *out = L"GET";
@@ -106,7 +106,7 @@ static extern int method_to_wide(enum HttpMethod method, const wchar_t **out) {
   }
 }
 
-static extern int headers_to_wide_block(const struct HttpHeaders *headers,
+static int headers_to_wide_block(const struct HttpHeaders *headers,
                                         wchar_t **out) {
   size_t i;
   size_t total_wchars = 0;
@@ -226,7 +226,10 @@ void http_wininet_context_free(struct HttpTransportContext *ctx) {
   if (ctx) {
     if (ctx->hInternet)
       InternetCloseHandle(ctx->hInternet);
-    http_config_free(&ctx->config);
+    if (ctx->config.proxy_username) free((void *)ctx->config.proxy_username);
+    if (ctx->config.proxy_password) free((void *)ctx->config.proxy_password);
+    if (ctx->config.user_agent) free((void *)ctx->config.user_agent);
+    if (ctx->config.proxy_url) free((void *)ctx->config.proxy_url);
     free(ctx);
   }
 #endif
@@ -285,7 +288,15 @@ int http_wininet_config_apply(struct HttpTransportContext *ctx,
   }
 
   ctx->cookie_jar = config->cookie_jar;
+  if (ctx->config.proxy_username) free((void *)ctx->config.proxy_username);
+  if (ctx->config.proxy_password) free((void *)ctx->config.proxy_password);
+  if (ctx->config.user_agent) free((void *)ctx->config.user_agent);
+  if (ctx->config.proxy_url) free((void *)ctx->config.proxy_url);
   ctx->config = *config;
+  if (config->proxy_username) { char* tmp=NULL; CDD_STRDUP(config->proxy_username, &tmp); ctx->config.proxy_username = tmp; }
+  if (config->proxy_password) { char* tmp=NULL; CDD_STRDUP(config->proxy_password, &tmp); ctx->config.proxy_password = tmp; }
+  if (config->user_agent) { char* tmp=NULL; CDD_STRDUP(config->user_agent, &tmp); ctx->config.user_agent = tmp; }
+  if (config->proxy_url) { char* tmp=NULL; CDD_STRDUP(config->proxy_url, &tmp); ctx->config.proxy_url = tmp; }
 
   LOG_DEBUG("http_wininet_config_apply: Success");
   return 0;

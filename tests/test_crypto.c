@@ -148,14 +148,15 @@ TEST test_sha1_large_string(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_crypto_oom(void) {
   char *b64_str = NULL;
   size_t b64_len = 0;
   unsigned char *dec_data = NULL;
   size_t dec_len = 0;
 
-  extern int g_mock_alloc_fail;
-  extern int g_mock_alloc_count;
+  /* extern int g_mock_alloc_fail; */
+  /* extern int g_mock_alloc_count; */
   g_mock_alloc_fail = 1;
 
   ASSERT_EQ(ENOMEM,
@@ -166,6 +167,7 @@ TEST test_crypto_oom(void) {
   g_mock_alloc_fail = 0;
   PASS();
 }
+#endif
 
 TEST test_sha1_rollover(void) {
   struct sha1_ctx ctx;
@@ -185,7 +187,9 @@ TEST test_sha1_rollover(void) {
 SUITE(crypto_suite) {
   RUN_TEST(test_sha1_large_string);
   RUN_TEST(test_crypto_errors);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_crypto_oom);
+#endif
   RUN_TEST(test_sha1_rollover);
   RUN_TEST(test_sha1_empty_string);
   RUN_TEST(test_sha1_fox_string);

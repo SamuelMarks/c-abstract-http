@@ -8,7 +8,7 @@
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_wasm.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/fetch.h>

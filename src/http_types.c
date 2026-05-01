@@ -31,7 +31,7 @@ extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 #endif
 
 #include <c_abstract_http/http_types.h>
-#include "functions/parse/str.h"
+#include "str.h"
 
 #include <stdarg.h>
 

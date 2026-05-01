@@ -7,7 +7,7 @@
 
 #include <c_abstract_http/http_aria2.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
 

@@ -1,10 +1,101 @@
 /* clang-format off */
+#if defined(_MSC_VER)
+#pragma warning(disable: 4273)
+#endif
+#undef malloc
+#undef calloc
+#undef realloc
+#undef free
+#undef strdup
+#undef pthread_key_create
+#undef pthread_setspecific
+#undef pthread_mutex_init
+#undef pthread_cond_init
+#undef pthread_create
+#undef pipe
+#undef fork
+#undef waitpid
+#undef select
+#undef math_get_current_time_ms
+#undef pthread_getspecific
+#undef fwrite
+#undef fclose
+#undef socket
+#undef bind
+#undef listen
+#undef accept
+#undef recv
+
 #include <stdio.h>
 #include <string.h>
 #include "mock_alloc.h"
-
+#undef g_mock_alloc_fail
+#undef g_mock_alloc_count
+#undef g_mock_pthread_fail
+#undef g_mock_pipe_fail
+#undef g_mock_fork_fail
+#undef g_mock_waitpid_fail
+#undef g_mock_select_fail
+#undef g_mock_time_jump
+#undef g_mock_time_jump_count
+#undef g_mock_fwrite_fail
+#undef g_mock_fclose_fail
+#undef g_mock_socket_fail
+#undef g_mock_bind_fail
+#undef g_mock_listen_fail
+#undef g_mock_accept_fail
+#undef g_mock_recv_fail
+#undef g_mock_alloc_fail
+#undef g_mock_alloc_count
+#undef g_mock_pthread_fail
+#undef g_mock_pipe_fail
+#undef g_mock_fork_fail
+#undef g_mock_waitpid_fail
+#undef g_mock_select_fail
+#undef g_mock_time_jump
+#undef g_mock_time_jump_count
+#undef g_mock_fwrite_fail
+#undef g_mock_fclose_fail
+#undef g_mock_socket_fail
+#undef g_mock_bind_fail
+#undef g_mock_listen_fail
+#undef g_mock_accept_fail
+#undef g_mock_recv_fail
 int g_mock_alloc_fail = 0;
 int g_mock_alloc_count = 0;
+int g_mock_pthread_fail = 0;
+int g_mock_pipe_fail = 0;
+int g_mock_fork_fail = 0;
+int g_mock_waitpid_fail = 0;
+int g_mock_select_fail = 0;
+int g_mock_time_jump = 0;
+int g_mock_time_jump_count = 0;
+int g_mock_fwrite_fail = 0;
+int g_mock_fclose_fail = 0;
+int g_mock_socket_fail = 0;
+int g_mock_bind_fail = 0;
+int g_mock_listen_fail = 0;
+int g_mock_accept_fail = 0;
+int g_mock_recv_fail = 0;
+
+int *cdd_mock_get_g_mock_alloc_fail(void) { return &g_mock_alloc_fail; }
+int *cdd_mock_get_g_mock_alloc_count(void) { return &g_mock_alloc_count; }
+int *cdd_mock_get_g_mock_pthread_fail(void) { return &g_mock_pthread_fail; }
+int *cdd_mock_get_g_mock_pipe_fail(void) { return &g_mock_pipe_fail; }
+int *cdd_mock_get_g_mock_fork_fail(void) { return &g_mock_fork_fail; }
+int *cdd_mock_get_g_mock_waitpid_fail(void) { return &g_mock_waitpid_fail; }
+int *cdd_mock_get_g_mock_select_fail(void) { return &g_mock_select_fail; }
+int *cdd_mock_get_g_mock_time_jump(void) { return &g_mock_time_jump; }
+int *cdd_mock_get_g_mock_time_jump_count(void) { return &g_mock_time_jump_count; }
+int *cdd_mock_get_g_mock_fwrite_fail(void) { return &g_mock_fwrite_fail; }
+int *cdd_mock_get_g_mock_fclose_fail(void) { return &g_mock_fclose_fail; }
+int *cdd_mock_get_g_mock_socket_fail(void) { return &g_mock_socket_fail; }
+int *cdd_mock_get_g_mock_bind_fail(void) { return &g_mock_bind_fail; }
+int *cdd_mock_get_g_mock_listen_fail(void) { return &g_mock_listen_fail; }
+int *cdd_mock_get_g_mock_accept_fail(void) { return &g_mock_accept_fail; }
+int *cdd_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
+
+
 
 #undef malloc
 #undef calloc
@@ -23,11 +114,7 @@ int g_mock_alloc_count = 0;
 #undef math_get_current_time_ms
 #undef pthread_getspecific
 
-/* Real declarations */
-extern void *malloc(size_t);
-extern void *calloc(size_t, size_t);
-extern void *realloc(void *, size_t);
-extern void free(void *);
+
 
 void *c_abstract_http_mock_malloc(size_t size);
 void *c_abstract_http_mock_calloc(size_t count, size_t size);
@@ -78,12 +165,15 @@ char *c_abstract_http_mock_strdup(const char *s, char **out) {
     }
 }
 
+#if !defined(_WIN32)
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#endif
 #include <errno.h>
 /* clang-format on */
+#if !defined(_WIN32)
 extern int pthread_key_create(pthread_key_t *, void (*)(void *));
 extern int pthread_mutex_init(pthread_mutex_t *, const pthread_mutexattr_t *);
 extern int pthread_cond_init(pthread_cond_t *, const pthread_condattr_t *);
@@ -93,10 +183,16 @@ extern int pipe(int[2]);
 extern pid_t fork(void);
 extern pid_t waitpid(pid_t, int *, int);
 extern int select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
+#if defined(_WIN32)
+__declspec(dllimport) long long real_math_get_current_time_ms(void);
+#else
 extern long long real_math_get_current_time_ms(void);
+#endif
 extern int pthread_setspecific(pthread_key_t, const void *);
 extern void *pthread_getspecific(pthread_key_t);
+#endif
 
+#if !defined(_WIN32)
 int c_abstract_http_mock_pthread_key_create(pthread_key_t *key,
                                             void (*destructor)(void *));
 int c_abstract_http_mock_pthread_mutex_init(pthread_mutex_t *mutex,
@@ -117,7 +213,6 @@ int c_abstract_http_mock_pthread_setspecific(pthread_key_t key,
                                              const void *value);
 void *c_abstract_http_mock_pthread_getspecific(pthread_key_t key);
 
-int g_mock_pthread_fail = 0;
 
 int c_abstract_http_mock_pthread_key_create(pthread_key_t *key,
                                             void (*destructor)(void *)) {
@@ -164,9 +259,6 @@ int c_abstract_http_mock_pthread_create(pthread_t *thread,
   return pthread_create(thread, attr, start_routine, arg);
 }
 
-int g_mock_pipe_fail = 0;
-int g_mock_fork_fail = 0;
-int g_mock_waitpid_fail = 0;
 
 int c_abstract_http_mock_pipe(int fildes[2]) {
   if (g_mock_pipe_fail) {
@@ -197,8 +289,8 @@ pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options) {
   }
   return waitpid(pid, stat_loc, options);
 }
+#endif
 
-int g_mock_select_fail = 0;
 int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
                                 fd_set *errorfds, struct timeval *timeout) {
   if (g_mock_select_fail == 1 && errorfds) {
@@ -212,11 +304,13 @@ int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
   return select(nfds, readfds, writefds, errorfds, timeout);
 }
 
-int g_mock_time_jump = 0;
-int g_mock_time_jump_count = 0;
 
 #undef math_get_current_time_ms
+#if defined(_WIN32)
+__declspec(dllimport) long long real_math_get_current_time_ms(void);
+#else
 extern long long real_math_get_current_time_ms(void);
+#endif
 
 long long c_abstract_http_mock_math_get_current_time_ms(void) {
   long long now = real_math_get_current_time_ms();
@@ -276,13 +370,6 @@ extern int g_mock_listen_fail;
 extern int g_mock_accept_fail;
 extern int g_mock_recv_fail;
 
-int g_mock_fwrite_fail = 0;
-int g_mock_fclose_fail = 0;
-int g_mock_socket_fail = 0;
-int g_mock_bind_fail = 0;
-int g_mock_listen_fail = 0;
-int g_mock_accept_fail = 0;
-int g_mock_recv_fail = 0;
 
 #undef fwrite
 #undef fclose
@@ -325,6 +412,43 @@ int c_abstract_http_mock_fclose(FILE *stream) {
   return fclose(stream);
 }
 
+#ifdef _WIN32
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+typedef int socklen_t;
+SOCKET c_abstract_http_mock_socket(int domain, int type, int protocol) {
+  if (g_mock_socket_fail)
+    return INVALID_SOCKET;
+  return socket(domain, type, protocol);
+}
+
+int c_abstract_http_mock_bind(SOCKET socket, const struct sockaddr *address,
+                              socklen_t address_len) {
+  if (g_mock_bind_fail)
+    return SOCKET_ERROR;
+  return bind(socket, address, address_len);
+}
+
+int c_abstract_http_mock_listen(SOCKET socket, int backlog) {
+  if (g_mock_listen_fail)
+    return SOCKET_ERROR;
+  return listen(socket, backlog);
+}
+
+SOCKET c_abstract_http_mock_accept(SOCKET socket, struct sockaddr *address,
+                                int *address_len) {
+  if (g_mock_accept_fail)
+    return INVALID_SOCKET;
+  return accept(socket, address, address_len);
+}
+
+int c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length,
+                                  int flags) {
+  if (g_mock_recv_fail)
+    return SOCKET_ERROR;
+  return recv(socket, buffer, length, flags);
+}
+#else
 int c_abstract_http_mock_socket(int domain, int type, int protocol) {
   if (g_mock_socket_fail)
     return -1;
@@ -357,3 +481,5 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
     return -1;
   return recv(socket, buffer, length, flags);
 }
+#endif
+

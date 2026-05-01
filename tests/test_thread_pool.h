@@ -150,6 +150,15 @@ static int dummy_hook_push(void *ctx, cdd_thread_task_cb cb, void *arg) {
   return 0;
 }
 
+#if defined(_WIN32)
+__declspec(dllimport) void cdd_thread_pool_test_free_with_tasks(void);
+#else
+#if defined(_WIN32)
+__declspec(dllimport) void cdd_thread_pool_test_free_with_tasks(void);
+#else
+extern void cdd_thread_pool_test_free_with_tasks(void);
+#endif
+#endif
 TEST test_thread_pool_edge_cases(void) {
   struct CddThreadPool *pool;
   struct CddThreadPoolHooks hooks;
@@ -176,7 +185,6 @@ TEST test_thread_pool_edge_cases(void) {
 
   /* I can create a fake pool to free! */
   {
-    extern void cdd_thread_pool_test_free_with_tasks(void);
     cdd_thread_pool_test_free_with_tasks();
   }
 
@@ -288,9 +296,15 @@ SUITE(thread_pool_suite) {
   RUN_TEST(test_mutex_lock_unlock);
   RUN_TEST(test_thread_pool_execution);
   RUN_TEST(test_thread_pool_edge_cases);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_thread_pool_pthread_create_failures);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_thread_pool_pthread_failures);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_thread_pool_fallback_paths);
+#endif
 }
 
 #ifdef __cplusplus

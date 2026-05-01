@@ -348,6 +348,7 @@ TEST test_sse_async_register_thread_pool(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_oom_branches(void) {
   struct HttpRequest req;
   struct c_abstract_http_sse_config config = {0};
@@ -388,7 +389,9 @@ TEST test_sse_oom_branches(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
@@ -407,7 +410,9 @@ TEST test_sse_parser_feed_oom(void) {
   sse_parser_destroy(&parser);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_id_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
@@ -426,7 +431,9 @@ TEST test_sse_parser_feed_id_oom(void) {
   sse_parser_destroy(&parser);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_event_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
@@ -445,6 +452,7 @@ TEST test_sse_parser_feed_event_oom(void) {
   sse_parser_destroy(&parser);
   PASS();
 }
+#endif
 
 TEST test_sse_parser_feed_no_data(void) {
   struct sse_parser_ctx parser;
@@ -488,6 +496,7 @@ TEST test_sse_parser_feed_data_capacity(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_data_capacity_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
@@ -515,6 +524,7 @@ TEST test_sse_parser_feed_data_capacity_oom(void) {
   sse_parser_destroy(&parser);
   PASS();
 }
+#endif
 
 TEST test_sse_parser_feed_invalid_utf8(void) {
   struct sse_parser_ctx parser;
@@ -548,6 +558,7 @@ TEST test_sse_parser_no_colon(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_dispatch_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
@@ -570,6 +581,7 @@ TEST test_sse_parser_dispatch_oom(void) {
   sse_parser_destroy(&parser);
   PASS();
 }
+#endif
 
 static int test_sse_mock_send_err(struct HttpTransportContext *ctx,
                                   const struct HttpRequest *req,
@@ -651,6 +663,7 @@ TEST test_sse_async_register_success(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_realloc_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
@@ -683,7 +696,9 @@ TEST test_sse_parser_feed_realloc_oom(void) {
   sse_parser_destroy(&parser);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
@@ -704,7 +719,9 @@ TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
   sse_parser_destroy(&parser);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_current_data_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
@@ -731,6 +748,7 @@ TEST test_sse_parser_feed_current_data_oom(void) {
   sse_parser_destroy(&parser);
   PASS();
 }
+#endif
 
 TEST test_sse_parser_feed_current_data_capacity_limit(void) {
   struct sse_parser_ctx parser;
@@ -779,6 +797,7 @@ static int mock_send_success_huge_body(struct HttpTransportContext *ctx,
   return 0;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_sync_loop_oom_branches(void) {
   struct HttpClient client = {0};
   struct HttpRequest req;
@@ -820,6 +839,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
 
   PASS();
 }
+#endif
 
 TEST test_sse_parser_feed_data_capacity_limit_real(void) {
   struct sse_parser_ctx parser;
@@ -931,26 +951,46 @@ TEST test_sse_parser_feed_huge_single_line(void) {
 
 SUITE(sse_suite) {
 
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_oom_branches);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_oom);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_id_oom);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_event_oom);
+#endif
   RUN_TEST(test_sse_parser_feed_no_data);
   RUN_TEST(test_sse_parser_feed_data_capacity);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_data_capacity_oom);
+#endif
   RUN_TEST(test_sse_parser_feed_invalid_utf8);
   RUN_TEST(test_sse_parser_destroy_null);
   RUN_TEST(test_sse_parser_no_colon);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_dispatch_oom);
+#endif
 
   RUN_TEST(test_sse_sync_loop_errors);
   RUN_TEST(test_sse_async_register_success);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_realloc_oom);
+#endif
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_line_buffer_realloc_oom);
+#endif
 
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_current_data_oom);
+#endif
   RUN_TEST(test_sse_parser_feed_current_data_capacity_limit);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_sync_loop_oom_branches);
+#endif
   RUN_TEST(test_sse_parser_feed_data_capacity_limit_real);
   RUN_TEST(test_sse_parser_feed_current_data_limit_real);
 

@@ -2,7 +2,7 @@
 /* clang-format off */
 #include <c_abstract_http/http_raw.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

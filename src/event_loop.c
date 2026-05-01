@@ -75,13 +75,9 @@ struct ModalityEventLoop {
 #endif
 };
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-cdd_int64_t real_math_get_current_time_ms(void);
-cdd_int64_t c_abstract_http_mock_math_get_current_time_ms(void);
-cdd_int64_t real_math_get_current_time_ms(void) {
-#else
-static cdd_int64_t math_get_current_time_ms(void) {
-#endif
+__declspec(dllexport) cdd_int64_t real_math_get_current_time_ms(void);
+__declspec(dllexport) cdd_int64_t real_math_get_current_time_ms(void) {
+
 #if defined(_WIN32)
 #if defined(_MSC_VER) && _MSC_VER < 1600
   return (cdd_int64_t)GetTickCount();
@@ -424,7 +420,7 @@ int http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
     *out_timer_id = id;
 
   loop->timers[loop->timer_count].expiration =
-      math_get_current_time_ms() + timeout_ms;
+      real_math_get_current_time_ms() + timeout_ms;
   loop->timers[loop->timer_count].id = id;
   loop->timers[loop->timer_count].cb = cb;
   loop->timers[loop->timer_count].user_data = user_data;
@@ -469,7 +465,7 @@ int http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
 static void process_timers(struct ModalityEventLoop *loop) {
   cdd_int64_t now;
 
-  now = math_get_current_time_ms();
+  now = real_math_get_current_time_ms();
 
   while (loop->timer_count > 0) {
     if (loop->timers[0].expiration > now) {
@@ -523,7 +519,7 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
 
   /* Calculate next timeout */
   if (loop->timer_count > 0) {
-    now = math_get_current_time_ms();
+    now = real_math_get_current_time_ms();
     while (loop->timer_count > 0 && !loop->timers[0].active) {
       loop->timers[0] = loop->timers[loop->timer_count - 1];
       loop->timer_count--;
@@ -607,10 +603,10 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
           revents |= HTTP_LOOP_ERROR;
 
         if (revents) {
-          cdd_int64_t start_cb = math_get_current_time_ms();
+          cdd_int64_t start_cb = real_math_get_current_time_ms();
           loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                           loop->fds[i].user_data);
-          if (math_get_current_time_ms() - start_cb > 50) {
+          if (real_math_get_current_time_ms() - start_cb > 50) {
             fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
                             "detected (callback took >50ms). This breaks "
                             "asynchronous concurrency!\n");
@@ -659,7 +655,7 @@ int http_loop_run(struct ModalityEventLoop *loop) {
 
     /* Calculate next timeout */
     if (loop->timer_count > 0) {
-      now = math_get_current_time_ms();
+      now = real_math_get_current_time_ms();
       while (loop->timer_count > 0 && !loop->timers[0].active) {
         loop->timers[0] = loop->timers[loop->timer_count - 1];
         loop->timer_count--;
@@ -750,10 +746,10 @@ int http_loop_run(struct ModalityEventLoop *loop) {
             revents |= HTTP_LOOP_ERROR;
 
           if (revents) {
-            cdd_int64_t start_cb = math_get_current_time_ms();
+            cdd_int64_t start_cb = real_math_get_current_time_ms();
             loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                             loop->fds[i].user_data);
-            if (math_get_current_time_ms() - start_cb > 50) {
+            if (real_math_get_current_time_ms() - start_cb > 50) {
               fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
                               "detected (callback took >50ms). This breaks "
                               "asynchronous concurrency!\n");
@@ -781,9 +777,9 @@ int http_loop_stop(struct ModalityEventLoop *loop) {
   return 0;
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop);
-void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop) {
+#if 1
+__declspec(dllexport) void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop);
+__declspec(dllexport) void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop) {
   if (loop)
     loop->stop_requested = 0;
 }

@@ -7,7 +7,7 @@ extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 
 #include <c_abstract_http/actor.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 
 #ifndef CDD_MALLOC
 #define CDD_MALLOC malloc

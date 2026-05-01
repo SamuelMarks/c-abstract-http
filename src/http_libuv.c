@@ -8,7 +8,7 @@
 #include <c_abstract_http/http_libuv.h>
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 
 #ifdef C_ABSTRACT_HTTP_USE_LIBUV
 #include <uv.h>

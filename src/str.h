@@ -50,14 +50,19 @@ extern "C" {
  * @return A pointer to the new string, or NULL if allocation failed or input
  * was NULL.
  */
-extern /**
+/**
         * @brief Executes the c_cdd_strdup operation.
         * @param s The s parameter.
         * @param out_s The out_s parameter.
         * @return 0 on success, or an error code.
         */
-    extern int
+    #ifndef CDD_STRDUP
+#define CDD_STRDUP c_cdd_strdup
+#endif
+
+extern int
     c_cdd_strdup(const char *s, char **out_s);
+extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out_s);
 
 /* --- Inspection Helpers --- */
 
@@ -69,7 +74,7 @@ extern /**
  * @param[in] prefix The prefix string to look for.
  * @return 1 if `str` begins with `prefix`, 0 otherwise.
  */
-extern /**
+/**
         * @brief Executes the c_cdd_str_starts_with operation.
         * @param str The str parameter.
         * @param prefix The prefix parameter.
@@ -116,7 +121,7 @@ extern int c_cdd_str_iequal(const char *a, const char *b, int *out_b);
  * @param[in] delimiter The delimiter character (e.g., '/').
  * @return Pointer to character immediately following the last delimiter.
  */
-extern /**
+/**
         * @brief Executes the c_cdd_str_after_last operation.
         * @param str The str parameter.
         * @param delimiter The delimiter parameter.
@@ -134,7 +139,7 @@ extern /**
  * @param[in] type The simple type name.
  * @return 1 if the extracted name matches `type`.
  */
-extern /**
+/**
         * @brief Executes the c_cdd_ref_is_type operation.
         * @param ref The ref parameter.
         * @param type The type parameter.
@@ -151,7 +156,7 @@ extern /**
  *
  * @param[in,out] str The string to modify.
  */
-extern /**
+/**
         * @brief Executes the c_cdd_str_trim_trailing_whitespace operation.
         * @param str The str parameter.
         */
@@ -170,7 +175,7 @@ extern /**
  * @param[in] quoted The string literal (with quotes).
  * @return Allocated string containing the decoded content, or NULL on error.
  */
-extern /**
+/**
         * @brief Executes the c_cdd_destringize operation.
         * @param quoted The quoted parameter.
         * @param out_s The out_s parameter.

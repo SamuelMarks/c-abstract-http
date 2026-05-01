@@ -56,7 +56,7 @@ typedef struct stat c_stat;
  * @param[in] path The path to check.
  * @return 1 if UNC, 0 otherwise.
  */
-extern /**
+/**
  * @brief Executes the path_is_unc operation.
  * @param path The path parameter.
  * @param out_is_unc The out_is_unc parameter.
@@ -73,7 +73,7 @@ extern int path_is_unc(const char *path, int *out_is_unc);
  * @param[out] out_len Pointer to store the number of characters written.
  * @return 0 on success, non-zero error code on failure.
  */
-extern /**
+/**
  * @brief Executes the ascii_to_wide operation.
  * @param s The s parameter.
  * @param ws The ws parameter.
@@ -92,7 +92,7 @@ extern int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out
  * @param[out] out_len Pointer to store the number of bytes written.
  * @return 0 on success, non-zero error code on failure.
  */
-extern /**
+/**
  * @brief Executes the wide_to_ascii operation.
  * @param ws The ws parameter.
  * @param s The s parameter.
@@ -182,7 +182,7 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @param[out] out Pointer to char* where the allocated string will be stored.
  * @return 0 on success, ENOMEM on allocation failure, EINVAL if args invalid.
  */
-extern /**
+/**
         * @brief Executes the get_basename operation.
         * @param path The path parameter.
         * @param out The out parameter.
@@ -199,7 +199,7 @@ extern /**
  * @param[out] out Pointer to char* where the allocated string will be stored.
  * @return 0 on success, ENOMEM on allocation failure, EINVAL if args invalid.
  */
-extern /**
+/**
         * @brief Executes the get_dirname operation.
         * @param path The path parameter.
         * @param out The out parameter.
@@ -218,7 +218,7 @@ extern /**
  * @param[out] out_size Pointer to size_t where data length will be stored.
  * @return 0 on success, or an error code (errno) on failure.
  */
-extern /**
+/**
         * @brief Executes the read_to_file operation.
         * @param path The path parameter.
         * @param mode The mode parameter.
@@ -237,7 +237,7 @@ extern /**
  * @param[in] content The null-terminated string to write.
  * @return 0 on success, or error code on failure.
  */
-extern /**
+/**
         * @brief Executes the fs_write_to_file operation.
         * @param path The path parameter.
         * @param content The content parameter.
@@ -255,7 +255,7 @@ extern /**
  * @param[out] out_size Pointer to size_t where data length will be stored.
  * @return 0 on success, or an error code (errno) on failure.
  */
-extern /**
+/**
         * @brief Executes the read_from_fh operation.
         * @param fh The fh parameter.
         * @param out_data The out_data parameter.
@@ -273,7 +273,7 @@ extern /**
  * @param[in] src Source path.
  * @return 0 on success, non-zero error code on failure.
  */
-extern /**
+/**
         * @brief Executes the cp operation.
         * @param dst The dst parameter.
         * @param src The src parameter.
@@ -290,7 +290,7 @@ extern /**
  * @param[in] path Path of directory to create.
  * @return 0 on success, non-zero error code on failure.
  */
-extern /**
+/**
         * @brief Executes the makedir operation.
         * @param path The path parameter.
         * @return 0 on success, or an error code.
@@ -304,7 +304,7 @@ extern /**
  * @param[in] path Path of directory tree to create.
  * @return 0 on success, non-zero error code from `mkdir` or `stat` on failure.
  */
-extern /**
+/**
         * @brief Executes the makedirs operation.
         * @param path The path parameter.
         * @return 0 on success, or an error code.
@@ -319,7 +319,7 @@ extern /**
  * @param[out] out_path Pointer to char* where the path string will be stored.
  * @return 0 on success, ENOMEM or other error code on failure.
  */
-extern /**
+/**
         * @brief Executes the tempdir operation.
         * @param out_path The out_path parameter.
         * @return 0 on success, or an error code.
@@ -332,7 +332,7 @@ extern /**
  *
  * @param[in] file Pointer to struct to clean.
  */
-extern /**
+/**
         * @brief Executes the FilenameAndPtr_cleanup operation.
         * @param file The file parameter.
         */
@@ -344,7 +344,7 @@ extern /**
  *
  * @param[in] file Pointer to struct.
  */
-extern /**
+/**
         * @brief Executes the FilenameAndPtr_delete_and_cleanup operation.
         * @param file The file parameter.
         */
@@ -361,7 +361,7 @@ extern /**
  * @param[out] file Output struct containing FILE* and filename string.
  * @return 0 on success, error code on failure.
  */
-extern /**
+/**
         * @brief Executes the mktmpfilegetnameandfile operation.
         * @param prefix The prefix parameter.
         * @param suffix The suffix parameter.
@@ -391,7 +391,7 @@ typedef int (*fs_walk_cb)(const char *path, void *user_data);
  * @param[in] user_data Opaque pointer passed to callback.
  * @return 0 on success, error code (errno) on failure.
  */
-extern /**
+/**
         * @brief Executes the walk_directory operation.
         * @param path The path parameter.
         * @param cb The cb parameter.

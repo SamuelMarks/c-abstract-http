@@ -39,7 +39,7 @@ static int mock_actor_handler(struct CddActor *actor, struct CddMessage *msg) {
 }
 
 TEST test_actor_spawn_and_message(void) {
-  struct CddMessageBus *bus = NULL;
+  struct CddMessageBus *bus = NULL; (void)bus;
   struct CddActor *actor1 = NULL;
   struct CddActor *actor2 = NULL;
   struct TestActorState state1 = {0, 0};
@@ -132,7 +132,7 @@ static int mock_actor_get_name(const struct CddActor *actor,
 
 TEST test_actor_hooks(void) {
   struct CddActorHooks hooks;
-  struct CddMessageBus *bus = NULL;
+  struct CddMessageBus *bus = NULL; (void)bus;
   struct CddActor *actor = NULL;
   struct CddMessage msg;
   void *state = NULL;
@@ -167,7 +167,7 @@ TEST test_actor_hooks(void) {
 }
 
 TEST test_actor_errors(void) {
-  struct CddMessageBus *bus = NULL;
+  struct CddMessageBus *bus = NULL; (void)bus;
   struct CddActor *actor = NULL;
   struct CddMessage msg;
   memset(&msg, 0, sizeof(msg));
@@ -193,7 +193,7 @@ static int dummy_handler(struct CddActor *self, struct CddMessage *msg) {
 }
 
 TEST test_actor_capacity(void) {
-  struct CddMessageBus *bus = NULL;
+  struct CddMessageBus *bus = NULL; (void)bus;
   struct CddActor *actor = NULL;
   int i;
 
@@ -213,7 +213,7 @@ TEST test_actor_capacity(void) {
 }
 
 TEST test_actor_getters(void) {
-  struct CddMessageBus *bus = NULL;
+  struct CddMessageBus *bus = NULL; (void)bus;
   struct CddActor *actor = NULL;
   void *state = NULL;
   const char *name = NULL;
@@ -239,8 +239,9 @@ TEST test_actor_getters(void) {
 
 #include "mock_alloc.h"
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_actor_oom(void) {
-  struct CddMessageBus *bus = NULL;
+  struct CddMessageBus *bus = NULL; (void)bus;
   struct CddActor *actor = NULL;
   struct CddMessage msg;
   int rc;
@@ -317,9 +318,10 @@ TEST test_actor_oom(void) {
   cdd_message_bus_free(NULL);
   PASS();
 }
+#endif
 
 TEST test_actor_queued_free_and_tail(void) {
-  struct CddMessageBus *bus = NULL;
+  struct CddMessageBus *bus = NULL; (void)bus;
   struct CddActor *actor = NULL;
   struct CddMessage msg1;
   struct CddMessage msg2;
@@ -343,7 +345,7 @@ TEST test_actor_queued_free_and_tail(void) {
 }
 
 TEST test_actor_mock_nulls(void) {
-  struct CddMessageBus *bus = NULL;
+  struct CddMessageBus *bus = NULL; (void)bus;
   struct CddActor *actor = NULL;
   const char *name = NULL;
   void *state = NULL;
@@ -374,7 +376,9 @@ TEST test_actor_mock_nulls(void) {
 SUITE(actor_suite) {
   RUN_TEST(test_actor_getters);
   RUN_TEST(test_actor_queued_free_and_tail);
+  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_actor_oom);
+#endif
   RUN_TEST(test_actor_spawn_and_message);
   RUN_TEST(test_actor_hooks);
   RUN_TEST(test_actor_errors);

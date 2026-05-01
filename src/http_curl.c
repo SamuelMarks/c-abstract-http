@@ -18,7 +18,7 @@
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_curl.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 /* clang-format on */
 
 struct HttpTransportContext {
@@ -88,7 +88,7 @@ static size_t math_curl_read_callback(char *buffer, size_t size, size_t nitems,
   return out_read;
 }
 
-static extern int format_header(const char *key, const char *value,
+static int format_header(const char *key, const char *value,
                                 char **_out_val) {
   size_t len = strlen(key) + 2 + strlen(value) + 1;
   char *buf = (char *)malloc(len);
@@ -105,7 +105,7 @@ static extern int format_header(const char *key, const char *value,
   }
 }
 
-static extern int map_curl_error(CURLcode res) {
+static int map_curl_error(CURLcode res) {
   switch (res) {
   case CURLE_OK:
     return 0;
