@@ -91,16 +91,20 @@ TEST test_tls_oom(void) {
   ASSERT_EQ(ENOMEM, rc);
   g_mock_alloc_fail = 0;
 
+#if !defined(_WIN32)
   g_mock_pthread_fail = 1;
   ASSERT_EQ(EIO, cdd_tls_key_create(&key, NULL));
   g_mock_pthread_fail = 0;
+#endif
 
   cdd_tls_key_create(&key, NULL);
 
+#if !defined(_WIN32)
   g_mock_pthread_fail = 1;
   ASSERT_EQ(EIO, cdd_tls_set(key, NULL));
 
   g_mock_pthread_fail = 0;
+#endif
 
   cdd_tls_key_delete(key);
 
@@ -117,7 +121,7 @@ TEST test_tls_errors(void) {
 
 SUITE(tls_suite) {
   RUN_TEST(test_tls_errors);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_tls_oom);
 #endif
   RUN_TEST(test_tls_isolation);

@@ -106,7 +106,7 @@ static void safe_close_handle(HINTERNET *h) {
 }
 
 static int headers_to_wide_block(const struct HttpHeaders *headers,
-                                        wchar_t **out) {
+                                 wchar_t **out) {
   size_t i;
   size_t total_wide_chars = 0;
   wchar_t *buf;
@@ -221,10 +221,14 @@ void http_winhttp_context_free(struct HttpTransportContext *ctx) {
   if (ctx) {
     if (ctx->hSession)
       WinHttpCloseHandle(ctx->hSession);
-    if (ctx->config.proxy_username) free((void *)ctx->config.proxy_username);
-    if (ctx->config.proxy_password) free((void *)ctx->config.proxy_password);
-    if (ctx->config.user_agent) free((void *)ctx->config.user_agent);
-    if (ctx->config.proxy_url) free((void *)ctx->config.proxy_url);
+    if (ctx->config.proxy_username)
+      free((void *)ctx->config.proxy_username);
+    if (ctx->config.proxy_password)
+      free((void *)ctx->config.proxy_password);
+    if (ctx->config.user_agent)
+      free((void *)ctx->config.user_agent);
+    if (ctx->config.proxy_url)
+      free((void *)ctx->config.proxy_url);
     free(ctx);
   }
   LOG_DEBUG("http_winhttp_context_free: Exiting");

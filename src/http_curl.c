@@ -88,8 +88,7 @@ static size_t math_curl_read_callback(char *buffer, size_t size, size_t nitems,
   return out_read;
 }
 
-static int format_header(const char *key, const char *value,
-                                char **_out_val) {
+static int format_header(const char *key, const char *value, char **_out_val) {
   size_t len = strlen(key) + 2 + strlen(value) + 1;
   char *buf = (char *)malloc(len);
   if (buf) {

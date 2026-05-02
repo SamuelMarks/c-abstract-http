@@ -403,10 +403,10 @@ SUITE(http_apple_suite) {
   RUN_TEST(test_apple_config);
   RUN_TEST(test_apple_send_invalid);
   RUN_TEST(test_apple_send_all_methods);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_apple_oom_branches);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_apple_oom);
 #endif
 }

@@ -431,7 +431,8 @@ TEST test_http_future(void) {
 }
 
 TEST test_http_multi_request(void) {
-  struct HttpMultiRequest multi; (void)multi;
+  struct HttpMultiRequest multi;
+  (void)multi;
   struct HttpRequest req1, req2;
 
   http_request_init(&req1);
@@ -808,7 +809,9 @@ TEST test_oauth2_build_authorization_url(void) {
 TEST test_http_types_errors(void) {
   struct HttpHeaders h;
   struct HttpRequest req;
-  struct HttpResponse res; (void)res; (void)res;
+  struct HttpResponse res;
+  (void)res;
+  (void)res;
   ASSERT_EQ(EINVAL, http_request_add_part(NULL, "n", "f", "ct", NULL, 0));
   ASSERT_EQ(EINVAL, http_request_add_part(&req, NULL, "f", "ct", NULL, 0));
 
@@ -882,7 +885,8 @@ static int dummy_send(struct HttpTransportContext *ctx,
 TEST test_http_send_multi(void) {
   struct HttpClient client;
   struct HttpRequest reqs[2];
-  struct HttpResponse *resps[2] = {0}; (void)resps;
+  struct HttpResponse *resps[2] = {0};
+  (void)resps;
   struct HttpRequest *reqs_ptrs[2];
   struct HttpFuture f1, f2;
   struct HttpFuture *futures[2];
@@ -915,7 +919,9 @@ TEST test_http_send_multi(void) {
 }
 
 TEST test_http_response_save_to_file(void) {
-  struct HttpResponse res; (void)res; (void)res;
+  struct HttpResponse res;
+  (void)res;
+  (void)res;
   http_response_init(&res);
   res.body = "test";
   res.body_len = 4;
@@ -931,14 +937,18 @@ TEST test_http_response_save_to_file(void) {
 }
 
 TEST test_http_types_leftover_errs(void) {
-  struct HttpMultiRequest multi; (void)multi;
+  struct HttpMultiRequest multi;
+  (void)multi;
   struct HttpRequest req;
   struct HttpCookieJar jar;
   struct HttpConfig config;
   struct HttpHeaders h;
-  char *boundary = NULL; (void)boundary;
+  char *boundary = NULL;
+  (void)boundary;
   const char *out = NULL;
-  struct HttpResponse res; (void)res; (void)res;
+  struct HttpResponse res;
+  (void)res;
+  (void)res;
   int rc, i;
   /* extern int g_mock_alloc_fail; */
   /* extern int g_mock_alloc_count; */
@@ -1161,7 +1171,8 @@ TEST test_http_client_errs(void) {
 }
 
 TEST test_http_modality_errs(void) {
-  struct ModalityContext ctx = {0}; (void)ctx;
+  struct ModalityContext ctx = {0};
+  (void)ctx;
   ASSERT_EQ(EINVAL, http_modality_context_init(NULL));
   http_modality_context_free(NULL);
   PASS();
@@ -1171,7 +1182,8 @@ TEST test_http_types_more_errs_2(void) {
   /* extern int g_mock_alloc_fail; */
   /* extern int g_mock_alloc_count; */
   struct HttpRequest req;
-  struct HttpFuture f; (void)f;
+  struct HttpFuture f;
+  (void)f;
   char *url = NULL;
   int rc, i;
 
@@ -1258,10 +1270,15 @@ TEST test_http_types_end_errs(void) {
   client.send = dummy_send;
   struct HttpRequest req;
   struct HttpRequest *req_ptr = &req;
-  struct HttpMultiRequest multi; (void)multi;
+  struct HttpMultiRequest multi;
+  (void)multi;
   struct HttpFuture *future = NULL;
   struct HttpResponse res = {0};
-  char *c = NULL, *s = NULL, *e = NULL, *ed = NULL; (void)c; (void)s; (void)e; (void)ed;
+  char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
+  (void)c;
+  (void)s;
+  (void)e;
+  (void)ed;
   int i;
   int rc;
   /* extern int g_mock_alloc_fail; */
@@ -1310,16 +1327,37 @@ TEST test_http_types_end_errs(void) {
   PASS();
 }
 
-static int dummy_send_fail(struct HttpTransportContext *transport, const struct HttpRequest *req, struct HttpResponse **res) { (void)transport; (void)req; (void)res; return 1; }
-static int dummy_send_multi_ok(struct HttpTransportContext *transport, struct ModalityEventLoop *loop, const struct HttpMultiRequest *multi, struct HttpFuture **futures) { (void)transport; (void)loop; (void)multi; (void)futures; return 0; }
+static int dummy_send_fail(struct HttpTransportContext *transport,
+                           const struct HttpRequest *req,
+                           struct HttpResponse **res) {
+  (void)transport;
+  (void)req;
+  (void)res;
+  return 1;
+}
+static int dummy_send_multi_ok(struct HttpTransportContext *transport,
+                               struct ModalityEventLoop *loop,
+                               const struct HttpMultiRequest *multi,
+                               struct HttpFuture **futures) {
+  (void)transport;
+  (void)loop;
+  (void)multi;
+  (void)futures;
+  return 0;
+}
 TEST test_http_types_final_errs(void) {
 
   struct HttpRequest req;
-  struct HttpMultiRequest multi; (void)multi;
+  struct HttpMultiRequest multi;
+  (void)multi;
   struct HttpFuture f1;
   struct HttpFuture *futures[1];
   struct HttpResponse res = {0};
-  char *c = NULL, *s = NULL, *e = NULL, *ed = NULL; (void)c; (void)s; (void)e; (void)ed;
+  char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
+  (void)c;
+  (void)s;
+  (void)e;
+  (void)ed;
   char *url = NULL;
   int rc, i;
   /* extern int g_mock_alloc_fail; */
@@ -1505,14 +1543,17 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   {
-    struct HttpResponse res; (void)res; (void)res;
+    struct HttpResponse res;
+    (void)res;
+    (void)res;
     http_response_init(&res);
     res.body = (unsigned char *)"test";
     res.body_len = 4;
     rc = http_response_save_to_file(&res, "out.txt");
   }
   for (i = 0; i < 5; i++) {
-    struct HttpFuture f; (void)f;
+    struct HttpFuture f;
+    (void)f;
     struct HttpFuture *futures[1];
     struct HttpRequest req2;
     struct HttpRequest *reqs[1];
@@ -1685,11 +1726,13 @@ TEST test_http_types_oom_bruteforce_all(void) {
   /* 1800: bind fail on invalid port or already bound port */
   /* Actually, we just need to bind to a restricted port to fail bind, e.g. 80
    * without root */
+#if !defined(_WIN32)
   {
     char *c = NULL, *s = NULL;
     ASSERT_EQ(EIO,
               http_oauth2_localhost_intercept(80, "p", &c, &s, NULL, NULL));
   }
+#endif
 
   /* 1925: body_len > 0 but no body */
   {
@@ -1805,23 +1848,23 @@ TEST test_http_types_oom_bruteforce_all(void) {
 
 SUITE(http_types_suite) {
 
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_oom_bruteforce_all);
 #endif
 
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_leftover_errs);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_end_errs);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_final_errs);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_more_errs_2);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_cookie_jar_set_val_oom);
 #endif
   RUN_TEST(test_http_client_errs);

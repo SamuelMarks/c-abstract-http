@@ -1586,6 +1586,9 @@ static int urldecode_alloc(const char *src, size_t src_len, char **out) {
   char *dst = (char *)malloc(src_len + 1);
   size_t i, j = 0;
   
+  if (!dst)
+    return ENOMEM;
+
   for (i = 0; i < src_len; i++) {
     if (src[i] == '%') {
       if (i + 2 < src_len) {
@@ -1781,14 +1784,13 @@ int http_response_save_to_file(const struct HttpResponse *res,
     return EINVAL;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  if (fopen_s(&f, path, "wb") != 0)
-    return EIO;
-#else
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  fopen_s(&f, path, "wb");
+  {
+    errno_t err = fopen_s(&f, path, "wb");
+    if (err != 0)
+      return err;
+  }
 #else
   f = fopen(path, "wb");
-#endif
   if (!f)
     return errno ? errno : EIO;
 #endif

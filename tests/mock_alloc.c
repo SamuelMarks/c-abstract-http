@@ -123,7 +123,7 @@ void c_abstract_http_mock_free(void *ptr);
 char *c_abstract_http_mock_strdup(const char *s, char **out);
 
 void *c_abstract_http_mock_malloc(size_t size) {
-    if (g_mock_alloc_fail) { printf("mock alloc check: count=%d\n", g_mock_alloc_count); if (g_mock_alloc_count-- == 0) { printf("mock alloc returning NULL\n"); return NULL; } }
+    if (g_mock_alloc_fail) { if (g_mock_alloc_count-- == 0) { return NULL; } }
     return malloc(size);
 }
 
@@ -135,7 +135,7 @@ void *c_abstract_http_mock_calloc(size_t count, size_t size) {
 }
 
 void *c_abstract_http_mock_realloc(void *ptr, size_t size) {
-    if (g_mock_alloc_fail) { printf("mock alloc check: count=%d\n", g_mock_alloc_count); if (g_mock_alloc_count-- == 0) { printf("mock alloc returning NULL\n"); return NULL; } }
+    if (g_mock_alloc_fail) { if (g_mock_alloc_count-- == 0) { return NULL; } }
     return realloc(ptr, size);
 }
 
@@ -213,7 +213,6 @@ int c_abstract_http_mock_pthread_setspecific(pthread_key_t key,
                                              const void *value);
 void *c_abstract_http_mock_pthread_getspecific(pthread_key_t key);
 
-
 int c_abstract_http_mock_pthread_key_create(pthread_key_t *key,
                                             void (*destructor)(void *)) {
   if (g_mock_pthread_fail == 1)
@@ -259,7 +258,6 @@ int c_abstract_http_mock_pthread_create(pthread_t *thread,
   return pthread_create(thread, attr, start_routine, arg);
 }
 
-
 int c_abstract_http_mock_pipe(int fildes[2]) {
   if (g_mock_pipe_fail) {
     errno = EMFILE;
@@ -303,7 +301,6 @@ int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
   }
   return select(nfds, readfds, writefds, errorfds, timeout);
 }
-
 
 #undef math_get_current_time_ms
 #if defined(_WIN32)
@@ -370,7 +367,6 @@ extern int g_mock_listen_fail;
 extern int g_mock_accept_fail;
 extern int g_mock_recv_fail;
 
-
 #undef fwrite
 #undef fclose
 #undef socket
@@ -436,14 +432,14 @@ int c_abstract_http_mock_listen(SOCKET socket, int backlog) {
 }
 
 SOCKET c_abstract_http_mock_accept(SOCKET socket, struct sockaddr *address,
-                                int *address_len) {
+                                   int *address_len) {
   if (g_mock_accept_fail)
     return INVALID_SOCKET;
   return accept(socket, address, address_len);
 }
 
 int c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length,
-                                  int flags) {
+                              int flags) {
   if (g_mock_recv_fail)
     return SOCKET_ERROR;
   return recv(socket, buffer, length, flags);
@@ -482,4 +478,3 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
   return recv(socket, buffer, length, flags);
 }
 #endif
-

@@ -75,8 +75,8 @@ struct ModalityEventLoop {
 #endif
 };
 
-__declspec(dllexport) cdd_int64_t real_math_get_current_time_ms(void);
-__declspec(dllexport) cdd_int64_t real_math_get_current_time_ms(void) {
+cdd_int64_t real_math_get_current_time_ms(void);
+cdd_int64_t real_math_get_current_time_ms(void) {
 
 #if defined(_WIN32)
 #if defined(_MSC_VER) && _MSC_VER < 1600
@@ -778,8 +778,8 @@ int http_loop_stop(struct ModalityEventLoop *loop) {
 }
 
 #if 1
-__declspec(dllexport) void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop);
-__declspec(dllexport) void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop) {
+void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop);
+void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop) {
   if (loop)
     loop->stop_requested = 0;
 }

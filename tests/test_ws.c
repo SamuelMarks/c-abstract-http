@@ -902,16 +902,16 @@ TEST test_ws_verify_accept_sign_error(void) {
 
 SUITE(ws_suite) {
 
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_oom_branches);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_init_oom);
 #endif
   RUN_TEST(test_ws_rsv_bit_set);
   RUN_TEST(test_ws_payload_too_large);
   RUN_TEST(test_ws_masked_frame);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_realloc_oom);
 #endif
   RUN_TEST(test_ws_parser_close_frame);
@@ -919,20 +919,20 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_parser_invalid_fragmentation);
   RUN_TEST(test_ws_parser_reassembly_too_large);
   RUN_TEST(test_ws_parser_reassembly_expand_twice);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_fin_oom);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_frag_oom);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_fin_expand_oom);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_frag_oom);
 #endif
   RUN_TEST(test_ws_parser_reassembly_fin_expand_success);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_sign_key_oom);
 #endif
   RUN_TEST(test_ws_sign_key_too_long);
@@ -963,10 +963,10 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_sync_loop_success);
   RUN_TEST(test_ws_sync_loop_fail);
 
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_sync_loop_init_oom);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_sync_loop_parser_oom);
 #endif
   RUN_TEST(test_ws_sync_loop_feed_error);

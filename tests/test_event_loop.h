@@ -36,7 +36,8 @@ TEST test_event_loop_init_free(void) {
 TEST test_event_loop_timer(void) {
   struct ModalityEventLoop *loop;
   int timer_id;
-  int triggered = 0; (void)triggered;
+  int triggered = 0;
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
 
@@ -71,7 +72,8 @@ static void timer_cb_stop(struct ModalityEventLoop *loop, int timer_id,
 TEST test_event_loop_timer_cancel(void) {
   struct ModalityEventLoop *loop;
   int timer_id1, timer_id2;
-  int triggered = 0; (void)triggered;
+  int triggered = 0;
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
 
@@ -198,7 +200,8 @@ TEST test_event_loop_run(void) {
 
 TEST test_event_loop_tick_fd(void) {
   struct ModalityEventLoop *loop = NULL;
-  int triggered = 0; (void)triggered;
+  int triggered = 0;
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
 
@@ -214,7 +217,8 @@ TEST test_event_loop_tick_fd(void) {
 
 TEST test_event_loop_fd(void) {
   struct ModalityEventLoop *loop = NULL;
-  int triggered = 0; (void)triggered;
+  int triggered = 0;
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
 
@@ -399,6 +403,7 @@ TEST test_event_loop_alloc_errors(void) {
 }
 
 TEST test_event_loop_pipe_fail(void) {
+#if !defined(_WIN32)
   struct ModalityEventLoop *loop = NULL;
 
   g_mock_pipe_fail = 1;
@@ -407,7 +412,7 @@ TEST test_event_loop_pipe_fail(void) {
 
   /* also test free NULL */
   http_loop_free(NULL);
-
+#endif
   PASS();
 }
 
@@ -521,7 +526,8 @@ TEST test_event_loop_tick_fd_and_timer(void) {
   struct ModalityEventLoop *loop = NULL;
   int timer_id;
   int pipefd[2];
-  int triggered = 0; (void)triggered;
+  int triggered = 0;
+  (void)triggered;
   ASSERT_EQ(0, http_loop_init(&loop));
 
   /* 552: next_timeout < 0 -> set to 0.
@@ -573,9 +579,7 @@ TEST test_event_loop_tick_fd_and_timer(void) {
   PASS();
 }
 #else
-TEST test_event_loop_tick_fd_and_timer(void) {
-  SKIP();
-}
+TEST test_event_loop_tick_fd_and_timer(void) { SKIP(); }
 #endif
 
 static void blocking_mock_fd_cb(struct ModalityEventLoop *loop, int fd,
@@ -601,7 +605,8 @@ static void blocking_mock_fd_cb(struct ModalityEventLoop *loop, int fd,
 TEST test_event_loop_blocking_cb(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
-  int triggered = 0; (void)triggered;
+  int triggered = 0;
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
   ASSERT_EQ(0, pipe(pipefd));
@@ -620,16 +625,15 @@ TEST test_event_loop_blocking_cb(void) {
   PASS();
 }
 #else
-TEST test_event_loop_blocking_cb(void) {
-  SKIP();
-}
+TEST test_event_loop_blocking_cb(void) { SKIP(); }
 #endif
 
 #if !defined(_WIN32)
 TEST test_event_loop_run_full(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
-  int triggered = 0; (void)triggered;
+  int triggered = 0;
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
   ASSERT_EQ(0, pipe(pipefd));
@@ -660,16 +664,15 @@ TEST test_event_loop_run_full(void) {
   PASS();
 }
 #else
-TEST test_event_loop_run_full(void) {
-  SKIP();
-}
+TEST test_event_loop_run_full(void) { SKIP(); }
 #endif
 
 #if !defined(_WIN32)
 TEST test_event_loop_mock_error_fd(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
-  int triggered = 0; (void)triggered;
+  int triggered = 0;
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
   ASSERT_EQ(0, pipe(pipefd));
@@ -693,16 +696,15 @@ TEST test_event_loop_mock_error_fd(void) {
   PASS();
 }
 #else
-TEST test_event_loop_mock_error_fd(void) {
-  SKIP();
-}
+TEST test_event_loop_mock_error_fd(void) { SKIP(); }
 #endif
 
 #if !defined(_WIN32)
 TEST test_event_loop_run_blocking(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
-  int triggered = 0; (void)triggered;
+  int triggered = 0;
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
   ASSERT_EQ(0, pipe(pipefd));
@@ -729,9 +731,7 @@ TEST test_event_loop_run_blocking(void) {
   PASS();
 }
 #else
-TEST test_event_loop_run_blocking(void) {
-  SKIP();
-}
+TEST test_event_loop_run_blocking(void) { SKIP(); }
 #endif
 
 TEST test_event_loop_timeout_underflow(void) {
@@ -773,7 +773,7 @@ SUITE(event_loop_suite) {
   RUN_TEST(test_event_loop_external);
   RUN_TEST(test_event_loop_missing_hooks);
   RUN_TEST(test_event_loop_wakeup_full);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_event_loop_fd_edges);
 #endif
   RUN_TEST(test_event_loop_lazy_timer_cancel);
@@ -787,10 +787,10 @@ SUITE(event_loop_suite) {
   RUN_TEST(test_event_loop_run);
   RUN_TEST(test_event_loop_tick_fd);
   RUN_TEST(test_event_loop_errors);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_event_loop_alloc_errors);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_event_loop_pipe_fail);
 #endif
 }
@@ -800,4 +800,3 @@ SUITE(event_loop_suite) {
 #endif /* __cplusplus */
 
 #endif
-

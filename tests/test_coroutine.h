@@ -145,7 +145,7 @@ SUITE(coroutine_suite) {
   RUN_TEST(test_coroutine_errors);
   RUN_TEST(test_coroutine_execution);
   RUN_TEST(test_coroutine_hooks);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_coroutine_fallback_paths);
 #endif
 }

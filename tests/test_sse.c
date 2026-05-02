@@ -951,44 +951,44 @@ TEST test_sse_parser_feed_huge_single_line(void) {
 
 SUITE(sse_suite) {
 
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_oom_branches);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_oom);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_id_oom);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_event_oom);
 #endif
   RUN_TEST(test_sse_parser_feed_no_data);
   RUN_TEST(test_sse_parser_feed_data_capacity);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_data_capacity_oom);
 #endif
   RUN_TEST(test_sse_parser_feed_invalid_utf8);
   RUN_TEST(test_sse_parser_destroy_null);
   RUN_TEST(test_sse_parser_no_colon);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_dispatch_oom);
 #endif
 
   RUN_TEST(test_sse_sync_loop_errors);
   RUN_TEST(test_sse_async_register_success);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_realloc_oom);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_line_buffer_realloc_oom);
 #endif
 
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_feed_current_data_oom);
 #endif
   RUN_TEST(test_sse_parser_feed_current_data_capacity_limit);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_sync_loop_oom_branches);
 #endif
   RUN_TEST(test_sse_parser_feed_data_capacity_limit_real);

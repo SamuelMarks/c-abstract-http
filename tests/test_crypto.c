@@ -187,7 +187,7 @@ TEST test_sha1_rollover(void) {
 SUITE(crypto_suite) {
   RUN_TEST(test_sha1_large_string);
   RUN_TEST(test_crypto_errors);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_crypto_oom);
 #endif
   RUN_TEST(test_sha1_rollover);

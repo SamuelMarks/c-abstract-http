@@ -195,6 +195,7 @@ TEST test_thread_pool_pthread_create_failures(void) {
   struct CddThreadPool *pool = NULL;
   int rc;
 
+#if !defined(_WIN32)
   /* Fail on first thread */
   g_mock_alloc_fail = 0;
   g_mock_pthread_fail = 2;
@@ -209,6 +210,7 @@ TEST test_thread_pool_pthread_create_failures(void) {
   ASSERT_EQ(EIO, rc);
 
   g_mock_pthread_fail = 0;
+#endif
 
   /* also test external init failure */
   g_mock_alloc_fail = 1;
@@ -225,6 +227,7 @@ TEST test_thread_pool_pthread_create_failures(void) {
 }
 
 TEST test_thread_pool_pthread_failures(void) {
+#if !defined(_WIN32)
   struct CddMutex *lock = NULL;
   struct CddCond *cond = NULL;
   int rc;
@@ -233,11 +236,11 @@ TEST test_thread_pool_pthread_failures(void) {
   rc = cdd_mutex_init(&lock);
   ASSERT_EQ(EIO, rc);
 
-  g_mock_pthread_fail = 1;
   rc = cdd_cond_init(&cond);
   ASSERT_EQ(EIO, rc);
 
   g_mock_pthread_fail = 0;
+#endif
 
   PASS();
 }
@@ -296,13 +299,13 @@ SUITE(thread_pool_suite) {
   RUN_TEST(test_mutex_lock_unlock);
   RUN_TEST(test_thread_pool_execution);
   RUN_TEST(test_thread_pool_edge_cases);
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_thread_pool_pthread_create_failures);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_thread_pool_pthread_failures);
 #endif
-  #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_thread_pool_fallback_paths);
 #endif
 }

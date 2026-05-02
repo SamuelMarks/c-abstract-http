@@ -52,8 +52,12 @@
 #include "test_http_fetch.h"
 
 #elif defined(_WIN32) && !defined(MINGW_TEST_CURL)
+#if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
 #include "test_http_winhttp.h"
+#endif
+#if defined(C_ABSTRACT_HTTP_USE_WININET)
 #include "test_http_wininet.h"
+#endif
 #elif defined(__APPLE__)
 #include "test_http_apple.h"
 #elif defined(__ANDROID__)
@@ -115,8 +119,12 @@ int main(int argc, char **argv) {
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   RUN_SUITE(http_fetch_suite);
 #elif defined(_WIN32) && !defined(MINGW_TEST_CURL)
+#if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
   RUN_SUITE(http_winhttp_suite);
+#endif
+#if defined(C_ABSTRACT_HTTP_USE_WININET)
   RUN_SUITE(http_wininet_suite);
+#endif
 #elif defined(__APPLE__)
   RUN_SUITE(http_apple_suite);
 #elif defined(__ANDROID__)

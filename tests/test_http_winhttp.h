@@ -424,10 +424,12 @@ TEST test_winhttp_send_multi(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req1, req2;
   struct HttpConfig config;
-  struct HttpMultiRequest multi; (void)multi;
+  struct HttpMultiRequest multi;
+  (void)multi;
   struct HttpFuture f1, f2;
   struct HttpFuture *futures[2];
-  struct ModalityEventLoop *loop = NULL; (void)loop;
+  struct ModalityEventLoop *loop = NULL;
+  (void)loop;
   MockServerPtr server1 = NULL;
   MockServerPtr server2 = NULL;
   int rc;

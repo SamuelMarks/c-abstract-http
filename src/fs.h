@@ -183,13 +183,12 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @return 0 on success, ENOMEM on allocation failure, EINVAL if args invalid.
  */
 /**
-        * @brief Executes the get_basename operation.
-        * @param path The path parameter.
-        * @param out The out parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    get_basename(const char *path, char **out);
+ * @brief Executes the get_basename operation.
+ * @param path The path parameter.
+ * @param out The out parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int get_basename(const char *path, char **out);
 
 /**
  * @brief Extract the directory component from a path.
@@ -200,13 +199,12 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @return 0 on success, ENOMEM on allocation failure, EINVAL if args invalid.
  */
 /**
-        * @brief Executes the get_dirname operation.
-        * @param path The path parameter.
-        * @param out The out parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    get_dirname(const char *path, char **out);
+ * @brief Executes the get_dirname operation.
+ * @param path The path parameter.
+ * @param out The out parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int get_dirname(const char *path, char **out);
 
 /**
  * @brief Read entire file content into a buffer.
@@ -219,16 +217,15 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @return 0 on success, or an error code (errno) on failure.
  */
 /**
-        * @brief Executes the read_to_file operation.
-        * @param path The path parameter.
-        * @param mode The mode parameter.
-        * @param out_data The out_data parameter.
-        * @param out_size The out_size parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    read_to_file(const char *path, const char *mode, char **out_data,
-                 size_t *out_size);
+ * @brief Executes the read_to_file operation.
+ * @param path The path parameter.
+ * @param mode The mode parameter.
+ * @param out_data The out_data parameter.
+ * @param out_size The out_size parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int read_to_file(const char *path, const char *mode, char **out_data,
+                        size_t *out_size);
 
 /**
  * @brief Write string content to a file.
@@ -238,13 +235,12 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @return 0 on success, or error code on failure.
  */
 /**
-        * @brief Executes the fs_write_to_file operation.
-        * @param path The path parameter.
-        * @param content The content parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    fs_write_to_file(const char *path, const char *content);
+ * @brief Executes the fs_write_to_file operation.
+ * @param path The path parameter.
+ * @param content The content parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int fs_write_to_file(const char *path, const char *content);
 
 /**
  * @brief Read entire content from an open file stream.
@@ -256,14 +252,13 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @return 0 on success, or an error code (errno) on failure.
  */
 /**
-        * @brief Executes the read_from_fh operation.
-        * @param fh The fh parameter.
-        * @param out_data The out_data parameter.
-        * @param out_size The out_size parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    read_from_fh(FILE *fh, char **out_data, size_t *out_size);
+ * @brief Executes the read_from_fh operation.
+ * @param fh The fh parameter.
+ * @param out_data The out_data parameter.
+ * @param out_size The out_size parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int read_from_fh(FILE *fh, char **out_data, size_t *out_size);
 
 /**
  * @brief Copy a file from source to destination.
@@ -274,13 +269,12 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @return 0 on success, non-zero error code on failure.
  */
 /**
-        * @brief Executes the cp operation.
-        * @param dst The dst parameter.
-        * @param src The src parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    cp(const char *dst, const char *src);
+ * @brief Executes the cp operation.
+ * @param dst The dst parameter.
+ * @param src The src parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int cp(const char *dst, const char *src);
 
 /**
  * @brief Create a directory.
@@ -291,12 +285,11 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @return 0 on success, non-zero error code on failure.
  */
 /**
-        * @brief Executes the makedir operation.
-        * @param path The path parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    makedir(const char *path);
+ * @brief Executes the makedir operation.
+ * @param path The path parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int makedir(const char *path);
 
 /**
  * @brief Create a directory recursively (like `mkdir -p`).
@@ -305,12 +298,11 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @return 0 on success, non-zero error code from `mkdir` or `stat` on failure.
  */
 /**
-        * @brief Executes the makedirs operation.
-        * @param path The path parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    makedirs(const char *path);
+ * @brief Executes the makedirs operation.
+ * @param path The path parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int makedirs(const char *path);
 
 /**
  * @brief Get a temporary directory path.
@@ -320,12 +312,11 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @return 0 on success, ENOMEM or other error code on failure.
  */
 /**
-        * @brief Executes the tempdir operation.
-        * @param out_path The out_path parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    tempdir(char **out_path);
+ * @brief Executes the tempdir operation.
+ * @param out_path The out_path parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int tempdir(char **out_path);
 
 /**
  * @brief Cleanup FilenameAndPtr struct (close file and free filename).
@@ -333,11 +324,10 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @param[in] file Pointer to struct to clean.
  */
 /**
-        * @brief Executes the FilenameAndPtr_cleanup operation.
-        * @param file The file parameter.
-        */
-    extern void
-    FilenameAndPtr_cleanup(struct FilenameAndPtr *file);
+ * @brief Executes the FilenameAndPtr_cleanup operation.
+ * @param file The file parameter.
+ */
+extern void FilenameAndPtr_cleanup(struct FilenameAndPtr *file);
 
 /**
  * @brief Cleanup struct and delete the file from the filesystem.
@@ -345,11 +335,10 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @param[in] file Pointer to struct.
  */
 /**
-        * @brief Executes the FilenameAndPtr_delete_and_cleanup operation.
-        * @param file The file parameter.
-        */
-    extern void
-    FilenameAndPtr_delete_and_cleanup(struct FilenameAndPtr *file);
+ * @brief Executes the FilenameAndPtr_delete_and_cleanup operation.
+ * @param file The file parameter.
+ */
+extern void FilenameAndPtr_delete_and_cleanup(struct FilenameAndPtr *file);
 
 /**
  * @brief Create a temporary file with a random name, open it, and return handle
@@ -362,16 +351,16 @@ extern int fs_is_directory(const char *path, int *out_is_dir);
  * @return 0 on success, error code on failure.
  */
 /**
-        * @brief Executes the mktmpfilegetnameandfile operation.
-        * @param prefix The prefix parameter.
-        * @param suffix The suffix parameter.
-        * @param mode The mode parameter.
-        * @param file The file parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    mktmpfilegetnameandfile(const char *prefix, const char *suffix,
-                            const char *mode, struct FilenameAndPtr *file);
+ * @brief Executes the mktmpfilegetnameandfile operation.
+ * @param prefix The prefix parameter.
+ * @param suffix The suffix parameter.
+ * @param mode The mode parameter.
+ * @param file The file parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int mktmpfilegetnameandfile(const char *prefix, const char *suffix,
+                                   const char *mode,
+                                   struct FilenameAndPtr *file);
 
 /**
  * @brief Callback function type for directory walking.
@@ -392,14 +381,13 @@ typedef int (*fs_walk_cb)(const char *path, void *user_data);
  * @return 0 on success, error code (errno) on failure.
  */
 /**
-        * @brief Executes the walk_directory operation.
-        * @param path The path parameter.
-        * @param cb The cb parameter.
-        * @param user_data The user_data parameter.
-        * @return 0 on success, or an error code.
-        */
-    extern int
-    walk_directory(const char *path, fs_walk_cb cb, void *user_data);
+ * @brief Executes the walk_directory operation.
+ * @param path The path parameter.
+ * @param cb The cb parameter.
+ * @param user_data The user_data parameter.
+ * @return 0 on success, or an error code.
+ */
+extern int walk_directory(const char *path, fs_walk_cb cb, void *user_data);
 
 #ifdef __cplusplus
 }
