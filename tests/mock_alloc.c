@@ -1,4 +1,4 @@
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_MSC_VER)
 #pragma warning(disable : 4273)
 #endif
 /* clang-format off */
@@ -32,6 +32,31 @@
 #include <stdio.h>
 #include <string.h>
 #include "mock_alloc.h"
+
+int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
+                                fd_set *errorfds, struct timeval *timeout);
+size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nitems,
+                                   FILE *stream);
+int c_abstract_http_mock_fclose(FILE *stream);
+#ifdef _WIN32
+#include <winsock2.h>
+#include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+typedef int socklen_t;
+SOCKET c_abstract_http_mock_socket(int domain, int type, int protocol);
+int c_abstract_http_mock_bind(SOCKET socket, const struct sockaddr *address, socklen_t address_len);
+int c_abstract_http_mock_listen(SOCKET socket, int backlog);
+SOCKET c_abstract_http_mock_accept(SOCKET socket, struct sockaddr *address, int *address_len);
+int c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length, int flags);
+#else
+#include <sys/socket.h>
+int c_abstract_http_mock_socket(int domain, int type, int protocol);
+int c_abstract_http_mock_bind(int socket, const struct sockaddr *address, socklen_t address_len);
+int c_abstract_http_mock_listen(int socket, int backlog);
+int c_abstract_http_mock_accept(int socket, struct sockaddr *address, socklen_t *address_len);
+ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length, int flags);
+#endif
+
 #undef g_mock_alloc_fail
 #undef g_mock_alloc_count
 #undef g_mock_pthread_fail
@@ -413,8 +438,6 @@ int c_abstract_http_mock_fclose(FILE *stream) {
 
 #ifdef _WIN32
 #include <BaseTsd.h>
-typedef SSIZE_T ssize_t;
-typedef int socklen_t;
 SOCKET c_abstract_http_mock_socket(int domain, int type, int protocol) {
   if (g_mock_socket_fail)
     return INVALID_SOCKET;

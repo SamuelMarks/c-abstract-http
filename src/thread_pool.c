@@ -572,6 +572,7 @@ void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool) {
   }
 }
 #if !defined(C_ABSTRACT_HTTP_TEST_OOM)
+void dummy_cb_thread(void *arg);
 void dummy_cb_thread(void *arg) { (void)arg; }
 #else
 extern void dummy_cb_thread(void *arg);

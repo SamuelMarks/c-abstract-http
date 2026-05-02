@@ -936,6 +936,7 @@ TEST test_http_response_save_to_file(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_leftover_errs(void) {
   struct HttpMultiRequest multi;
   struct HttpRequest req;
@@ -1139,6 +1140,7 @@ TEST test_http_types_leftover_errs(void) {
 
   PASS();
 }
+#endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_cookie_jar_set_val_oom(void) {
@@ -1179,6 +1181,7 @@ TEST test_http_modality_errs(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_more_errs_2(void) {
   /* extern int g_mock_alloc_fail; */
   /* extern int g_mock_alloc_count; */
@@ -1265,7 +1268,9 @@ TEST test_http_types_more_errs_2(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_end_errs(void) {
   struct HttpClient client = {0};
   struct HttpRequest req;
@@ -1328,7 +1333,9 @@ TEST test_http_types_end_errs(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 static int dummy_send_fail(struct HttpTransportContext *transport,
                            const struct HttpRequest *req,
                            struct HttpResponse **res) {
@@ -1337,6 +1344,7 @@ static int dummy_send_fail(struct HttpTransportContext *transport,
   (void)res;
   return 1;
 }
+
 static int dummy_send_multi_ok(struct HttpTransportContext *transport,
                                struct ModalityEventLoop *loop,
                                const struct HttpMultiRequest *multi,
@@ -1347,6 +1355,8 @@ static int dummy_send_multi_ok(struct HttpTransportContext *transport,
   (void)futures;
   return 0;
 }
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_final_errs(void) {
 
   struct HttpRequest req;
@@ -1364,6 +1374,7 @@ TEST test_http_types_final_errs(void) {
   (void)s;
   (void)e;
   (void)ed;
+  (void)res;
   /* extern int g_mock_alloc_fail; */
   /* extern int g_mock_alloc_count; */
   client.send = dummy_send;
@@ -1408,6 +1419,7 @@ TEST test_http_types_final_errs(void) {
 
   PASS();
 }
+#endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_oom_bruteforce_all(void) {

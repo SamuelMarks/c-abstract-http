@@ -241,6 +241,7 @@ TEST test_process_hooks_coverage(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_fallback_paths(void) {
   struct CddProcess *proc = NULL;
   struct CddIpcPipe pipe;
@@ -281,7 +282,9 @@ TEST test_process_fallback_paths(void) {
   cdd_ipc_pipe_free(&pipe);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_serialize_failures(void) {
   struct HttpRequest req;
   struct HttpResponse res;
@@ -319,7 +322,9 @@ TEST test_process_serialize_failures(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_deserialization_edge_cases(void) {
   struct HttpRequest req;
   struct HttpResponse res;
@@ -397,6 +402,7 @@ TEST test_process_deserialization_edge_cases(void) {
 
   PASS();
 }
+#endif
 
 TEST test_process_more_edge_cases(void) {
   struct HttpRequest req;
@@ -447,6 +453,7 @@ TEST test_process_more_edge_cases(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_final_edge_cases(void) {
   struct HttpRequest req;
   struct HttpResponse res;
@@ -543,6 +550,7 @@ TEST test_process_final_edge_cases(void) {
 
   PASS();
 }
+#endif
 
 SUITE(process_suite) {
   RUN_TEST(test_cdd_process_hooks);

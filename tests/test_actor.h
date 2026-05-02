@@ -171,8 +171,8 @@ TEST test_actor_hooks(void) {
 TEST test_actor_errors(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
-  (void)bus;
   struct CddMessage msg;
+  (void)bus;
   memset(&msg, 0, sizeof(msg));
 
   ASSERT_EQ(EINVAL, cdd_message_bus_init(NULL));
@@ -198,8 +198,8 @@ static int dummy_handler(struct CddActor *self, struct CddMessage *msg) {
 TEST test_actor_capacity(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
-  (void)bus;
   int i;
+  (void)bus;
 
   /* manual coverage for dummy_handler */
   dummy_handler(NULL, NULL);
@@ -219,9 +219,9 @@ TEST test_actor_capacity(void) {
 TEST test_actor_getters(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
-  (void)bus;
   void *state = NULL;
   const char *name = NULL;
+  (void)bus;
 
   cdd_message_bus_init(&bus);
   cdd_actor_spawn(bus, "myactor", dummy_handler, (void *)0x123, &actor);
@@ -248,11 +248,11 @@ TEST test_actor_getters(void) {
 TEST test_actor_oom(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
-  (void)bus;
   struct CddMessage msg;
   int rc;
   char *out_str = NULL;
   int str_rc;
+  (void)bus;
 
   memset(&msg, 0, sizeof(msg));
 
@@ -329,9 +329,9 @@ TEST test_actor_oom(void) {
 TEST test_actor_queued_free_and_tail(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
-  (void)bus;
   struct CddMessage msg1;
   struct CddMessage msg2;
+  (void)bus;
 
   memset(&msg1, 0, sizeof(msg1));
   memset(&msg2, 0, sizeof(msg2));
@@ -354,9 +354,9 @@ TEST test_actor_queued_free_and_tail(void) {
 TEST test_actor_mock_nulls(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
-  (void)bus;
   const char *name = NULL;
   void *state = NULL;
+  (void)bus;
 
   ASSERT_EQ(EINVAL, mock_bus_init(NULL));
   ASSERT_EQ(EINVAL, mock_bus_process(NULL));

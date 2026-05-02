@@ -192,6 +192,7 @@ TEST test_thread_pool_edge_cases(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_pthread_create_failures(void) {
   struct CddThreadPool *pool = NULL;
   int rc;
@@ -226,7 +227,9 @@ TEST test_thread_pool_pthread_create_failures(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_pthread_failures(void) {
 #if !defined(_WIN32)
   struct CddMutex *lock = NULL;
@@ -245,7 +248,9 @@ TEST test_thread_pool_pthread_failures(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_fallback_paths(void) {
   struct CddThreadPool *pool = NULL;
   struct CddMutex *lock = NULL;
@@ -293,6 +298,7 @@ TEST test_thread_pool_fallback_paths(void) {
 
   PASS();
 }
+#endif
 
 SUITE(thread_pool_suite) {
   RUN_TEST(test_thread_pool_external);

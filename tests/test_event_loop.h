@@ -365,6 +365,7 @@ TEST test_event_loop_heap_down(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_event_loop_alloc_errors(void) {
   struct ModalityEventLoop *loop = NULL;
   struct HttpLoopHooks hooks;
@@ -401,7 +402,9 @@ TEST test_event_loop_alloc_errors(void) {
   http_loop_free(loop);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(_WIN32)
 TEST test_event_loop_pipe_fail(void) {
 #if !defined(_WIN32)
   struct ModalityEventLoop *loop = NULL;
@@ -415,6 +418,7 @@ TEST test_event_loop_pipe_fail(void) {
 #endif
   PASS();
 }
+#endif
 
 TEST test_event_loop_missing_hooks(void) {
   struct ModalityEventLoop *loop = NULL;
@@ -457,6 +461,7 @@ TEST test_event_loop_wakeup_full(void) {
   PASS();
 }
 
+#if !defined(_WIN32)
 TEST test_event_loop_fd_edges(void) {
   struct ModalityEventLoop *loop = NULL;
   int i;
@@ -489,6 +494,7 @@ TEST test_event_loop_fd_edges(void) {
   http_loop_free(loop);
   PASS();
 }
+#endif
 
 TEST test_event_loop_lazy_timer_cancel(void) {
   struct ModalityEventLoop *loop = NULL;
@@ -582,6 +588,7 @@ TEST test_event_loop_tick_fd_and_timer(void) {
 TEST test_event_loop_tick_fd_and_timer(void) { SKIP(); }
 #endif
 
+#if !defined(_WIN32)
 static void blocking_mock_fd_cb(struct ModalityEventLoop *loop, int fd,
                                 int revents, void *user_data) {
   int *triggered = (int *)user_data;
@@ -600,6 +607,7 @@ static void blocking_mock_fd_cb(struct ModalityEventLoop *loop, int fd,
   }
 #endif
 }
+#endif
 
 #if !defined(_WIN32)
 TEST test_event_loop_blocking_cb(void) {
@@ -773,7 +781,7 @@ SUITE(event_loop_suite) {
   RUN_TEST(test_event_loop_external);
   RUN_TEST(test_event_loop_missing_hooks);
   RUN_TEST(test_event_loop_wakeup_full);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if !defined(_WIN32)
   RUN_TEST(test_event_loop_fd_edges);
 #endif
   RUN_TEST(test_event_loop_lazy_timer_cancel);
@@ -790,7 +798,7 @@ SUITE(event_loop_suite) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_event_loop_alloc_errors);
 #endif
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(_WIN32)
   RUN_TEST(test_event_loop_pipe_fail);
 #endif
 }

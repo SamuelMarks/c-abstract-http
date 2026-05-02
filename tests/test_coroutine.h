@@ -115,6 +115,7 @@ TEST test_coroutine_hooks(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_coroutine_fallback_paths(void) {
   struct CddCoroutine *co = NULL;
   int rc;
@@ -140,6 +141,7 @@ TEST test_coroutine_fallback_paths(void) {
 
   PASS();
 }
+#endif
 
 SUITE(coroutine_suite) {
   RUN_TEST(test_coroutine_errors);
