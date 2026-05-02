@@ -20,6 +20,7 @@
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
+/** @brief Internal struct CddTlsKey */
 struct CddTlsKey {
   DWORD dwTlsIndex;
 };
@@ -88,7 +89,9 @@ void cdd_tls_key_delete(struct CddTlsKey *key) {
 
 #else
 
+/** @brief Internal struct CddTlsKey */
 struct CddTlsKey {
+  /** @brief key (variable) of struct CddTlsKey */
   pthread_key_t key;
 };
 

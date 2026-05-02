@@ -36,41 +36,66 @@
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
+/** @brief Internal struct TimerNode */
 struct TimerNode {
+  /** @brief expiration (variable) of struct TimerNode */
   cdd_int64_t expiration;
+  /** @brief id (variable) of struct TimerNode */
   int id;
+  /** @brief cb (variable) of struct TimerNode */
   http_timer_cb cb;
+  /** @brief user_data (variable) of struct TimerNode */
   void *user_data;
+  /** @brief active (variable) of struct TimerNode */
   int active;
 };
 
+/** @brief Internal struct FdNode */
 struct FdNode {
+  /** @brief fd (variable) of struct FdNode */
   int fd;
+  /** @brief events (variable) of struct FdNode */
   int events;
+  /** @brief cb (variable) of struct FdNode */
   http_loop_cb cb;
+  /** @brief user_data (variable) of struct FdNode */
   void *user_data;
+  /** @brief active (variable) of struct FdNode */
   int active;
 };
 
+/** @brief Internal struct ModalityEventLoop */
 struct ModalityEventLoop {
+  /** @brief running (variable) of struct ModalityEventLoop */
   int running;
+  /** @brief stop_requested (variable) of struct ModalityEventLoop */
   int stop_requested;
   /* External Hooks (if any) */
+  /** @brief has_hooks (variable) of struct ModalityEventLoop */
   int has_hooks;
+  /** @brief hooks (variable) of struct ModalityEventLoop */
   struct HttpLoopHooks hooks;
   /* Timer Min-Heap */
+  /** @brief timers (variable) of struct ModalityEventLoop */
   struct TimerNode *timers;
+  /** @brief timer_count (variable) of struct ModalityEventLoop */
   size_t timer_count;
+  /** @brief timer_capacity (variable) of struct ModalityEventLoop */
   size_t timer_capacity;
+  /** @brief next_timer_id (variable) of struct ModalityEventLoop */
   int next_timer_id;
   /* FD Registry */
+  /** @brief fds (variable) of struct ModalityEventLoop */
   struct FdNode *fds;
+  /** @brief fd_count (variable) of struct ModalityEventLoop */
   size_t fd_count;
+  /** @brief fd_capacity (variable) of struct ModalityEventLoop */
   size_t fd_capacity;
   /* Wakeup mechanism (Self-pipe trick or Windows Event) */
 #if defined(_WIN32)
   HANDLE wakeup_event;
 #else
+  /** @brief wakeup_pipe[2] (variable) of struct ModalityEventLoop */
   int wakeup_pipe[2];
 #endif
 };

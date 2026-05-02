@@ -432,8 +432,8 @@ TEST test_http_future(void) {
 
 TEST test_http_multi_request(void) {
   struct HttpMultiRequest multi;
-  (void)multi;
   struct HttpRequest req1, req2;
+  (void)multi;
 
   http_request_init(&req1);
   http_request_init(&req2);
@@ -886,11 +886,11 @@ TEST test_http_send_multi(void) {
   struct HttpClient client;
   struct HttpRequest reqs[2];
   struct HttpResponse *resps[2] = {0};
-  (void)resps;
   struct HttpRequest *reqs_ptrs[2];
   struct HttpFuture f1, f2;
   struct HttpFuture *futures[2];
   int i;
+  (void)resps;
 
   memset(&f1, 0, sizeof(f1));
   memset(&f2, 0, sizeof(f2));
@@ -938,18 +938,19 @@ TEST test_http_response_save_to_file(void) {
 
 TEST test_http_types_leftover_errs(void) {
   struct HttpMultiRequest multi;
-  (void)multi;
   struct HttpRequest req;
   struct HttpCookieJar jar;
   struct HttpConfig config;
   struct HttpHeaders h;
   char *boundary = NULL;
-  (void)boundary;
   const char *out = NULL;
   struct HttpResponse res;
-  (void)res;
-  (void)res;
   int rc, i;
+  (void)multi;
+  (void)boundary;
+  (void)res;
+  (void)res;
+
   /* extern int g_mock_alloc_fail; */
   /* extern int g_mock_alloc_count; */
 
@@ -1183,9 +1184,9 @@ TEST test_http_types_more_errs_2(void) {
   /* extern int g_mock_alloc_count; */
   struct HttpRequest req;
   struct HttpFuture f;
-  (void)f;
   char *url = NULL;
   int rc, i;
+  (void)f;
 
   /* 341: flatten with body */
   ASSERT_EQ(0, http_request_init(&req));
@@ -1267,20 +1268,21 @@ TEST test_http_types_more_errs_2(void) {
 
 TEST test_http_types_end_errs(void) {
   struct HttpClient client = {0};
-  client.send = dummy_send;
   struct HttpRequest req;
   struct HttpRequest *req_ptr = &req;
   struct HttpMultiRequest multi;
-  (void)multi;
   struct HttpFuture *future = NULL;
   struct HttpResponse res = {0};
   char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
+  int i;
+  int rc;
+
+  client.send = dummy_send;
+  (void)multi;
   (void)c;
   (void)s;
   (void)e;
   (void)ed;
-  int i;
-  int rc;
   /* extern int g_mock_alloc_fail; */
   /* extern int g_mock_alloc_count; */
 
@@ -1349,22 +1351,22 @@ TEST test_http_types_final_errs(void) {
 
   struct HttpRequest req;
   struct HttpMultiRequest multi;
-  (void)multi;
   struct HttpFuture f1;
   struct HttpFuture *futures[1];
   struct HttpResponse res = {0};
   char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
+  char *url = NULL;
+  int rc, i;
+  struct HttpClient client = {0};
+  struct HttpRequest *req_ptr = &req;
+  (void)multi;
   (void)c;
   (void)s;
   (void)e;
   (void)ed;
-  char *url = NULL;
-  int rc, i;
   /* extern int g_mock_alloc_fail; */
   /* extern int g_mock_alloc_count; */
-  struct HttpClient client = {0};
   client.send = dummy_send;
-  struct HttpRequest *req_ptr = &req;
 
   futures[0] = &f1;
   memset(&f1, 0, sizeof(f1));
@@ -1553,11 +1555,11 @@ TEST test_http_types_oom_bruteforce_all(void) {
   }
   for (i = 0; i < 5; i++) {
     struct HttpFuture f;
-    (void)f;
     struct HttpFuture *futures[1];
     struct HttpRequest req2;
     struct HttpRequest *reqs[1];
     struct HttpClient client = {0};
+    (void)f;
     client.send = dummy_send;
     memset(&f, 0, sizeof(f));
     futures[0] = &f;
@@ -1746,10 +1748,15 @@ TEST test_http_types_oom_bruteforce_all(void) {
   /* send_multi with fail_fast */
   {
     struct HttpFuture f1, f2;
-    struct HttpFuture *futures[2] = {&f1, &f2};
+    struct HttpFuture *futures[2];
     struct HttpRequest req1, req2;
-    struct HttpRequest *reqs[2] = {&req1, &req2};
+    struct HttpRequest *reqs[2];
     struct HttpClient c = {0};
+
+    futures[0] = &f1;
+    futures[1] = &f2;
+    reqs[0] = &req1;
+    reqs[1] = &req2;
     memset(&f1, 0, sizeof(f1));
     memset(&f2, 0, sizeof(f2));
     http_request_init(&req1);
@@ -1777,11 +1784,22 @@ TEST test_http_types_oom_bruteforce_all(void) {
   /* trigger ENOMEM in multi_request_add during send_multi */
   {
     struct HttpFuture f1, f2, f3, f4, f5;
-    struct HttpFuture *futures[5] = {&f1, &f2, &f3, &f4, &f5};
+    struct HttpFuture *futures[5];
     struct HttpRequest r1, r2, r3, r4, r5;
-    struct HttpRequest *reqs[5] = {&r1, &r2, &r3, &r4, &r5};
+    struct HttpRequest *reqs[5];
     struct HttpClient c = {0};
     int j;
+
+    futures[0] = &f1;
+    futures[1] = &f2;
+    futures[2] = &f3;
+    futures[3] = &f4;
+    futures[4] = &f5;
+    reqs[0] = &r1;
+    reqs[1] = &r2;
+    reqs[2] = &r3;
+    reqs[3] = &r4;
+    reqs[4] = &r5;
     c.send = dummy_send_fail;
     for (j = 0; j < 5; j++) {
       memset(futures[j], 0, sizeof(*futures[j]));

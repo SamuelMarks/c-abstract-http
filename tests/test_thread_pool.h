@@ -162,6 +162,7 @@ extern void cdd_thread_pool_test_free_with_tasks(void);
 TEST test_thread_pool_edge_cases(void) {
   struct CddThreadPool *pool;
   struct CddThreadPoolHooks hooks;
+  memset(&hooks, 0, sizeof(hooks));
 
   /* 470: pool == NULL */
   ASSERT_EQ(EINVAL, cdd_thread_pool_init_external(NULL, &hooks));

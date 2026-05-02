@@ -11,7 +11,9 @@
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
 
+/** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
+  /** @brief config (variable) of struct HttpTransportContext */
   struct HttpConfig config;
 };
 

@@ -40,7 +40,6 @@ static int mock_actor_handler(struct CddActor *actor, struct CddMessage *msg) {
 
 TEST test_actor_spawn_and_message(void) {
   struct CddMessageBus *bus = NULL;
-  (void)bus;
   struct CddActor *actor1 = NULL;
   struct CddActor *actor2 = NULL;
   struct TestActorState state1 = {0, 0};
@@ -48,6 +47,7 @@ TEST test_actor_spawn_and_message(void) {
   struct CddMessage msg;
   const char *name1 = NULL;
   const char *name2 = NULL;
+  (void)bus;
 
   ASSERT_EQ(0, cdd_message_bus_init(&bus));
   ASSERT_EQ(
@@ -134,11 +134,11 @@ static int mock_actor_get_name(const struct CddActor *actor,
 TEST test_actor_hooks(void) {
   struct CddActorHooks hooks;
   struct CddMessageBus *bus = NULL;
-  (void)bus;
   struct CddActor *actor = NULL;
   struct CddMessage msg;
   void *state = NULL;
   const char *name = NULL;
+  (void)bus;
   memset(&msg, 0, sizeof(msg));
 
   hooks.bus_init = mock_bus_init;
@@ -170,8 +170,8 @@ TEST test_actor_hooks(void) {
 
 TEST test_actor_errors(void) {
   struct CddMessageBus *bus = NULL;
-  (void)bus;
   struct CddActor *actor = NULL;
+  (void)bus;
   struct CddMessage msg;
   memset(&msg, 0, sizeof(msg));
 
@@ -197,8 +197,8 @@ static int dummy_handler(struct CddActor *self, struct CddMessage *msg) {
 
 TEST test_actor_capacity(void) {
   struct CddMessageBus *bus = NULL;
-  (void)bus;
   struct CddActor *actor = NULL;
+  (void)bus;
   int i;
 
   /* manual coverage for dummy_handler */
@@ -218,8 +218,8 @@ TEST test_actor_capacity(void) {
 
 TEST test_actor_getters(void) {
   struct CddMessageBus *bus = NULL;
-  (void)bus;
   struct CddActor *actor = NULL;
+  (void)bus;
   void *state = NULL;
   const char *name = NULL;
 
@@ -247,8 +247,8 @@ TEST test_actor_getters(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_actor_oom(void) {
   struct CddMessageBus *bus = NULL;
-  (void)bus;
   struct CddActor *actor = NULL;
+  (void)bus;
   struct CddMessage msg;
   int rc;
   char *out_str = NULL;
@@ -328,8 +328,8 @@ TEST test_actor_oom(void) {
 
 TEST test_actor_queued_free_and_tail(void) {
   struct CddMessageBus *bus = NULL;
-  (void)bus;
   struct CddActor *actor = NULL;
+  (void)bus;
   struct CddMessage msg1;
   struct CddMessage msg2;
 
@@ -353,8 +353,8 @@ TEST test_actor_queued_free_and_tail(void) {
 
 TEST test_actor_mock_nulls(void) {
   struct CddMessageBus *bus = NULL;
-  (void)bus;
   struct CddActor *actor = NULL;
+  (void)bus;
   const char *name = NULL;
   void *state = NULL;
 

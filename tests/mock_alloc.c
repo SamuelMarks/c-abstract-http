@@ -1,3 +1,6 @@
+#ifdef _WIN32
+#pragma warning(disable : 4273)
+#endif
 /* clang-format off */
 #if defined(_MSC_VER)
 #pragma warning(disable: 4273)
@@ -379,11 +382,11 @@ extern size_t fwrite(const void *, size_t, size_t, FILE *);
 extern int fclose(FILE *);
 
 #ifdef _WIN32
-extern SOCKET socket(int, int, int);
-extern int bind(SOCKET, const struct sockaddr *, int);
-extern int listen(SOCKET, int);
-extern SOCKET accept(SOCKET, struct sockaddr *, int *);
-extern int recv(SOCKET, char *, int, int);
+/* extern SOCKET socket(int, int, int); */
+/* extern int bind(SOCKET, const struct sockaddr *, int); */
+/* extern int listen(SOCKET, int); */
+/* extern SOCKET accept(SOCKET, struct sockaddr *, int *); */
+/* extern int recv(SOCKET, char *, int, int); */
 #else
 extern int socket(int, int, int);
 extern int bind(int, const struct sockaddr *, socklen_t);

@@ -461,9 +461,8 @@ void http_cookie_jar_free(struct HttpCookieJar *jar) {
       if (jar->cookies[i].value)
         free(jar->cookies[i].value);
 
-        free(jar->cookies[i].domain);
-
-        free(jar->cookies[i].path);
+      free(jar->cookies[i].domain);
+      free(jar->cookies[i].path);
     }
     free(jar->cookies);
     jar->cookies = NULL;

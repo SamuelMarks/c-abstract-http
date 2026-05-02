@@ -29,10 +29,12 @@
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
+/** @brief Internal struct CddMutex */
 struct CddMutex {
   CRITICAL_SECTION cs;
 };
 
+/** @brief Internal struct CddCond */
 struct CddCond {
 #if defined(_MSC_VER) && _MSC_VER < 1600
   HANDLE semaphore;
@@ -160,9 +162,11 @@ static void thread_join(cdd_thread_t thread) {
 
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 
+/** @brief Internal struct CddMutex */
 struct CddMutex {
   int dummy;
 };
+/** @brief Internal struct CddCond */
 struct CddCond {
   int dummy;
 };
@@ -220,11 +224,15 @@ static void thread_join(cdd_thread_t thread) { (void)thread; }
 
 #else /* POSIX */
 
+/** @brief Internal struct CddMutex */
 struct CddMutex {
+  /** @brief mtx (variable) of struct CddMutex */
   pthread_mutex_t mtx;
 };
 
+/** @brief Internal struct CddCond */
 struct CddCond {
+  /** @brief cond (variable) of struct CddCond */
   pthread_cond_t cond;
 };
 
@@ -314,21 +322,35 @@ static void thread_join(cdd_thread_t thread) { pthread_join(thread, NULL); }
 
 /* --- Thread Pool Implementation --- */
 
+/** @brief Internal struct TaskNode */
 struct TaskNode {
+  /** @brief cb (variable) of struct TaskNode */
   cdd_thread_task_cb cb;
+  /** @brief arg (variable) of struct TaskNode */
   void *arg;
+  /** @brief next (variable) of struct TaskNode */
   struct TaskNode *next;
 };
 
+/** @brief Internal struct CddThreadPool */
 struct CddThreadPool {
+  /** @brief is_external (variable) of struct CddThreadPool */
   int is_external;
+  /** @brief hooks (variable) of struct CddThreadPool */
   struct CddThreadPoolHooks hooks;
+  /** @brief threads (variable) of struct CddThreadPool */
   cdd_thread_t *threads;
+  /** @brief num_threads (variable) of struct CddThreadPool */
   size_t num_threads;
+  /** @brief head (variable) of struct CddThreadPool */
   struct TaskNode *head;
+  /** @brief tail (variable) of struct CddThreadPool */
   struct TaskNode *tail;
+  /** @brief lock (variable) of struct CddThreadPool */
   struct CddMutex *lock;
+  /** @brief cond (variable) of struct CddThreadPool */
   struct CddCond *cond;
+  /** @brief stop (variable) of struct CddThreadPool */
   int stop;
 };
 
@@ -416,7 +438,7 @@ int cdd_thread_pool_init(struct CddThreadPool **pool, size_t num_threads) {
       p->stop = 1;
       cdd_cond_broadcast(p->cond);
       while (i > 0) {
-        printf("JOINING THREAD %zu\n", i);
+        printf("JOINING THREAD %lu\n", (unsigned long)i);
         i--;
         thread_join(p->threads[i]);
       }

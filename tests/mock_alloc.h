@@ -4,11 +4,15 @@
 #ifdef _WIN32
 /* clang-format off */
 #include <winsock2.h>
+/* clang-format on */
 #else
+/* clang-format off */
 #include <sys/select.h>
 #include <sys/time.h>
 /* clang-format on */
 #endif
+
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,31 +52,13 @@ extern int *cdd_mock_get_g_mock_recv_fail(void);
 #define g_mock_accept_fail (*cdd_mock_get_g_mock_accept_fail())
 #define g_mock_recv_fail (*cdd_mock_get_g_mock_recv_fail())
 
-/* extern int g_mock_alloc_fail; */
-/* extern int g_mock_alloc_count; */
-/* extern int g_mock_pthread_fail; */
+long long c_abstract_http_mock_math_get_current_time_ms(void);
+
+void dummy_cb_thread(void *arg);
+extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif
-
-/* extern int g_mock_pipe_fail; */
-/* extern int g_mock_fork_fail; */
-/* extern int g_mock_waitpid_fail; */
-
-/* extern int g_mock_select_fail; */
-#ifndef _WIN32
-#ifndef _WIN32
-int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
-                                fd_set *errorfds, struct timeval *timeout);
-#endif
-#endif
-
-/* extern int g_mock_time_jump; */
-/* extern int g_mock_time_jump_count; */
-long long c_abstract_http_mock_math_get_current_time_ms(void);
-
-void dummy_cb_thread(void *arg);
-extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);

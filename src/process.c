@@ -48,6 +48,7 @@ void cdd_process_set_hooks(const struct CddProcessHooks *hooks) {
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
+/** @brief Internal struct CddProcess */
 struct CddProcess {
   HANDLE hProcess;
   HANDLE hThread;
@@ -234,7 +235,9 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
 
 #else /* POSIX */
 
+/** @brief Internal struct CddProcess */
 struct CddProcess {
+  /** @brief pid (variable) of struct CddProcess */
   pid_t pid;
 };
 

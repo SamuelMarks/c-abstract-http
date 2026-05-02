@@ -47,9 +47,13 @@ static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
 #endif
 #endif
 
+/** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
+  /** @brief hSession (variable) of struct HttpTransportContext */
   HINTERNET hSession;
+  /** @brief security_flags (variable) of struct HttpTransportContext */
   DWORD security_flags;
+  /** @brief disable_redirects (variable) of struct HttpTransportContext */
   int disable_redirects;
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
@@ -660,6 +664,7 @@ cleanup:
 }
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+/** @brief Internal struct WinHttpAsyncWorkerCtx */
 struct WinHttpAsyncWorkerCtx {
   struct HttpTransportContext *ctx;
   struct ModalityEventLoop *loop;

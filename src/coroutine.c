@@ -53,6 +53,7 @@ void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
+/** @brief Internal struct CddCoroutine */
 struct CddCoroutine {
   LPVOID fiber;
   LPVOID caller_fiber;
@@ -208,13 +209,21 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
 
 #elif !defined(CDD_NO_UCONTEXT) /* POSIX ucontext */
 
+/** @brief Internal struct CddCoroutine */
 struct CddCoroutine {
+  /** @brief ctx (variable) of struct CddCoroutine */
   ucontext_t ctx;
+  /** @brief caller_ctx (variable) of struct CddCoroutine */
   ucontext_t caller_ctx;
+  /** @brief stack (variable) of struct CddCoroutine */
   void *stack;
+  /** @brief stack_size (variable) of struct CddCoroutine */
   size_t stack_size;
+  /** @brief cb (variable) of struct CddCoroutine */
   cdd_coroutine_cb cb;
+  /** @brief arg (variable) of struct CddCoroutine */
   void *arg;
+  /** @brief is_done (variable) of struct CddCoroutine */
   int is_done;
 };
 
@@ -381,6 +390,7 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
 
 #else
 
+/** @brief Internal struct CddCoroutine */
 struct CddCoroutine {
   pthread_t thread;
   pthread_mutex_t mutex;

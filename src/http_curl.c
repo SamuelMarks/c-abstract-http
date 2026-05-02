@@ -21,20 +21,32 @@
 #include "str.h"
 /* clang-format on */
 
+/** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
+  /** @brief curl (variable) of struct HttpTransportContext */
   CURL *curl;
+  /** @brief cookie_jar (variable) of struct HttpTransportContext */
   struct HttpCookieJar *cookie_jar;
+  /** @brief multi (variable) of struct HttpTransportContext */
   CURLM *multi;
+  /** @brief loop (variable) of struct HttpTransportContext */
   struct ModalityEventLoop *loop;
+  /** @brief timer_id (variable) of struct HttpTransportContext */
   int timer_id;
 };
 
+/** @brief Internal struct CurlWriteContext */
 struct CurlWriteContext {
+  /** @brief MemoryStruct */
   struct MemoryStruct {
+    /** @brief memory (variable) of struct CurlWriteContext::MemoryStruct */
     char *memory;
+    /** @brief size (variable) of struct CurlWriteContext::MemoryStruct */
     size_t size;
-  } chunk;
+  } chunk; /**< @brief chunk (variable) of struct CurlWriteContext */
+  /** @brief req (variable) of struct CurlWriteContext */
   const struct HttpRequest *req;
+  /** @brief user_aborted (variable) of struct CurlWriteContext */
   int user_aborted;
 };
 
@@ -616,12 +628,19 @@ int http_curl_send(struct HttpTransportContext *ctx,
   }
   return rc;
 }
+/** @brief Internal struct CurlMultiTask */
 struct CurlMultiTask {
+  /** @brief easy (variable) of struct CurlMultiTask */
   CURL *easy;
+  /** @brief headers (variable) of struct CurlMultiTask */
   struct curl_slist *headers;
+  /** @brief write_ctx (variable) of struct CurlMultiTask */
   struct CurlWriteContext write_ctx;
+  /** @brief future (variable) of struct CurlMultiTask */
   struct HttpFuture *future;
+  /** @brief ctx (variable) of struct CurlMultiTask */
   struct HttpTransportContext *ctx;
+  /** @brief req (variable) of struct CurlMultiTask */
   const struct HttpRequest *req;
 };
 

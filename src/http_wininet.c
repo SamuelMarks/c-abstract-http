@@ -49,10 +49,14 @@ static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
       return EINVAL;                                                           \
   } while (0)
 
+/** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
+  /** @brief hInternet (variable) of struct HttpTransportContext */
   HINTERNET hInternet;
   DWORD security_flags;
+  /** @brief proxy_username (variable) of struct HttpTransportContext */
   char *proxy_username;
+  /** @brief proxy_password (variable) of struct HttpTransportContext */
   char *proxy_password;
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
@@ -242,9 +246,11 @@ void http_wininet_context_free(struct HttpTransportContext *ctx) {
 
 int http_wininet_config_apply(struct HttpTransportContext *ctx,
                               const struct HttpConfig *config) {
-  LOG_DEBUG("http_wininet_config_apply: Entering");
 #ifdef _WIN32
   DWORD timeout_connect, timeout_send, timeout_recv;
+#endif
+  LOG_DEBUG("http_wininet_config_apply: Entering");
+#ifdef _WIN32
   if (!ctx || !ctx->hInternet || !config) {
     LOG_DEBUG("http_wininet_config_apply: Error EINVAL");
     return EINVAL;
@@ -330,7 +336,6 @@ int http_wininet_config_apply(struct HttpTransportContext *ctx,
 int http_wininet_send(struct HttpTransportContext *ctx,
                       const struct HttpRequest *req,
                       struct HttpResponse **res) {
-  LOG_DEBUG("http_wininet_send: Entering");
 #ifdef _WIN32
   HINTERNET hConnect = NULL;
   HINTERNET hRequest = NULL;
@@ -351,7 +356,11 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   char *readChunk = NULL;
   size_t bodySize = 0;
   DWORD bytesRead = 0;
+#endif
 
+  LOG_DEBUG("http_wininet_send: Entering");
+
+#ifdef _WIN32
   if (!ctx || !ctx->hInternet || !req || !res) {
     LOG_DEBUG("http_wininet_send: Error EINVAL");
     return EINVAL;

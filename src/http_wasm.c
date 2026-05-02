@@ -15,6 +15,7 @@
 #endif
 /* clang-format on */
 
+/** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
   struct HttpConfig config;
 };

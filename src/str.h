@@ -50,17 +50,14 @@ extern "C" {
  * @return A pointer to the new string, or NULL if allocation failed or input
  * was NULL.
  */
-/**
- * @brief Executes the c_cdd_strdup operation.
- * @param s The s parameter.
- * @param out_s The out_s parameter.
- * @return 0 on success, or an error code.
- */
 #ifndef CDD_STRDUP
 #define CDD_STRDUP c_cdd_strdup
 #endif
 
+/** @brief c_cdd_strdup(const char *s, char **out_s) (function) of file str.h */
 extern int c_cdd_strdup(const char *s, char **out_s);
+/** @brief c_abstract_http_mock_cdd_strdup(const char *s, char **out_s)
+ * (function) of file str.h */
 extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out_s);
 
 /* --- Inspection Helpers --- */
@@ -72,13 +69,6 @@ extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out_s);
  * @param[out] out_b Pointer to store the result
  * @param[in] prefix The prefix string to look for.
  * @return 1 if `str` begins with `prefix`, 0 otherwise.
- */
-/**
- * @brief Executes the c_cdd_str_starts_with operation.
- * @param str The str parameter.
- * @param prefix The prefix parameter.
- * @param out_b The out_b parameter.
- * @return 0 on success, or an error code.
  */
 extern int c_cdd_str_starts_with(const char *str, const char *prefix,
                                  int *out_b);
@@ -120,13 +110,6 @@ extern int c_cdd_str_iequal(const char *a, const char *b, int *out_b);
  * @param[in] delimiter The delimiter character (e.g., '/').
  * @return Pointer to character immediately following the last delimiter.
  */
-/**
- * @brief Executes the c_cdd_str_after_last operation.
- * @param str The str parameter.
- * @param delimiter The delimiter parameter.
- * @param out_s The out_s parameter.
- * @return 0 on success, or an error code.
- */
 extern int c_cdd_str_after_last(const char *str, int delimiter,
                                 const char **out_s);
 
@@ -138,13 +121,6 @@ extern int c_cdd_str_after_last(const char *str, int delimiter,
  * @param[in] type The simple type name.
  * @return 1 if the extracted name matches `type`.
  */
-/**
- * @brief Executes the c_cdd_ref_is_type operation.
- * @param ref The ref parameter.
- * @param type The type parameter.
- * @param out_b The out_b parameter.
- * @return 0 on success, or an error code.
- */
 extern int c_cdd_ref_is_type(const char *ref, const char *type, int *out_b);
 
 /* --- Modification Helpers --- */
@@ -153,10 +129,6 @@ extern int c_cdd_ref_is_type(const char *ref, const char *type, int *out_b);
  * @brief Remove trailing whitespace from a string in-place.
  *
  * @param[in,out] str The string to modify.
- */
-/**
- * @brief Executes the c_cdd_str_trim_trailing_whitespace operation.
- * @param str The str parameter.
  */
 extern void c_cdd_str_trim_trailing_whitespace(char *str);
 
@@ -171,12 +143,6 @@ extern void c_cdd_str_trim_trailing_whitespace(char *str);
  *
  * @param[in] quoted The string literal (with quotes).
  * @return Allocated string containing the decoded content, or NULL on error.
- */
-/**
- * @brief Executes the c_cdd_destringize operation.
- * @param quoted The quoted parameter.
- * @param out_s The out_s parameter.
- * @return 0 on success, or an error code.
  */
 extern int c_cdd_destringize(const char *quoted, char **out_s);
 

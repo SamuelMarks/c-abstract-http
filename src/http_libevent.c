@@ -22,6 +22,7 @@
 #endif
 /* clang-format on */
 
+/** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
   struct HttpConfig config;
 };
@@ -126,6 +127,7 @@ static int get_method_cmd(enum HttpMethod method) {
 
 #ifdef C_ABSTRACT_HTTP_USE_LIBEVENT
 
+/** @brief Internal struct libevent_state */
 struct libevent_state {
   struct event_base *base;
   struct evhttp_connection *conn;

@@ -18,19 +18,28 @@ extern "C" {
 /** @brief Async SSE context */
 /** @brief Async SSE context */
 struct c_abstract_http_sse_async_ctx {
+  /** @brief client (variable) of struct c_abstract_http_sse_async_ctx */
   struct HttpClient *client;
+  /** @brief req (variable) of struct c_abstract_http_sse_async_ctx */
   struct HttpRequest *req;
+  /** @brief on_evt (variable) of struct c_abstract_http_sse_async_ctx */
   c_abstract_http_sse_on_event on_evt;
+  /** @brief on_err (variable) of struct c_abstract_http_sse_async_ctx */
   c_abstract_http_sse_on_error on_err;
+  /** @brief on_close (variable) of struct c_abstract_http_sse_async_ctx */
   c_abstract_http_sse_on_close on_close;
+  /** @brief user_data (variable) of struct c_abstract_http_sse_async_ctx */
   void *user_data;
 };
 
+/** @brief c_abstract_http_sse_async_task(void *arg) (function) of file
+ * sse_internal.h */
 void c_abstract_http_sse_async_task(void *arg);
 
 /**
  * @brief Context structure for parsing incoming Server-Sent Events.
  */
+/** @brief Internal struct sse_parser_ctx */
 struct sse_parser_ctx {
   char *line_buffer;    /**< Dynamic buffer for the current line */
   size_t line_capacity; /**< Capacity of the line buffer */

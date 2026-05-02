@@ -285,9 +285,9 @@ TEST test_process_fallback_paths(void) {
 TEST test_process_serialize_failures(void) {
   struct HttpRequest req;
   struct HttpResponse res;
-  (void)res;
   char *buf = NULL;
   size_t len = 0;
+  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
@@ -323,9 +323,9 @@ TEST test_process_serialize_failures(void) {
 TEST test_process_deserialization_edge_cases(void) {
   struct HttpRequest req;
   struct HttpResponse res;
-  (void)res;
   char *buf = NULL;
   size_t len = 0;
+  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
@@ -401,8 +401,8 @@ TEST test_process_deserialization_edge_cases(void) {
 TEST test_process_more_edge_cases(void) {
   struct HttpRequest req;
   struct HttpResponse res;
-  (void)res;
   char buf[100] = {0};
+  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
@@ -450,9 +450,9 @@ TEST test_process_more_edge_cases(void) {
 TEST test_process_final_edge_cases(void) {
   struct HttpRequest req;
   struct HttpResponse res;
-  (void)res;
   char *buf = NULL;
   size_t len = 0;
+  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));

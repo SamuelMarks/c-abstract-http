@@ -20,7 +20,9 @@
 #include "str.h"
 /* clang-format on */
 
+/** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
+  /** @brief session (variable) of struct HttpTransportContext */
   SoupSession *session;
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
