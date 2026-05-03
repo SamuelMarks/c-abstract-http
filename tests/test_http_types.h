@@ -1750,7 +1750,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
   /* 1800: bind fail on invalid port or already bound port */
   /* Actually, we just need to bind to a restricted port to fail bind, e.g. 80
    * without root */
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__CYGWIN__)
   {
     char *c = NULL, *s = NULL;
     ASSERT_EQ(EIO,
