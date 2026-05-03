@@ -212,11 +212,7 @@ extern int pipe(int[2]);
 extern pid_t fork(void);
 extern pid_t waitpid(pid_t, int *, int);
 extern int select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
-#if defined(_WIN32)
-__declspec(dllimport) long long real_math_get_current_time_ms(void);
-#else
 extern long long real_math_get_current_time_ms(void);
-#endif
 extern int pthread_setspecific(pthread_key_t, const void *);
 extern void *pthread_getspecific(pthread_key_t);
 #endif
@@ -332,11 +328,7 @@ int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
 }
 
 #undef math_get_current_time_ms
-#if defined(_WIN32)
-__declspec(dllimport) long long real_math_get_current_time_ms(void);
-#else
 extern long long real_math_get_current_time_ms(void);
-#endif
 
 long long c_abstract_http_mock_math_get_current_time_ms(void) {
   long long now = real_math_get_current_time_ms();

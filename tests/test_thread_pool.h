@@ -150,15 +150,7 @@ static int dummy_hook_push(void *ctx, cdd_thread_task_cb cb, void *arg) {
   return 0;
 }
 
-#if defined(_WIN32)
-__declspec(dllimport) void cdd_thread_pool_test_free_with_tasks(void);
-#else
-#if defined(_WIN32)
-__declspec(dllimport) void cdd_thread_pool_test_free_with_tasks(void);
-#else
 extern void cdd_thread_pool_test_free_with_tasks(void);
-#endif
-#endif
 TEST test_thread_pool_edge_cases(void) {
   struct CddThreadPool *pool;
   struct CddThreadPoolHooks hooks;

@@ -653,17 +653,14 @@ TEST test_sse_async_register_success(void) {
   struct CddThreadPool *pool;
   struct CddThreadPoolHooks hooks = {0};
   struct test_sse_ctx ctx = {0};
+  http_request_init(&req);
   hooks.push = mock_push_success;
   cdd_thread_pool_init_external(&pool, &hooks);
   client.thread_pool = pool;
-
-  client.send =
-      test_sse_mock_send_empty; /* so the async task finishes quickly */
-
+  client.send = test_sse_mock_send_empty;
   ASSERT_EQ(0, c_abstract_http_sse_async_register(
                    &client, &req, test_sse_on_event, test_sse_on_error,
                    test_sse_on_close, &ctx));
-
   cdd_thread_pool_free(pool);
   http_request_free(&req);
   PASS();
@@ -759,9 +756,6 @@ TEST test_sse_parser_feed_current_data_oom(void) {
 TEST test_sse_parser_feed_current_data_capacity_limit(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
-  char chunk[64 * 1024] = {0};
-  int i;
-  int rc = 0;
 
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
                                test_sse_on_error, test_sse_on_close, &ctx));
