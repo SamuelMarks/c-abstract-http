@@ -11,6 +11,22 @@
 #ifndef C_CDD_TEST_HTTP_APPLE_H
 #define C_CDD_TEST_HTTP_APPLE_H
 
+#include <stdlib.h>
+#include <string.h>
+
+static char *c_abstract_http_test_apple_strdup(const char *s) {
+  size_t len;
+  char *d;
+  if (!s)
+    return NULL;
+  len = strlen(s);
+  d = (char *)malloc(len + 1);
+  if (d)
+    memcpy(d, s, len + 1);
+  return d;
+}
+#define strdup(s) c_abstract_http_test_apple_strdup(s)
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */

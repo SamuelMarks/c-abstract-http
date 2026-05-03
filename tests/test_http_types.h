@@ -3,6 +3,34 @@
 #ifndef TEST_HTTP_TYPES_H
 #define TEST_HTTP_TYPES_H
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_alloc_fail;
+extern int g_mock_alloc_count;
+extern int g_mock_fwrite_fail;
+extern int g_mock_fclose_fail;
+extern int g_mock_socket_fail;
+extern int g_mock_bind_fail;
+extern int g_mock_listen_fail;
+extern int g_mock_accept_fail;
+extern int g_mock_recv_fail;
+#endif
+
+#include <stdlib.h>
+#include <string.h>
+
+static char *c_abstract_http_test_types_strdup(const char *s) {
+  size_t len;
+  char *d;
+  if (!s) return NULL;
+  len = strlen(s);
+  d = (char*)malloc(len + 1);
+  if (d) memcpy(d, s, len + 1);
+  return d;
+}
+#ifndef strdup
+#define strdup(s) c_abstract_http_test_types_strdup(s)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -952,9 +980,6 @@ TEST test_http_types_leftover_errs(void) {
   (void)res;
   (void)res;
 
-  /* extern int g_mock_alloc_fail; */
-  /* extern int g_mock_alloc_count; */
-
   /* flatten missing */
   ASSERT_EQ(0, http_request_init(&req));
   ASSERT_EQ(0, http_request_add_part(&req, "f", NULL, NULL, "d", 1));
@@ -1145,8 +1170,7 @@ TEST test_http_types_leftover_errs(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_cookie_jar_set_val_oom(void) {
   struct HttpCookieJar jar;
-  /* extern int g_mock_alloc_fail; */
-  /* extern int g_mock_alloc_count; */
+
   http_cookie_jar_init(&jar);
 
   g_mock_alloc_fail = 1;
@@ -1183,8 +1207,7 @@ TEST test_http_modality_errs(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_more_errs_2(void) {
-  /* extern int g_mock_alloc_fail; */
-  /* extern int g_mock_alloc_count; */
+
   struct HttpRequest req;
   struct HttpFuture f;
   char *url = NULL;
@@ -1288,8 +1311,6 @@ TEST test_http_types_end_errs(void) {
   (void)s;
   (void)e;
   (void)ed;
-  /* extern int g_mock_alloc_fail; */
-  /* extern int g_mock_alloc_count; */
 
   /* 1931, 1943, 1949, 1955: save_to_file */
   ASSERT_EQ(EINVAL, http_response_save_to_file(NULL, "a"));
@@ -1375,8 +1396,7 @@ TEST test_http_types_final_errs(void) {
   (void)e;
   (void)ed;
   (void)res;
-  /* extern int g_mock_alloc_fail; */
-  /* extern int g_mock_alloc_count; */
+
   client.send = dummy_send;
 
   futures[0] = &f1;
@@ -1425,8 +1445,6 @@ TEST test_http_types_final_errs(void) {
 TEST test_http_types_oom_bruteforce_all(void) {
   struct HttpRequest req;
   int i, rc;
-  /* extern int g_mock_alloc_fail; */
-  /* extern int g_mock_alloc_count; */
 
   for (i = 0; i < 5; i++) {
     http_request_init(&req);

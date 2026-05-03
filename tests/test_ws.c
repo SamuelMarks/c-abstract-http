@@ -297,7 +297,10 @@ static int mock_send_success_ws(struct HttpTransportContext *ctx,
   g_mock_alloc_fail = 0; /* Protect mock allocations */
   res = (struct HttpResponse *)malloc(sizeof(struct HttpResponse));
   memset(res, 0, sizeof(*res));
-  res->body = (unsigned char *)strdup("\x81\x05Hello"); /* Text frame "Hello" */
+  res->body = (unsigned char *)malloc(7); /* Text frame "Hello" */
+  if (res->body) {
+    memcpy(res->body, "\x81\x05Hello", 7);
+  }
   res->body_len = 7;
   *res_out = res;
   g_mock_alloc_fail = old_fail;
@@ -870,7 +873,10 @@ static int mock_send_bad_payload(struct HttpTransportContext *tctx,
   (void)tctx;
   (void)req;
   /* Send invalid fragmentation to trigger ws_parser_feed framing error */
-  res->body = (unsigned char *)strdup("\x01\x01\x61\x01\x00\x00");
+  res->body = (unsigned char *)malloc(6);
+  if (res->body) {
+    memcpy(res->body, "\x01\x01\x61\x01\x00\x00", 6);
+  }
   res->body_len = 6;
   *res_out = res;
   return 0;

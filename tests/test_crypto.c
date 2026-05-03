@@ -4,6 +4,11 @@
 #include <errno.h>
 #include <string.h>
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_alloc_fail;
+extern int g_mock_alloc_count;
+#endif
+
 TEST test_sha1_empty_string(void) {
   struct sha1_ctx ctx;
   unsigned char hash[20];
@@ -155,8 +160,6 @@ TEST test_crypto_oom(void) {
   unsigned char *dec_data = NULL;
   size_t dec_len = 0;
 
-  /* extern int g_mock_alloc_fail; */
-  /* extern int g_mock_alloc_count; */
   g_mock_alloc_fail = 1;
 
   ASSERT_EQ(ENOMEM,

@@ -221,8 +221,11 @@ static int mock_send_success(struct HttpTransportContext *ctx,
   (void)req;
   res = (struct HttpResponse *)malloc(sizeof(struct HttpResponse));
   memset(res, 0, sizeof(*res));
-  res->body = (unsigned char *)strdup("data: hello\n\n");
-  res->body_len = strlen((char *)res->body);
+  res->body = (unsigned char *)malloc(14);
+  if (res->body) {
+    memcpy(res->body, "data: hello\n\n", 14);
+  }
+  res->body_len = res->body ? strlen((char *)res->body) : 0;
   *res_out = res;
   return 0;
 }
@@ -598,7 +601,10 @@ static int test_sse_mock_send_empty(struct HttpTransportContext *ctx,
   struct HttpResponse *res = calloc(1, sizeof(*res));
   (void)ctx;
   (void)req;
-  res->body = strdup("");
+  res->body = malloc(1);
+  if (res->body) {
+    ((char *)res->body)[0] = '\0';
+  }
   res->body_len = 0;
   *res_out = res;
   return 0;
