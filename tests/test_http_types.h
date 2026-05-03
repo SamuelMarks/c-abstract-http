@@ -4,15 +4,7 @@
 #define TEST_HTTP_TYPES_H
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int g_mock_alloc_fail;
-extern int g_mock_alloc_count;
-extern int g_mock_fwrite_fail;
-extern int g_mock_fclose_fail;
-extern int g_mock_socket_fail;
-extern int g_mock_bind_fail;
-extern int g_mock_listen_fail;
-extern int g_mock_accept_fail;
-extern int g_mock_recv_fail;
+#include "mock_alloc.h"
 #endif
 
 #include <stdlib.h>

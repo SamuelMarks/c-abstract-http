@@ -5,8 +5,7 @@
 #include <string.h>
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int g_mock_alloc_fail;
-extern int g_mock_alloc_count;
+#include "mock_alloc.h"
 #endif
 
 TEST test_sha1_empty_string(void) {
