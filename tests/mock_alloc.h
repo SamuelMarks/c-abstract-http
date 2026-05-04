@@ -2,9 +2,27 @@
 #define CDD_MOCK_ALLOC_H
 
 #ifdef _WIN32
+#pragma push_macro("socket")
+#pragma push_macro("bind")
+#pragma push_macro("listen")
+#pragma push_macro("accept")
+#pragma push_macro("recv")
+#pragma push_macro("select")
+#undef socket
+#undef bind
+#undef listen
+#undef accept
+#undef recv
+#undef select
 /* clang-format off */
 #include <winsock2.h>
 /* clang-format on */
+#pragma pop_macro("select")
+#pragma pop_macro("recv")
+#pragma pop_macro("accept")
+#pragma pop_macro("listen")
+#pragma pop_macro("bind")
+#pragma pop_macro("socket")
 #else
 /* clang-format off */
 #include <sys/select.h>
@@ -34,6 +52,36 @@ extern int *cdd_mock_get_g_mock_bind_fail(void);
 extern int *cdd_mock_get_g_mock_listen_fail(void);
 extern int *cdd_mock_get_g_mock_accept_fail(void);
 extern int *cdd_mock_get_g_mock_recv_fail(void);
+
+#if defined(_WIN32)
+extern SOCKET WSAAPI c_abstract_http_mock_socket(int domain, int type,
+                                                 int protocol);
+extern int WSAAPI c_abstract_http_mock_bind(SOCKET socket,
+                                            const struct sockaddr *address,
+                                            int address_len);
+extern int WSAAPI c_abstract_http_mock_listen(SOCKET socket, int backlog);
+extern SOCKET WSAAPI c_abstract_http_mock_accept(SOCKET socket,
+                                                 struct sockaddr *address,
+                                                 int *address_len);
+extern int WSAAPI c_abstract_http_mock_recv(SOCKET socket, char *buffer,
+                                            int length, int flags);
+extern int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
+                                              fd_set *writefds,
+                                              fd_set *exceptfds,
+                                              const struct timeval *timeout);
+#else
+extern int c_abstract_http_mock_socket(int domain, int type, int protocol);
+extern int c_abstract_http_mock_bind(int socket, const struct sockaddr *address,
+                                     unsigned int address_len);
+extern int c_abstract_http_mock_listen(int socket, int backlog);
+extern int c_abstract_http_mock_accept(int socket, struct sockaddr *address,
+                                       unsigned int *address_len);
+extern ssize_t c_abstract_http_mock_recv(int socket, void *buffer,
+                                         size_t length, int flags);
+extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
+                                       fd_set *writefds, fd_set *exceptfds,
+                                       struct timeval *timeout);
+#endif
 
 #define g_mock_alloc_fail (*cdd_mock_get_g_mock_alloc_fail())
 #define g_mock_alloc_count (*cdd_mock_get_g_mock_alloc_count())

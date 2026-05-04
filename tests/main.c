@@ -24,6 +24,7 @@
 #include "test_coroutine.h"
 #include "test_actor.h"
 #include "test_transport.h"
+#include "test_mock_coverage.h"
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) || !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
 #include "test_cmp_integration.h"
 #endif
@@ -137,6 +138,10 @@ int main(int argc, char **argv) {
 
 #else
   RUN_SUITE(http_curl_suite);
+#endif
+
+#ifdef malloc
+  RUN_SUITE(mock_coverage_suite);
 #endif
 
   GREATEST_MAIN_END();

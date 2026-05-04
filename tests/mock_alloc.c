@@ -34,7 +34,7 @@
 #include <string.h>
 #include "mock_alloc.h"
 
-int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
+int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
                                 fd_set *errorfds, struct timeval *timeout);
 size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nitems,
                                    FILE *stream);
@@ -44,11 +44,11 @@ int c_abstract_http_mock_fclose(FILE *stream);
 #include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
 typedef int socklen_t;
-SOCKET c_abstract_http_mock_socket(int domain, int type, int protocol);
-int c_abstract_http_mock_bind(SOCKET socket, const struct sockaddr *address, socklen_t address_len);
-int c_abstract_http_mock_listen(SOCKET socket, int backlog);
-SOCKET c_abstract_http_mock_accept(SOCKET socket, struct sockaddr *address, int *address_len);
-int c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length, int flags);
+SOCKET WSAAPI c_abstract_http_mock_socket(int domain, int type, int protocol);
+int WSAAPI c_abstract_http_mock_bind(SOCKET socket, const struct sockaddr *address, socklen_t address_len);
+int WSAAPI c_abstract_http_mock_listen(SOCKET socket, int backlog);
+SOCKET WSAAPI c_abstract_http_mock_accept(SOCKET socket, struct sockaddr *address, int *address_len);
+int WSAAPI c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length, int flags);
 #else
 #include <sys/socket.h>
 int c_abstract_http_mock_socket(int domain, int type, int protocol);
@@ -231,8 +231,9 @@ int c_abstract_http_mock_pthread_create(pthread_t *thread,
 int c_abstract_http_mock_pipe(int fildes[2]);
 pid_t c_abstract_http_mock_fork(void);
 pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options);
-int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
-                                fd_set *errorfds, struct timeval *timeout);
+int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
+                                       fd_set *writefds, fd_set *errorfds,
+                                       struct timeval *timeout);
 long long c_abstract_http_mock_math_get_current_time_ms(void);
 int c_abstract_http_mock_pthread_setspecific(pthread_key_t key,
                                              const void *value);
@@ -314,8 +315,9 @@ pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options) {
 }
 #endif
 
-int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
-                                fd_set *errorfds, struct timeval *timeout) {
+int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
+                                       fd_set *writefds, fd_set *errorfds,
+                                       struct timeval *timeout) {
   if (g_mock_select_fail == 1 && errorfds) {
     /* Force error flag on all fds */
     int i;
@@ -431,34 +433,36 @@ int c_abstract_http_mock_fclose(FILE *stream) {
 
 #ifdef _WIN32
 #include <BaseTsd.h>
-SOCKET c_abstract_http_mock_socket(int domain, int type, int protocol) {
+SOCKET WSAAPI c_abstract_http_mock_socket(int domain, int type, int protocol) {
   if (g_mock_socket_fail)
     return INVALID_SOCKET;
   return socket(domain, type, protocol);
 }
 
-int c_abstract_http_mock_bind(SOCKET socket, const struct sockaddr *address,
-                              socklen_t address_len) {
+int WSAAPI c_abstract_http_mock_bind(SOCKET socket,
+                                     const struct sockaddr *address,
+                                     socklen_t address_len) {
   if (g_mock_bind_fail)
     return SOCKET_ERROR;
   return bind(socket, address, address_len);
 }
 
-int c_abstract_http_mock_listen(SOCKET socket, int backlog) {
+int WSAAPI c_abstract_http_mock_listen(SOCKET socket, int backlog) {
   if (g_mock_listen_fail)
     return SOCKET_ERROR;
   return listen(socket, backlog);
 }
 
-SOCKET c_abstract_http_mock_accept(SOCKET socket, struct sockaddr *address,
-                                   int *address_len) {
+SOCKET WSAAPI c_abstract_http_mock_accept(SOCKET socket,
+                                          struct sockaddr *address,
+                                          int *address_len) {
   if (g_mock_accept_fail)
     return INVALID_SOCKET;
   return accept(socket, address, address_len);
 }
 
-int c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length,
-                              int flags) {
+int WSAAPI c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length,
+                                     int flags) {
   if (g_mock_recv_fail)
     return SOCKET_ERROR;
   return recv(socket, buffer, length, flags);
