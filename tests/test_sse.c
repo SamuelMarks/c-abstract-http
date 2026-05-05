@@ -326,7 +326,7 @@ static int mock_push_fail(void *ctx, cdd_thread_task_cb cb, void *arg) {
 TEST test_sse_async_register_thread_pool(void) {
   struct HttpClient client;
   struct HttpRequest req;
-  struct CddThreadPool *pool;
+  struct CddThreadPool *pool = NULL;
   struct CddThreadPoolHooks hooks;
 
   memset(&client, 0, sizeof(client));
@@ -654,7 +654,7 @@ static int mock_push_success(void *ctx, cdd_thread_task_cb cb, void *arg) {
 TEST test_sse_async_register_success(void) {
   struct HttpClient client = {0};
   struct HttpRequest req;
-  struct CddThreadPool *pool;
+  struct CddThreadPool *pool = NULL;
   struct CddThreadPoolHooks hooks = {0};
   struct test_sse_ctx ctx = {0};
   http_request_init(&req);
@@ -774,6 +774,7 @@ TEST test_sse_parser_feed_current_data_capacity_limit(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 static int mock_send_success_huge_body(struct HttpTransportContext *ctx,
                                        const struct HttpRequest *req,
                                        struct HttpResponse **res_out) {
@@ -801,7 +802,6 @@ static int mock_send_success_huge_body(struct HttpTransportContext *ctx,
   return 0;
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_sync_loop_oom_branches(void) {
   struct HttpClient client = {0};
   struct HttpRequest req;
