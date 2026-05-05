@@ -490,7 +490,7 @@ TEST test_ws_parser_init_oom(void) {
   g_mock_alloc_count = 0;
   rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
   g_mock_alloc_fail = 0;
-  ASSERT_EQ(12, rc); /* ENOMEM */
+  ASSERT_EQ(ENOMEM, rc); /* ENOMEM */
   PASS();
 }
 #endif
@@ -556,7 +556,7 @@ TEST test_ws_realloc_oom(void) {
   g_mock_alloc_count = 0;
   rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
   g_mock_alloc_fail = 0;
-  ASSERT_EQ(12, rc); /* ENOMEM */
+  ASSERT_EQ(ENOMEM, rc); /* ENOMEM */
   if (parser.payload_buffer)
     free(parser.payload_buffer);
   PASS();
@@ -682,7 +682,7 @@ TEST test_ws_parser_reassembly_fin_oom(void) {
   rc = ws_parser_feed(&parser, chunk2, 4 + 4096);
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(12, rc);
+  ASSERT_EQ(ENOMEM, rc);
   if (parser.payload_buffer)
     free(parser.payload_buffer);
   if (parser.reassembly_buffer)
@@ -718,7 +718,7 @@ TEST test_ws_parser_reassembly_fin_expand_oom(void) {
   rc = ws_parser_feed(&parser, chunk2, 2 + 10);
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(12, rc);
+  ASSERT_EQ(ENOMEM, rc);
   if (parser.payload_buffer)
     free(parser.payload_buffer);
   if (parser.reassembly_buffer)
@@ -735,7 +735,7 @@ TEST test_ws_sign_key_oom(void) {
   g_mock_alloc_count = 0;
   rc = ws_sign_key("dGhlIHNhbXBsZSBub25jZQ==", out_accept);
   g_mock_alloc_fail = 0;
-  ASSERT_EQ(12, rc); /* ENOMEM */
+  ASSERT_EQ(ENOMEM, rc); /* ENOMEM */
   PASS();
 }
 #endif
@@ -807,7 +807,7 @@ TEST test_ws_parser_reassembly_frag_oom(void) {
   rc = ws_parser_feed(&parser, chunk2, 2 + 10);
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(12, rc);
+  ASSERT_EQ(ENOMEM, rc);
   if (parser.payload_buffer)
     free(parser.payload_buffer);
   if (parser.reassembly_buffer)
@@ -825,7 +825,7 @@ TEST test_ws_sync_loop_init_oom(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(12, c_abstract_http_ws_sync_read_loop(
+  ASSERT_EQ(ENOMEM, c_abstract_http_ws_sync_read_loop(
                     &client, &req, test_ws_on_message, test_ws_on_error,
                     test_ws_on_close, &ctx, NULL));
   g_mock_alloc_fail = 0;

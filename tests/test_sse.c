@@ -288,7 +288,7 @@ TEST test_sse_max_line_size(void) {
   /* Feed huge line */
   rc = sse_parser_feed(&parser, huge_line, huge_len);
   ASSERT_EQ(
-      12,
+      ENOMEM,
       rc); /* ENOMEM equivalent used in sse_parser_feed for too large line */
 
   sse_parser_destroy(&parser);
@@ -722,7 +722,7 @@ TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
   rc = sse_parser_feed(&parser, chunk, sizeof(chunk));
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(12, rc); /* 12 is ENOMEM in tests usually */
+  ASSERT_EQ(ENOMEM, rc); /* 12 is ENOMEM in tests usually */
   sse_parser_destroy(&parser);
   PASS();
 }
@@ -870,7 +870,7 @@ TEST test_sse_parser_feed_data_capacity_limit_real(void) {
   rc = sse_parser_feed(&parser, chunk, 33002);
   if (rc != 90)
     printf("test_sse_parser_feed_data_capacity_limit_real rc=%d\n", rc);
-  ASSERT_EQ(12, rc); /* 12 is ENOMEM equivalent */
+  ASSERT_EQ(ENOMEM, rc); /* 12 is ENOMEM equivalent */
   sse_parser_destroy(&parser);
   PASS();
 }
