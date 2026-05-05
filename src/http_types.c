@@ -423,6 +423,7 @@ int http_request_flatten_parts(struct HttpRequest *req) {
 
   {
     char ct[128];
+    int hdr_rc;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(ct, sizeof(ct), "multipart/form-data; boundary=%s", boundary);
 #else
@@ -430,7 +431,13 @@ int http_request_flatten_parts(struct HttpRequest *req) {
 #endif
     /* If header exists, this adds a duplicate. Typically client code shouldn't
      * set CT if using parts. */
-    http_headers_add(&req->headers, "Content-Type", ct);
+    hdr_rc = http_headers_add(&req->headers, "Content-Type", ct);
+    if (hdr_rc != 0) {
+      free(buffer);
+      req->body = NULL;
+      req->body_len = 0;
+      return hdr_rc;
+    }
   }
 
   /* 5. Clear parts logic to avoid double-process (though body takes precedence)

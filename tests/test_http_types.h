@@ -981,6 +981,8 @@ TEST test_http_types_leftover_errs(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* buffer malloc */
   ASSERT_EQ(ENOMEM, http_request_flatten_parts(&req));
+    req.body = NULL;
+    req.body_len = 0;
   g_mock_alloc_fail = 0;
   http_request_free(&req);
   /* cookie jar errs */
