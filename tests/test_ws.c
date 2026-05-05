@@ -829,6 +829,7 @@ TEST test_ws_sync_loop_init_oom(void) {
                     &client, &req, test_ws_on_message, test_ws_on_error,
                     test_ws_on_close, &ctx, NULL));
   g_mock_alloc_fail = 0;
+  http_request_free(&req);
   PASS();
 }
 #endif
