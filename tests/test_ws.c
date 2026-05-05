@@ -856,7 +856,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
                                              &ctx, NULL);
       g_mock_alloc_fail = 0;
       http_request_free(&req);
-      if (rc == 12) {
+      if (rc == ENOMEM) {
         /* we just want to cover the branches, so doing this in a loop is fine
          */
       }
