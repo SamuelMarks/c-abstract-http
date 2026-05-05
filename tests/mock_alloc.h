@@ -26,6 +26,7 @@
 #else
 /* clang-format off */
 #include <sys/select.h>
+#include <sys/socket.h>
 #include <sys/time.h>
 /* clang-format on */
 #endif
@@ -72,10 +73,10 @@ extern int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #else
 extern int c_abstract_http_mock_socket(int domain, int type, int protocol);
 extern int c_abstract_http_mock_bind(int socket, const struct sockaddr *address,
-                                     unsigned int address_len);
+                                     socklen_t address_len);
 extern int c_abstract_http_mock_listen(int socket, int backlog);
 extern int c_abstract_http_mock_accept(int socket, struct sockaddr *address,
-                                       unsigned int *address_len);
+                                       socklen_t *address_len);
 extern ssize_t c_abstract_http_mock_recv(int socket, void *buffer,
                                          size_t length, int flags);
 extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,

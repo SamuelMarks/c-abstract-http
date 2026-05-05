@@ -47,6 +47,7 @@ static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
 #endif
 #endif
 
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
   /** @brief hSession (variable) of struct HttpTransportContext */
@@ -58,6 +59,11 @@ struct HttpTransportContext {
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
 };
+#else
+struct HttpTransportContext {
+  int dummy;
+};
+#endif
 
 /* ... (Helpers like method_to_wide, safe_close_handle omitted for brevity if
    unchanged logic is same, but providing full file content below for
@@ -236,6 +242,8 @@ void http_winhttp_context_free(struct HttpTransportContext *ctx) {
     free(ctx);
   }
   LOG_DEBUG("http_winhttp_context_free: Exiting");
+#else
+  (void)ctx;
 #endif
 }
 

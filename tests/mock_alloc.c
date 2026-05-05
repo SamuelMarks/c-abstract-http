@@ -34,8 +34,13 @@
 #include <string.h>
 #include "mock_alloc.h"
 
+#ifdef _WIN32
 int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
+                                fd_set *errorfds, const struct timeval *timeout);
+#else
+int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
                                 fd_set *errorfds, struct timeval *timeout);
+#endif
 size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nitems,
                                    FILE *stream);
 int c_abstract_http_mock_fclose(FILE *stream);
@@ -231,9 +236,14 @@ int c_abstract_http_mock_pthread_create(pthread_t *thread,
 int c_abstract_http_mock_pipe(int fildes[2]);
 pid_t c_abstract_http_mock_fork(void);
 pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options);
+#ifdef _WIN32
 int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
                                        fd_set *writefds, fd_set *errorfds,
-                                       struct timeval *timeout);
+                                       const struct timeval *timeout);
+#else
+int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
+                                fd_set *errorfds, struct timeval *timeout);
+#endif
 long long c_abstract_http_mock_math_get_current_time_ms(void);
 int c_abstract_http_mock_pthread_setspecific(pthread_key_t key,
                                              const void *value);
@@ -315,13 +325,18 @@ pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options) {
 }
 #endif
 
+#ifdef _WIN32
 int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
                                        fd_set *writefds, fd_set *errorfds,
-                                       struct timeval *timeout) {
+                                       const struct timeval *timeout) {
+#else
+int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
+                                fd_set *errorfds, struct timeval *timeout) {
+#endif
   if (g_mock_select_fail == 1 && errorfds) {
     /* Force error flag on all fds */
-    int i;
-    for (i = 0; i < nfds; ++i) {
+    unsigned int i;
+    for (i = 0; i < (unsigned int)nfds; ++i) {
       FD_SET(i, errorfds);
     }
     return nfds;
