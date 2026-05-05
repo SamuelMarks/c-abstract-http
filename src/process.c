@@ -172,14 +172,26 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
     return EINVAL;
   }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) || 1
+  if (g_mock_waitpid_fail) {
+    if (exit_code) {
+      *exit_code = (g_mock_waitpid_fail == 2) ? -1 : 0;
+    }
+    free(proc);
+    return 0;
+  }
+#endif
+
   WaitForSingleObject(proc->hProcess, INFINITE);
   if (exit_code) {
     GetExitCodeProcess(proc->hProcess, &dwExitCode);
     *exit_code = (int)dwExitCode;
   }
 
-  CloseHandle(proc->hProcess);
-  CloseHandle(proc->hThread);
+  if (proc->hProcess)
+    CloseHandle(proc->hProcess);
+  if (proc->hThread)
+    CloseHandle(proc->hThread);
   free(proc);
   LOG_DEBUG("cdd_process_wait_and_free: Success");
   return 0;
@@ -311,7 +323,7 @@ int cdd_process_spawn(struct CddProcess **proc,
     close((int)(size_t)child_to_parent->write_handle);
 
     execv("/proc/self/exe", argv);
-    exit(1);
+    _exit(1);
   } else {
     close((int)(size_t)parent_to_child->read_handle);
     parent_to_child->read_handle = NULL;
@@ -338,6 +350,16 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
     LOG_DEBUG("cdd_process_wait_and_free: Error EINVAL");
     return EINVAL;
   }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) || 1
+  if (g_mock_waitpid_fail) {
+    if (exit_code) {
+      *exit_code = (g_mock_waitpid_fail == 2) ? -1 : 0;
+    }
+    free(proc);
+    return 0;
+  }
+#endif
 
   waitpid(proc->pid, &status, 0);
   if (exit_code) {

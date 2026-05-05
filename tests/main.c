@@ -82,6 +82,13 @@ GREATEST_MAIN_DEFS();
 #endif
 
 int main(int argc, char **argv) {
+  int i;
+  for (i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "--cdd-worker") == 0) {
+      return 1;
+    }
+  }
+
 #if defined(_MSC_VER)
   _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
   _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);

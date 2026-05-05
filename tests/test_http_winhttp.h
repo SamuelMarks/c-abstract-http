@@ -425,14 +425,15 @@ TEST test_winhttp_send_multi(void) {
   struct HttpRequest req1, req2;
   struct HttpConfig config;
   struct HttpMultiRequest multi;
-  (void)multi;
   struct HttpFuture f1, f2;
   struct HttpFuture *futures[2];
   struct ModalityEventLoop *loop = NULL;
-  (void)loop;
   MockServerPtr server1 = NULL;
   MockServerPtr server2 = NULL;
   int rc;
+
+  (void)multi;
+  (void)loop;
 
   ASSERT_EQ(0, mock_server_init(&server1));
   ASSERT_EQ(0, mock_server_start(server1));

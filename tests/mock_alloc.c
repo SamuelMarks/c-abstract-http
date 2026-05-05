@@ -333,13 +333,15 @@ int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
 int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
                                 fd_set *errorfds, struct timeval *timeout) {
 #endif
-  if (g_mock_select_fail == 1 && errorfds) {
-    /* Force error flag on all fds */
-    unsigned int i;
-    for (i = 0; i < (unsigned int)nfds; ++i) {
-      FD_SET(i, errorfds);
+  if (g_mock_select_fail == 1) {
+    if (errorfds) {
+      /* Force error flag on all fds */
+      unsigned int i;
+      for (i = 0; i < (unsigned int)nfds; ++i) {
+        FD_SET(i, errorfds);
+      }
     }
-    return nfds;
+    return -1;
   }
   return select(nfds, readfds, writefds, errorfds, timeout);
 }
