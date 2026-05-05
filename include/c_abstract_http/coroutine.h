@@ -17,9 +17,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include <stddef.h>
-/* clang-format on */
 
+#include <stddef.h>
+
+/* clang-format on */
 /**
  * @brief Opaque Coroutine state.
  */
@@ -93,5 +94,4 @@ extern int math_cdd_coroutine_is_done(const struct CddCoroutine *co);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_COROUTINE_H */

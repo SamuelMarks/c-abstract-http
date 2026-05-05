@@ -14,10 +14,11 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+
 #include <stddef.h>
 #include "http_types.h"
-/* clang-format on */
 
+/* clang-format on */
 /**
  * @brief Expected modality values from c-multiplatform.
  *
@@ -90,5 +91,4 @@ int cmp_http_progress_adapter(size_t current_bytes, size_t total_bytes,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ABSTRACT_HTTP_CMP_INTEGRATION_H */

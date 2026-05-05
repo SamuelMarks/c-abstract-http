@@ -15,9 +15,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include <c_abstract_http/http_types.h>
-/* clang-format on */
 
+#include <c_abstract_http/http_types.h>
+
+/* clang-format on */
 /**
  * @brief Initialize global Apple networking environment.
  * @return 0 on success.
@@ -68,5 +69,4 @@ int http_apple_send(struct HttpTransportContext *ctx,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_APPLE_H */

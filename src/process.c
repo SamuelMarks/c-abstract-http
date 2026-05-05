@@ -19,15 +19,7 @@ extern int g_mock_waitpid_fail;
 #include <dos.h>
 #else
 #if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
 #include <unistd.h>
-#endif
-#endif
-#endif
-#endif
 #endif
 #include <sys/types.h>
 #include <sys/wait.h>

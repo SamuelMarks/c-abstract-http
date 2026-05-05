@@ -85,15 +85,7 @@ extern int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out
 #include <limits.h>
 #include <sys/stat.h>
 #if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
 #include <unistd.h>
-#endif
-#endif
-#endif
-#endif
 #endif
 /* clang-format on */
 

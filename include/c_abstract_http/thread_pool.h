@@ -16,9 +16,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include <stddef.h>
-/* clang-format on */
 
+#include <stddef.h>
+
+/* clang-format on */
 /**
  * @brief Opaque mutex type.
  */
@@ -150,5 +151,4 @@ extern void cdd_thread_pool_free(struct CddThreadPool *pool);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_THREAD_POOL_H */

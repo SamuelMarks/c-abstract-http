@@ -22,9 +22,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include <c_abstract_http/http_types.h>
-/* clang-format on */
 
+#include <c_abstract_http/http_types.h>
+
+/* clang-format on */
 /**
  * @brief Initialize the global libuv environment safely.
  *
@@ -102,5 +103,4 @@ int http_libuv_send(struct HttpTransportContext *ctx,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_LIBUV_H */
