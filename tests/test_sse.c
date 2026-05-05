@@ -337,11 +337,13 @@ TEST test_sse_async_register_thread_pool(void) {
   cdd_thread_pool_init_external(&pool, &hooks);
   client.thread_pool = pool;
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   ASSERT_EQ(ENOMEM, c_abstract_http_sse_async_register(&client, &req, NULL,
                                                        NULL, NULL, NULL));
   g_mock_alloc_fail = 0;
+#endif
 
   ASSERT_EQ(123, c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
                                                     NULL, NULL));
@@ -622,6 +624,7 @@ TEST test_sse_sync_loop_errors(void) {
                         test_sse_on_close, &ctx, NULL));
   ASSERT_EQ(ENOMEM, ctx.error_code);
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* Mock parse init failure (OOM) */
   client.send = test_sse_mock_send_empty;
   g_mock_alloc_fail = 1;
@@ -630,6 +633,7 @@ TEST test_sse_sync_loop_errors(void) {
                         &client, &req, test_sse_on_event, test_sse_on_error,
                         test_sse_on_close, &ctx, NULL));
   g_mock_alloc_fail = 0;
+#endif
 
   /* Mock close called after loop ends normally */
   client.send = test_sse_mock_send_empty;
