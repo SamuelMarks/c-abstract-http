@@ -1684,6 +1684,8 @@ TEST test_http_types_oom_bruteforce_all(void) {
     res2.body_len = 4;
     g_mock_fwrite_fail = 1;
     ASSERT_EQ(EIO, http_response_save_to_file(&res2, "out_fwrite.txt"));
+    res2.body = NULL;
+    http_response_free(&res2);
     g_mock_fwrite_fail = 0;
   }
   /* 1949: fclose fail */
@@ -1695,6 +1697,8 @@ TEST test_http_types_oom_bruteforce_all(void) {
     res2.body_len = 4;
     g_mock_fclose_fail = 1;
     ASSERT_EQ(EIO, http_response_save_to_file(&res2, "out_fclose.txt"));
+    res2.body = NULL;
+    http_response_free(&res2);
     g_mock_fclose_fail = 0;
   }
 

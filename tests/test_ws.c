@@ -477,6 +477,7 @@ TEST test_ws_oom_branches(void) {
     }
     ASSERT_EQ(ENOMEM, rc);
     http_request_free(&req);
+    memset(&req, 0, sizeof(req));
   }
   PASS();
 }
@@ -857,6 +858,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
                                              &ctx, NULL);
       g_mock_alloc_fail = 0;
       http_request_free(&req);
+      memset(&req, 0, sizeof(req));
       if (rc == ENOMEM) {
         /* we just want to cover the branches, so doing this in a loop is fine
          */
