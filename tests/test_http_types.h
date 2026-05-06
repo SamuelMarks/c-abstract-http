@@ -980,9 +980,8 @@ TEST test_http_types_leftover_errs(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* buffer malloc */
-  ASSERT_EQ(ENOMEM, http_request_flatten_parts(&req));
-    req.body = NULL;
-    req.body_len = 0;
+  rc = http_request_flatten_parts(&req);
+  ASSERT_EQ(ENOMEM, rc);
   g_mock_alloc_fail = 0;
   http_request_free(&req);
   memset(&req, 0, sizeof(req));
@@ -1613,6 +1612,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
   http_request_free(&req);
 
   for (i = 0; i < 10; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1620,6 +1620,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
                                4);
     g_mock_alloc_fail = 0;
     http_request_free(&req);
+    memset(&req, 0, sizeof(req));
     if (rc == 0) {
       i = 9999;
       continue;
@@ -1645,6 +1646,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     rc = http_request_set_auth_basic(&req, "Basic dXNlcjpwYXNz");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
+    memset(&req, 0, sizeof(req));
     if (rc == 0) {
       i = 9999;
       continue;
@@ -1658,6 +1660,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     rc = http_request_set_auth_bearer(&req, "token123");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
+    memset(&req, 0, sizeof(req));
     if (rc == 0) {
       i = 9999;
       continue;
@@ -1691,10 +1694,11 @@ TEST test_http_types_oom_bruteforce_all(void) {
     res2.body = (unsigned char *)"test";
     res2.body_len = 4;
     g_mock_fwrite_fail = 1;
-    ASSERT_EQ(EIO, http_response_save_to_file(&res2, "out_fwrite.txt"));
+    rc = http_response_save_to_file(&res2, "out_fwrite.txt");
     res2.body = NULL;
     http_response_free(&res2);
     g_mock_fwrite_fail = 0;
+    ASSERT_EQ(EIO, rc);
   }
   /* 1949: fclose fail */
   {
@@ -1704,10 +1708,11 @@ TEST test_http_types_oom_bruteforce_all(void) {
     res2.body = (unsigned char *)"test";
     res2.body_len = 4;
     g_mock_fclose_fail = 1;
-    ASSERT_EQ(EIO, http_response_save_to_file(&res2, "out_fclose.txt"));
+    rc = http_response_save_to_file(&res2, "out_fclose.txt");
     res2.body = NULL;
     http_response_free(&res2);
     g_mock_fclose_fail = 0;
+    ASSERT_EQ(EIO, rc);
   }
 
   /* 1786-1868: localhost_intercept mock failures */
