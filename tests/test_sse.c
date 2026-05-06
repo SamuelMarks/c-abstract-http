@@ -340,9 +340,10 @@ TEST test_sse_async_register_thread_pool(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, c_abstract_http_sse_async_register(&client, &req, NULL,
-                                                       NULL, NULL, NULL));
+  int rc_test_tmp = c_abstract_http_sse_async_register(&client, &req, NULL,
+                                                       NULL, NULL, NULL);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 #endif
 
   ASSERT_EQ(123, c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
@@ -373,8 +374,8 @@ TEST test_sse_oom_branches(void) {
       http_request_free(&req);
       break;
     }
-    ASSERT_EQ(ENOMEM, rc);
     http_request_free(&req);
+    ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   }
 
   for (i = 0; i < 15; i++) {
@@ -389,7 +390,7 @@ TEST test_sse_oom_branches(void) {
       sse_parser_destroy(&parser);
       break;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   }
 
   PASS();
@@ -411,8 +412,8 @@ TEST test_sse_parser_feed_oom(void) {
   rc = sse_parser_feed(&parser, chunk, strlen(chunk));
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(ENOMEM, rc);
   sse_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -432,8 +433,8 @@ TEST test_sse_parser_feed_id_oom(void) {
   rc = sse_parser_feed(&parser, chunk, strlen(chunk));
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(ENOMEM, rc);
   sse_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -453,8 +454,8 @@ TEST test_sse_parser_feed_event_oom(void) {
   rc = sse_parser_feed(&parser, chunk, strlen(chunk));
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(ENOMEM, rc);
   sse_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -525,8 +526,8 @@ TEST test_sse_parser_feed_data_capacity_oom(void) {
   rc = sse_parser_feed(&parser, chunk, sizeof(chunk));
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(ENOMEM, rc);
   sse_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -582,8 +583,8 @@ TEST test_sse_parser_dispatch_oom(void) {
   rc = sse_parser_feed(&parser, chunk, strlen(chunk));
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(ENOMEM, rc);
   sse_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -619,20 +620,22 @@ TEST test_sse_sync_loop_errors(void) {
   http_request_init(&req);
   /* Mock send failure */
   client.send = test_sse_mock_send_err;
-  ASSERT_EQ(ENOMEM, c_abstract_http_sse_sync_read_loop(
+  int rc_test2 = c_abstract_http_sse_sync_read_loop(
                         &client, &req, test_sse_on_event, test_sse_on_error,
-                        test_sse_on_close, &ctx, NULL));
-  ASSERT_EQ(ENOMEM, ctx.error_code);
+                        test_sse_on_close, &ctx, NULL);
+  ASSERT_EQ_FMT(ENOMEM, rc_test2, "%d");
+  ASSERT_EQ_FMT(ENOMEM, ctx.error_code, "%d");
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* Mock parse init failure (OOM) */
   client.send = test_sse_mock_send_empty;
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, c_abstract_http_sse_sync_read_loop(
+  int rc_test_tmp = c_abstract_http_sse_sync_read_loop(
                         &client, &req, test_sse_on_event, test_sse_on_error,
-                        test_sse_on_close, &ctx, NULL));
+                        test_sse_on_close, &ctx, NULL);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 #endif
 
   /* Mock close called after loop ends normally */
@@ -699,8 +702,8 @@ TEST test_sse_parser_feed_realloc_oom(void) {
   rc = sse_parser_feed(&parser, chunk, sizeof(chunk));
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(ENOMEM, rc);
   sse_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -722,8 +725,8 @@ TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
   rc = sse_parser_feed(&parser, chunk, sizeof(chunk));
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(ENOMEM, rc); /* 12 is ENOMEM in tests usually */
   sse_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -751,8 +754,8 @@ TEST test_sse_parser_feed_current_data_oom(void) {
   rc = sse_parser_feed(&parser, chunk, strlen(chunk));
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(ENOMEM, rc);
   sse_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -870,8 +873,8 @@ TEST test_sse_parser_feed_data_capacity_limit_real(void) {
   rc = sse_parser_feed(&parser, chunk, 33002);
   if (rc != 90)
     printf("test_sse_parser_feed_data_capacity_limit_real rc=%d\n", rc);
-  ASSERT_EQ(ENOMEM, rc); /* 12 is ENOMEM equivalent */
   sse_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
 

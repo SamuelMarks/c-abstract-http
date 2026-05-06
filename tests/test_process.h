@@ -262,8 +262,9 @@ TEST test_process_fallback_paths(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_process_spawn(&proc, &p2c, &c2p);
-  ASSERT_EQ(ENOMEM, rc);
+  int rc_test_tmp = rc;
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
 #if !defined(_WIN32)
   g_mock_fork_fail = 1;
@@ -302,8 +303,9 @@ TEST test_process_serialize_failures(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, cdd_ipc_serialize_response(&res, &buf, &len));
+  int rc_test_tmp = cdd_ipc_serialize_response(&res, &buf, &len);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   /* test deserialize EINVAL */
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request("", 0, &req));
@@ -355,8 +357,9 @@ TEST test_process_deserialization_edge_cases(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2;
-  ASSERT_EQ(ENOMEM, cdd_ipc_deserialize_request(buf, len, &req));
+  int rc_test_tmp = cdd_ipc_deserialize_request(buf, len, &req);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   free(buf);
 
   res.status_code = 200;
@@ -365,8 +368,9 @@ TEST test_process_deserialization_edge_cases(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  ASSERT_EQ(ENOMEM, cdd_ipc_deserialize_response(buf, len, &res));
+  int rc_test_tmp = cdd_ipc_deserialize_response(buf, len, &res);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   free(buf);
 
   http_request_free(&req);
@@ -378,8 +382,9 @@ TEST test_process_deserialization_edge_cases(void) {
   ASSERT_EQ(0, cdd_ipc_serialize_request(&req, &buf, &len));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1; /* 0:url, 1:body */
-  ASSERT_EQ(ENOMEM, cdd_ipc_deserialize_request(buf, len, &req));
+  int rc_test_tmp = cdd_ipc_deserialize_request(buf, len, &req);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   free(buf);
 
   http_response_free(&res);
@@ -390,8 +395,9 @@ TEST test_process_deserialization_edge_cases(void) {
   ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* 0:body */
-  ASSERT_EQ(ENOMEM, cdd_ipc_deserialize_response(buf, len, &res));
+  int rc_test_tmp = cdd_ipc_deserialize_response(buf, len, &res);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   {
     size_t fake_len = 1000;

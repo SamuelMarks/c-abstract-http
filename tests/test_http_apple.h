@@ -137,8 +137,9 @@ TEST test_apple_oom(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_apple_context_init(&ctx));
+  int rc_test_tmp = http_apple_context_init(&ctx);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   ASSERT_EQ(0, http_apple_context_init(&ctx));
   ASSERT_EQ(0, http_request_init(&req));
@@ -149,8 +150,9 @@ TEST test_apple_oom(void) {
   /* Test 124: malloc for *res fails */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
+  int rc_test_tmp = http_apple_send(ctx, &req, &res);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   http_apple_context_free(ctx);
   PASS();

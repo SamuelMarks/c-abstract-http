@@ -981,8 +981,9 @@ TEST test_http_types_leftover_errs(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* buffer malloc */
   rc = http_request_flatten_parts(&req);
-  ASSERT_EQ(ENOMEM, rc);
+  int rc_test_tmp = rc;
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   http_request_free(&req);
   memset(&req, 0, sizeof(req));
   /* cookie jar errs */
@@ -990,15 +991,17 @@ TEST test_http_types_leftover_errs(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_cookie_jar_set(&jar, "n", "v"));
+  int rc_test_tmp = http_cookie_jar_set(&jar, "n", "v");
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   ASSERT_EQ(0, http_cookie_jar_set(&jar, "n", "v"));
 
   /* g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_cookie_jar_to_header(&jar, &out));
-  g_mock_alloc_fail = 0; */
+  int rc_test_tmp = http_cookie_jar_to_header(&jar, &out);
+  g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d"); */
 
   http_cookie_jar_free(&jar);
 
@@ -1008,8 +1011,9 @@ TEST test_http_types_leftover_errs(void) {
   ASSERT_EQ(EINVAL, http_multi_request_add(&multi, NULL));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_multi_request_add(&multi, &req));
+  int rc_test_tmp = http_multi_request_add(&multi, &req);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   http_multi_request_free(&multi);
   /* auth basic userpwd base64 padding coverage */
   http_request_init(&req);
@@ -1038,8 +1042,9 @@ TEST test_http_types_leftover_errs(void) {
   ASSERT_EQ(EINVAL, http_request_set_auth_bearer(&req, NULL));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_request_set_auth_bearer(&req, "tok"));
+  int rc_test_tmp = http_request_set_auth_bearer(&req, "tok");
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   /* OAuth2 ooms */
   printf("6\n");
@@ -1134,8 +1139,9 @@ TEST test_http_types_leftover_errs(void) {
   ASSERT_EQ(EINVAL, http_config_init(NULL));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_config_init(&config));
+  int rc_test_tmp = http_config_init(&config);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   /* http_headers_init, free */
   ASSERT_EQ(EINVAL, http_headers_init(NULL));
@@ -1146,8 +1152,9 @@ TEST test_http_types_leftover_errs(void) {
   ASSERT_EQ(EINVAL, http_headers_add(NULL, "a", "b"));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_headers_add(&h, "a", "b"));
+  int rc_test_tmp = http_headers_add(&h, "a", "b");
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   /* http_headers_get */
   ASSERT_EQ(EINVAL, http_headers_get(NULL, "a", &out));
@@ -1169,8 +1176,9 @@ TEST test_http_cookie_jar_set_val_oom(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2; /* fails allocation of value, the 3rd alloc */
-  ASSERT_EQ(ENOMEM, http_cookie_jar_set(&jar, "name", "val"));
+  int rc_test_tmp = http_cookie_jar_set(&jar, "name", "val");
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   http_cookie_jar_free(&jar);
   PASS();
@@ -1270,9 +1278,10 @@ TEST test_http_types_more_errs_2(void) {
   /* oauth2 url builders */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_oauth2_build_authorization_url(
-                        "url", "c", "r", "r", "s", "c", "code", "m", &url));
+  int rc_test_tmp = http_oauth2_build_authorization_url(
+                        "url", "c", "r", "r", "s", "c", "code", "m", &url);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   /* localhost intercept */
   /* We can mock the socket/bind/listen/accept using test macros?
@@ -1325,9 +1334,10 @@ TEST test_http_types_end_errs(void) {
   http_multi_request_add(&multi, &req);
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_client_send_multi(&client, &req_ptr, 1, &future, NULL,
-                                           NULL, 0));
+  int rc_test_tmp = http_client_send_multi(&client, &req_ptr, 1, &future, NULL,
+                                           NULL, 0);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   http_multi_request_free(&multi);
   http_request_free(&req);
 
@@ -1417,9 +1427,10 @@ TEST test_http_types_final_errs(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_oauth2_build_authorization_url(
-                        "url", "c", "r", "r", "s", "c", "code", "m", &url));
+  int rc_test_tmp = http_oauth2_build_authorization_url(
+                        "url", "c", "r", "r", "s", "c", "code", "m", &url);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   res.body = (unsigned char *)"test";
   res.body_len = 4;

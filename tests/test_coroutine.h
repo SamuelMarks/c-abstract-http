@@ -128,8 +128,9 @@ TEST test_coroutine_fallback_paths(void) {
   g_mock_alloc_count = 0;
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
   printf("cdd_coroutine_init returned %d\n", rc);
-  ASSERT_EQ(ENOMEM, rc);
+  int rc_test_tmp = rc;
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   /* coverage for free while running */
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);

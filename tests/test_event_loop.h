@@ -383,8 +383,9 @@ TEST test_event_loop_alloc_errors(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   memset(&hooks, 0, sizeof(hooks));
-  ASSERT_EQ(ENOMEM, http_loop_init_external(&loop, &hooks));
+  int rc_test_tmp = http_loop_init_external(&loop, &hooks);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   /* Other ENOMEM points in event_loop.c */
   /* 430 is ENOMEM for add_timer */
@@ -396,8 +397,9 @@ TEST test_event_loop_alloc_errors(void) {
     }
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
-    ASSERT_EQ(ENOMEM, http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &id));
-    g_mock_alloc_fail = 0;
+    int rc_test_tmp = http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &id);
+  g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   }
   http_loop_free(loop);
   PASS();
@@ -488,8 +490,9 @@ TEST test_event_loop_fd_edges(void) {
    * realloc. */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_loop_add_fd(loop, 20, 1, mock_fd_cb, NULL));
+  int rc_test_tmp = http_loop_add_fd(loop, 20, 1, mock_fd_cb, NULL);
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
 
   http_loop_free(loop);
   PASS();

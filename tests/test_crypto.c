@@ -162,12 +162,13 @@ TEST test_crypto_oom(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
 
-  ASSERT_EQ(ENOMEM,
-            base64_encode((const unsigned char *)"a", 1, &b64_str, &b64_len));
+  int rc1 = base64_encode((const unsigned char *)"a", 1, &b64_str, &b64_len);
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, base64_decode("abcd", 4, &dec_data, &dec_len));
+  int rc2 = base64_decode("abcd", 4, &dec_data, &dec_len);
 
   g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(ENOMEM, rc1, "%d");
+  ASSERT_EQ_FMT(ENOMEM, rc2, "%d");
   PASS();
 }
 #endif
