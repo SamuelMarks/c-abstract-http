@@ -985,6 +985,7 @@ TEST test_http_types_leftover_errs(void) {
     req.body_len = 0;
   g_mock_alloc_fail = 0;
   http_request_free(&req);
+  memset(&req, 0, sizeof(req));
   /* cookie jar errs */
   http_cookie_jar_init(&jar);
 
@@ -1441,6 +1442,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
   int i, rc;
 
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1454,6 +1456,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1467,6 +1470,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1480,6 +1484,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1493,6 +1498,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1632,6 +1638,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1644,6 +1651,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
