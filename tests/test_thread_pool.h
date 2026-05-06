@@ -214,9 +214,11 @@ TEST test_thread_pool_pthread_create_failures(void) {
     memset(&hooks, 0, sizeof(hooks));
     rc = cdd_thread_pool_init_external(&pool, &hooks);
   }
-  int rc_test_tmp = rc;
-  g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   PASS();
 }

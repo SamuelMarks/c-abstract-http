@@ -267,9 +267,11 @@ TEST test_actor_oom(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
   rc = cdd_message_bus_init(&bus);
-  int rc_test_tmp = rc;
-  g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   rc = cdd_message_bus_init(&bus);
   ASSERT_EQ(0, rc);
@@ -288,9 +290,11 @@ TEST test_actor_oom(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_actor_send(bus, &msg);
-  int rc_test_tmp = rc;
-  g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   /* Test actor spawn OOM on realloc */
   {
@@ -301,9 +305,11 @@ TEST test_actor_oom(void) {
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
     rc = cdd_actor_spawn(bus, "test_oom", dummy_handler, NULL, &actor);
+    {
     int rc_test_tmp = rc;
-  g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
     /* Now successfully spawn one so the next tests don't shift */
     cdd_actor_spawn(bus, "test_success", dummy_handler, NULL, &actor);
@@ -320,9 +326,11 @@ TEST test_actor_oom(void) {
   g_mock_alloc_count = 1;
   rc = cdd_actor_spawn(bus, "test3", dummy_handler, NULL, &actor);
   printf("test3 spawn returned %d\n", rc);
-  int rc_test_tmp = rc;
-  g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   cdd_message_bus_free(bus);
   cdd_message_bus_free(NULL);

@@ -88,9 +88,11 @@ TEST test_tls_oom(void) {
   g_mock_alloc_count = 0;
   rc = cdd_tls_key_create(&key, NULL);
   printf("tls_key_create returned %d\n", rc);
-  int rc_test_tmp = rc;
-  g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
 #if !defined(_WIN32)
   g_mock_pthread_fail = 1;

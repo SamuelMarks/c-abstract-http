@@ -817,11 +817,13 @@ TEST test_ws_sync_loop_init_oom(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  int rc_test_tmp = c_abstract_http_ws_sync_read_loop(
+  {
+    int rc_test_tmp = c_abstract_http_ws_sync_read_loop(
                     &client, &req, test_ws_on_message, test_ws_on_error,
                     test_ws_on_close, &ctx, NULL);
-  g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
   http_request_free(&req);
   PASS();
 }

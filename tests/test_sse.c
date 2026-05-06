@@ -340,10 +340,12 @@ TEST test_sse_async_register_thread_pool(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  int rc_test_tmp = c_abstract_http_sse_async_register(&client, &req, NULL,
+  {
+    int rc_test_tmp = c_abstract_http_sse_async_register(&client, &req, NULL,
                                                        NULL, NULL, NULL);
-  g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 #endif
 
   ASSERT_EQ(123, c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
@@ -620,22 +622,26 @@ TEST test_sse_sync_loop_errors(void) {
   http_request_init(&req);
   /* Mock send failure */
   client.send = test_sse_mock_send_err;
-  int rc_test2 = c_abstract_http_sse_sync_read_loop(
+  {
+    int rc_test2 = c_abstract_http_sse_sync_read_loop(
                         &client, &req, test_sse_on_event, test_sse_on_error,
                         test_sse_on_close, &ctx, NULL);
   ASSERT_EQ_FMT(ENOMEM, rc_test2, "%d");
   ASSERT_EQ_FMT(ENOMEM, ctx.error_code, "%d");
+  }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* Mock parse init failure (OOM) */
   client.send = test_sse_mock_send_empty;
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  int rc_test_tmp = c_abstract_http_sse_sync_read_loop(
+  {
+    int rc_test_tmp = c_abstract_http_sse_sync_read_loop(
                         &client, &req, test_sse_on_event, test_sse_on_error,
                         test_sse_on_close, &ctx, NULL);
-  g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 #endif
 
   /* Mock close called after loop ends normally */
