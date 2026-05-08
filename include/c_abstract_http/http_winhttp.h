@@ -22,9 +22,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include <c_abstract_http/http_types.h>
-/* clang-format on */
 
+#include <c_abstract_http/http_types.h>
+
+/* clang-format on */
 /**
  * @brief Initialize the global WinHTTP environment.
  * Usually a no-op as WinHTTP initializes lazily, but kept for interface
@@ -116,5 +117,4 @@ extern int http_winhttp_send_multi(struct HttpTransportContext *ctx,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_WINHTTP_H */

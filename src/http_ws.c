@@ -242,7 +242,7 @@ int ws_parser_init(struct ws_parser_ctx *ctx,
   ctx->payload_capacity = 4096;
   ctx->payload_buffer = (unsigned char *)malloc(ctx->payload_capacity);
   if (!ctx->payload_buffer)
-    return 12; /* ENOMEM fallback */
+    return ENOMEM; /* ENOMEM fallback */
 
   ctx->on_message = on_msg;
   ctx->on_error = on_err;
@@ -364,8 +364,8 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
             ctx->payload_buffer, (size_t)ctx->current_frame.payload_len);
         if (!new_buf) {
           if (ctx->on_error)
-            ctx->on_error(12, ctx->user_data); /* ENOMEM */
-          return 12;
+            ctx->on_error(ENOMEM, ctx->user_data); /* ENOMEM */
+          return ENOMEM;
         }
         ctx->payload_buffer = new_buf;
         ctx->payload_capacity = (size_t)ctx->current_frame.payload_len;
@@ -455,8 +455,8 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
                     (unsigned char *)realloc(ctx->reassembly_buffer, new_cap);
                 if (!new_buf) {
                   if (ctx->on_error)
-                    ctx->on_error(12, ctx->user_data);
-                  return 12;
+                    ctx->on_error(ENOMEM, ctx->user_data);
+                  return ENOMEM;
                 }
                 ctx->reassembly_buffer = new_buf;
                 ctx->reassembly_capacity = new_cap;
@@ -483,8 +483,8 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
                     (unsigned char *)realloc(ctx->reassembly_buffer, new_cap);
                 if (!new_buf) {
                   if (ctx->on_error)
-                    ctx->on_error(12, ctx->user_data);
-                  return 12;
+                    ctx->on_error(ENOMEM, ctx->user_data);
+                  return ENOMEM;
                 }
                 ctx->reassembly_buffer = new_buf;
                 ctx->reassembly_capacity = new_cap;

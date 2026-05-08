@@ -16,9 +16,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include <c_abstract_http/http_types.h>
-/* clang-format on */
 
+#include <c_abstract_http/http_types.h>
+
+/* clang-format on */
 /**
  * @brief Opaque structure representing the event loop.
  */
@@ -175,5 +176,4 @@ extern int http_loop_wakeup(struct ModalityEventLoop *loop);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_EVENT_LOOP_H */

@@ -16,9 +16,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include <stddef.h>
-/* clang-format on */
 
+#include <stddef.h>
+
+/* clang-format on */
 /**
  * @brief Opaque Message Bus type.
  */
@@ -148,5 +149,4 @@ extern int cdd_actor_get_name(const struct CddActor *actor, const char **name);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_ACTOR_H */

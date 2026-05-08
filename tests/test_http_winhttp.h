@@ -432,6 +432,9 @@ TEST test_winhttp_send_multi(void) {
   MockServerPtr server2 = NULL;
   int rc;
 
+  (void)multi;
+  (void)loop;
+
   ASSERT_EQ(0, mock_server_init(&server1));
   ASSERT_EQ(0, mock_server_start(server1));
   ASSERT_EQ(0, mock_server_init(&server2));

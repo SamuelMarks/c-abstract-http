@@ -11,10 +11,11 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
-/* clang-format on */
 
+/* clang-format on */
 /**
  * @brief Initialize the global raw socket environment.
  * @return 0 on success.
@@ -66,5 +67,4 @@ extern int http_raw_send_multi(struct HttpTransportContext *ctx,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_RAW_H */

@@ -16,7 +16,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* clang-format off */
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #if defined(_M_AMD64) && !defined(_AMD64_)
 #define _AMD64_
@@ -27,6 +26,7 @@ extern "C" {
 #elif defined(_M_ARM) && !defined(_ARM_)
 #define _ARM_
 #endif
+/* clang-format off */
 #include <string.h>
 #if _MSC_VER < 1900
 #define snprintf _snprintf
@@ -56,5 +56,4 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_WIN_COMPAT_SYM_H */

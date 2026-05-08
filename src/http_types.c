@@ -31,7 +31,7 @@ extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 #endif
 
 #include <c_abstract_http/http_types.h>
-#include "functions/parse/str.h"
+#include "str.h"
 
 #include <stdarg.h>
 
@@ -423,6 +423,7 @@ int http_request_flatten_parts(struct HttpRequest *req) {
 
   {
     char ct[128];
+    int hdr_rc;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(ct, sizeof(ct), "multipart/form-data; boundary=%s", boundary);
 #else
@@ -430,7 +431,13 @@ int http_request_flatten_parts(struct HttpRequest *req) {
 #endif
     /* If header exists, this adds a duplicate. Typically client code shouldn't
      * set CT if using parts. */
-    http_headers_add(&req->headers, "Content-Type", ct);
+    hdr_rc = http_headers_add(&req->headers, "Content-Type", ct);
+    if (hdr_rc != 0) {
+      free(buffer);
+      req->body = NULL;
+      req->body_len = 0;
+      return hdr_rc;
+    }
   }
 
   /* 5. Clear parts logic to avoid double-process (though body takes precedence)
@@ -461,9 +468,8 @@ void http_cookie_jar_free(struct HttpCookieJar *jar) {
       if (jar->cookies[i].value)
         free(jar->cookies[i].value);
 
-        free(jar->cookies[i].domain);
-
-        free(jar->cookies[i].path);
+      free(jar->cookies[i].domain);
+      free(jar->cookies[i].path);
     }
     free(jar->cookies);
     jar->cookies = NULL;
@@ -1586,6 +1592,9 @@ static int urldecode_alloc(const char *src, size_t src_len, char **out) {
   char *dst = (char *)malloc(src_len + 1);
   size_t i, j = 0;
   
+  if (!dst)
+    return ENOMEM;
+
   for (i = 0; i < src_len; i++) {
     if (src[i] == '%') {
       if (i + 2 < src_len) {
@@ -1781,14 +1790,13 @@ int http_response_save_to_file(const struct HttpResponse *res,
     return EINVAL;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  if (fopen_s(&f, path, "wb") != 0)
-    return EIO;
-#else
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  fopen_s(&f, path, "wb");
+  {
+    errno_t err = fopen_s(&f, path, "wb");
+    if (err != 0)
+      return err;
+  }
 #else
   f = fopen(path, "wb");
-#endif
   if (!f)
     return errno ? errno : EIO;
 #endif

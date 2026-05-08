@@ -16,9 +16,11 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+
 #include <errno.h>
 #include <stddef.h>
 
+/* clang-format on */
 #ifndef ENOTSUP
 /** @brief ENOTSUP macro */
 #define ENOTSUP EINVAL
@@ -53,7 +55,8 @@ extern "C" {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 /** @brief C_ABSTRACT_HTTP_NUM_FORMAT macro */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%I64d"
-#elif defined(__LP64__) || defined(_LP64) || defined(__x86_64__) || defined(__aarch64__)
+#elif defined(__LP64__) || defined(_LP64) || defined(__x86_64__) ||            \
+    defined(__aarch64__)
 /** @brief C_ABSTRACT_HTTP_NUM_FORMAT macro */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%ld"
 #else
@@ -124,7 +127,6 @@ typedef unsigned __int64 uint64_t;
 #endif
 #endif
 #endif
-/* clang-format on */
 /** @brief cdd_int64_t typedef */
 typedef int64_t cdd_int64_t;
 /** @brief cdd_uint64_t typedef */
@@ -944,5 +946,4 @@ int http_request_flatten_parts(struct HttpRequest *req);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_TYPES_H */

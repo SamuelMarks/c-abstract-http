@@ -11,6 +11,22 @@
 #ifndef C_CDD_TEST_HTTP_APPLE_H
 #define C_CDD_TEST_HTTP_APPLE_H
 
+#include <stdlib.h>
+#include <string.h>
+
+static char *c_abstract_http_test_apple_strdup(const char *s) {
+  size_t len;
+  char *d;
+  if (!s)
+    return NULL;
+  len = strlen(s);
+  d = (char *)malloc(len + 1);
+  if (d)
+    memcpy(d, s, len + 1);
+  return d;
+}
+#define strdup(s) c_abstract_http_test_apple_strdup(s)
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -33,6 +49,7 @@ static int mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   return 0;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_apple_oom_branches(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -110,7 +127,9 @@ TEST test_apple_oom_branches(void) {
   http_apple_context_free(ctx);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_apple_oom(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -118,8 +137,11 @@ TEST test_apple_oom(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_apple_context_init(&ctx));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_apple_context_init(&ctx);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   ASSERT_EQ(0, http_apple_context_init(&ctx));
   ASSERT_EQ(0, http_request_init(&req));
@@ -130,12 +152,16 @@ TEST test_apple_oom(void) {
   /* Test 124: malloc for *res fails */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_apple_send(ctx, &req, &res);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   http_apple_context_free(ctx);
   PASS();
 }
+#endif
 
 TEST test_apple_send_mock_server(void) {
 #if defined(__APPLE__)
@@ -399,8 +425,12 @@ SUITE(http_apple_suite) {
   RUN_TEST(test_apple_config);
   RUN_TEST(test_apple_send_invalid);
   RUN_TEST(test_apple_send_all_methods);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_apple_oom_branches);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_apple_oom);
+#endif
 }
 
 #ifdef __cplusplus

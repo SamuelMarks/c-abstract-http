@@ -79,6 +79,7 @@ TEST test_tls_isolation(void) {
 
 #include "mock_alloc.h"
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_tls_oom(void) {
   struct CddTlsKey *key = NULL;
 
@@ -87,24 +88,32 @@ TEST test_tls_oom(void) {
   g_mock_alloc_count = 0;
   rc = cdd_tls_key_create(&key, NULL);
   printf("tls_key_create returned %d\n", rc);
-  ASSERT_EQ(ENOMEM, rc);
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
+#if !defined(_WIN32)
   g_mock_pthread_fail = 1;
   ASSERT_EQ(EIO, cdd_tls_key_create(&key, NULL));
   g_mock_pthread_fail = 0;
+#endif
 
   cdd_tls_key_create(&key, NULL);
 
+#if !defined(_WIN32)
   g_mock_pthread_fail = 1;
   ASSERT_EQ(EIO, cdd_tls_set(key, NULL));
 
   g_mock_pthread_fail = 0;
+#endif
 
   cdd_tls_key_delete(key);
 
   PASS();
 }
+#endif
 
 TEST test_tls_errors(void) {
   ASSERT_EQ(EINVAL, cdd_tls_key_create(NULL, NULL));
@@ -115,7 +124,9 @@ TEST test_tls_errors(void) {
 
 SUITE(tls_suite) {
   RUN_TEST(test_tls_errors);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_tls_oom);
+#endif
   RUN_TEST(test_tls_isolation);
 }
 

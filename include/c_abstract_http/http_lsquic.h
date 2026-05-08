@@ -17,10 +17,11 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
-/* clang-format on */
 
+/* clang-format on */
 /**
  * @brief Opaque context definition for lsquic backend.
  */
@@ -97,5 +98,4 @@ extern int http_lsquic_send_multi(struct HttpTransportContext *ctx,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_LSQUIC_H */

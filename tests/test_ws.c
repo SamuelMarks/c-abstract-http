@@ -297,7 +297,10 @@ static int mock_send_success_ws(struct HttpTransportContext *ctx,
   g_mock_alloc_fail = 0; /* Protect mock allocations */
   res = (struct HttpResponse *)malloc(sizeof(struct HttpResponse));
   memset(res, 0, sizeof(*res));
-  res->body = (unsigned char *)strdup("\x81\x05Hello"); /* Text frame "Hello" */
+  res->body = (unsigned char *)malloc(7); /* Text frame "Hello" */
+  if (res->body) {
+    memcpy(res->body, "\x81\x05Hello", 7);
+  }
   res->body_len = 7;
   *res_out = res;
   g_mock_alloc_fail = old_fail;
@@ -451,6 +454,7 @@ TEST test_ws_parser_errors(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_oom_branches(void) {
   struct HttpRequest req;
   struct c_abstract_http_ws_config config = {0};
@@ -471,12 +475,15 @@ TEST test_ws_oom_branches(void) {
       http_request_free(&req);
       break;
     }
-    ASSERT_EQ(ENOMEM, rc);
     http_request_free(&req);
+    ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+    memset(&req, 0, sizeof(req));
   }
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_init_oom(void) {
   struct ws_parser_ctx parser;
   int rc;
@@ -484,9 +491,11 @@ TEST test_ws_parser_init_oom(void) {
   g_mock_alloc_count = 0;
   rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
   g_mock_alloc_fail = 0;
-  ASSERT_EQ(12, rc); /* ENOMEM */
+  ws_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
+#endif
 
 TEST test_ws_rsv_bit_set(void) {
   struct ws_parser_ctx parser;
@@ -534,6 +543,7 @@ TEST test_ws_masked_frame(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_realloc_oom(void) {
   struct ws_parser_ctx parser;
   struct test_ws_ctx ctx = {0};
@@ -548,11 +558,11 @@ TEST test_ws_realloc_oom(void) {
   g_mock_alloc_count = 0;
   rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
   g_mock_alloc_fail = 0;
-  ASSERT_EQ(12, rc); /* ENOMEM */
-  if (parser.payload_buffer)
-    free(parser.payload_buffer);
+  ws_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
+#endif
 
 TEST test_ws_parser_close_frame(void) {
   struct ws_parser_ctx parser;
@@ -651,6 +661,7 @@ TEST test_ws_parser_reassembly_expand_twice(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_fin_oom(void) {
   struct ws_parser_ctx parser;
   unsigned char chunk1[] = {0x01, 0x01, 'a'};
@@ -672,14 +683,13 @@ TEST test_ws_parser_reassembly_fin_oom(void) {
   rc = ws_parser_feed(&parser, chunk2, 4 + 4096);
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(12, rc);
-  if (parser.payload_buffer)
-    free(parser.payload_buffer);
-  if (parser.reassembly_buffer)
-    free(parser.reassembly_buffer);
+  ws_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_fin_expand_oom(void) {
   struct ws_parser_ctx parser;
   unsigned char chunk1[] = {0x01, 0x01, 'a'};
@@ -706,14 +716,13 @@ TEST test_ws_parser_reassembly_fin_expand_oom(void) {
   rc = ws_parser_feed(&parser, chunk2, 2 + 10);
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(12, rc);
-  if (parser.payload_buffer)
-    free(parser.payload_buffer);
-  if (parser.reassembly_buffer)
-    free(parser.reassembly_buffer);
+  ws_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_sign_key_oom(void) {
   char out_accept[29];
   int rc;
@@ -721,9 +730,10 @@ TEST test_ws_sign_key_oom(void) {
   g_mock_alloc_count = 0;
   rc = ws_sign_key("dGhlIHNhbXBsZSBub25jZQ==", out_accept);
   g_mock_alloc_fail = 0;
-  ASSERT_EQ(12, rc); /* ENOMEM */
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
+#endif
 
 TEST test_ws_sign_key_too_long(void) {
   char out_accept[29];
@@ -765,6 +775,7 @@ TEST test_ws_parser_reassembly_fin_expand_success(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_frag_oom(void) {
   struct ws_parser_ctx parser;
   unsigned char chunk1[] = {0x01, 0x01, 'a'};
@@ -791,14 +802,13 @@ TEST test_ws_parser_reassembly_frag_oom(void) {
   rc = ws_parser_feed(&parser, chunk2, 2 + 10);
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(12, rc);
-  if (parser.payload_buffer)
-    free(parser.payload_buffer);
-  if (parser.reassembly_buffer)
-    free(parser.reassembly_buffer);
+  ws_parser_destroy(&parser);
+  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_sync_loop_init_oom(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
@@ -807,13 +817,19 @@ TEST test_ws_sync_loop_init_oom(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(12, c_abstract_http_ws_sync_read_loop(
+  {
+    int rc_test_tmp = c_abstract_http_ws_sync_read_loop(
                     &client, &req, test_ws_on_message, test_ws_on_error,
-                    test_ws_on_close, &ctx, NULL));
-  g_mock_alloc_fail = 0;
+                    test_ws_on_close, &ctx, NULL);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
+  http_request_free(&req);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_sync_loop_parser_oom(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
@@ -836,7 +852,8 @@ TEST test_ws_sync_loop_parser_oom(void) {
                                              &ctx, NULL);
       g_mock_alloc_fail = 0;
       http_request_free(&req);
-      if (rc == 12) {
+      memset(&req, 0, sizeof(req));
+      if (rc == ENOMEM) {
         /* we just want to cover the branches, so doing this in a loop is fine
          */
       }
@@ -844,6 +861,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
   }
   PASS();
 }
+#endif
 
 static int mock_send_bad_payload(struct HttpTransportContext *tctx,
                                  const struct HttpRequest *req,
@@ -852,7 +870,10 @@ static int mock_send_bad_payload(struct HttpTransportContext *tctx,
   (void)tctx;
   (void)req;
   /* Send invalid fragmentation to trigger ws_parser_feed framing error */
-  res->body = (unsigned char *)strdup("\x01\x01\x61\x01\x00\x00");
+  res->body = (unsigned char *)malloc(6);
+  if (res->body) {
+    memcpy(res->body, "\x01\x01\x61\x01\x00\x00", 6);
+  }
   res->body_len = 6;
   *res_out = res;
   return 0;
@@ -884,23 +905,39 @@ TEST test_ws_verify_accept_sign_error(void) {
 
 SUITE(ws_suite) {
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_oom_branches);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_init_oom);
+#endif
   RUN_TEST(test_ws_rsv_bit_set);
   RUN_TEST(test_ws_payload_too_large);
   RUN_TEST(test_ws_masked_frame);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_realloc_oom);
+#endif
   RUN_TEST(test_ws_parser_close_frame);
   RUN_TEST(test_ws_parser_pong_frame);
   RUN_TEST(test_ws_parser_invalid_fragmentation);
   RUN_TEST(test_ws_parser_reassembly_too_large);
   RUN_TEST(test_ws_parser_reassembly_expand_twice);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_fin_oom);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_frag_oom);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_fin_expand_oom);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_parser_reassembly_frag_oom);
+#endif
   RUN_TEST(test_ws_parser_reassembly_fin_expand_success);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_sign_key_oom);
+#endif
   RUN_TEST(test_ws_sign_key_too_long);
   RUN_TEST(test_ws_parser_ext_len);
   RUN_TEST(test_ws_parser_errors);
@@ -929,8 +966,12 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_sync_loop_success);
   RUN_TEST(test_ws_sync_loop_fail);
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_sync_loop_init_oom);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_ws_sync_loop_parser_oom);
+#endif
   RUN_TEST(test_ws_sync_loop_feed_error);
 }
 GREATEST_MAIN_DEFS();

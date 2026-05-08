@@ -16,10 +16,11 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+
 #include <stddef.h>
 #include <c_abstract_http/http_types.h>
-/* clang-format on */
 
+/* clang-format on */
 /**
  * @brief Opaque process handle.
  */
@@ -151,5 +152,4 @@ extern int cdd_ipc_read(void *handle, void *data, size_t len);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_PROCESS_H */

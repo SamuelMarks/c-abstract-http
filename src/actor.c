@@ -7,7 +7,7 @@ extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 
 #include <c_abstract_http/actor.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 
 #ifndef CDD_MALLOC
 #define CDD_MALLOC malloc
@@ -39,23 +39,37 @@ void cdd_actor_set_hooks(const struct CddActorHooks *hooks) {
   }
 }
 
+/** @brief Internal struct CddActor */
 struct CddActor {
+  /** @brief name (variable) of struct CddActor */
   char *name;
+  /** @brief handler (variable) of struct CddActor */
   cdd_actor_handler_cb handler;
+  /** @brief state (variable) of struct CddActor */
   void *state;
+  /** @brief bus (variable) of struct CddActor */
   struct CddMessageBus *bus;
 };
 
+/** @brief Internal struct MessageNode */
 struct MessageNode {
+  /** @brief msg (variable) of struct MessageNode */
   struct CddMessage msg;
+  /** @brief next (variable) of struct MessageNode */
   struct MessageNode *next;
 };
 
+/** @brief Internal struct CddMessageBus */
 struct CddMessageBus {
+  /** @brief actors (variable) of struct CddMessageBus */
   struct CddActor **actors;
+  /** @brief actor_count (variable) of struct CddMessageBus */
   size_t actor_count;
+  /** @brief actor_capacity (variable) of struct CddMessageBus */
   size_t actor_capacity;
+  /** @brief head (variable) of struct CddMessageBus */
   struct MessageNode *head;
+  /** @brief tail (variable) of struct CddMessageBus */
   struct MessageNode *tail;
 };
 

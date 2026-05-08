@@ -7,7 +7,7 @@
 
 #include <c_abstract_http/http_lsquic.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 
 #ifdef C_ABSTRACT_HTTP_USE_LSQUIC
 #include <lsquic.h>

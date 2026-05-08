@@ -19,15 +19,7 @@
 #include <sys/select.h>
 #include <sys/time.h>
 #if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
 #include <unistd.h>
-#endif
-#endif
-#endif
-#endif
 #endif
 #include <fcntl.h>
 #endif
@@ -36,52 +28,73 @@
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
+/** @brief Internal struct TimerNode */
 struct TimerNode {
+  /** @brief expiration (variable) of struct TimerNode */
   cdd_int64_t expiration;
+  /** @brief id (variable) of struct TimerNode */
   int id;
+  /** @brief cb (variable) of struct TimerNode */
   http_timer_cb cb;
+  /** @brief user_data (variable) of struct TimerNode */
   void *user_data;
+  /** @brief active (variable) of struct TimerNode */
   int active;
 };
 
+/** @brief Internal struct FdNode */
 struct FdNode {
+  /** @brief fd (variable) of struct FdNode */
   int fd;
+  /** @brief events (variable) of struct FdNode */
   int events;
+  /** @brief cb (variable) of struct FdNode */
   http_loop_cb cb;
+  /** @brief user_data (variable) of struct FdNode */
   void *user_data;
+  /** @brief active (variable) of struct FdNode */
   int active;
 };
 
+/** @brief Internal struct ModalityEventLoop */
 struct ModalityEventLoop {
+  /** @brief running (variable) of struct ModalityEventLoop */
   int running;
+  /** @brief stop_requested (variable) of struct ModalityEventLoop */
   int stop_requested;
   /* External Hooks (if any) */
+  /** @brief has_hooks (variable) of struct ModalityEventLoop */
   int has_hooks;
+  /** @brief hooks (variable) of struct ModalityEventLoop */
   struct HttpLoopHooks hooks;
   /* Timer Min-Heap */
+  /** @brief timers (variable) of struct ModalityEventLoop */
   struct TimerNode *timers;
+  /** @brief timer_count (variable) of struct ModalityEventLoop */
   size_t timer_count;
+  /** @brief timer_capacity (variable) of struct ModalityEventLoop */
   size_t timer_capacity;
+  /** @brief next_timer_id (variable) of struct ModalityEventLoop */
   int next_timer_id;
   /* FD Registry */
+  /** @brief fds (variable) of struct ModalityEventLoop */
   struct FdNode *fds;
+  /** @brief fd_count (variable) of struct ModalityEventLoop */
   size_t fd_count;
+  /** @brief fd_capacity (variable) of struct ModalityEventLoop */
   size_t fd_capacity;
   /* Wakeup mechanism (Self-pipe trick or Windows Event) */
 #if defined(_WIN32)
   HANDLE wakeup_event;
 #else
+  /** @brief wakeup_pipe[2] (variable) of struct ModalityEventLoop */
   int wakeup_pipe[2];
 #endif
 };
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 cdd_int64_t real_math_get_current_time_ms(void);
-cdd_int64_t c_abstract_http_mock_math_get_current_time_ms(void);
 cdd_int64_t real_math_get_current_time_ms(void) {
-#else
-static cdd_int64_t math_get_current_time_ms(void) {
-#endif
+
 #if defined(_WIN32)
 #if defined(_MSC_VER) && _MSC_VER < 1600
   return (cdd_int64_t)GetTickCount();
@@ -424,7 +437,7 @@ int http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
     *out_timer_id = id;
 
   loop->timers[loop->timer_count].expiration =
-      math_get_current_time_ms() + timeout_ms;
+      real_math_get_current_time_ms() + timeout_ms;
   loop->timers[loop->timer_count].id = id;
   loop->timers[loop->timer_count].cb = cb;
   loop->timers[loop->timer_count].user_data = user_data;
@@ -469,7 +482,7 @@ int http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
 static void process_timers(struct ModalityEventLoop *loop) {
   cdd_int64_t now;
 
-  now = math_get_current_time_ms();
+  now = real_math_get_current_time_ms();
 
   while (loop->timer_count > 0) {
     if (loop->timers[0].expiration > now) {
@@ -523,7 +536,7 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
 
   /* Calculate next timeout */
   if (loop->timer_count > 0) {
-    now = math_get_current_time_ms();
+    now = real_math_get_current_time_ms();
     while (loop->timer_count > 0 && !loop->timers[0].active) {
       loop->timers[0] = loop->timers[loop->timer_count - 1];
       loop->timer_count--;
@@ -607,10 +620,10 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
           revents |= HTTP_LOOP_ERROR;
 
         if (revents) {
-          cdd_int64_t start_cb = math_get_current_time_ms();
+          cdd_int64_t start_cb = real_math_get_current_time_ms();
           loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                           loop->fds[i].user_data);
-          if (math_get_current_time_ms() - start_cb > 50) {
+          if (real_math_get_current_time_ms() - start_cb > 50) {
             fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
                             "detected (callback took >50ms). This breaks "
                             "asynchronous concurrency!\n");
@@ -659,7 +672,7 @@ int http_loop_run(struct ModalityEventLoop *loop) {
 
     /* Calculate next timeout */
     if (loop->timer_count > 0) {
-      now = math_get_current_time_ms();
+      now = real_math_get_current_time_ms();
       while (loop->timer_count > 0 && !loop->timers[0].active) {
         loop->timers[0] = loop->timers[loop->timer_count - 1];
         loop->timer_count--;
@@ -750,10 +763,10 @@ int http_loop_run(struct ModalityEventLoop *loop) {
             revents |= HTTP_LOOP_ERROR;
 
           if (revents) {
-            cdd_int64_t start_cb = math_get_current_time_ms();
+            cdd_int64_t start_cb = real_math_get_current_time_ms();
             loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                             loop->fds[i].user_data);
-            if (math_get_current_time_ms() - start_cb > 50) {
+            if (real_math_get_current_time_ms() - start_cb > 50) {
               fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
                               "detected (callback took >50ms). This breaks "
                               "asynchronous concurrency!\n");
@@ -781,7 +794,7 @@ int http_loop_stop(struct ModalityEventLoop *loop) {
   return 0;
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if 1
 void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop);
 void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop) {
   if (loop)

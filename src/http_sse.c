@@ -317,8 +317,8 @@ int sse_parser_feed(struct sse_parser_ctx *ctx, const char *chunk, size_t len) {
         size_t new_cap = ctx->line_capacity * 2;
         if (new_cap > C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE) {
           if (ctx->on_error)
-            ctx->on_error(12, ctx->user_data); /* ENOMEM equivalent */
-          return 12;
+            ctx->on_error(ENOMEM, ctx->user_data); /* ENOMEM equivalent */
+          return ENOMEM;
         }
         {
           char *new_buf = (char *)realloc(ctx->line_buffer, new_cap);

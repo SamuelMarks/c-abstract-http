@@ -17,9 +17,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include <c_abstract_http/http_types.h>
-/* clang-format on */
 
+#include <c_abstract_http/http_types.h>
+
+/* clang-format on */
 /**
  * @brief Initialize the global aria2 environment safely.
  *
@@ -86,5 +87,4 @@ int http_aria2_send_multi(struct HttpTransportContext *ctx,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_CDD_HTTP_ARIA2_H */

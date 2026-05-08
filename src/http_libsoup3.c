@@ -17,10 +17,12 @@
 
 #include <c_abstract_http/http_libsoup3.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 /* clang-format on */
 
+/** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
+  /** @brief session (variable) of struct HttpTransportContext */
   SoupSession *session;
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;

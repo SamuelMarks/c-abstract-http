@@ -7,7 +7,7 @@
 
 #include <c_abstract_http/http_picoquic.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 /* clang-format on */
 
 #ifdef C_ABSTRACT_HTTP_USE_PICOQUIC

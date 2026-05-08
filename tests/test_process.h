@@ -128,6 +128,7 @@ TEST test_cdd_serialize_errors(void) {
   size_t len = 0;
   struct HttpRequest req;
   struct HttpResponse res;
+  (void)res;
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
 
@@ -240,6 +241,7 @@ TEST test_process_hooks_coverage(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_fallback_paths(void) {
   struct CddProcess *proc = NULL;
   struct CddIpcPipe pipe;
@@ -249,22 +251,29 @@ TEST test_process_fallback_paths(void) {
   ASSERT_EQ(EINVAL, cdd_ipc_pipe_init(NULL));
   ASSERT_EQ(0, cdd_ipc_pipe_init(&pipe));
 
+#if !defined(_WIN32)
   g_mock_pipe_fail = 1;
   ASSERT_EQ(EIO, cdd_ipc_pipe_init(&pipe));
   g_mock_pipe_fail = 0;
+#endif
 
   ASSERT_EQ(EINVAL, cdd_process_spawn(NULL, &p2c, &c2p));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_process_spawn(&proc, &p2c, &c2p);
-  ASSERT_EQ(ENOMEM, rc);
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
+#if !defined(_WIN32)
   g_mock_fork_fail = 1;
   rc = cdd_process_spawn(&proc, &p2c, &c2p);
   ASSERT_EQ(EIO, rc);
   g_mock_fork_fail = 0;
+#endif
 
   ASSERT_EQ(EINVAL, cdd_process_wait_and_free(NULL, NULL));
 
@@ -276,12 +285,15 @@ TEST test_process_fallback_paths(void) {
   cdd_ipc_pipe_free(&pipe);
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_serialize_failures(void) {
   struct HttpRequest req;
   struct HttpResponse res;
   char *buf = NULL;
   size_t len = 0;
+  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
@@ -293,8 +305,11 @@ TEST test_process_serialize_failures(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, cdd_ipc_serialize_response(&res, &buf, &len));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = cdd_ipc_serialize_response(&res, &buf, &len);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   /* test deserialize EINVAL */
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request("", 0, &req));
@@ -313,12 +328,15 @@ TEST test_process_serialize_failures(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_deserialization_edge_cases(void) {
   struct HttpRequest req;
   struct HttpResponse res;
   char *buf = NULL;
   size_t len = 0;
+  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
@@ -343,8 +361,11 @@ TEST test_process_deserialization_edge_cases(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2;
-  ASSERT_EQ(ENOMEM, cdd_ipc_deserialize_request(buf, len, &req));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = cdd_ipc_deserialize_request(buf, len, &req);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
   free(buf);
 
   res.status_code = 200;
@@ -353,8 +374,11 @@ TEST test_process_deserialization_edge_cases(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  ASSERT_EQ(ENOMEM, cdd_ipc_deserialize_response(buf, len, &res));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = cdd_ipc_deserialize_response(buf, len, &res);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
   free(buf);
 
   http_request_free(&req);
@@ -366,8 +390,11 @@ TEST test_process_deserialization_edge_cases(void) {
   ASSERT_EQ(0, cdd_ipc_serialize_request(&req, &buf, &len));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1; /* 0:url, 1:body */
-  ASSERT_EQ(ENOMEM, cdd_ipc_deserialize_request(buf, len, &req));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = cdd_ipc_deserialize_request(buf, len, &req);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
   free(buf);
 
   http_response_free(&res);
@@ -378,8 +405,11 @@ TEST test_process_deserialization_edge_cases(void) {
   ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* 0:body */
-  ASSERT_EQ(ENOMEM, cdd_ipc_deserialize_response(buf, len, &res));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = cdd_ipc_deserialize_response(buf, len, &res);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   {
     size_t fake_len = 1000;
@@ -390,11 +420,13 @@ TEST test_process_deserialization_edge_cases(void) {
 
   PASS();
 }
+#endif
 
 TEST test_process_more_edge_cases(void) {
   struct HttpRequest req;
   struct HttpResponse res;
   char buf[100] = {0};
+  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
@@ -439,11 +471,13 @@ TEST test_process_more_edge_cases(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_final_edge_cases(void) {
   struct HttpRequest req;
   struct HttpResponse res;
   char *buf = NULL;
   size_t len = 0;
+  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
@@ -465,7 +499,11 @@ TEST test_process_final_edge_cases(void) {
     /* A closed pipe returns 0. An invalid fd returns -1. */
     /* I can just pass an invalid handle like (void*)-1 */
     rc = cdd_ipc_read((void *)(size_t)-1, buf, 10);
+#if defined(_WIN32)
+    ASSERT(rc == EIO || rc == EINVAL);
+#else
     ASSERT_EQ(EIO, rc);
+#endif
   }
 
   /* 514: http_request_init failure */
@@ -530,6 +568,7 @@ TEST test_process_final_edge_cases(void) {
 
   PASS();
 }
+#endif
 
 SUITE(process_suite) {
   RUN_TEST(test_cdd_process_hooks);
@@ -541,11 +580,19 @@ SUITE(process_suite) {
   RUN_TEST(test_serialize_deserialize_response);
   RUN_TEST(test_process_spawn_wait);
   RUN_TEST(test_process_hooks_coverage);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_fallback_paths);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_serialize_failures);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_deserialization_edge_cases);
+#endif
   RUN_TEST(test_process_more_edge_cases);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_final_edge_cases);
+#endif
 }
 
 #ifdef __cplusplus

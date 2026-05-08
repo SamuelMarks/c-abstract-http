@@ -2,7 +2,7 @@
 /* clang-format off */
 #include <c_abstract_http/http_raw.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,15 +26,7 @@
 #ifndef _WIN32
 #if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 #if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
 #include <unistd.h>
-#endif
-#endif
-#endif
-#endif
 #endif
 #include <sys/types.h>
 #include <sys/socket.h>

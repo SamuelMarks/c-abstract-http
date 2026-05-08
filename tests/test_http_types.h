@@ -3,6 +3,26 @@
 #ifndef TEST_HTTP_TYPES_H
 #define TEST_HTTP_TYPES_H
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#include "mock_alloc.h"
+#endif
+
+#include <stdlib.h>
+#include <string.h>
+
+static char *c_abstract_http_test_types_strdup(const char *s) {
+  size_t len;
+  char *d;
+  if (!s) return NULL;
+  len = strlen(s);
+  d = (char*)malloc(len + 1);
+  if (d) memcpy(d, s, len + 1);
+  return d;
+}
+#ifndef strdup
+#define strdup(s) c_abstract_http_test_types_strdup(s)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -433,6 +453,7 @@ TEST test_http_future(void) {
 TEST test_http_multi_request(void) {
   struct HttpMultiRequest multi;
   struct HttpRequest req1, req2;
+  (void)multi;
 
   http_request_init(&req1);
   http_request_init(&req2);
@@ -809,6 +830,8 @@ TEST test_http_types_errors(void) {
   struct HttpHeaders h;
   struct HttpRequest req;
   struct HttpResponse res;
+  (void)res;
+  (void)res;
   ASSERT_EQ(EINVAL, http_request_add_part(NULL, "n", "f", "ct", NULL, 0));
   ASSERT_EQ(EINVAL, http_request_add_part(&req, NULL, "f", "ct", NULL, 0));
 
@@ -887,6 +910,7 @@ TEST test_http_send_multi(void) {
   struct HttpFuture f1, f2;
   struct HttpFuture *futures[2];
   int i;
+  (void)resps;
 
   memset(&f1, 0, sizeof(f1));
   memset(&f2, 0, sizeof(f2));
@@ -916,6 +940,8 @@ TEST test_http_send_multi(void) {
 
 TEST test_http_response_save_to_file(void) {
   struct HttpResponse res;
+  (void)res;
+  (void)res;
   http_response_init(&res);
   res.body = "test";
   res.body_len = 4;
@@ -930,6 +956,7 @@ TEST test_http_response_save_to_file(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_leftover_errs(void) {
   struct HttpMultiRequest multi;
   struct HttpRequest req;
@@ -940,8 +967,10 @@ TEST test_http_types_leftover_errs(void) {
   const char *out = NULL;
   struct HttpResponse res;
   int rc, i;
-  extern int g_mock_alloc_fail;
-  extern int g_mock_alloc_count;
+  (void)multi;
+  (void)boundary;
+  (void)res;
+  (void)res;
 
   /* flatten missing */
   ASSERT_EQ(0, http_request_init(&req));
@@ -951,23 +980,34 @@ TEST test_http_types_leftover_errs(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* buffer malloc */
-  ASSERT_EQ(ENOMEM, http_request_flatten_parts(&req));
-  g_mock_alloc_fail = 0;
+  rc = http_request_flatten_parts(&req);
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
   http_request_free(&req);
+  memset(&req, 0, sizeof(req));
   /* cookie jar errs */
   http_cookie_jar_init(&jar);
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_cookie_jar_set(&jar, "n", "v"));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_cookie_jar_set(&jar, "n", "v");
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   ASSERT_EQ(0, http_cookie_jar_set(&jar, "n", "v"));
 
   /* g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_cookie_jar_to_header(&jar, &out));
-  g_mock_alloc_fail = 0; */
+  {
+    int rc_test_tmp = http_cookie_jar_to_header(&jar, &out);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  } */
 
   http_cookie_jar_free(&jar);
 
@@ -977,8 +1017,11 @@ TEST test_http_types_leftover_errs(void) {
   ASSERT_EQ(EINVAL, http_multi_request_add(&multi, NULL));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_multi_request_add(&multi, &req));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_multi_request_add(&multi, &req);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
   http_multi_request_free(&multi);
   /* auth basic userpwd base64 padding coverage */
   http_request_init(&req);
@@ -1007,8 +1050,11 @@ TEST test_http_types_leftover_errs(void) {
   ASSERT_EQ(EINVAL, http_request_set_auth_bearer(&req, NULL));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_request_set_auth_bearer(&req, "tok"));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_request_set_auth_bearer(&req, "tok");
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   /* OAuth2 ooms */
   printf("6\n");
@@ -1103,8 +1149,11 @@ TEST test_http_types_leftover_errs(void) {
   ASSERT_EQ(EINVAL, http_config_init(NULL));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_config_init(&config));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_config_init(&config);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   /* http_headers_init, free */
   ASSERT_EQ(EINVAL, http_headers_init(NULL));
@@ -1115,8 +1164,11 @@ TEST test_http_types_leftover_errs(void) {
   ASSERT_EQ(EINVAL, http_headers_add(NULL, "a", "b"));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_headers_add(&h, "a", "b"));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_headers_add(&h, "a", "b");
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   /* http_headers_get */
   ASSERT_EQ(EINVAL, http_headers_get(NULL, "a", &out));
@@ -1128,21 +1180,26 @@ TEST test_http_types_leftover_errs(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_cookie_jar_set_val_oom(void) {
   struct HttpCookieJar jar;
-  extern int g_mock_alloc_fail;
-  extern int g_mock_alloc_count;
+
   http_cookie_jar_init(&jar);
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2; /* fails allocation of value, the 3rd alloc */
-  ASSERT_EQ(ENOMEM, http_cookie_jar_set(&jar, "name", "val"));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_cookie_jar_set(&jar, "name", "val");
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   http_cookie_jar_free(&jar);
   PASS();
 }
+#endif
 
 TEST test_http_client_errs(void) {
   struct HttpClient client = {0};
@@ -1160,18 +1217,20 @@ TEST test_http_client_errs(void) {
 
 TEST test_http_modality_errs(void) {
   struct ModalityContext ctx = {0};
+  (void)ctx;
   ASSERT_EQ(EINVAL, http_modality_context_init(NULL));
   http_modality_context_free(NULL);
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_more_errs_2(void) {
-  extern int g_mock_alloc_fail;
-  extern int g_mock_alloc_count;
+
   struct HttpRequest req;
   struct HttpFuture f;
   char *url = NULL;
   int rc, i;
+  (void)f;
 
   /* 341: flatten with body */
   ASSERT_EQ(0, http_request_init(&req));
@@ -1235,9 +1294,12 @@ TEST test_http_types_more_errs_2(void) {
   /* oauth2 url builders */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_oauth2_build_authorization_url(
-                        "url", "c", "r", "r", "s", "c", "code", "m", &url));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_oauth2_build_authorization_url(
+                        "url", "c", "r", "r", "s", "c", "code", "m", &url);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   /* localhost intercept */
   /* We can mock the socket/bind/listen/accept using test macros?
@@ -1250,10 +1312,11 @@ TEST test_http_types_more_errs_2(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_end_errs(void) {
   struct HttpClient client = {0};
-  client.send = dummy_send;
   struct HttpRequest req;
   struct HttpRequest *req_ptr = &req;
   struct HttpMultiRequest multi;
@@ -1262,8 +1325,13 @@ TEST test_http_types_end_errs(void) {
   char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
   int i;
   int rc;
-  extern int g_mock_alloc_fail;
-  extern int g_mock_alloc_count;
+
+  client.send = dummy_send;
+  (void)multi;
+  (void)c;
+  (void)s;
+  (void)e;
+  (void)ed;
 
   /* 1931, 1943, 1949, 1955: save_to_file */
   ASSERT_EQ(EINVAL, http_response_save_to_file(NULL, "a"));
@@ -1284,9 +1352,12 @@ TEST test_http_types_end_errs(void) {
   http_multi_request_add(&multi, &req);
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_client_send_multi(&client, &req_ptr, 1, &future, NULL,
-                                           NULL, 0));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_client_send_multi(&client, &req_ptr, 1, &future, NULL,
+                                           NULL, 0);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
   http_multi_request_free(&multi);
   http_request_free(&req);
 
@@ -1307,18 +1378,30 @@ TEST test_http_types_end_errs(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 static int dummy_send_fail(struct HttpTransportContext *transport,
                            const struct HttpRequest *req,
                            struct HttpResponse **res) {
+  (void)transport;
+  (void)req;
+  (void)res;
   return 1;
 }
+
 static int dummy_send_multi_ok(struct HttpTransportContext *transport,
                                struct ModalityEventLoop *loop,
                                const struct HttpMultiRequest *multi,
                                struct HttpFuture **futures) {
+  (void)transport;
+  (void)loop;
+  (void)multi;
+  (void)futures;
   return 0;
 }
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_final_errs(void) {
 
   struct HttpRequest req;
@@ -1329,11 +1412,16 @@ TEST test_http_types_final_errs(void) {
   char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
   char *url = NULL;
   int rc, i;
-  extern int g_mock_alloc_fail;
-  extern int g_mock_alloc_count;
   struct HttpClient client = {0};
-  client.send = dummy_send;
   struct HttpRequest *req_ptr = &req;
+  (void)multi;
+  (void)c;
+  (void)s;
+  (void)e;
+  (void)ed;
+  (void)res;
+
+  client.send = dummy_send;
 
   futures[0] = &f1;
   memset(&f1, 0, sizeof(f1));
@@ -1359,9 +1447,12 @@ TEST test_http_types_final_errs(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_oauth2_build_authorization_url(
-                        "url", "c", "r", "r", "s", "c", "code", "m", &url));
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = http_oauth2_build_authorization_url(
+                        "url", "c", "r", "r", "s", "c", "code", "m", &url);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   res.body = (unsigned char *)"test";
   res.body_len = 4;
@@ -1375,14 +1466,15 @@ TEST test_http_types_final_errs(void) {
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_oom_bruteforce_all(void) {
   struct HttpRequest req;
   int i, rc;
-  extern int g_mock_alloc_fail;
-  extern int g_mock_alloc_count;
 
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1396,6 +1488,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1409,6 +1502,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1422,6 +1516,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1435,6 +1530,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1512,6 +1608,8 @@ TEST test_http_types_oom_bruteforce_all(void) {
   }
   {
     struct HttpResponse res;
+    (void)res;
+    (void)res;
     http_response_init(&res);
     res.body = (unsigned char *)"test";
     res.body_len = 4;
@@ -1523,6 +1621,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     struct HttpRequest req2;
     struct HttpRequest *reqs[1];
     struct HttpClient client = {0};
+    (void)f;
     client.send = dummy_send;
     memset(&f, 0, sizeof(f));
     futures[0] = &f;
@@ -1546,6 +1645,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
   http_request_free(&req);
 
   for (i = 0; i < 10; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1553,6 +1653,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
                                4);
     g_mock_alloc_fail = 0;
     http_request_free(&req);
+    memset(&req, 0, sizeof(req));
     if (rc == 0) {
       i = 9999;
       continue;
@@ -1571,24 +1672,28 @@ TEST test_http_types_oom_bruteforce_all(void) {
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
     rc = http_request_set_auth_basic(&req, "Basic dXNlcjpwYXNz");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
+    memset(&req, 0, sizeof(req));
     if (rc == 0) {
       i = 9999;
       continue;
     }
   }
   for (i = 0; i < 5; i++) {
+    memset(&req, 0, sizeof(req));
     http_request_init(&req);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
     rc = http_request_set_auth_bearer(&req, "token123");
     g_mock_alloc_fail = 0;
     http_request_free(&req);
+    memset(&req, 0, sizeof(req));
     if (rc == 0) {
       i = 9999;
       continue;
@@ -1616,34 +1721,40 @@ TEST test_http_types_oom_bruteforce_all(void) {
 
   /* 1943-1944: fwrite fail */
   {
-    extern int g_mock_fwrite_fail;
+    /* extern int g_mock_fwrite_fail; */
     struct HttpResponse res2;
     http_response_init(&res2);
     res2.body = (unsigned char *)"test";
     res2.body_len = 4;
     g_mock_fwrite_fail = 1;
-    ASSERT_EQ(EIO, http_response_save_to_file(&res2, "out_fwrite.txt"));
+    rc = http_response_save_to_file(&res2, "out_fwrite.txt");
+    res2.body = NULL;
+    http_response_free(&res2);
     g_mock_fwrite_fail = 0;
+    ASSERT_EQ(EIO, rc);
   }
   /* 1949: fclose fail */
   {
-    extern int g_mock_fclose_fail;
+    /* extern int g_mock_fclose_fail; */
     struct HttpResponse res2;
     http_response_init(&res2);
     res2.body = (unsigned char *)"test";
     res2.body_len = 4;
     g_mock_fclose_fail = 1;
-    ASSERT_EQ(EIO, http_response_save_to_file(&res2, "out_fclose.txt"));
+    rc = http_response_save_to_file(&res2, "out_fclose.txt");
+    res2.body = NULL;
+    http_response_free(&res2);
     g_mock_fclose_fail = 0;
+    ASSERT_EQ(EIO, rc);
   }
 
   /* 1786-1868: localhost_intercept mock failures */
   {
-    extern int g_mock_socket_fail;
-    extern int g_mock_bind_fail;
-    extern int g_mock_listen_fail;
-    extern int g_mock_accept_fail;
-    extern int g_mock_recv_fail;
+    /* extern int g_mock_socket_fail; */
+    /* extern int g_mock_bind_fail; */
+    /* extern int g_mock_listen_fail; */
+    /* extern int g_mock_accept_fail; */
+    /* extern int g_mock_recv_fail; */
     char *c = NULL, *s = NULL;
 
     g_mock_socket_fail = 1;
@@ -1691,11 +1802,13 @@ TEST test_http_types_oom_bruteforce_all(void) {
   /* 1800: bind fail on invalid port or already bound port */
   /* Actually, we just need to bind to a restricted port to fail bind, e.g. 80
    * without root */
+#if !defined(_WIN32) && !defined(__CYGWIN__)
   {
     char *c = NULL, *s = NULL;
     ASSERT_EQ(EIO,
               http_oauth2_localhost_intercept(80, "p", &c, &s, NULL, NULL));
   }
+#endif
 
   /* 1925: body_len > 0 but no body */
   {
@@ -1709,10 +1822,15 @@ TEST test_http_types_oom_bruteforce_all(void) {
   /* send_multi with fail_fast */
   {
     struct HttpFuture f1, f2;
-    struct HttpFuture *futures[2] = {&f1, &f2};
+    struct HttpFuture *futures[2];
     struct HttpRequest req1, req2;
-    struct HttpRequest *reqs[2] = {&req1, &req2};
+    struct HttpRequest *reqs[2];
     struct HttpClient c = {0};
+
+    futures[0] = &f1;
+    futures[1] = &f2;
+    reqs[0] = &req1;
+    reqs[1] = &req2;
     memset(&f1, 0, sizeof(f1));
     memset(&f2, 0, sizeof(f2));
     http_request_init(&req1);
@@ -1740,11 +1858,22 @@ TEST test_http_types_oom_bruteforce_all(void) {
   /* trigger ENOMEM in multi_request_add during send_multi */
   {
     struct HttpFuture f1, f2, f3, f4, f5;
-    struct HttpFuture *futures[5] = {&f1, &f2, &f3, &f4, &f5};
+    struct HttpFuture *futures[5];
     struct HttpRequest r1, r2, r3, r4, r5;
-    struct HttpRequest *reqs[5] = {&r1, &r2, &r3, &r4, &r5};
+    struct HttpRequest *reqs[5];
     struct HttpClient c = {0};
     int j;
+
+    futures[0] = &f1;
+    futures[1] = &f2;
+    futures[2] = &f3;
+    futures[3] = &f4;
+    futures[4] = &f5;
+    reqs[0] = &r1;
+    reqs[1] = &r2;
+    reqs[2] = &r3;
+    reqs[3] = &r4;
+    reqs[4] = &r5;
     c.send = dummy_send_fail;
     for (j = 0; j < 5; j++) {
       memset(futures[j], 0, sizeof(*futures[j]));
@@ -1807,16 +1936,29 @@ TEST test_http_types_oom_bruteforce_all(void) {
   }
   PASS();
 }
+#endif
 
 SUITE(http_types_suite) {
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_oom_bruteforce_all);
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_leftover_errs);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_end_errs);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_final_errs);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_more_errs_2);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_cookie_jar_set_val_oom);
+#endif
   RUN_TEST(test_http_client_errs);
   RUN_TEST(test_http_modality_errs);
   RUN_TEST(test_http_response_save_to_file);

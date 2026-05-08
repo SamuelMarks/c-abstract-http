@@ -31,7 +31,7 @@
 #include <ws2tcpip.h>
 
 /* windef.h must precede winbase.h */
-#include "win_compat_sym.h"
+#include <c_abstract_http/win_compat_sym.h>
 #include <windef.h>
 
 #include <winbase.h>
@@ -369,7 +369,15 @@ int mock_server_wait_for_request(MockServerPtr server,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     out_req->raw_header = _strdup(server->captured_request);
 #else
-    out_req->raw_header = strdup(server->captured_request);
+    if (server->captured_request) {
+      size_t len = strlen(server->captured_request);
+      out_req->raw_header = (char *)malloc(len + 1);
+      if (out_req->raw_header) {
+        memcpy(out_req->raw_header, server->captured_request, len + 1);
+      }
+    } else {
+      out_req->raw_header = NULL;
+    }
 #endif
     out_req->header_len = server->captured_len;
 

@@ -152,20 +152,12 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
 #c) try fetchcontent
     if(NOT ${PkgName}_RESOLVED)
         message(STATUS "Fetching ${PkgName} via FetchContent")
-        get_filename_component(_git_repo_name "${FetchRepo}" NAME_WE)
-        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../${_git_repo_name}/CMakeLists.txt")
-            message(STATUS "Using local ${_git_repo_name} for ${PkgName}")
-            FetchContent_Declare(${PkgName}
-                SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../${_git_repo_name}"
-            )
-        else()
-            FetchContent_Declare(${PkgName}
-                GIT_REPOSITORY ${FetchRepo}
-                GIT_TAG ${FetchTag}
+        FetchContent_Declare(${PkgName}
+            GIT_REPOSITORY ${FetchRepo}
+            GIT_TAG ${FetchTag}
             GIT_CONFIG "core.autocrlf=false"
-                UPDATE_COMMAND git fetch origin ${FetchTag} COMMAND git reset --hard origin/${FetchTag}
-            )
-        endif()
+            UPDATE_COMMAND ""
+        )
         FetchContent_MakeAvailable(${PkgName})
 #If fetchcontent fails, CMake usually aborts or the target is not created
 #We assume success if it didn't fatal error during MakeAvailable,
@@ -185,6 +177,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ml")
     set(CFS_MULTITHREADED OFF CACHE BOOL "" FORCE)
 else()
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
     c_abstract_http_resolve_dependency(parson https://github.com/kgabis/parson.git master)
     if(TARGET parson AND NOT TARGET parson::parson)
         add_library(parson::parson ALIAS parson)
@@ -193,6 +186,13 @@ else()
     c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
     c_abstract_http_resolve_dependency(c_str_span https://github.com/SamuelMarks/c-str-span.git master)
     c_abstract_http_resolve_dependency(cdd_c https://github.com/SamuelMarks/cdd-c.git master)
+    if(TARGET c_cdd)
+        set_target_properties(c_cdd PROPERTIES COMPILE_WARNING_AS_ERROR OFF)
+        
+        if(MSVC)
+            target_compile_options(c_cdd PRIVATE "/WX-" "/wd4013" "/wd4189" "/wd4267")
+        endif()
+    endif()
     c_abstract_http_resolve_dependency(cfs https://github.com/SamuelMarks/c-fs.git master)
 endif()
 
@@ -351,8 +351,10 @@ endif()
     elseif(WIN32 AND NOT MINGW_TEST_CURL)
         if(MSVC AND MSVC_VERSION LESS 1600)
             target_link_libraries(c-abstract-http INTERFACE wininet ws2_32 crypt32 advapi32 shlwapi c89stringutils cfs c_cdd)
+            target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_WININET)
         else()
             target_link_libraries(c-abstract-http INTERFACE winhttp wininet ws2_32 crypt32 advapi32 shlwapi bcrypt c89stringutils cfs c_cdd)
+            target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_WINHTTP)
         endif()
     elseif(APPLE)
         find_library(FOUNDATION Foundation)
@@ -419,6 +421,7 @@ else()
     endif()
 
     target_include_directories(c-abstract-http SYSTEM PUBLIC include)
+    target_include_directories(c-abstract-http PRIVATE src)
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
   target_compile_definitions(c-abstract-http PRIVATE malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
@@ -542,8 +545,10 @@ endif()
         )
         if(MSVC AND MSVC_VERSION LESS 1600)
             target_link_libraries(c-abstract-http PUBLIC wininet ws2_32)
+            target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_WININET)
         else()
             target_link_libraries(c-abstract-http PUBLIC winhttp wininet ws2_32 crypt32 advapi32 shlwapi bcrypt)
+            target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_WINHTTP)
         endif()
     elseif(APPLE)
         target_sources(c-abstract-http PRIVATE
@@ -600,6 +605,41 @@ endif()
 if(C_ABSTRACT_HTTP_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+
+    if(NOT (WIN32 AND BUILD_SHARED_LIBS))
+    target_compile_definitions(c-abstract-http PUBLIC 
+        C_ABSTRACT_HTTP_TEST_OOM=1
+        malloc=c_abstract_http_mock_malloc
+        calloc=c_abstract_http_mock_calloc
+        realloc=c_abstract_http_mock_realloc
+        free=c_abstract_http_mock_free
+        fwrite=c_abstract_http_mock_fwrite
+        fclose=c_abstract_http_mock_fclose
+        socket=c_abstract_http_mock_socket
+        bind=c_abstract_http_mock_bind
+        listen=c_abstract_http_mock_listen
+        accept=c_abstract_http_mock_accept
+        recv=c_abstract_http_mock_recv 
+        pthread_key_create=c_abstract_http_mock_pthread_key_create
+        pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
+        pthread_cond_init=c_abstract_http_mock_pthread_cond_init
+        pthread_create=c_abstract_http_mock_pthread_create
+        pipe=c_abstract_http_mock_pipe
+        fork=c_abstract_http_mock_fork
+        waitpid=c_abstract_http_mock_waitpid
+        select=c_abstract_http_mock_select
+        math_get_current_time_ms=c_abstract_http_mock_math_get_current_time_ms
+        pthread_setspecific=c_abstract_http_mock_pthread_setspecific
+        pthread_getspecific=c_abstract_http_mock_pthread_getspecific
+        CDD_STRDUP=c_abstract_http_mock_cdd_strdup
+    )
+    if(NOT C_ABSTRACT_HTTP_HEADER_ONLY)
+        target_sources(c-abstract-http PRIVATE tests/mock_alloc.c)
+        if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+            target_sources(c-abstract-http PRIVATE tests/cdd_test_helpers/mock_server.c)
+        endif()
+    endif()
+    endif()
 endif()
 
 
@@ -622,32 +662,38 @@ endif()
 
 
 
-if(C_ABSTRACT_HTTP_BUILD_TESTS)
-target_compile_definitions(c-abstract-http PUBLIC 
-    C_ABSTRACT_HTTP_TEST_OOM=1
-    malloc=c_abstract_http_mock_malloc
-    calloc=c_abstract_http_mock_calloc
-    realloc=c_abstract_http_mock_realloc
-    free=c_abstract_http_mock_free
-    fwrite=c_abstract_http_mock_fwrite
-    fclose=c_abstract_http_mock_fclose
-    socket=c_abstract_http_mock_socket
-    bind=c_abstract_http_mock_bind
-    listen=c_abstract_http_mock_listen
-    accept=c_abstract_http_mock_accept
-    recv=c_abstract_http_mock_recv 
-    pthread_key_create=c_abstract_http_mock_pthread_key_create
-    pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
-    pthread_cond_init=c_abstract_http_mock_pthread_cond_init
-    pthread_create=c_abstract_http_mock_pthread_create
-    pipe=c_abstract_http_mock_pipe
-    fork=c_abstract_http_mock_fork
-    waitpid=c_abstract_http_mock_waitpid
-    select=c_abstract_http_mock_select
-    math_get_current_time_ms=c_abstract_http_mock_math_get_current_time_ms
-    pthread_setspecific=c_abstract_http_mock_pthread_setspecific
-    pthread_getspecific=c_abstract_http_mock_pthread_getspecific
+if(C_ABSTRACT_HTTP_BUILD_TESTS AND NOT (WIN32 AND BUILD_SHARED_LIBS))
+    target_compile_definitions(c-abstract-http PUBLIC 
+        C_ABSTRACT_HTTP_TEST_OOM=1
+        malloc=c_abstract_http_mock_malloc
+        calloc=c_abstract_http_mock_calloc
+        realloc=c_abstract_http_mock_realloc
+        free=c_abstract_http_mock_free
+        fwrite=c_abstract_http_mock_fwrite
+        fclose=c_abstract_http_mock_fclose
+        socket=c_abstract_http_mock_socket
+        bind=c_abstract_http_mock_bind
+        listen=c_abstract_http_mock_listen
+        accept=c_abstract_http_mock_accept
+        recv=c_abstract_http_mock_recv 
+        pthread_key_create=c_abstract_http_mock_pthread_key_create
+        pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
+        pthread_cond_init=c_abstract_http_mock_pthread_cond_init
+        pthread_create=c_abstract_http_mock_pthread_create
+        pipe=c_abstract_http_mock_pipe
+        fork=c_abstract_http_mock_fork
+        waitpid=c_abstract_http_mock_waitpid
+        select=c_abstract_http_mock_select
+        math_get_current_time_ms=c_abstract_http_mock_math_get_current_time_ms
+        pthread_setspecific=c_abstract_http_mock_pthread_setspecific
+        pthread_getspecific=c_abstract_http_mock_pthread_getspecific
 
-    CDD_STRDUP=c_abstract_http_mock_cdd_strdup
-)
+        CDD_STRDUP=c_abstract_http_mock_cdd_strdup
+    )
+    if(NOT C_ABSTRACT_HTTP_HEADER_ONLY)
+        target_sources(c-abstract-http PRIVATE tests/mock_alloc.c)
+        if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+            target_sources(c-abstract-http PRIVATE tests/cdd_test_helpers/mock_server.c)
+        endif()
+    endif()
 endif()

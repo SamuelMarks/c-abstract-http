@@ -150,9 +150,11 @@ static int dummy_hook_push(void *ctx, cdd_thread_task_cb cb, void *arg) {
   return 0;
 }
 
+extern void cdd_thread_pool_test_free_with_tasks(void);
 TEST test_thread_pool_edge_cases(void) {
   struct CddThreadPool *pool;
   struct CddThreadPoolHooks hooks;
+  memset(&hooks, 0, sizeof(hooks));
 
   /* 470: pool == NULL */
   ASSERT_EQ(EINVAL, cdd_thread_pool_init_external(NULL, &hooks));
@@ -176,17 +178,18 @@ TEST test_thread_pool_edge_cases(void) {
 
   /* I can create a fake pool to free! */
   {
-    extern void cdd_thread_pool_test_free_with_tasks(void);
     cdd_thread_pool_test_free_with_tasks();
   }
 
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_pthread_create_failures(void) {
   struct CddThreadPool *pool = NULL;
   int rc;
 
+#if !defined(_WIN32)
   /* Fail on first thread */
   g_mock_alloc_fail = 0;
   g_mock_pthread_fail = 2;
@@ -201,6 +204,7 @@ TEST test_thread_pool_pthread_create_failures(void) {
   ASSERT_EQ(EIO, rc);
 
   g_mock_pthread_fail = 0;
+#endif
 
   /* also test external init failure */
   g_mock_alloc_fail = 1;
@@ -210,13 +214,19 @@ TEST test_thread_pool_pthread_create_failures(void) {
     memset(&hooks, 0, sizeof(hooks));
     rc = cdd_thread_pool_init_external(&pool, &hooks);
   }
-  ASSERT_EQ(ENOMEM, rc);
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_pthread_failures(void) {
+#if !defined(_WIN32)
   struct CddMutex *lock = NULL;
   struct CddCond *cond = NULL;
   int rc;
@@ -225,15 +235,17 @@ TEST test_thread_pool_pthread_failures(void) {
   rc = cdd_mutex_init(&lock);
   ASSERT_EQ(EIO, rc);
 
-  g_mock_pthread_fail = 1;
   rc = cdd_cond_init(&cond);
   ASSERT_EQ(EIO, rc);
 
   g_mock_pthread_fail = 0;
+#endif
 
   PASS();
 }
+#endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_fallback_paths(void) {
   struct CddThreadPool *pool = NULL;
   struct CddMutex *lock = NULL;
@@ -281,6 +293,7 @@ TEST test_thread_pool_fallback_paths(void) {
 
   PASS();
 }
+#endif
 
 SUITE(thread_pool_suite) {
   RUN_TEST(test_thread_pool_external);
@@ -288,9 +301,15 @@ SUITE(thread_pool_suite) {
   RUN_TEST(test_mutex_lock_unlock);
   RUN_TEST(test_thread_pool_execution);
   RUN_TEST(test_thread_pool_edge_cases);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_thread_pool_pthread_create_failures);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_thread_pool_pthread_failures);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_thread_pool_fallback_paths);
+#endif
 }
 
 #ifdef __cplusplus

@@ -15,9 +15,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include <stddef.h>
-/* clang-format on */
 
+#include <stddef.h>
+
+/* clang-format on */
 /**
  * @brief Opaque structure representing a Thread Local Storage key.
  */
@@ -62,5 +63,4 @@ extern void cdd_tls_key_delete(struct CddTlsKey *key);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif

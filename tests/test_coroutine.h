@@ -115,6 +115,7 @@ TEST test_coroutine_hooks(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_coroutine_fallback_paths(void) {
   struct CddCoroutine *co = NULL;
   int rc;
@@ -127,8 +128,11 @@ TEST test_coroutine_fallback_paths(void) {
   g_mock_alloc_count = 0;
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
   printf("cdd_coroutine_init returned %d\n", rc);
-  ASSERT_EQ(ENOMEM, rc);
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   /* coverage for free while running */
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
@@ -140,12 +144,15 @@ TEST test_coroutine_fallback_paths(void) {
 
   PASS();
 }
+#endif
 
 SUITE(coroutine_suite) {
   RUN_TEST(test_coroutine_errors);
   RUN_TEST(test_coroutine_execution);
   RUN_TEST(test_coroutine_hooks);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_coroutine_fallback_paths);
+#endif
 }
 
 #ifdef __cplusplus

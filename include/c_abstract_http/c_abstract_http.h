@@ -17,6 +17,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+
 #include "http_types.h"
 
 /* clang-format boundary */
@@ -107,12 +108,12 @@ extern "C" {
 #else
 #include "../../src/http_curl.c"
 #endif
-/* clang-format on */
 
 #endif /* C_ABSTRACT_HTTP_IMPLEMENTATION */
+
+/* clang-format on */
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ABSTRACT_HTTP_H */

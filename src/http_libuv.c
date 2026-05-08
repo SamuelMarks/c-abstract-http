@@ -8,13 +8,14 @@
 #include <c_abstract_http/http_libuv.h>
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
-#include "functions/parse/str.h"
+#include "str.h"
 
 #ifdef C_ABSTRACT_HTTP_USE_LIBUV
 #include <uv.h>
 #endif
 /* clang-format on */
 
+/** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
   struct HttpConfig config;
 };
@@ -122,6 +123,7 @@ static int get_method_str(enum HttpMethod method, const char **out_str) {
 
 #ifdef C_ABSTRACT_HTTP_USE_LIBUV
 
+/** @brief Internal struct libuv_state */
 struct libuv_state {
   uv_loop_t loop;
   uv_tcp_t socket;

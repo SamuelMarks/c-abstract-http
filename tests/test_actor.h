@@ -47,6 +47,7 @@ TEST test_actor_spawn_and_message(void) {
   struct CddMessage msg;
   const char *name1 = NULL;
   const char *name2 = NULL;
+  (void)bus;
 
   ASSERT_EQ(0, cdd_message_bus_init(&bus));
   ASSERT_EQ(
@@ -137,6 +138,7 @@ TEST test_actor_hooks(void) {
   struct CddMessage msg;
   void *state = NULL;
   const char *name = NULL;
+  (void)bus;
   memset(&msg, 0, sizeof(msg));
 
   hooks.bus_init = mock_bus_init;
@@ -170,6 +172,7 @@ TEST test_actor_errors(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
   struct CddMessage msg;
+  (void)bus;
   memset(&msg, 0, sizeof(msg));
 
   ASSERT_EQ(EINVAL, cdd_message_bus_init(NULL));
@@ -196,6 +199,7 @@ TEST test_actor_capacity(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
   int i;
+  (void)bus;
 
   /* manual coverage for dummy_handler */
   dummy_handler(NULL, NULL);
@@ -217,6 +221,7 @@ TEST test_actor_getters(void) {
   struct CddActor *actor = NULL;
   void *state = NULL;
   const char *name = NULL;
+  (void)bus;
 
   cdd_message_bus_init(&bus);
   cdd_actor_spawn(bus, "myactor", dummy_handler, (void *)0x123, &actor);
@@ -239,6 +244,7 @@ TEST test_actor_getters(void) {
 
 #include "mock_alloc.h"
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_actor_oom(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
@@ -246,6 +252,7 @@ TEST test_actor_oom(void) {
   int rc;
   char *out_str = NULL;
   int str_rc;
+  (void)bus;
 
   memset(&msg, 0, sizeof(msg));
 
@@ -260,8 +267,11 @@ TEST test_actor_oom(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
   rc = cdd_message_bus_init(&bus);
-  ASSERT_EQ(ENOMEM, rc);
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   rc = cdd_message_bus_init(&bus);
   ASSERT_EQ(0, rc);
@@ -280,8 +290,11 @@ TEST test_actor_oom(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_actor_send(bus, &msg);
-  ASSERT_EQ(ENOMEM, rc);
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   /* Test actor spawn OOM on realloc */
   {
@@ -292,8 +305,11 @@ TEST test_actor_oom(void) {
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
     rc = cdd_actor_spawn(bus, "test_oom", dummy_handler, NULL, &actor);
-    ASSERT_EQ(ENOMEM, rc);
+    {
+    int rc_test_tmp = rc;
     g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
     /* Now successfully spawn one so the next tests don't shift */
     cdd_actor_spawn(bus, "test_success", dummy_handler, NULL, &actor);
@@ -310,19 +326,24 @@ TEST test_actor_oom(void) {
   g_mock_alloc_count = 1;
   rc = cdd_actor_spawn(bus, "test3", dummy_handler, NULL, &actor);
   printf("test3 spawn returned %d\n", rc);
-  ASSERT_EQ(ENOMEM, rc);
-  g_mock_alloc_fail = 0;
+  {
+    int rc_test_tmp = rc;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+  }
 
   cdd_message_bus_free(bus);
   cdd_message_bus_free(NULL);
   PASS();
 }
+#endif
 
 TEST test_actor_queued_free_and_tail(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
   struct CddMessage msg1;
   struct CddMessage msg2;
+  (void)bus;
 
   memset(&msg1, 0, sizeof(msg1));
   memset(&msg2, 0, sizeof(msg2));
@@ -347,6 +368,7 @@ TEST test_actor_mock_nulls(void) {
   struct CddActor *actor = NULL;
   const char *name = NULL;
   void *state = NULL;
+  (void)bus;
 
   ASSERT_EQ(EINVAL, mock_bus_init(NULL));
   ASSERT_EQ(EINVAL, mock_bus_process(NULL));
@@ -374,7 +396,9 @@ TEST test_actor_mock_nulls(void) {
 SUITE(actor_suite) {
   RUN_TEST(test_actor_getters);
   RUN_TEST(test_actor_queued_free_and_tail);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_actor_oom);
+#endif
   RUN_TEST(test_actor_spawn_and_message);
   RUN_TEST(test_actor_hooks);
   RUN_TEST(test_actor_errors);

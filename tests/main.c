@@ -12,6 +12,7 @@
 #endif
 
 #include "greatest.h"
+#include "mock_alloc.h"
 
 /* Include test suites */
 
@@ -23,6 +24,7 @@
 #include "test_coroutine.h"
 #include "test_actor.h"
 #include "test_transport.h"
+#include "test_mock_coverage.h"
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) || !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
 #include "test_cmp_integration.h"
 #endif
@@ -51,8 +53,12 @@
 #include "test_http_fetch.h"
 
 #elif defined(_WIN32) && !defined(MINGW_TEST_CURL)
+#if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
 #include "test_http_winhttp.h"
+#endif
+#if defined(C_ABSTRACT_HTTP_USE_WININET)
 #include "test_http_wininet.h"
+#endif
 #elif defined(__APPLE__)
 #include "test_http_apple.h"
 #elif defined(__ANDROID__)
@@ -71,7 +77,24 @@
 
 GREATEST_MAIN_DEFS();
 
+#if defined(_MSC_VER)
+#include <crtdbg.h>
+#endif
+
 int main(int argc, char **argv) {
+  int i;
+  for (i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "--cdd-worker") == 0) {
+      return 1;
+    }
+  }
+
+#if defined(_MSC_VER)
+  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+#endif
   GREATEST_MAIN_BEGIN();
 
   RUN_SUITE(http_types_suite);
@@ -104,8 +127,12 @@ int main(int argc, char **argv) {
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   RUN_SUITE(http_fetch_suite);
 #elif defined(_WIN32) && !defined(MINGW_TEST_CURL)
+#if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
   RUN_SUITE(http_winhttp_suite);
+#endif
+#if defined(C_ABSTRACT_HTTP_USE_WININET)
   RUN_SUITE(http_wininet_suite);
+#endif
 #elif defined(__APPLE__)
   RUN_SUITE(http_apple_suite);
 #elif defined(__ANDROID__)
@@ -118,6 +145,10 @@ int main(int argc, char **argv) {
 
 #else
   RUN_SUITE(http_curl_suite);
+#endif
+
+#ifdef malloc
+  RUN_SUITE(mock_coverage_suite);
 #endif
 
   GREATEST_MAIN_END();

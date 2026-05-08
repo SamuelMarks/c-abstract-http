@@ -28,5 +28,4 @@ void c_abstract_http_log_debug(const char *fmt, ...);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-
 #endif /* C_ABSTRACT_HTTP_LOG_H */
