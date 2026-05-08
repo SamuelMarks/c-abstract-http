@@ -622,6 +622,7 @@ endif()
 
 
 
+if(C_ABSTRACT_HTTP_BUILD_TESTS)
 target_compile_definitions(c-abstract-http PUBLIC 
     C_ABSTRACT_HTTP_TEST_OOM=1
     malloc=c_abstract_http_mock_malloc
@@ -649,3 +650,4 @@ target_compile_definitions(c-abstract-http PUBLIC
 
     CDD_STRDUP=c_abstract_http_mock_cdd_strdup
 )
+endif()
