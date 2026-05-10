@@ -342,7 +342,7 @@ TEST test_sse_async_register_thread_pool(void) {
   g_mock_alloc_count = 0;
   {
     int rc_test_tmp = c_abstract_http_sse_async_register(&client, &req, NULL,
-                                                       NULL, NULL, NULL);
+                                                         NULL, NULL, NULL);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   }
@@ -624,10 +624,10 @@ TEST test_sse_sync_loop_errors(void) {
   client.send = test_sse_mock_send_err;
   {
     int rc_test2 = c_abstract_http_sse_sync_read_loop(
-                        &client, &req, test_sse_on_event, test_sse_on_error,
-                        test_sse_on_close, &ctx, NULL);
-  ASSERT_EQ_FMT(ENOMEM, rc_test2, "%d");
-  ASSERT_EQ_FMT(ENOMEM, ctx.error_code, "%d");
+        &client, &req, test_sse_on_event, test_sse_on_error, test_sse_on_close,
+        &ctx, NULL);
+    ASSERT_EQ_FMT(ENOMEM, rc_test2, "%d");
+    ASSERT_EQ_FMT(ENOMEM, ctx.error_code, "%d");
   }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -637,8 +637,8 @@ TEST test_sse_sync_loop_errors(void) {
   g_mock_alloc_count = 0;
   {
     int rc_test_tmp = c_abstract_http_sse_sync_read_loop(
-                        &client, &req, test_sse_on_event, test_sse_on_error,
-                        test_sse_on_close, &ctx, NULL);
+        &client, &req, test_sse_on_event, test_sse_on_error, test_sse_on_close,
+        &ctx, NULL);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   }

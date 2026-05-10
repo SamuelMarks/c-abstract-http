@@ -400,10 +400,11 @@ TEST test_event_loop_alloc_errors(void) {
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
     {
-    int rc_test_tmp = http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &id);
-    g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
-  }
+      int rc_test_tmp =
+          http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &id);
+      g_mock_alloc_fail = 0;
+      ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    }
   }
   http_loop_free(loop);
   PASS();

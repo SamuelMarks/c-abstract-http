@@ -1296,7 +1296,7 @@ TEST test_http_types_more_errs_2(void) {
   g_mock_alloc_count = 0;
   {
     int rc_test_tmp = http_oauth2_build_authorization_url(
-                        "url", "c", "r", "r", "s", "c", "code", "m", &url);
+        "url", "c", "r", "r", "s", "c", "code", "m", &url);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   }
@@ -1353,8 +1353,8 @@ TEST test_http_types_end_errs(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   {
-    int rc_test_tmp = http_client_send_multi(&client, &req_ptr, 1, &future, NULL,
-                                           NULL, 0);
+    int rc_test_tmp =
+        http_client_send_multi(&client, &req_ptr, 1, &future, NULL, NULL, 0);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   }
@@ -1449,7 +1449,7 @@ TEST test_http_types_final_errs(void) {
   g_mock_alloc_count = 0;
   {
     int rc_test_tmp = http_oauth2_build_authorization_url(
-                        "url", "c", "r", "r", "s", "c", "code", "m", &url);
+        "url", "c", "r", "r", "s", "c", "code", "m", &url);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   }

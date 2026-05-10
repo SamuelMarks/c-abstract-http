@@ -306,10 +306,10 @@ TEST test_actor_oom(void) {
     g_mock_alloc_count = 0;
     rc = cdd_actor_spawn(bus, "test_oom", dummy_handler, NULL, &actor);
     {
-    int rc_test_tmp = rc;
-    g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
-  }
+      int rc_test_tmp = rc;
+      g_mock_alloc_fail = 0;
+      ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    }
 
     /* Now successfully spawn one so the next tests don't shift */
     cdd_actor_spawn(bus, "test_success", dummy_handler, NULL, &actor);
