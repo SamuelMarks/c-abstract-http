@@ -481,9 +481,7 @@ static int setup_curl_request(CURL *curl, const struct HttpRequest *req,
     return rc;
   }
 
-  if (*out_headers) {
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, *out_headers);
-  }
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, *out_headers);
 
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, math_write_memory_callback);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)write_ctx);
