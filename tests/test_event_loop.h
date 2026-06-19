@@ -781,7 +781,103 @@ TEST test_event_loop_timeout_underflow(void) {
   PASS();
 }
 
+static void dummy_write_cb(struct ModalityEventLoop *loop, int fd, int revents,
+                           void *user_data) {
+  int *triggered = (int *)user_data;
+  *triggered |= revents;
+  http_loop_stop(loop);
+}
+
+TEST test_event_loop_write_error_coverage(void) {
+  struct ModalityEventLoop *loop;
+  int pipes[2];
+  int triggered = 0;
+
+  ASSERT_EQ(0, http_loop_init(&loop));
+
+#if defined(_WIN32)
+#else
+  ASSERT_EQ(0, pipe(pipes));
+
+  ASSERT_EQ(0,
+            http_loop_add_fd(loop, pipes[1], HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
+                             dummy_write_cb, &triggered));
+
+  http_loop_run(loop);
+
+  ASSERT(triggered & HTTP_LOOP_WRITE);
+
+  close(pipes[0]);
+  close(pipes[1]);
+#endif
+
+  http_loop_free(loop);
+  PASS();
+}
+
+static void dummy_timer_past_cb(struct ModalityEventLoop *loop, int timer_id,
+                                void *user_data) {
+  int *triggered = (int *)user_data;
+  *triggered = 1;
+  (void)timer_id;
+  http_loop_stop(loop);
+}
+
+TEST test_event_loop_timer_past_coverage(void) {
+  struct ModalityEventLoop *loop;
+  int timer_id;
+  int triggered = 0;
+
+  ASSERT_EQ(0, http_loop_init(&loop));
+
+  http_loop_add_timer(loop, -10, dummy_timer_past_cb, &triggered, &timer_id);
+
+  http_loop_run(loop);
+
+  ASSERT(triggered);
+
+  http_loop_free(loop);
+  PASS();
+}
+
+static void dummy_error_cb(struct ModalityEventLoop *loop, int fd, int revents,
+                           void *user_data) {
+  int *triggered = (int *)user_data;
+  *triggered |= revents;
+}
+
+TEST test_event_loop_write_error_coverage2(void) {
+  struct ModalityEventLoop *loop;
+  int pipes[2];
+  int triggered = 0;
+
+  ASSERT_EQ(0, http_loop_init(&loop));
+
+#if defined(_WIN32)
+#else
+  ASSERT_EQ(0, pipe(pipes));
+
+  ASSERT_EQ(0,
+            http_loop_add_fd(loop, pipes[1], HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
+                             dummy_error_cb, &triggered));
+
+  http_loop_tick(loop);
+
+  close(pipes[0]);
+  close(pipes[1]);
+#endif
+
+  http_loop_free(loop);
+  PASS();
+}
+
 SUITE(event_loop_suite) {
+  RUN_TEST(test_event_loop_write_error_coverage2);
+
+  RUN_TEST(test_event_loop_timer_past_coverage);
+
+  RUN_TEST(test_event_loop_write_error_coverage);
+
   RUN_TEST(test_event_loop_expansion);
   RUN_TEST(test_event_loop_multiple_timers);
   RUN_TEST(test_event_loop_heap_down);

@@ -146,7 +146,23 @@ TEST test_coroutine_fallback_paths(void) {
 }
 #endif
 
+TEST test_coroutine_edge_cases(void) {
+  struct CddCoroutine *co = NULL;
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  /* Need a valid callback so we don't hit EINVAL at line 267 */
+  ASSERT_EQ(ENOMEM, cdd_coroutine_init(&co, 0, (cdd_coroutine_cb)1, NULL));
+  g_mock_alloc_fail = 0;
+
+  ASSERT_EQ(EINVAL, cdd_coroutine_yield());
+
+  PASS();
+}
+
 SUITE(coroutine_suite) {
+  RUN_TEST(test_coroutine_edge_cases);
+
   RUN_TEST(test_coroutine_errors);
   RUN_TEST(test_coroutine_execution);
   RUN_TEST(test_coroutine_hooks);

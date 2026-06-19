@@ -171,7 +171,7 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
 endmacro()
 
 set(BUILD_TESTING_OLD ${BUILD_TESTING})
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTING OFF)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ml")
@@ -196,7 +196,7 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
     c_abstract_http_resolve_dependency(cfs https://github.com/SamuelMarks/c-fs.git master)
 endif()
 
-set(BUILD_TESTING ${BUILD_TESTING_OLD} CACHE BOOL "" FORCE)
+set(BUILD_TESTING ${BUILD_TESTING_OLD})
 
 if(TARGET c89stringutils)
     
@@ -596,14 +596,14 @@ endif()
     c_abstract_http_apply_crypto(c-abstract-http PUBLIC)
 endif()
 
+include(CTest)
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     option(C_ABSTRACT_HTTP_BUILD_TESTS "Build tests" ON)
 else()
     option(C_ABSTRACT_HTTP_BUILD_TESTS "Build tests" OFF)
 endif()
 
-if(C_ABSTRACT_HTTP_BUILD_TESTS)
-    enable_testing()
+if(C_ABSTRACT_HTTP_BUILD_TESTS AND BUILD_TESTING)
     add_subdirectory(tests)
 
     if(NOT (WIN32 AND BUILD_SHARED_LIBS))

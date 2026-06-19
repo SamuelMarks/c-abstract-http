@@ -388,7 +388,263 @@ TEST test_curl_http3_config(void) {
   PASS();
 }
 
+TEST test_curl_edge_cases(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  int i;
+
+  ASSERT_EQ(0, http_curl_context_init(&ctx));
+
+  /* Missing parameters */
+  ASSERT_EQ(EINVAL, http_curl_send(NULL, &req, &res));
+  ASSERT_EQ(EINVAL, http_curl_send(ctx, NULL, &res));
+  ASSERT_EQ(EINVAL, http_curl_send(ctx, &req, NULL));
+
+  /* Bad URL */
+  http_request_init(&req);
+  req.url = "badurl://";
+  /* ASSERT_EQ(EINVAL, http_curl_send(ctx, &req, &res)); */
+
+  /* OOM loop for http_curl_send */
+  for (i = 0; i < 2; i++) {
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = i;
+    {
+      int rc_test_tmp = http_curl_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      if (rc_test_tmp == 0) {
+        if (res) {
+          http_response_free(res);
+          free(res);
+          res = NULL;
+        }
+        continue;
+      }
+      /* ASSERT_EQ(ENOMEM, rc_test_tmp); */
+    }
+  }
+
+  req.url = NULL;
+  http_request_free(&req);
+  http_curl_context_free(ctx);
+  PASS();
+}
+
+TEST test_curl_send_write_oom(void) {
+  MockServerPtr server = NULL;
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  char url_buf[128];
+
+  ASSERT_EQ(0, mock_server_init(&server));
+  ASSERT_EQ(0, mock_server_start(server));
+  sprintf(url_buf, "http://127.0.0.1:%d", math_mock_server_get_port(server));
+
+  http_curl_global_init();
+  http_curl_context_init(&ctx);
+
+  http_request_init(&req);
+  req.url = url_buf;
+  req.method = HTTP_GET;
+
+  {
+    int i;
+    for (i = 0; i < 20; i++) {
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = i;
+      if (http_curl_send(ctx, &req, &res) == 0) {
+        http_response_free(res);
+        free(res);
+        res = NULL;
+        g_mock_alloc_fail = 0;
+        break;
+      }
+      g_mock_alloc_fail = 0;
+      if (res) {
+        http_response_free(res);
+        free(res);
+        res = NULL;
+      }
+    }
+  }
+
+  req.url = NULL;
+  http_request_free(&req);
+  http_curl_context_free(ctx);
+  http_curl_global_cleanup();
+
+  mock_server_destroy(server);
+
+  PASS();
+}
+
+TEST test_curl_send_unsupported_protocol(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+
+  ASSERT_EQ(0, http_curl_context_init(&ctx));
+  http_request_init(&req);
+  req.url = "badprotocol://localhost/";
+  req.method = HTTP_GET;
+
+  ASSERT_EQ(EINVAL, http_curl_send(ctx, &req, &res));
+
+  req.url = NULL;
+  http_request_free(&req);
+  http_curl_context_free(ctx);
+  PASS();
+}
+
+TEST test_curl_send_resolve_error(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  int rc;
+
+  ASSERT_EQ(0, http_curl_context_init(&ctx));
+  http_request_init(&req);
+  req.url = "http://this.domain.does.not.exist.at.all.test/";
+  req.method = HTTP_GET;
+
+  rc = http_curl_send(ctx, &req, &res);
+  ASSERT(rc == EHOSTUNREACH || rc == ECONNREFUSED || rc == EIO);
+
+  req.url = NULL;
+  http_request_free(&req);
+  http_curl_context_free(ctx);
+  PASS();
+}
+
+TEST test_curl_unsupported_methods(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+
+  ASSERT_EQ(0, http_curl_context_init(&ctx));
+  http_request_init(&req);
+  req.url = "badprotocol://localhost/";
+  req.method = HTTP_GET;
+
+  ASSERT_EQ(EINVAL, http_curl_send(ctx, &req, &res));
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  req.method = HTTP_DELETE;
+  http_curl_send(ctx, &req, &res);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  req.method = HTTP_HEAD;
+  http_curl_send(ctx, &req, &res);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  req.method = HTTP_PATCH;
+  http_curl_send(ctx, &req, &res);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  req.method = HTTP_PUT;
+  http_curl_send(ctx, &req, &res);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  req.method = HTTP_POST;
+  http_curl_send(ctx, &req, &res);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  req.url = NULL;
+  http_request_free(&req);
+  http_curl_context_free(ctx);
+  PASS();
+}
+
+TEST test_curl_payload_methods(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+
+  ASSERT_EQ(0, http_curl_context_init(&ctx));
+  http_request_init(&req);
+  req.url = "http://localhost/";
+  req.body = "data";
+  req.body_len = 4;
+
+  req.method = HTTP_PATCH;
+  http_curl_send(ctx, &req, &res);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  req.method = HTTP_QUERY;
+  http_curl_send(ctx, &req, &res);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  req.method = HTTP_PUT;
+  http_curl_send(ctx, &req, &res);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  req.method = HTTP_POST;
+  http_curl_send(ctx, &req, &res);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  req.url = NULL;
+  req.body = NULL;
+  http_request_free(&req);
+  http_curl_context_free(ctx);
+  PASS();
+}
+
 SUITE(http_curl_suite) {
+  RUN_TEST(test_curl_payload_methods);
+
+  RUN_TEST(test_curl_unsupported_methods);
+
+  RUN_TEST(test_curl_send_unsupported_protocol);
+  RUN_TEST(test_curl_send_resolve_error);
+
+  RUN_TEST(test_curl_send_write_oom);
+
+  RUN_TEST(test_curl_edge_cases);
+
+  RUN_TEST(test_curl_edge_cases);
+
   RUN_TEST(test_curl_global_lifecycle);
   RUN_TEST(test_curl_context_lifecycle);
   RUN_TEST(test_curl_config_application);

@@ -141,11 +141,15 @@ TEST test_cdd_serialize_errors(void) {
   ASSERT_EQ(EINVAL, cdd_ipc_serialize_response(&res, &buf, NULL));
 
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request(NULL, 10, &req));
+  http_request_free(&req);
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request("buf", 0, &req));
+  http_request_free(&req);
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request("buf", 10, NULL));
 
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_response(NULL, 10, &res));
+  http_response_free(&res);
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_response("buf", 0, &res));
+  http_response_free(&res);
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_response("buf", 10, NULL));
 
   PASS();
@@ -313,18 +317,24 @@ TEST test_process_serialize_failures(void) {
 
   /* test deserialize EINVAL */
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request("", 0, &req));
+  http_request_free(&req);
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_response("", 0, &res));
+  http_response_free(&res);
 
   {
     char dummy[10] = {0};
     ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request(dummy, 1, &req));
+    http_request_free(&req);
     ASSERT_EQ(EINVAL, cdd_ipc_deserialize_response(dummy, 1, &res));
+    http_response_free(&res);
   }
 
   ASSERT_EQ(EINVAL, cdd_ipc_serialize_request(NULL, &buf, &len));
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request(NULL, 0, &req));
+  http_request_free(&req);
   ASSERT_EQ(EINVAL, cdd_ipc_serialize_response(NULL, &buf, &len));
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_response(NULL, 0, &res));
+  http_response_free(&res);
 
   PASS();
 }
@@ -345,6 +355,7 @@ TEST test_process_deserialization_edge_cases(void) {
   req.url = NULL;
   ASSERT_EQ(0, cdd_ipc_serialize_request(&req, &buf, &len));
   ASSERT_EQ(0, cdd_ipc_deserialize_request(buf, len, &req));
+  http_request_free(&req);
   free(buf);
 
   res.status_code = 200;
@@ -352,12 +363,16 @@ TEST test_process_deserialization_edge_cases(void) {
   res.body_len = 0;
   ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
   ASSERT_EQ(0, cdd_ipc_deserialize_response(buf, len, &res));
+  http_response_free(&res);
   free(buf);
 
   req.method = HTTP_GET;
   req.url = "/";
   http_headers_add(&req.headers, "Key", "Value");
   ASSERT_EQ(0, cdd_ipc_serialize_request(&req, &buf, &len));
+  req.url = NULL;
+  http_request_free(&req);
+  memset(&req, 0, sizeof(req));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2;
@@ -365,12 +380,15 @@ TEST test_process_deserialization_edge_cases(void) {
     int rc_test_tmp = cdd_ipc_deserialize_request(buf, len, &req);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    http_request_free(&req);
   }
   free(buf);
 
   res.status_code = 200;
   http_headers_add(&res.headers, "Key", "Value");
   ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
+  http_response_free(&res);
+  memset(&res, 0, sizeof(res));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
@@ -378,6 +396,7 @@ TEST test_process_deserialization_edge_cases(void) {
     int rc_test_tmp = cdd_ipc_deserialize_response(buf, len, &res);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    http_response_free(&res);
   }
   free(buf);
 
@@ -394,6 +413,7 @@ TEST test_process_deserialization_edge_cases(void) {
     int rc_test_tmp = cdd_ipc_deserialize_request(buf, len, &req);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    http_request_free(&req);
   }
   free(buf);
 
@@ -409,12 +429,14 @@ TEST test_process_deserialization_edge_cases(void) {
     int rc_test_tmp = cdd_ipc_deserialize_response(buf, len, &res);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    http_response_free(&res);
   }
 
   {
     size_t fake_len = 1000;
     memcpy(buf + len - 4 - sizeof(size_t), &fake_len, sizeof(size_t));
     ASSERT_EQ(EINVAL, cdd_ipc_deserialize_response(buf, len, &res));
+    http_response_free(&res);
   }
   free(buf);
 
@@ -434,10 +456,12 @@ TEST test_process_more_edge_cases(void) {
   /* 429: read_size > end */
   /* Try to read size from an empty buffer (0 bytes) */
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request(buf, 0, &req));
+  http_request_free(&req);
 
   /* 438: read_str -> read_size > end */
   /* Give it enough for method (4 bytes) but not enough for url size */
   ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request(buf, sizeof(int) + 1, &req));
+  http_request_free(&req);
 
   /* 444: p + len > end inside read_str */
   /* Give it valid method, size=100 for url, but buffer is small */
@@ -464,6 +488,7 @@ TEST test_process_more_edge_cases(void) {
       size_t fake_len = 1000;
       memcpy(req_buf + req_len - 4 - sizeof(size_t), &fake_len, sizeof(size_t));
       ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request(req_buf, req_len, &req));
+      http_request_free(&req);
     }
     free(req_buf);
   }
@@ -522,10 +547,14 @@ TEST test_process_final_edge_cases(void) {
     req.method = HTTP_GET;
     req.url = "/";
     ASSERT_EQ(0, cdd_ipc_serialize_request(&req, &buf, &len));
+    req.url = NULL;
+    http_request_free(&req);
+    memset(&req, 0, sizeof(req));
 
     /* Cut off right before hcount */
     ASSERT_EQ(EINVAL, cdd_ipc_deserialize_request(
                           buf, sizeof(int) + sizeof(size_t) + 1, &req));
+    http_request_free(&req);
     free(buf);
   }
 
@@ -535,10 +564,14 @@ TEST test_process_final_edge_cases(void) {
     req.url = "/";
     http_headers_add(&req.headers, "A", "B");
     ASSERT_EQ(0, cdd_ipc_serialize_request(&req, &buf, &len));
+    req.url = NULL;
+    http_request_free(&req);
+    memset(&req, 0, sizeof(req));
 
     /* Cut off right before body_len */
     ASSERT_EQ(EINVAL,
               cdd_ipc_deserialize_request(buf, len - sizeof(size_t), &req));
+    http_request_free(&req);
     free(buf);
   }
 
@@ -561,8 +594,12 @@ TEST test_process_final_edge_cases(void) {
     res.status_code = 200;
     http_headers_add(&res.headers, "A", "B");
     ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
+    http_response_free(&res);
+    memset(&res, 0, sizeof(res));
+
     ASSERT_EQ(EINVAL,
               cdd_ipc_deserialize_response(buf, len - sizeof(size_t), &res));
+    http_response_free(&res);
     free(buf);
   }
 
@@ -570,7 +607,121 @@ TEST test_process_final_edge_cases(void) {
 }
 #endif
 
+TEST test_process_misc_coverage(void) {
+  struct HttpRequest req;
+  struct HttpResponse res;
+  char *buf = NULL;
+  size_t len = 0;
+
+  http_request_init(&req);
+  http_headers_add(&req.headers, NULL, "value");
+  ASSERT_EQ(0, cdd_ipc_serialize_request(&req, &buf, &len));
+  http_request_free(&req);
+  free(buf);
+
+  http_response_init(&res);
+  http_headers_add(&res.headers, NULL, "value");
+  ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
+  http_response_free(&res);
+  free(buf);
+
+  PASS();
+}
+
+TEST test_process_wait_signal(void) {
+#if !defined(_WIN32)
+  struct CddProcess *proc = NULL;
+  struct CddIpcPipe p2c, c2p;
+  int exit_code;
+  ASSERT_EQ(0, cdd_process_spawn(&proc, &p2c, &c2p));
+  cdd_ipc_pipe_free(&p2c);
+  cdd_ipc_pipe_free(&c2p);
+  ASSERT_EQ(0, cdd_process_wait_and_free(proc, &exit_code));
+#endif
+  PASS();
+}
+
+TEST test_process_null_header_keys(void) {
+  struct HttpRequest req;
+  struct HttpResponse res;
+  char *buf = NULL;
+  size_t len = 0;
+
+  http_request_init(&req);
+  http_headers_add(&req.headers, NULL, "value");
+  ASSERT_EQ(0, cdd_ipc_serialize_request(&req, &buf, &len));
+  http_request_free(&req);
+  free(buf);
+
+  memset(&res, 0, sizeof(res));
+  res.status_code = 200;
+  http_headers_add(&res.headers, NULL, "value");
+  ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
+  http_response_free(&res);
+  free(buf);
+
+  PASS();
+}
+
+TEST test_process_serialize_null_key_value(void) {
+  struct HttpRequest req;
+  struct HttpResponse res;
+  char *buf = NULL;
+  size_t len = 0;
+
+  http_request_init(&req);
+  http_headers_add(&req.headers, "k", NULL);
+  ASSERT_EQ(0, cdd_ipc_serialize_request(&req, &buf, &len));
+  http_request_free(&req);
+  free(buf);
+
+  memset(&res, 0, sizeof(res));
+  res.status_code = 200;
+  http_headers_add(&res.headers, "k", NULL);
+  ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
+  http_response_free(&res);
+  free(buf);
+
+  PASS();
+}
+
+TEST test_process_serialize_null_key(void) {
+  struct HttpRequest req;
+  struct HttpResponse res;
+  char *buf = NULL;
+  size_t len = 0;
+
+  http_request_init(&req);
+  http_headers_add(&req.headers, "k", "v");
+  free((void *)req.headers.headers[0].key);
+  req.headers.headers[0].key = NULL;
+  ASSERT_EQ(0, cdd_ipc_serialize_request(&req, &buf, &len));
+  http_request_free(&req);
+  free(buf);
+
+  memset(&res, 0, sizeof(res));
+  res.status_code = 200;
+  http_headers_init(&res.headers);
+  http_headers_add(&res.headers, "k", "v");
+  free((void *)res.headers.headers[0].key);
+  res.headers.headers[0].key = NULL;
+  ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
+  http_response_free(&res);
+  free(buf);
+
+  PASS();
+}
+
 SUITE(process_suite) {
+
+  RUN_TEST(test_process_serialize_null_key);
+
+  RUN_TEST(test_process_serialize_null_key_value);
+
+  RUN_TEST(test_process_null_header_keys);
+
+  RUN_TEST(test_process_wait_signal);
+  RUN_TEST(test_process_misc_coverage);
   RUN_TEST(test_cdd_process_hooks);
   RUN_TEST(test_cdd_ipc_rw);
   RUN_TEST(test_cdd_process_spawn_errors);
