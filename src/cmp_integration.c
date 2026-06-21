@@ -44,6 +44,7 @@ int cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
 int cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
                            struct HttpConfig *http_config) {
   enum ExecutionModality http_mod;
+  int rc;
 
   LOG_DEBUG("cmp_http_inject_config: Entering");
   if (!cmp_config || !http_config) {

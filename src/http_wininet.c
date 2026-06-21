@@ -217,8 +217,9 @@ int http_wininet_context_init(struct HttpTransportContext **ctx) {
 
   LOG_DEBUG("http_wininet_context_init: Success");
   return 0;
-#endif
+#else
   return 0;
+#endif
 }
 
 void http_wininet_context_free(struct HttpTransportContext *ctx) {

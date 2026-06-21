@@ -352,6 +352,7 @@ cleanup:
     LOG_DEBUG("http_wasm_send: Error returning %d", rc);
   }
   return rc;
-#endif
+#else
   return 0;
+#endif
 }

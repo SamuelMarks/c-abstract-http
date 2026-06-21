@@ -508,13 +508,18 @@ int cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
 
 int cdd_ipc_deserialize_request(const char *buf, size_t len,
                                 struct HttpRequest *req) {
-  const char *p = buf;
   size_t hcount, body_len;
   int method;
   size_t i;
+  int rc;
+  const char *p;
+  const char *end;
 
   if (!buf || !req)
     return EINVAL;
+
+  p = buf;
+  end = buf + len;
 
   http_request_init(req);
 
@@ -602,12 +607,17 @@ int cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
 
 int cdd_ipc_deserialize_response(const char *buf, size_t len,
                                  struct HttpResponse *res) {
-  const char *p = buf;
   size_t hcount, body_len;
   size_t i;
+  int rc;
+  const char *p;
+  const char *end;
 
   if (!buf || !res)
     return EINVAL;
+
+  p = buf;
+  end = buf + len;
 
   http_response_init(res);
 

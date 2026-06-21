@@ -17,7 +17,7 @@ extern "C" {
 /* clang-format on */
 
 TEST test_ipc_pipe_init_free(void) {
-  struct CddIpcPipe pipe;
+  struct CddIpcPipe pipe = {0};
   ASSERT_EQ(0, cdd_ipc_pipe_init(&pipe));
   ASSERT(pipe.read_handle != NULL);
   ASSERT(pipe.write_handle != NULL);
@@ -35,8 +35,9 @@ TEST test_serialize_deserialize_request(void) {
 
   http_request_init(&req_in);
   req_in.method = HTTP_POST;
-  req_in.url =
-      (c_cdd_strdup("http://example.com/api", &_ast_strdup_0), _ast_strdup_0);
+  req_in.url = (c_abstract_http_mock_cdd_strdup("http://example.com/api",
+                                                &_ast_strdup_0),
+                _ast_strdup_0);
   http_headers_add(&req_in.headers, "Content-Type", "application/json");
   http_headers_add(&req_in.headers, "X-Custom", "test_val");
 
@@ -167,7 +168,7 @@ TEST test_cdd_process_hooks(void) {
 }
 
 TEST test_cdd_ipc_rw(void) {
-  struct CddIpcPipe pipe;
+  struct CddIpcPipe pipe = {0};
   char buf[5];
 
   memset(buf, 0, sizeof(buf));
@@ -186,7 +187,7 @@ TEST test_cdd_ipc_rw(void) {
 }
 
 TEST test_cdd_process_spawn_errors(void) {
-  struct CddIpcPipe rw;
+  struct CddIpcPipe rw = {0};
   ASSERT_EQ(EINVAL, cdd_process_spawn(NULL, NULL, NULL));
   ASSERT_EQ(EINVAL, cdd_process_wait_and_free(NULL, NULL));
   if (cdd_ipc_pipe_init(&rw) == 0)
@@ -228,7 +229,7 @@ static int dummy_ipc_read(void *handle, void *data, size_t len) {
 TEST test_process_hooks_coverage(void) {
   struct CddProcessHooks hooks;
   struct CddProcess *proc = NULL;
-  struct CddIpcPipe p2c, c2p;
+  struct CddIpcPipe p2c = {0}, c2p = {0};
   hooks.spawn = dummy_process_spawn;
   hooks.wait_and_free = dummy_process_wait_and_free;
   hooks.ipc_write = dummy_ipc_write;
@@ -247,9 +248,10 @@ TEST test_process_hooks_coverage(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_fallback_paths(void) {
+  int rc;
   struct CddProcess *proc = NULL;
-  struct CddIpcPipe pipe;
-  struct CddIpcPipe p2c, c2p;
+  struct CddIpcPipe pipe = {0};
+  struct CddIpcPipe p2c = {0}, c2p = {0};
 
   ASSERT_EQ(EINVAL, cdd_ipc_pipe_init(NULL));
   ASSERT_EQ(0, cdd_ipc_pipe_init(&pipe));
@@ -420,6 +422,7 @@ TEST test_process_deserialization_edge_cases(void) {
   memset(&res, 0, sizeof(res));
   res.status_code = 200;
   res.body = "data";
+  res.body_len = 4;
   ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* 0:body */
@@ -496,6 +499,7 @@ TEST test_process_more_edge_cases(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_final_edge_cases(void) {
+  int rc;
   struct HttpRequest req;
   struct HttpResponse res;
   char *buf = NULL;
@@ -628,8 +632,10 @@ TEST test_process_misc_coverage(void) {
 TEST test_process_wait_signal(void) {
 #if !defined(_WIN32)
   struct CddProcess *proc = NULL;
-  struct CddIpcPipe p2c, c2p;
+  struct CddIpcPipe p2c = {0}, c2p = {0};
   int exit_code;
+  ASSERT_EQ(0, cdd_ipc_pipe_init(&p2c));
+  ASSERT_EQ(0, cdd_ipc_pipe_init(&c2p));
   ASSERT_EQ(0, cdd_process_spawn(&proc, &p2c, &c2p));
   cdd_ipc_pipe_free(&p2c);
   cdd_ipc_pipe_free(&c2p);

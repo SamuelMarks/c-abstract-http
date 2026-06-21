@@ -504,7 +504,6 @@ static void process_timers(struct ModalityEventLoop *loop) {
 }
 
 int http_loop_tick(struct ModalityEventLoop *loop) {
-  cdd_int64_t now;
   size_t i;
   int active_fds = 0;
   int max_fd = -1;
@@ -535,16 +534,11 @@ int http_loop_tick(struct ModalityEventLoop *loop) {
 
   /* Calculate next timeout */
   if (loop->timer_count > 0) {
-    now = real_math_get_current_time_ms();
     while (loop->timer_count > 0 && !loop->timers[0].active) {
       loop->timers[0] = loop->timers[loop->timer_count - 1];
       loop->timer_count--;
       if (loop->timer_count > 0)
         timer_heap_down(loop, 0);
-    }
-    if (loop->timer_count > 0) {
-      next_timeout = loop->timers[0].expiration - now;
-      if (next_timeout < 0)
     }
   }
 
@@ -653,6 +647,7 @@ int http_loop_run(struct ModalityEventLoop *loop) {
 
   while (loop->running && !loop->stop_requested) {
     cdd_int64_t now;
+    cdd_int64_t next_timeout = -1;
     size_t i;
     int active_fds = 0;
     int max_fd = -1;
@@ -677,8 +672,10 @@ int http_loop_run(struct ModalityEventLoop *loop) {
           timer_heap_down(loop, 0);
       }
       if (loop->timer_count > 0) {
-        next_timeout = loop->timers[0].expiration - now;
-        if (next_timeout < 0)
+        cdd_int64_t timer_timeout = loop->timers[0].expiration - now;
+        if (timer_timeout < 0)
+          timer_timeout = 0;
+        next_timeout = timer_timeout;
       }
     }
 

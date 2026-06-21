@@ -186,6 +186,7 @@ TEST test_thread_pool_edge_cases(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_pthread_create_failures(void) {
+  int rc;
   struct CddThreadPool *pool = NULL;
 
 #if !defined(_WIN32)
@@ -226,6 +227,7 @@ TEST test_thread_pool_pthread_create_failures(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_pthread_failures(void) {
 #if !defined(_WIN32)
+  int rc;
   struct CddMutex *lock = NULL;
   struct CddCond *cond = NULL;
 
@@ -245,6 +247,7 @@ TEST test_thread_pool_pthread_failures(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_fallback_paths(void) {
+  int rc;
   struct CddThreadPool *pool = NULL;
   struct CddMutex *lock = NULL;
   struct CddCond *cond = NULL;

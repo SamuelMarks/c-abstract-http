@@ -30,6 +30,7 @@ extern "C" {
 /* clang-format on */
 
 static int setup_request(struct HttpRequest *req, int port) {
+  int rc;
   char *_ast_strdup_0 = NULL;
   char url[64];
 
@@ -43,7 +44,8 @@ static int setup_request(struct HttpRequest *req, int port) {
   sprintf(url, "http://127.0.0.1:%d/test", port);
 #endif
 
-  req->url = (c_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
+  req->url =
+      (c_abstract_http_mock_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
   return (enum greatest_test_res)0;
 }
 
@@ -58,6 +60,7 @@ TEST test_curl_global_lifecycle(void) {
 }
 
 TEST test_curl_context_lifecycle(void) {
+  int rc;
   struct HttpTransportContext *ctx = NULL;
 
   http_curl_global_init();
@@ -75,6 +78,7 @@ TEST test_curl_context_lifecycle(void) {
 }
 
 TEST test_curl_config_application(void) {
+  int rc;
   char *_ast_strdup_proxy = NULL;
   char *_ast_strdup_user = NULL;
   char *_ast_strdup_pass = NULL;
@@ -89,13 +93,15 @@ TEST test_curl_config_application(void) {
   config.timeout_ms = 500;
   config.verify_peer = 0; /* Insecure for testing logic */
   config.follow_redirects = 0;
-  config.proxy_url =
-      (c_cdd_strdup("http://proxy.local:8080", &_ast_strdup_proxy),
-       _ast_strdup_proxy);
+  config.proxy_url = (c_abstract_http_mock_cdd_strdup("http://proxy.local:8080",
+                                                      &_ast_strdup_proxy),
+                      _ast_strdup_proxy);
   config.proxy_username =
-      (c_cdd_strdup("admin", &_ast_strdup_user), _ast_strdup_user);
+      (c_abstract_http_mock_cdd_strdup("admin", &_ast_strdup_user),
+       _ast_strdup_user);
   config.proxy_password =
-      (c_cdd_strdup("secret", &_ast_strdup_pass), _ast_strdup_pass);
+      (c_abstract_http_mock_cdd_strdup("secret", &_ast_strdup_pass),
+       _ast_strdup_pass);
 
   rc = http_curl_config_apply(ctx, &config);
   ASSERT_EQ(0, rc);
@@ -107,6 +113,7 @@ TEST test_curl_config_application(void) {
 }
 
 TEST test_curl_send_connection_failure(void) {
+  int rc;
   /* Expect mapped error (ECONNREFUSED or ETIMEDOUT or EHOSTUNREACH) */
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -200,6 +207,7 @@ static int curl_mock_chunk_cb(void *user_data, const void *chunk,
 }
 
 TEST test_curl_send_chunked(void) {
+  int rc;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -249,6 +257,7 @@ TEST test_curl_send_chunked(void) {
 }
 
 TEST test_curl_send_chunked_abort(void) {
+  int rc;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -307,6 +316,7 @@ static int curl_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
 }
 
 TEST test_curl_send_upload_chunked(void) {
+  int rc;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -492,6 +502,7 @@ TEST test_curl_send_unsupported_protocol(void) {
 }
 
 TEST test_curl_send_resolve_error(void) {
+  int rc;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;

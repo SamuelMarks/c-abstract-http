@@ -122,7 +122,7 @@ int http_raw_send(struct HttpTransportContext *ctx,
 #if defined(_WIN32)
     int rc = send(sock, p, (int)len, 0);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-    break; /* DOS Watt-32 or mTCP would implement write/send here */
+    int rc = -1; /* DOS Watt-32 or mTCP would implement write/send here */
 #else
     int rc = write(sock, p, len);
 #endif

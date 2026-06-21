@@ -36,6 +36,7 @@ TEST test_event_loop_init_free(void) {
 TEST test_event_loop_timer(void) {
   struct ModalityEventLoop *loop;
   int timer_id;
+  int triggered = 0;
   (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
@@ -71,6 +72,7 @@ static void timer_cb_stop(struct ModalityEventLoop *loop, int timer_id,
 TEST test_event_loop_timer_cancel(void) {
   struct ModalityEventLoop *loop;
   int timer_id1, timer_id2;
+  int triggered = 0;
   (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
@@ -198,6 +200,7 @@ TEST test_event_loop_run(void) {
 
 TEST test_event_loop_tick_fd(void) {
   struct ModalityEventLoop *loop = NULL;
+  int triggered = 0;
   (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
@@ -214,6 +217,7 @@ TEST test_event_loop_tick_fd(void) {
 
 TEST test_event_loop_fd(void) {
   struct ModalityEventLoop *loop = NULL;
+  int triggered = 0;
   (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
@@ -538,6 +542,7 @@ TEST test_event_loop_tick_fd_and_timer(void) {
   struct ModalityEventLoop *loop = NULL;
   int timer_id;
   int pipefd[2];
+  int triggered = 0;
   (void)triggered;
   ASSERT_EQ(0, http_loop_init(&loop));
 
@@ -618,6 +623,7 @@ static void blocking_mock_fd_cb(struct ModalityEventLoop *loop, int fd,
 TEST test_event_loop_blocking_cb(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
+  int triggered = 0;
   (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
@@ -644,6 +650,7 @@ TEST test_event_loop_blocking_cb(void) { SKIP(); }
 TEST test_event_loop_run_full(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
+  int triggered = 0;
   (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
@@ -682,6 +689,7 @@ TEST test_event_loop_run_full(void) { SKIP(); }
 TEST test_event_loop_mock_error_fd(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
+  int triggered = 0;
   (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
@@ -713,6 +721,7 @@ TEST test_event_loop_mock_error_fd(void) { SKIP(); }
 TEST test_event_loop_run_blocking(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
+  int triggered = 0;
   (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
@@ -775,12 +784,18 @@ TEST test_event_loop_timeout_underflow(void) {
 static void dummy_write_cb(struct ModalityEventLoop *loop, int fd, int revents,
                            void *user_data) {
   int *triggered = (int *)user_data;
+  (void)fd;
   *triggered |= revents;
   http_loop_stop(loop);
 }
 
 TEST test_event_loop_write_error_coverage(void) {
   struct ModalityEventLoop *loop;
+  int triggered = 0;
+#if !defined(_WIN32)
+  int pipes[2];
+#endif
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
 
@@ -815,6 +830,8 @@ static void dummy_timer_past_cb(struct ModalityEventLoop *loop, int timer_id,
 TEST test_event_loop_timer_past_coverage(void) {
   struct ModalityEventLoop *loop;
   int timer_id;
+  int triggered = 0;
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
 
@@ -831,11 +848,18 @@ TEST test_event_loop_timer_past_coverage(void) {
 static void dummy_error_cb(struct ModalityEventLoop *loop, int fd, int revents,
                            void *user_data) {
   int *triggered = (int *)user_data;
+  (void)loop;
+  (void)fd;
   *triggered |= revents;
 }
 
 TEST test_event_loop_write_error_coverage2(void) {
   struct ModalityEventLoop *loop;
+  int triggered = 0;
+#if !defined(_WIN32)
+  int pipes[2];
+#endif
+  (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
 

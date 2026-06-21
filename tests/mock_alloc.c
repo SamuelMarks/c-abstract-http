@@ -384,7 +384,7 @@ int c_abstract_http_mock_cdd_strdup(const char *s, char **out) {
     if (out) {
       *out = d;
     } else {
-      mock_free(d);
+      c_abstract_http_mock_free(d);
     }
     return 0;
   }

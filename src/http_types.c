@@ -78,6 +78,7 @@ int http_headers_init(struct HttpHeaders *headers) {
 }
 
 void http_headers_free(struct HttpHeaders *headers) {
+  size_t i;
   if (!headers)
     return;
 
@@ -189,6 +190,7 @@ int http_parts_init(struct HttpParts *parts) {
 }
 
 void http_parts_free(struct HttpParts *parts) {
+  size_t i;
   if (!parts)
     return;
   if (parts->parts) {
@@ -458,6 +460,7 @@ int http_cookie_jar_init(struct HttpCookieJar *jar) {
 }
 
 void http_cookie_jar_free(struct HttpCookieJar *jar) {
+  size_t i;
   if (!jar)
     return;
   if (jar->cookies) {
@@ -726,8 +729,9 @@ int http_multi_request_add(struct HttpMultiRequest *multi,
 }
 
 int http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
-  const char *val = NULL;
+  char *val = NULL;
   size_t len;
+  int rc;
 
   if (!req || !token)
     return EINVAL;
@@ -750,8 +754,9 @@ int http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
 }
 
 int http_request_set_auth_basic(struct HttpRequest *req, const char *token) {
-  const char *val = NULL;
+  char *val = NULL;
   size_t len;
+  int rc;
 
   if (!req || !token)
     return EINVAL;
@@ -810,6 +815,7 @@ static int base64_encode(const unsigned char *src, size_t len, char **out) {
 int http_request_set_auth_basic_userpwd(struct HttpRequest *req,
                                         const char *username,
                                         const char *password) {
+  int rc;
   char *raw;
   char *encoded = NULL;
   size_t len;
@@ -883,6 +889,7 @@ int http_request_init_oauth2_password_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *username, const char *password, const char *client_id,
     const char *client_secret, const char *scope) {
+  int rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -966,6 +973,7 @@ int http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
                                                  const char *client_id,
                                                  const char *client_secret,
                                                  const char *scope) {
+  int rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1041,6 +1049,7 @@ int http_request_init_oauth2_authorization_code_grant(
     struct HttpRequest *req, const char *token_endpoint_url, const char *code,
     const char *redirect_uri, const char *client_id, const char *client_secret,
     const char *code_verifier) {
+  int rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1123,6 +1132,7 @@ int http_request_init_oauth2_authorization_code_grant(
 int http_request_init_oauth2_client_credentials_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *client_secret, const char *scope) {
+  int rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1192,6 +1202,7 @@ int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
                                               const char *token_endpoint_url,
                                               const char *assertion,
                                               const char *scope) {
+  int rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1250,6 +1261,7 @@ int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
 int http_request_init_oauth2_device_authorization_request(
     struct HttpRequest *req, const char *device_endpoint_url,
     const char *client_id, const char *scope) {
+  int rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1298,6 +1310,7 @@ int http_request_init_oauth2_device_authorization_request(
 int http_request_init_oauth2_device_access_token_request(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *device_code) {
+  int rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1350,6 +1363,7 @@ int http_request_init_oauth2_token_revocation(
     struct HttpRequest *req, const char *revocation_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
     const char *client_secret) {
+  int rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1416,6 +1430,7 @@ int http_request_init_oauth2_token_introspection(
     struct HttpRequest *req, const char *introspection_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
     const char *client_secret) {
+  int rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1808,6 +1823,7 @@ int http_client_send_multi(struct HttpClient *client,
                            http_multi_progress_cb progress_cb, void *user_data,
                            int fail_fast) {
   size_t i;
+  int rc;
   struct HttpMultiRequest multi;
 
   if (!client || !requests || num_requests == 0 || !futures) {
@@ -1846,7 +1862,11 @@ int http_client_send_multi(struct HttpClient *client,
       struct HttpResponse *res = NULL;
       int req_rc;
 
-      req_rc = client->send(client->transport, requests[i], &res);
+      if (client->send) {
+        req_rc = client->send(client->transport, requests[i], &res);
+      } else {
+        req_rc = ENOTSUP;
+      }
       futures[i]->response = res;
       futures[i]->error_code = req_rc;
       futures[i]->is_ready = 1;

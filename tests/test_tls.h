@@ -81,6 +81,7 @@ TEST test_tls_isolation(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_tls_oom(void) {
+  int rc;
   struct CddTlsKey *key = NULL;
 
   g_mock_alloc_fail = 1;
