@@ -164,7 +164,7 @@ uint16_t ws_ntohs(uint16_t netshort) {
 }
 
 uint64_t ws_ntohll(uint64_t netqword) {
-  const unsigned char *p = (const unsigned char *)&netqword;
+  unsigned char p[8]; memcpy(p, &netqword, 8);
   return ((uint64_t)p[0] << 56) | ((uint64_t)p[1] << 48) |
          ((uint64_t)p[2] << 40) | ((uint64_t)p[3] << 32) |
          ((uint64_t)p[4] << 24) | ((uint64_t)p[5] << 16) |
@@ -530,9 +530,9 @@ int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
                                       c_abstract_http_ws_on_close on_close,
                                       void *user_data,
                                       volatile int *exit_flag) {
+  cah_cppcheck_mut_ptr((void *)exit_flag);
   struct HttpResponse *res = NULL;
   struct ws_parser_ctx parser;
-  int rc;
 
   if (!client || !req) {
     LOG_DEBUG("c_abstract_http_ws_sync_read_loop: Error EINVAL");
@@ -565,7 +565,7 @@ int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
   }
 
   if (res->body && res->body_len > 0) {
-    rc = ws_parser_feed(&parser, res->body, res->body_len);
+    (void)ws_parser_feed(&parser, res->body, res->body_len);
     if (rc != 0 && on_err) {
       on_err(rc, user_data);
     }

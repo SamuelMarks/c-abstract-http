@@ -34,7 +34,6 @@ void http_libuv_global_cleanup(void) {
 }
 
 int http_libuv_context_init(struct HttpTransportContext **ctx) {
-  int rc;
   LOG_DEBUG("http_libuv_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_libuv_context_init: Error EINVAL");
@@ -205,7 +204,7 @@ static void libuv_alloc_cb(uv_handle_t *handle, size_t suggested_size,
 static void parse_headers(struct libuv_state *state) {
   struct HttpResponse *r;
   char *p;
-  char *end;
+  const char *end;
 
   if (state->headers_parsed)
     return;
@@ -236,7 +235,7 @@ static void parse_headers(struct libuv_state *state) {
 
   /* Parse status line */
   {
-    char *space = strchr(state->res_buf, ' ');
+    const char *space = strchr(state->res_buf, ' ');
     if (space) {
       r->status_code = atoi(space + 1);
     }
@@ -489,7 +488,6 @@ int http_libuv_send(struct HttpTransportContext *ctx,
   size_t i;
   size_t req_cap = 4096;
   struct addrinfo hints;
-  int rc;
 
   LOG_DEBUG("http_libuv_send: Entering");
   if (!ctx || !req || !res) {
@@ -580,25 +578,31 @@ int http_libuv_send(struct HttpTransportContext *ctx,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     state.req_len +=
         sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len,
-                  "Content-Length: " C_ABSTRACT_HTTP_NUM_FORMAT "\r\n",
+                  "Content-Length: "
+                  "%ld"
+                  "\r\n",
                   (cdd_int64_t)req->expected_body_len);
 #else
-    state.req_len +=
-        sprintf(state.req_buf + state.req_len,
-                "Content-Length: " C_ABSTRACT_HTTP_NUM_FORMAT "\r\n",
-                (cdd_int64_t)req->expected_body_len);
+    state.req_len += sprintf(state.req_buf + state.req_len,
+                             "Content-Length: "
+                             "%ld"
+                             "\r\n",
+                             (cdd_int64_t)req->expected_body_len);
 #endif
   } else if (req->body_len > 0) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     state.req_len +=
         sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len,
-                  "Content-Length: " C_ABSTRACT_HTTP_NUM_FORMAT "\r\n",
+                  "Content-Length: "
+                  "%ld"
+                  "\r\n",
                   (cdd_int64_t)req->body_len);
 #else
-    state.req_len +=
-        sprintf(state.req_buf + state.req_len,
-                "Content-Length: " C_ABSTRACT_HTTP_NUM_FORMAT "\r\n",
-                (cdd_int64_t)req->body_len);
+    state.req_len += sprintf(state.req_buf + state.req_len,
+                             "Content-Length: "
+                             "%ld"
+                             "\r\n",
+                             (cdd_int64_t)req->body_len);
 #endif
   }
 

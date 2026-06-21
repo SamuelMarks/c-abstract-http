@@ -187,7 +187,6 @@ TEST test_thread_pool_edge_cases(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_pthread_create_failures(void) {
   struct CddThreadPool *pool = NULL;
-  int rc;
 
 #if !defined(_WIN32)
   /* Fail on first thread */
@@ -229,7 +228,6 @@ TEST test_thread_pool_pthread_failures(void) {
 #if !defined(_WIN32)
   struct CddMutex *lock = NULL;
   struct CddCond *cond = NULL;
-  int rc;
 
   g_mock_pthread_fail = 1;
   rc = cdd_mutex_init(&lock);
@@ -250,7 +248,6 @@ TEST test_thread_pool_fallback_paths(void) {
   struct CddThreadPool *pool = NULL;
   struct CddMutex *lock = NULL;
   struct CddCond *cond = NULL;
-  int rc;
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;

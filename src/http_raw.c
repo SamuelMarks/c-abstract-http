@@ -19,7 +19,7 @@
 #endif
 
 /* Fallback headers for missing socket headers in strict DOS environments.
-   A user compiling for DOS with Watt-32 or mTCP will provide these via 
+   A user compiling for DOS with Watt-32 or mTCP will provide these via
    external headers or compiler flags. We declare them weakly or just rely
    on standard POSIX signatures. */
 
@@ -47,7 +47,6 @@ struct RawCtx {
 
 int http_raw_context_init(struct HttpTransportContext **ctx) {
   struct RawCtx *c;
-  int rc;
   LOG_DEBUG("http_raw_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_raw_context_init: Error EINVAL");
@@ -89,7 +88,6 @@ int http_raw_send(struct HttpTransportContext *ctx,
   char request_buf[1024];
   char *p;
   size_t len;
-  int rc;
 
   (void)ctx;
   LOG_DEBUG("http_raw_send: Entering");
@@ -119,19 +117,21 @@ int http_raw_send(struct HttpTransportContext *ctx,
 
   len = strlen(request_buf);
   p = request_buf;
+  (void)p;
   while (len > 0) {
 #if defined(_WIN32)
-    rc = send(sock, p, (int)len, 0);
+    int rc = send(sock, p, (int)len, 0);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-    rc = -1; /* DOS Watt-32 or mTCP would implement write/send here */
+    break; /* DOS Watt-32 or mTCP would implement write/send here */
 #else
-    rc = write(sock, p, len);
+    int rc = write(sock, p, len);
 #endif
     if (rc <= 0) {
       LOG_DEBUG("http_raw_send: Error writing to socket");
       break;
     }
     p += rc;
+    (void)p;
     len -= rc;
   }
 
@@ -180,7 +180,8 @@ int http_raw_send(struct HttpTransportContext *ctx,
 }
 
 int http_raw_send_multi(struct HttpTransportContext *ctx,
-                        struct ModalityEventLoop *loop,
+                        cah_cppcheck_mut_ptr((void *)ctx);
+                        struct ModalityEventLoop * loop,
                         const struct HttpMultiRequest *reqs,
                         struct HttpFuture **future) {
   size_t i;
@@ -198,7 +199,6 @@ int http_raw_send_multi(struct HttpTransportContext *ctx,
     future[i]->is_ready = 1;
   }
   return 0;
-}
 }
 
 #endif

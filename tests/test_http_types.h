@@ -64,7 +64,6 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 
 struct ServerArgs {
   unsigned short port;
-  int rc;
   char *code;
   char *state;
   char *err;
@@ -277,7 +276,6 @@ TEST test_multipart_part_headers(void) {
 
 TEST test_auth_basic_header(void) {
   struct HttpRequest req;
-  int rc;
 
   http_request_init(&req);
   rc = http_request_set_auth_basic(&req, "dXNlcjpwYXNz");
@@ -291,7 +289,6 @@ TEST test_auth_basic_header(void) {
 
 TEST test_auth_basic_userpwd(void) {
   struct HttpRequest req;
-  int rc;
 
   http_request_init(&req);
   /* "user:pass" base64 encodes to "dXNlcjpwYXNz" */
@@ -452,6 +449,7 @@ TEST test_http_future(void) {
 
 TEST test_http_multi_request(void) {
   struct HttpMultiRequest multi;
+  memset(&multi, 0, sizeof(multi));
   struct HttpRequest req1, req2;
   (void)multi;
 
@@ -477,7 +475,6 @@ TEST test_http_multi_request(void) {
 
 TEST test_oauth2_password_grant(void) {
   struct HttpRequest req;
-  int rc;
   const char *out_header;
 
   http_request_init(&req);
@@ -522,7 +519,6 @@ TEST test_oauth2_password_grant(void) {
 
 TEST test_oauth2_refresh_token_grant(void) {
   struct HttpRequest req;
-  int rc;
 
   http_request_init(&req);
 
@@ -561,7 +557,6 @@ TEST test_oauth2_refresh_token_grant(void) {
 
 TEST test_oauth2_authorization_code_grant(void) {
   struct HttpRequest req;
-  int rc;
 
   http_request_init(&req);
 
@@ -602,7 +597,6 @@ TEST test_oauth2_authorization_code_grant(void) {
 
 TEST test_oauth2_device_authorization_request(void) {
   struct HttpRequest req;
-  int rc;
 
   http_request_init(&req);
 
@@ -625,7 +619,6 @@ TEST test_oauth2_device_authorization_request(void) {
 
 TEST test_oauth2_device_access_token_request(void) {
   struct HttpRequest req;
-  int rc;
 
   http_request_init(&req);
 
@@ -652,7 +645,6 @@ TEST test_oauth2_device_access_token_request(void) {
 
 TEST test_oauth2_token_revocation(void) {
   struct HttpRequest req;
-  int rc;
 
   http_request_init(&req);
 
@@ -678,7 +670,6 @@ TEST test_oauth2_token_revocation(void) {
 
 TEST test_oauth2_token_introspection(void) {
   struct HttpRequest req;
-  int rc;
 
   http_request_init(&req);
 
@@ -706,7 +697,6 @@ TEST test_oauth2_token_introspection(void) {
 
 TEST test_oauth2_client_credentials_grant(void) {
   struct HttpRequest req;
-  int rc;
 
   http_request_init(&req);
 
@@ -741,7 +731,6 @@ TEST test_oauth2_client_credentials_grant(void) {
 
 TEST test_oauth2_jwt_bearer_grant(void) {
   struct HttpRequest req;
-  int rc;
 
   http_request_init(&req);
 
@@ -780,7 +769,6 @@ TEST test_oauth2_jwt_bearer_grant(void) {
 
 TEST test_oauth2_build_authorization_url(void) {
   char *url = NULL;
-  int rc;
 
   /* Test invalid inputs */
   ASSERT_EQ(EINVAL,
@@ -830,6 +818,7 @@ TEST test_http_types_errors(void) {
   struct HttpHeaders h;
   struct HttpRequest req;
   struct HttpResponse res;
+  memset(&res, 0, sizeof(res));
   (void)res;
   (void)res;
   ASSERT_EQ(EINVAL, http_request_add_part(NULL, "n", "f", "ct", NULL, 0));
@@ -921,7 +910,6 @@ TEST test_http_send_multi(void) {
   reqs_ptrs[1] = &reqs[1];
 
   http_client_init(&client);
-  client.send = dummy_send;
   client.config.modality = MODALITY_SYNC;
   for (i = 0; i < 2; ++i) {
     http_request_init(&reqs[i]);
@@ -940,11 +928,11 @@ TEST test_http_send_multi(void) {
 
 TEST test_http_response_save_to_file(void) {
   struct HttpResponse res;
+  memset(&res, 0, sizeof(res));
   (void)res;
   (void)res;
   http_response_init(&res);
   res.body = "test";
-  res.body_len = 4;
   ASSERT_EQ(0, http_response_save_to_file(&res, "test_out.txt"));
 
   /* invalid */
@@ -959,6 +947,7 @@ TEST test_http_response_save_to_file(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_leftover_errs(void) {
   struct HttpMultiRequest multi;
+  memset(&multi, 0, sizeof(multi));
   struct HttpRequest req;
   struct HttpCookieJar jar;
   struct HttpConfig config;
@@ -966,7 +955,8 @@ TEST test_http_types_leftover_errs(void) {
   char *boundary = NULL;
   const char *out = NULL;
   struct HttpResponse res;
-  int rc, i;
+  memset(&res, 0, sizeof(res));
+  int i;
   (void)multi;
   (void)boundary;
   (void)res;
@@ -1219,7 +1209,6 @@ TEST test_http_cookie_jar_set_val_oom(void) {
 
 TEST test_http_client_errs(void) {
   struct HttpClient client = {0};
-  client.send = dummy_send;
 
   ASSERT_EQ(EINVAL, http_client_init(NULL));
 
@@ -1244,8 +1233,9 @@ TEST test_http_types_more_errs_2(void) {
 
   struct HttpRequest req;
   struct HttpFuture f;
+  memset(&f, 0, sizeof(f));
   char *url = NULL;
-  int rc, i;
+  int i;
   (void)f;
 
   /* 341: flatten with body */
@@ -1341,13 +1331,12 @@ TEST test_http_types_end_errs(void) {
   struct HttpRequest req;
   struct HttpRequest *req_ptr = &req;
   struct HttpMultiRequest multi;
+  memset(&multi, 0, sizeof(multi));
   struct HttpFuture *future = NULL;
   struct HttpResponse res = {0};
   char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
   int i;
-  int rc;
 
-  client.send = dummy_send;
   (void)multi;
   (void)c;
   (void)s;
@@ -1358,8 +1347,6 @@ TEST test_http_types_end_errs(void) {
   ASSERT_EQ(EINVAL, http_response_save_to_file(NULL, "a"));
   ASSERT_EQ(EINVAL, http_response_save_to_file(&res, NULL));
 
-  res.body = (unsigned char *)"test";
-  res.body_len = 4;
   /* try to write to an invalid directory to trigger EIO */
   rc = http_response_save_to_file(
       &res, "/invalid_dir_that_does_not_exist_123/out.txt");
@@ -1430,12 +1417,13 @@ TEST test_http_types_final_errs(void) {
 
   struct HttpRequest req;
   struct HttpMultiRequest multi;
+  memset(&multi, 0, sizeof(multi));
   struct HttpFuture f1;
   struct HttpFuture *futures[1];
   struct HttpResponse res = {0};
   char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
   char *url = NULL;
-  int rc, i;
+  int i;
   struct HttpClient client = {0};
   struct HttpRequest *req_ptr = &req;
   (void)multi;
@@ -1445,11 +1433,8 @@ TEST test_http_types_final_errs(void) {
   (void)ed;
   (void)res;
 
-  client.send = dummy_send;
-
   futures[0] = &f1;
   memset(&f1, 0, sizeof(f1));
-  client.send = dummy_send;
 
   ASSERT_EQ(0, http_request_init(&req));
   ASSERT_EQ(EINVAL, http_request_set_auth_basic_userpwd(&req, NULL, "b"));
@@ -1481,13 +1466,10 @@ TEST test_http_types_final_errs(void) {
     ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
   }
 
-  res.body = (unsigned char *)"test";
-  res.body_len = 4;
-
   http_request_init(&req);
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  rc = http_client_send_multi(&client, &req_ptr, 1, futures, NULL, NULL, 0);
+  (void)http_client_send_multi(&client, &req_ptr, 1, futures, NULL, NULL, 0);
   g_mock_alloc_fail = 0;
   http_request_free(&req);
   http_request_free(&req);
@@ -1499,7 +1481,7 @@ TEST test_http_types_final_errs(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_oom_bruteforce_all(void) {
   struct HttpRequest req;
-  int i, rc;
+  int i;
 
   for (i = 0; i < 5; i++) {
     memset(&req, 0, sizeof(req));
@@ -1654,21 +1636,21 @@ TEST test_http_types_oom_bruteforce_all(void) {
   }
   {
     struct HttpResponse res;
+    memset(&res, 0, sizeof(res));
     (void)res;
     (void)res;
     http_response_init(&res);
-    res.body = (unsigned char *)"test";
-    res.body_len = 4;
     rc = http_response_save_to_file(&res, "out.txt");
+    (void)rc;
   }
   for (i = 0; i < 5; i++) {
     struct HttpFuture f;
+    memset(&f, 0, sizeof(f));
     struct HttpFuture *futures[1];
     struct HttpRequest req2;
     struct HttpRequest *reqs[1];
     struct HttpClient client = {0};
     (void)f;
-    client.send = dummy_send;
     memset(&f, 0, sizeof(f));
     futures[0] = &f;
     reqs[0] = &req2;

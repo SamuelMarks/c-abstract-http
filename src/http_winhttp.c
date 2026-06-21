@@ -60,9 +60,7 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 #else
-struct HttpTransportContext {
-  int dummy;
-};
+struct HttpTransportContext {};
 #endif
 
 /* ... (Helpers like method_to_wide, safe_close_handle omitted for brevity if
@@ -176,7 +174,6 @@ void http_winhttp_global_cleanup(void) {}
 int http_winhttp_context_init(struct HttpTransportContext **ctx) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   HINTERNET hSession;
-  int rc;
 
   LOG_DEBUG("http_winhttp_context_init: Entering");
   if (!ctx) {
@@ -392,7 +389,6 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
   wchar_t *wHeaders = NULL;
   wchar_t *hostName = NULL;
   wchar_t *urlPath = NULL;
-  int rc = 0;
   const wchar_t *wmethod = NULL;
   size_t wLen = 0;
   DWORD dwStatusCode = 0;
@@ -617,8 +613,8 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
             /* Basic parse for "name=value" until ; */
             char *eq = strchr(cbuf, '=');
             if (eq) {
-              char *name = cbuf;
-              char *val = eq + 1;
+              const char *name = cbuf;
+              const char *val = eq + 1;
               char *semi = strchr(val, ';');
               *eq = '\0';
               if (semi)
@@ -684,7 +680,6 @@ static DWORD WINAPI winhttp_async_worker(LPVOID lpParam) {
   struct WinHttpAsyncWorkerCtx *worker_ctx =
       (struct WinHttpAsyncWorkerCtx *)lpParam;
   struct HttpResponse *res = NULL;
-  int rc;
 
   rc = http_winhttp_send(worker_ctx->ctx, worker_ctx->req, &res);
 

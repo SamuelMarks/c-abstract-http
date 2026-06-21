@@ -96,7 +96,6 @@ struct CddTlsKey {
 };
 
 int cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *)) {
-  int rc;
   LOG_DEBUG("cdd_tls_key_create: Entering");
   if (!key) {
     LOG_DEBUG("cdd_tls_key_create: Error EINVAL");
@@ -119,7 +118,6 @@ int cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *)) {
 }
 
 int cdd_tls_set(struct CddTlsKey *key, void *value) {
-  int rc;
   LOG_DEBUG("cdd_tls_set: Entering");
   if (!key) {
     LOG_DEBUG("cdd_tls_set: Error EINVAL");

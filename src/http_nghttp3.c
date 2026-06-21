@@ -120,7 +120,6 @@ void http_nghttp3_global_cleanup(void) {
 
 int http_nghttp3_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  int rc;
   LOG_DEBUG("http_nghttp3_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_nghttp3_context_init: Error EINVAL");
@@ -202,10 +201,9 @@ int http_nghttp3_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-int http_nghttp3_send(struct HttpTransportContext *ctx,
+int http_nghttp3_send(const struct HttpTransportContext *ctx,
                       const struct HttpRequest *req,
                       struct HttpResponse **res) {
-  int rc;
   LOG_DEBUG("http_nghttp3_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_nghttp3_send: Error EINVAL");
@@ -246,6 +244,7 @@ int http_nghttp3_send_multi(struct HttpTransportContext *ctx,
                             struct ModalityEventLoop *loop,
                             const struct HttpMultiRequest *multi,
                             struct HttpFuture **futures) {
+  cah_cppcheck_mut_ptr((void *)ctx);
   size_t i;
   /* Attach to the UDP event loop driving ngtcp2 */
   (void)loop;

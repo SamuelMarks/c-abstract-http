@@ -29,7 +29,6 @@ extern "C" {
 /* Helper: Build a request to localhost on a port likely to be closed */
 static int setup_libsoup3_request(struct HttpRequest *req, int port) {
   char *_ast_strdup_0 = NULL;
-  int rc;
   char url[64];
 
   rc = http_request_init(req);
@@ -57,7 +56,6 @@ TEST test_libsoup3_global_lifecycle(void) {
 
 TEST test_libsoup3_context_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
-  int rc;
 
   http_libsoup3_global_init();
 
@@ -78,7 +76,6 @@ TEST test_libsoup3_config_application(void) {
   char *_ast_strdup_pass = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig config;
-  int rc;
 
   http_libsoup3_global_init();
   http_libsoup3_context_init(&ctx);
@@ -109,7 +106,6 @@ TEST test_libsoup3_send_connection_failure(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
-  int rc;
 
   http_libsoup3_global_init();
   http_libsoup3_context_init(&ctx);

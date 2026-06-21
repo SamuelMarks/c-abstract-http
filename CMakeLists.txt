@@ -48,7 +48,7 @@ option(C_ABSTRACT_HTTP_USE_ASAN "Enable AddressSanitizer" OFF)
 option(C_ABSTRACT_HTTP_USE_TSAN "Enable ThreadSanitizer" OFF)
 option(C_ABSTRACT_HTTP_ENABLE_COVERAGE "Enable code coverage (gcov)" OFF)
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-    
+
 endif()
 option(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS "Enable WebSocket support" OFF)
 option(C_ABSTRACT_HTTP_ENABLE_SSE "Enable Server-Sent Events support" OFF)
@@ -93,13 +93,13 @@ if(MSVC)
             endif()
         endforeach()
     endif()
-    
+
     if(C_ABSTRACT_HTTP_UNICODE)
         add_definitions(-DUNICODE -D_UNICODE)
     elseif(C_ABSTRACT_HTTP_ANSI)
         add_definitions(-D_MBCS)
     endif()
-    
+
     if(C_ABSTRACT_HTTP_RTC1)
         set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /RTC1")
     endif()
@@ -188,7 +188,7 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
     c_abstract_http_resolve_dependency(cdd_c https://github.com/SamuelMarks/cdd-c.git master)
     if(TARGET c_cdd)
         set_target_properties(c_cdd PROPERTIES COMPILE_WARNING_AS_ERROR OFF)
-        
+
         if(MSVC)
             target_compile_options(c_cdd PRIVATE "/WX-" "/wd4013" "/wd4189" "/wd4267")
         endif()
@@ -199,7 +199,7 @@ endif()
 set(BUILD_TESTING ${BUILD_TESTING_OLD})
 
 if(TARGET c89stringutils)
-    
+
 endif()
 
 
@@ -381,7 +381,7 @@ endif()
         c_abstract_http_resolve_dependency(CURL https://github.com/curl/curl.git curl-8_0_1)
         target_link_libraries(c-abstract-http INTERFACE CURL::libcurl c89stringutils cfs c_cdd)
     endif()
-    
+
     if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
         target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
     endif()
@@ -395,7 +395,7 @@ else()
         add_library(c-abstract-http SHARED
             src/http_types.c
             $<$<BOOL:${C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION}>:src/cmp_integration.c>
-            
+
             src/event_loop.c
             src/thread_pool.c
             src/cdd_tls.c
@@ -409,7 +409,7 @@ else()
         add_library(c-abstract-http STATIC
             src/http_types.c
             $<$<BOOL:${C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION}>:src/cmp_integration.c>
-            
+
             src/event_loop.c
             src/thread_pool.c
             src/cdd_tls.c
@@ -563,7 +563,7 @@ endif()
         )
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(LIBSOUP3 REQUIRED libsoup-3.0)
-        
+
 
 
 target_include_directories(c-abstract-http PUBLIC ${LIBSOUP3_INCLUDE_DIRS})
@@ -592,7 +592,7 @@ endif()
         c_abstract_http_resolve_dependency(CURL https://github.com/curl/curl.git curl-8_0_1)
         target_link_libraries(c-abstract-http PUBLIC CURL::libcurl)
     endif()
-    
+
     c_abstract_http_apply_crypto(c-abstract-http PUBLIC)
 endif()
 
@@ -607,7 +607,7 @@ if(C_ABSTRACT_HTTP_BUILD_TESTS AND BUILD_TESTING)
     add_subdirectory(tests)
 
     if(NOT (WIN32 AND BUILD_SHARED_LIBS))
-    target_compile_definitions(c-abstract-http PUBLIC 
+    target_compile_definitions(c-abstract-http PUBLIC
         C_ABSTRACT_HTTP_TEST_OOM=1
         malloc=c_abstract_http_mock_malloc
         calloc=c_abstract_http_mock_calloc
@@ -619,7 +619,7 @@ if(C_ABSTRACT_HTTP_BUILD_TESTS AND BUILD_TESTING)
         bind=c_abstract_http_mock_bind
         listen=c_abstract_http_mock_listen
         accept=c_abstract_http_mock_accept
-        recv=c_abstract_http_mock_recv 
+        recv=c_abstract_http_mock_recv
         pthread_key_create=c_abstract_http_mock_pthread_key_create
         pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
         pthread_cond_init=c_abstract_http_mock_pthread_cond_init
@@ -663,7 +663,7 @@ endif()
 
 
 if(C_ABSTRACT_HTTP_BUILD_TESTS AND NOT (WIN32 AND BUILD_SHARED_LIBS))
-    target_compile_definitions(c-abstract-http PUBLIC 
+    target_compile_definitions(c-abstract-http PUBLIC
         C_ABSTRACT_HTTP_TEST_OOM=1
         malloc=c_abstract_http_mock_malloc
         calloc=c_abstract_http_mock_calloc
@@ -675,7 +675,7 @@ if(C_ABSTRACT_HTTP_BUILD_TESTS AND NOT (WIN32 AND BUILD_SHARED_LIBS))
         bind=c_abstract_http_mock_bind
         listen=c_abstract_http_mock_listen
         accept=c_abstract_http_mock_accept
-        recv=c_abstract_http_mock_recv 
+        recv=c_abstract_http_mock_recv
         pthread_key_create=c_abstract_http_mock_pthread_key_create
         pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
         pthread_cond_init=c_abstract_http_mock_pthread_cond_init

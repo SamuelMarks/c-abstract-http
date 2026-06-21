@@ -6,7 +6,7 @@ The `c-abstract-http` library is designed to offer a clean, unified API over dis
 
 1. **Native By Default**: The library avoids shipping thick protocol implementations (like libcurl) when the underlying OS already provides a robust HTTP client stack (like WinHTTP/WinINet on Windows or CFNetwork on Apple).
 2. **C89 Purity**: All code is written in strict C89 to maximize portability. C++ features and syntax are strictly avoided.
-3. **Robust Error Propagation (The `int` Return Paradigm)**: 
+3. **Robust Error Propagation (The `int` Return Paradigm)**:
    - All functions that perform an operation, allocate memory, or query state **must return an `int`** representing an exit code (e.g., `0` for success, `EINVAL`, `ENOMEM`, etc.).
    - If a function needs to return a value (e.g., retrieving a header), it does so by accepting an `out` pointer (e.g., `const char** out_val`).
    - This allows the caller to perfectly trace failure paths without ambiguous `NULL` returns.

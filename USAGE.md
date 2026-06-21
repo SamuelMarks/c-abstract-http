@@ -69,9 +69,9 @@ int fetch_and_print(struct HttpClient *client) {
     struct HttpRequest req;
     struct HttpResponse *res = NULL;
     int rc = 0;
-    
+
     http_request_init(&req);
-    
+
     req.url = malloc(strlen("https://example.com") + 1);
     if (!req.url) {
         fprintf(stderr, "Failed to allocate memory for URL\n");
@@ -125,7 +125,7 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
     int rc = 0;
     cfs_path dir_path;
     cfs_error_code ec = 0;
-    
+
     for (i = 0; i < num_urls; ++i) {
         http_request_init(&reqs[i]);
         http_future_init(futures[i]);
@@ -165,37 +165,37 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
             const char *filename;
             const cfs_char_t *path_str = NULL;
             FILE *fp;
-            
+
             cfs_path_init(&file_path);
             cfs_path_clone(&file_path, &dir_path);
-            
+
             /* Extract filename from URL */
             filename = strrchr(urls[i], '/');
             if (filename) filename++;
             else filename = "downloaded_file.txt";
-            
+
             cfs_path_append(&file_path, (const cfs_char_t*)filename);
             cfs_path_c_str(&file_path, &path_str);
-            
+
             if (!path_str || !res->body) {
                 fprintf(stderr, "Failed to resolve path or missing body for %s\n", urls[i]);
                 cfs_path_destroy(&file_path);
                 continue;
             }
-            
+
             fp = fopen((const char*)path_str, "wb");
             if (!fp) {
                 fprintf(stderr, "Failed to open file for writing: %s\n", (const char*)path_str);
                 cfs_path_destroy(&file_path);
                 continue;
             }
-            
+
             if (fwrite(res->body, 1, res->body_len, fp) != res->body_len) {
                 fprintf(stderr, "Failed to completely write body to file: %s\n", (const char*)path_str);
             } else {
                 printf("Saved: %s\n", (const char*)path_str);
             }
-            
+
             fclose(fp);
             cfs_path_destroy(&file_path);
             http_response_free(res);
@@ -205,7 +205,7 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
             rc = -1; /* Mark overall function as failed if any request failed */
         }
     }
-    
+
 cleanup:
     for (i = 0; i < num_urls; ++i) {
         http_request_free(&reqs[i]);
@@ -228,15 +228,15 @@ int get_token(struct HttpClient *client) {
     struct HttpRequest req;
     struct HttpResponse *res = NULL;
     int rc = 0;
-    
+
     http_request_init(&req);
-    
-    rc = http_request_init_oauth2_password_grant(&req, 
+
+    rc = http_request_init_oauth2_password_grant(&req,
         "https://auth.server/token",
         "user@example.com",
         "super_secret_password",
         "client_id_123",
-        NULL, 
+        NULL,
         "read write"
     );
     if (rc != 0) {
@@ -272,8 +272,8 @@ int service_token(struct HttpClient *client) {
     int rc = 0;
 
     http_request_init(&req);
-    
-    rc = http_request_init_oauth2_client_credentials_grant(&req, 
+
+    rc = http_request_init_oauth2_client_credentials_grant(&req,
         "https://auth.server/token",
         "my_client_id",
         "my_client_secret",
@@ -289,7 +289,7 @@ int service_token(struct HttpClient *client) {
         fprintf(stderr, "Failed to send client credentials request: %d\n", rc);
         goto cleanup;
     }
-    
+
     if (res) {
         printf("Response: %s\n", (char*)res->body);
     }
@@ -312,11 +312,11 @@ int device_flow(struct HttpClient *client) {
     struct HttpRequest req;
     struct HttpResponse *res = NULL;
     int rc = 0;
-    
+
     http_request_init(&req);
 
     /* 1. Get the device code */
-    rc = http_request_init_oauth2_device_authorization_request(&req, 
+    rc = http_request_init_oauth2_device_authorization_request(&req,
         "https://auth.server/device",
         "my_client_id",
         NULL
@@ -325,13 +325,13 @@ int device_flow(struct HttpClient *client) {
         fprintf(stderr, "Failed to initialize device authorization request: %d\n", rc);
         goto cleanup;
     }
-    
+
     rc = client->send(client->transport, &req, &res);
     if (rc != 0) {
         fprintf(stderr, "Failed to send device authorization request: %d\n", rc);
         goto cleanup;
     }
-    
+
     if (res) {
         printf("Device Auth Response: %s\n", (char*)res->body);
         http_response_free(res);
@@ -341,7 +341,7 @@ int device_flow(struct HttpClient *client) {
 
     /* 2. Poll for the access token using the device code */
     http_request_init(&req);
-    rc = http_request_init_oauth2_device_access_token_request(&req, 
+    rc = http_request_init_oauth2_device_access_token_request(&req,
         "https://auth.server/token",
         "my_client_id",
         "device_code_123"
@@ -350,13 +350,13 @@ int device_flow(struct HttpClient *client) {
         fprintf(stderr, "Failed to initialize device access token request: %d\n", rc);
         goto cleanup;
     }
-    
+
     rc = client->send(client->transport, &req, &res);
     if (rc != 0) {
         fprintf(stderr, "Failed to send device access token request: %d\n", rc);
         goto cleanup;
     }
-    
+
     if (res) {
         printf("Token Response: %s\n", (char*)res->body);
     }
@@ -384,8 +384,8 @@ int loopback_login(void) {
 
     /* Block until the user completes the flow in their browser and is redirected to http://127.0.0.1:8080 */
     rc = http_oauth2_localhost_intercept(
-        8080, 
-        "HTTP/1.1 200 OK\r\n\r\n<html><body>Successfully logged in! You can close this tab.</body></html>", 
+        8080,
+        "HTTP/1.1 200 OK\r\n\r\n<html><body>Successfully logged in! You can close this tab.</body></html>",
         &code, &state, &err, &err_desc
     );
 
@@ -409,7 +409,7 @@ cleanup:
     if (state) free(state);
     if (err) free(err);
     if (err_desc) free(err_desc);
-    
+
     return rc;
 }
 ```
@@ -428,14 +428,14 @@ cmake -B build -S . \
 
 If you are compiling for DOS (e.g. using OpenWatcom) or building for deeply embedded bare-metal systems, `c-abstract-http` automatically switches to its manual **Raw Sockets** implementation (`http_raw.c`). This backend relies solely on `select`, `read`, and `write` POSIX-like methods.
 
-In such environments, you will usually want to pair the network stack (like Watt-32 or mTCP) with a lightweight cryptography library, like MbedTLS or wolfSSL. 
+In such environments, you will usually want to pair the network stack (like Watt-32 or mTCP) with a lightweight cryptography library, like MbedTLS or wolfSSL.
 
 You can force this fallback layer on any POSIX system by passing the raw sockets flag:
 
 ```bash
 cmake -B build -S . \
     -DCMAKE_SYSTEM_NAME=DOS \
-    -DC_ABSTRACT_HTTP_USE_MBEDTLS=ON 
+    -DC_ABSTRACT_HTTP_USE_MBEDTLS=ON
 ```
 
 Available configurations include `C_ABSTRACT_HTTP_USE_OPENSSL`, `C_ABSTRACT_HTTP_USE_MBEDTLS`, `C_ABSTRACT_HTTP_USE_LIBRESSL`, `C_ABSTRACT_HTTP_USE_BORINGSSL`, `C_ABSTRACT_HTTP_USE_WOLFSSL`, `C_ABSTRACT_HTTP_USE_S2N`, `C_ABSTRACT_HTTP_USE_BEARSSL`, `C_ABSTRACT_HTTP_USE_SCHANNEL`, `C_ABSTRACT_HTTP_USE_GNUTLS`, `C_ABSTRACT_HTTP_USE_BOTAN`, `C_ABSTRACT_HTTP_USE_COMMONCRYPTO`, and `C_ABSTRACT_HTTP_USE_WINCRYPT`.

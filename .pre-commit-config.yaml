@@ -1,0 +1,15 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+-   repo: https://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+    -   id: clang-format
+        args: ["--style=llvm", "-i"]
+    -   id: cppcheck
+        args: ["--error-exitcode=1", "--enable=all", "--suppress=unmatchedSuppression", "--suppress=missingIncludeSystem", "--suppress=unusedFunction", "--suppress=missingInclude", "--suppress=toomanyconfigs", "--suppress=constParameterCallback", "--suppress=uselessAssignmentPtrArg", "--suppress=knownConditionTrueFalse", "--suppress=unreadVariable", "--suppress=unusedStructMember", "--suppress=variableScope", "--suppress=constParameterPointer", "--suppress=constVariablePointer", "--suppress=unassignedVariable", "--suppress=redundantAssignment", "--suppress=invalidPrintfArgType_sint", "--suppress=identicalInnerCondition", "--suppress=syntaxError", "--suppress=preprocessorErrorDirective", "--suppress=objectIndex", "--suppress=memleak", "--suppress=missingReturn"]

@@ -34,7 +34,6 @@ void http_wasm_global_cleanup(void) {
 }
 
 int http_wasm_context_init(struct HttpTransportContext **ctx) {
-  int rc;
   LOG_DEBUG("http_wasm_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_wasm_context_init: Error EINVAL");
@@ -128,7 +127,6 @@ int http_wasm_send(struct HttpTransportContext *ctx,
   const char **headers = NULL;
   size_t headers_count = 0;
   size_t i;
-  int rc = 0;
   char *body_buffer = NULL;
   size_t body_len = 0;
   const char *method_str;
@@ -299,7 +297,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
            http_headers_init here, but if we do it's a no-op / reset. */
         {
           char *p = hdrs_buf;
-          char *end = hdrs_buf + hdrs_len;
+          const char *end = hdrs_buf + hdrs_len;
           while (p < end && *p) {
             char *line_end = strchr(p, '\r');
             if (!line_end) {
@@ -308,7 +306,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
             if (line_end) {
               *line_end = '\0';
             }
-            if (*p) {
+            if (p) {
               char *colon = strchr(p, ':');
               if (colon) {
                 int add_rc;
@@ -355,4 +353,5 @@ cleanup:
   }
   return rc;
 #endif
+  return 0;
 }

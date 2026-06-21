@@ -30,7 +30,6 @@ static void test_co_cb(void *arg) {
 TEST test_coroutine_execution(void) {
   struct CddCoroutine *co = NULL;
   struct CoroutineTestState state;
-  int rc;
   state.counter = 0;
 
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
@@ -118,7 +117,6 @@ TEST test_coroutine_hooks(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_coroutine_fallback_paths(void) {
   struct CddCoroutine *co = NULL;
-  int rc;
 
   struct CoroutineTestState state;
   state.counter = 0;

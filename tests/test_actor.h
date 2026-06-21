@@ -20,6 +20,7 @@ struct TestActorState {
 };
 
 static int mock_actor_handler(struct CddActor *actor, struct CddMessage *msg) {
+  cah_cppcheck_mut_ptr((void *)msg);
   struct TestActorState *state = NULL;
   if (cdd_actor_get_state(actor, (void **)&state) != 0 || !state)
     return EINVAL;
@@ -97,6 +98,7 @@ static int mock_bus_init(struct CddMessageBus **bus) {
 }
 static void mock_bus_free(struct CddMessageBus *bus) { (void)bus; }
 static int mock_bus_process(struct CddMessageBus *bus) {
+  cah_cppcheck_mut_ptr((void *)bus);
   if (!bus)
     return EINVAL;
   return 0;
@@ -104,6 +106,7 @@ static int mock_bus_process(struct CddMessageBus *bus) {
 static int mock_actor_spawn(struct CddMessageBus *bus, const char *name,
                             cdd_actor_handler_cb handler, void *state,
                             struct CddActor **actor) {
+  cah_cppcheck_mut_ptr((void *)bus);
   if (!bus || !name || !actor)
     return EINVAL;
   (void)handler;
@@ -113,11 +116,13 @@ static int mock_actor_spawn(struct CddMessageBus *bus, const char *name,
 }
 static int mock_actor_send(struct CddMessageBus *bus,
                            const struct CddMessage *msg) {
+  cah_cppcheck_mut_ptr((void *)bus);
   if (!bus || !msg)
     return EINVAL;
   return 0;
 }
 static int mock_actor_get_state(struct CddActor *actor, void **state) {
+  cah_cppcheck_mut_ptr((void *)actor);
   if (!actor || !state)
     return EINVAL;
   *state = NULL;
@@ -249,7 +254,6 @@ TEST test_actor_oom(void) {
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
   struct CddMessage msg;
-  int rc;
   char *out_str = NULL;
   int str_rc;
   (void)bus;

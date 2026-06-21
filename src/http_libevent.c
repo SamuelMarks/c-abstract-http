@@ -52,7 +52,6 @@ void http_libevent_global_cleanup(void) {
 }
 
 int http_libevent_context_init(struct HttpTransportContext **ctx) {
-  int rc;
   LOG_DEBUG("http_libevent_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_libevent_context_init: Error EINVAL");
@@ -219,6 +218,7 @@ static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
 int http_libevent_send(struct HttpTransportContext *ctx,
                        const struct HttpRequest *req,
                        struct HttpResponse **res) {
+  cah_cppcheck_mut_ptr((void *)ctx);
   LOG_DEBUG("http_libevent_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_libevent_send: Error EINVAL");
@@ -238,7 +238,6 @@ int http_libevent_send(struct HttpTransportContext *ctx,
     const char *p;
     char *path = "/";
     struct evkeyvalq *output_headers;
-    int rc = 0;
 
     memset(&state, 0, sizeof(state));
     state.req = req;

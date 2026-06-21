@@ -66,7 +66,7 @@ int http_aria2_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Pointer to receive the response pointer.
  * @return 0 on success, or an error code.
  */
-int http_aria2_send(struct HttpTransportContext *ctx,
+int http_aria2_send(const struct HttpTransportContext *ctx,
                     const struct HttpRequest *req,
                     struct HttpResponse **const res);
 

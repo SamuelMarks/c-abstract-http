@@ -55,10 +55,7 @@ struct HttpTransportContext {
   HINTERNET hInternet;
   DWORD security_flags;
   /** @brief proxy_username (variable) of struct HttpTransportContext */
-  char *proxy_username;
   /** @brief proxy_password (variable) of struct HttpTransportContext */
-  char *proxy_password;
-  struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
 };
 
@@ -181,7 +178,6 @@ int http_wininet_context_init(struct HttpTransportContext **ctx) {
 #ifdef _WIN32
   HINTERNET hInternet;
   DWORD flags = 0;
-  int rc;
 
   LOG_DEBUG("http_wininet_context_init: Entering");
   CHECK_EINVAL(ctx);
@@ -222,6 +218,7 @@ int http_wininet_context_init(struct HttpTransportContext **ctx) {
   LOG_DEBUG("http_wininet_context_init: Success");
   return 0;
 #endif
+  return 0;
 }
 
 void http_wininet_context_free(struct HttpTransportContext *ctx) {
@@ -345,7 +342,6 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   wchar_t *wPath = NULL;
   wchar_t *wHeaders = NULL;
   size_t wLen;
-  int rc = 0;
   const wchar_t *wmethod = NULL;
   DWORD dwFlags = INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE;
   DWORD dwStatusCode = 0;
@@ -575,8 +571,8 @@ int http_wininet_send(struct HttpTransportContext *ctx,
           if (wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten) == 0) {
             char *eq = strchr(cbuf, '=');
             if (eq) {
-              char *name = cbuf;
-              char *val = eq + 1;
+              const char *name = cbuf;
+              const char *val = eq + 1;
               char *semi = strchr(val, ';');
               *eq = '\0';
               if (semi)

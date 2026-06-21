@@ -25,7 +25,6 @@ int http_apple_global_init(void) { return 0; }
 void http_apple_global_cleanup(void) {}
 
 int http_apple_context_init(struct HttpTransportContext **ctx) {
-  int rc;
   LOG_DEBUG("http_apple_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_apple_context_init: Error EINVAL");
@@ -71,7 +70,7 @@ int http_apple_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-int http_apple_send(struct HttpTransportContext *ctx,
+int http_apple_send(const struct HttpTransportContext *ctx,
                     const struct HttpRequest *req, struct HttpResponse **res) {
   CFURLRef url;
   CFStringRef urlStr;
@@ -82,9 +81,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
   UInt8 buf[4096];
   CFDataRef bodyData = NULL;
   size_t i;
-  int rc;
   CFHTTPMessageRef responseRef = NULL;
-  CFDictionaryRef headersDict = NULL;
 
   LOG_DEBUG("http_apple_send: Entering");
   if (!ctx || !req || !res) {
@@ -217,7 +214,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
       *res = NULL;
       return ENOMEM;
     }
-    if (body) {
+    {
       CFHTTPMessageSetBody(requestRef, body);
       CFRelease(body);
     }
@@ -294,11 +291,10 @@ int http_apple_send(struct HttpTransportContext *ctx,
       readStream, kCFStreamPropertyHTTPResponseHeader);
   if (responseRef) {
     (*res)->status_code = (int)CFHTTPMessageGetResponseStatusCode(responseRef);
-    headersDict = CFHTTPMessageCopyAllHeaderFields(responseRef);
-
-    if (headersDict) {
-      /* Ideally iterate dictionary and map to (*res)->headers */
-      CFRelease(headersDict);
+    {
+      CFDictionaryRef dict = CFHTTPMessageCopyAllHeaderFields(responseRef);
+      if (dict)
+        CFRelease(dict);
     }
     CFRelease(responseRef);
   }

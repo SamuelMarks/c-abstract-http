@@ -63,7 +63,7 @@ int http_apple_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Double pointer to receive the allocated response object.
  * @return 0 on success.
  */
-int http_apple_send(struct HttpTransportContext *ctx,
+int http_apple_send(const struct HttpTransportContext *ctx,
                     const struct HttpRequest *req, struct HttpResponse **res);
 
 #ifdef __cplusplus

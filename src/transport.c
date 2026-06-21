@@ -112,7 +112,6 @@ void transport_global_cleanup(void) {
 }
 
 int transport_factory_init_client(struct HttpClient *client) {
-  int rc;
 
   if (!client) {
     return EINVAL;

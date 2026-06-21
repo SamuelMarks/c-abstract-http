@@ -250,7 +250,6 @@ TEST test_process_fallback_paths(void) {
   struct CddProcess *proc = NULL;
   struct CddIpcPipe pipe;
   struct CddIpcPipe p2c, c2p;
-  int rc;
 
   ASSERT_EQ(EINVAL, cdd_ipc_pipe_init(NULL));
   ASSERT_EQ(0, cdd_ipc_pipe_init(&pipe));
@@ -421,7 +420,6 @@ TEST test_process_deserialization_edge_cases(void) {
   memset(&res, 0, sizeof(res));
   res.status_code = 200;
   res.body = "data";
-  res.body_len = 4;
   ASSERT_EQ(0, cdd_ipc_serialize_response(&res, &buf, &len));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* 0:body */
@@ -514,7 +512,6 @@ TEST test_process_final_edge_cases(void) {
 
   /* 390: EIO from read */
   {
-    int rc;
     /* read fails */
     g_mock_pipe_fail = 1; /* Wait, does my mock intercept read? */
     /* If not intercepted, reading from an invalid handle or a pipe closed early

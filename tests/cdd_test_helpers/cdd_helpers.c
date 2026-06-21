@@ -17,7 +17,6 @@ void cdd_precondition_failed(void) {
 
 int write_to_file(const char *const filename, const char *const contents) {
   FILE *fh;
-  int rc = 0;
 
   if (filename == NULL || contents == NULL)
     return EXIT_FAILURE;

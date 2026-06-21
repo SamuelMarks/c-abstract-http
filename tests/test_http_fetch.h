@@ -30,7 +30,6 @@ extern "C" {
 /* Helper: Build a request to localhost on a port likely to be closed */
 static int setup_request(struct HttpRequest *req, int port) {
   char *_ast_strdup_0 = NULL;
-  int rc;
   char url[64];
 
   rc = http_request_init(req);
@@ -59,7 +58,6 @@ TEST test_fetch_global_lifecycle(void) {
 
 TEST test_fetch_context_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
-  int rc;
 
   http_fetch_global_init();
 
@@ -81,7 +79,6 @@ TEST test_fetch_config_application(void) {
   char *_ast_strdup_pass = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig config;
-  int rc;
 
   http_fetch_global_init();
   http_fetch_context_init(&ctx);
@@ -114,7 +111,6 @@ TEST test_fetch_send_connection_failure(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
-  int rc;
 
   http_fetch_global_init();
   http_fetch_context_init(&ctx);
@@ -208,7 +204,6 @@ TEST test_fetch_send_chunked(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct fetch_TestChunkState state;
-  int rc;
 
   /* Start mock server */
   ASSERT_EQ(0, mock_server_init(&server));
@@ -258,7 +253,6 @@ TEST test_fetch_send_chunked_abort(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct fetch_TestChunkState state;
-  int rc;
 
   ASSERT_EQ(0, mock_server_init(&server));
   ASSERT_EQ(0, mock_server_start(server));
@@ -318,7 +312,6 @@ TEST test_fetch_send_upload_chunked(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct fetch_TestUploadState up_state;
-  int rc;
   const char *payload = "UPLOAD_TEST_DATA";
 
   ASSERT_EQ(0, mock_server_init(&server));

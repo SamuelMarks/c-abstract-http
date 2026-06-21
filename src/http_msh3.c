@@ -37,7 +37,6 @@ struct HttpTransportContext {
 };
 
 int http_msh3_global_init(void) {
-  int rc = 0;
   if (!g_msh3_mutex) {
     rc = cdd_mutex_init(&g_msh3_mutex);
     if (rc != 0)
@@ -80,7 +79,6 @@ void http_msh3_global_cleanup(void) {
 
 int http_msh3_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  int rc;
   LOG_DEBUG("http_msh3_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_msh3_context_init: Error EINVAL");
@@ -177,7 +175,6 @@ struct msh3_req_ctx {
 static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
                                              MSH3_REQUEST_EVENT *ev) {
   struct msh3_req_ctx *rctx = (struct msh3_req_ctx *)ctx;
-  int rc;
   (void)req;
 
   switch (ev->Type) {
@@ -186,7 +183,6 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
     size_t namelen = ev->HEADER_RECEIVED.Header->NameLength;
     const char *val = ev->HEADER_RECEIVED.Header->Value;
     size_t vallen = ev->HEADER_RECEIVED.Header->ValueLength;
-    char *nstr, *vstr;
 
     if (namelen == 7 && strncmp(name, ":status", 7) == 0) {
       nstr = (char *)malloc(vallen + 1);
@@ -368,7 +364,6 @@ int http_msh3_send(struct HttpTransportContext *ctx,
   char *host = NULL, *port_str = NULL, *path = NULL, *scheme = NULL;
   char authority[256];
   const char *method_str = "GET";
-  int rc;
   int msh3_status = 0;
 
   LOG_DEBUG("http_msh3_send: Entering");

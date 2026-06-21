@@ -398,7 +398,6 @@ TEST test_ws_parser_ext_len(void) {
   struct ws_parser_ctx ctx;
   unsigned char frame16[4 + 126];
   unsigned char frame64[10 + 65536];
-  int rc;
 
   struct test_ws_ctx my_ctx = {0};
 
@@ -411,7 +410,7 @@ TEST test_ws_parser_ext_len(void) {
   /* payload follows, we'll feed exactly that much */
   ws_parser_init(&ctx, test_ws_on_message, test_ws_on_error, test_ws_on_close,
                  &my_ctx);
-  rc = ws_parser_feed(&ctx, frame16, sizeof(frame16));
+  (void)ws_parser_feed(&ctx, frame16, sizeof(frame16));
   ASSERT_EQ(0, rc);
   ws_parser_destroy(&ctx);
 
@@ -424,7 +423,7 @@ TEST test_ws_parser_ext_len(void) {
   frame64[9] = 0x00;
   ws_parser_init(&ctx, test_ws_on_message, test_ws_on_error, test_ws_on_close,
                  &my_ctx);
-  rc = ws_parser_feed(&ctx, frame64, sizeof(frame64));
+  (void)ws_parser_feed(&ctx, frame64, sizeof(frame64));
   ASSERT_EQ(0, rc);
   ws_parser_destroy(&ctx);
 
@@ -460,7 +459,6 @@ TEST test_ws_oom_branches(void) {
   struct c_abstract_http_ws_config config = {0};
   const char *headers[] = {"X-Test", "123", NULL};
   int i;
-  int rc;
 
   config.subprotocols = "chat, superchat";
   config.custom_headers = headers;
@@ -486,7 +484,6 @@ TEST test_ws_oom_branches(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_init_oom(void) {
   struct ws_parser_ctx parser;
-  int rc;
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
@@ -500,11 +497,10 @@ TEST test_ws_parser_init_oom(void) {
 TEST test_ws_rsv_bit_set(void) {
   struct ws_parser_ctx parser;
   unsigned char chunk[] = {0xC1, 10, '0'}; /* RSV1 bit set */
-  int rc;
   memset(&parser, 0, sizeof(parser));
   parser.on_error = test_ws_mock_on_error;
   test_ws_mock_on_error_called = 0;
-  rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
+  (void)ws_parser_feed(&parser, chunk, sizeof(chunk));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, test_ws_mock_on_error_called);
   PASS();
@@ -514,11 +510,10 @@ TEST test_ws_payload_too_large(void) {
   struct ws_parser_ctx parser;
   unsigned char chunk[] = {0x81, 0x7f, 0x00, 0x00, 0x00,
                            0x00, 0x02, 0x00, 0x00, 0x00};
-  int rc;
   memset(&parser, 0, sizeof(parser));
   parser.on_error = test_ws_mock_on_error;
   test_ws_mock_on_error_called = 0;
-  rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
+  (void)ws_parser_feed(&parser, chunk, sizeof(chunk));
   ASSERT_EQ(90, rc); /* EMSGSIZE */
   ASSERT_EQ(90, test_ws_mock_on_error_called);
   PASS();
@@ -530,11 +525,10 @@ TEST test_ws_masked_frame(void) {
   unsigned char chunk[] = {0x81,       0x85,       0x01,       0x02,
                            0x03,       0x04,       'h' ^ 0x01, 'e' ^ 0x02,
                            'l' ^ 0x03, 'l' ^ 0x04, 'o' ^ 0x01};
-  int rc;
   memset(&parser, 0, sizeof(parser));
   parser.on_message = test_ws_on_message;
   parser.user_data = &ctx;
-  rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
+  (void)ws_parser_feed(&parser, chunk, sizeof(chunk));
   ASSERT_EQ(0, rc);
   ASSERT_EQ(1, ctx.message_count);
   ASSERT_STR_EQ("hello", ctx.last_payload);
@@ -549,14 +543,13 @@ TEST test_ws_realloc_oom(void) {
   struct test_ws_ctx ctx = {0};
   unsigned char chunk[] = {0x81, 10,  '1', '2', '3', '4',
                            '5',  '6', '7', '8', '9', '0'};
-  int rc;
   memset(&parser, 0, sizeof(parser));
   parser.on_message = test_ws_on_message;
   parser.on_error = test_ws_mock_on_error;
   parser.user_data = &ctx;
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
+  (void)ws_parser_feed(&parser, chunk, sizeof(chunk));
   g_mock_alloc_fail = 0;
   ws_parser_destroy(&parser);
   ASSERT_EQ_FMT(ENOMEM, rc, "%d");
@@ -567,11 +560,10 @@ TEST test_ws_realloc_oom(void) {
 TEST test_ws_parser_close_frame(void) {
   struct ws_parser_ctx parser;
   unsigned char chunk[] = {0x88, 0x02, 0x03, 0xE8};
-  int rc;
   memset(&parser, 0, sizeof(parser));
   parser.on_close = test_ws_mock_on_close;
   test_ws_mock_on_close_called = 0;
-  rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
+  (void)ws_parser_feed(&parser, chunk, sizeof(chunk));
   ASSERT_EQ(0, rc);
   ASSERT_EQ(1000, test_ws_mock_on_close_called);
   ws_parser_destroy(&parser);
@@ -582,11 +574,10 @@ TEST test_ws_parser_pong_frame(void) {
   struct ws_parser_ctx parser;
   struct test_ws_ctx ctx = {0};
   unsigned char chunk[] = {0x8A, 0x00, 0x00};
-  int rc;
   memset(&parser, 0, sizeof(parser));
   parser.on_message = test_ws_on_message;
   parser.user_data = &ctx;
-  rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
+  (void)ws_parser_feed(&parser, chunk, sizeof(chunk));
   ASSERT_EQ(0, rc);
   ws_parser_destroy(&parser);
   PASS();
@@ -595,13 +586,12 @@ TEST test_ws_parser_pong_frame(void) {
 TEST test_ws_parser_invalid_fragmentation(void) {
   struct ws_parser_ctx parser;
   unsigned char chunk[] = {0x01, 0x01, 'a', 0x01, 0x00, 0x00};
-  int rc;
   memset(&parser, 0, sizeof(parser));
   parser.on_error = test_ws_mock_on_error;
   test_ws_mock_on_error_called = 0;
-  rc = ws_parser_feed(&parser, chunk, 3);
+  (void)ws_parser_feed(&parser, chunk, 3);
   ASSERT_EQ(0, rc);
-  rc = ws_parser_feed(&parser, chunk + 3, 3);
+  (void)ws_parser_feed(&parser, chunk + 3, 3);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, test_ws_mock_on_error_called);
   ws_parser_destroy(&parser);
@@ -610,13 +600,12 @@ TEST test_ws_parser_invalid_fragmentation(void) {
 
 TEST test_ws_parser_reassembly_too_large(void) {
   struct ws_parser_ctx parser;
-  unsigned char chunk1[] = {0x01, 0x01, 'a'};
-  unsigned char chunk2[] = {0x00};
-  int rc;
+  const const unsigned char chunk1[] = {0x01, 0x01, 'a'};
+  const const unsigned char chunk2[] = {0x00};
   memset(&parser, 0, sizeof(parser));
   parser.on_error = test_ws_mock_on_error;
   test_ws_mock_on_error_called = 0;
-  rc = ws_parser_feed(&parser, chunk1, 3);
+  (void)ws_parser_feed(&parser, chunk1, 3);
   ASSERT_EQ(0, rc);
 
   if (parser.payload_buffer)
@@ -629,7 +618,7 @@ TEST test_ws_parser_reassembly_too_large(void) {
   parser.current_frame.payload_len = 16777217;
   parser.payload_offset = 16777216;
 
-  rc = ws_parser_feed(&parser, chunk2, 1);
+  (void)ws_parser_feed(&parser, chunk2, 1);
   ASSERT_EQ(90, rc); /* EMSGSIZE */
   ASSERT_EQ(90, test_ws_mock_on_error_called);
   if (parser.payload_buffer)
@@ -641,11 +630,10 @@ TEST test_ws_parser_reassembly_too_large(void) {
 
 TEST test_ws_parser_reassembly_expand_twice(void) {
   struct ws_parser_ctx parser;
-  unsigned char chunk1[] = {0x01, 0x01, 'a'};
+  const const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   unsigned char chunk2[4096 + 4];
-  int rc;
   memset(&parser, 0, sizeof(parser));
-  rc = ws_parser_feed(&parser, chunk1, 3);
+  (void)ws_parser_feed(&parser, chunk1, 3);
   ASSERT_EQ(0, rc);
 
   chunk2[0] = 0x00;
@@ -653,7 +641,7 @@ TEST test_ws_parser_reassembly_expand_twice(void) {
   chunk2[2] = (4096 >> 8) & 0xFF;
   chunk2[3] = 4096 & 0xFF;
   memset(chunk2 + 4, 'b', 4096);
-  rc = ws_parser_feed(&parser, chunk2, 4 + 4096);
+  (void)ws_parser_feed(&parser, chunk2, 4 + 4096);
   ASSERT_EQ(0, rc);
 
   ASSERT_EQ(8192, parser.reassembly_capacity);
@@ -664,13 +652,12 @@ TEST test_ws_parser_reassembly_expand_twice(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_fin_oom(void) {
   struct ws_parser_ctx parser;
-  unsigned char chunk1[] = {0x01, 0x01, 'a'};
+  const const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   unsigned char chunk2[4096 + 4];
-  int rc;
   memset(&parser, 0, sizeof(parser));
   parser.on_error = test_ws_mock_on_error;
 
-  rc = ws_parser_feed(&parser, chunk1, 3);
+  (void)ws_parser_feed(&parser, chunk1, 3);
 
   chunk2[0] = 0x80;
   chunk2[1] = 126;
@@ -680,7 +667,7 @@ TEST test_ws_parser_reassembly_fin_oom(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  rc = ws_parser_feed(&parser, chunk2, 4 + 4096);
+  (void)ws_parser_feed(&parser, chunk2, 4 + 4096);
   g_mock_alloc_fail = 0;
 
   ws_parser_destroy(&parser);
@@ -692,9 +679,8 @@ TEST test_ws_parser_reassembly_fin_oom(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_fin_expand_oom(void) {
   struct ws_parser_ctx parser;
-  unsigned char chunk1[] = {0x01, 0x01, 'a'};
+  const const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   unsigned char chunk2[4096 + 4];
-  int rc = 0;
 
   chunk2[0] = 0x80;
   chunk2[1] = 10;
@@ -703,7 +689,7 @@ TEST test_ws_parser_reassembly_fin_expand_oom(void) {
   memset(&parser, 0, sizeof(parser));
   parser.on_error = test_ws_mock_on_error;
 
-  rc = ws_parser_feed(&parser, chunk1, 3);
+  (void)ws_parser_feed(&parser, chunk1, 3);
 
   if (parser.reassembly_buffer)
     free(parser.reassembly_buffer);
@@ -713,7 +699,7 @@ TEST test_ws_parser_reassembly_fin_expand_oom(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  rc = ws_parser_feed(&parser, chunk2, 2 + 10);
+  (void)ws_parser_feed(&parser, chunk2, 2 + 10);
   g_mock_alloc_fail = 0;
 
   ws_parser_destroy(&parser);
@@ -725,7 +711,6 @@ TEST test_ws_parser_reassembly_fin_expand_oom(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_sign_key_oom(void) {
   char out_accept[29];
-  int rc;
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = ws_sign_key("dGhlIHNhbXBsZSBub25jZQ==", out_accept);
@@ -746,9 +731,8 @@ TEST test_ws_sign_key_too_long(void) {
 
 TEST test_ws_parser_reassembly_fin_expand_success(void) {
   struct ws_parser_ctx parser;
-  unsigned char chunk1[] = {0x01, 0x01, 'a'};
+  const const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   unsigned char chunk2[4096 + 4];
-  int rc = 0;
 
   chunk2[0] = 0x80;
   chunk2[1] = 10;
@@ -757,7 +741,7 @@ TEST test_ws_parser_reassembly_fin_expand_success(void) {
   memset(&parser, 0, sizeof(parser));
   parser.on_error = test_ws_mock_on_error;
 
-  rc = ws_parser_feed(&parser, chunk1, 3);
+  (void)ws_parser_feed(&parser, chunk1, 3);
 
   if (parser.reassembly_buffer)
     free(parser.reassembly_buffer);
@@ -765,7 +749,7 @@ TEST test_ws_parser_reassembly_fin_expand_success(void) {
   parser.reassembly_offset = 1;
   parser.reassembly_buffer = malloc(2);
 
-  rc = ws_parser_feed(&parser, chunk2, 2 + 10);
+  (void)ws_parser_feed(&parser, chunk2, 2 + 10);
 
   ASSERT_EQ(0, rc);
   if (parser.payload_buffer)
@@ -778,9 +762,8 @@ TEST test_ws_parser_reassembly_fin_expand_success(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_frag_oom(void) {
   struct ws_parser_ctx parser;
-  unsigned char chunk1[] = {0x01, 0x01, 'a'};
+  const const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   unsigned char chunk2[4096 + 4];
-  int rc = 0;
 
   chunk2[0] = 0x00; /* Opcode 0, FIN 0 */
   chunk2[1] = 10;
@@ -789,7 +772,7 @@ TEST test_ws_parser_reassembly_frag_oom(void) {
   memset(&parser, 0, sizeof(parser));
   parser.on_error = test_ws_mock_on_error;
 
-  rc = ws_parser_feed(&parser, chunk1, 3);
+  (void)ws_parser_feed(&parser, chunk1, 3);
 
   if (parser.reassembly_buffer)
     free(parser.reassembly_buffer);
@@ -799,7 +782,7 @@ TEST test_ws_parser_reassembly_frag_oom(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  rc = ws_parser_feed(&parser, chunk2, 2 + 10);
+  (void)ws_parser_feed(&parser, chunk2, 2 + 10);
   g_mock_alloc_fail = 0;
 
   ws_parser_destroy(&parser);
@@ -843,7 +826,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
        fails. Or simpler: just mock ws_parser_init to fail by finding the exact
        alloc count.
     */
-    int i, rc;
+    int i;
     for (i = 0; i < 15; i++) {
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = i;

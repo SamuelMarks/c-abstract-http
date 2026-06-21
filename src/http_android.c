@@ -31,7 +31,6 @@ int http_android_global_init(void) {
 void http_android_global_cleanup(void) { /* No-op */ }
 
 int http_android_context_init(struct HttpTransportContext **ctx) {
-  int rc;
   LOG_DEBUG("http_android_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_android_context_init: Error EINVAL");
@@ -93,12 +92,10 @@ int http_android_send(struct HttpTransportContext *ctx,
   JNIEnv *env;
   jclass url_cls, conn_cls;
   jmethodID url_init, url_open_conn;
-  jmethodID conn_set_req_method, conn_get_res_code, conn_get_input_stream,
-      conn_get_error_stream;
+  jmethodID conn_set_req_method, conn_get_res_code, ;
   jobject url_obj, conn_obj;
   jstring url_str, method_str;
   jint res_code;
-  int rc;
   int attached = 0;
 
   LOG_DEBUG("http_android_send: Entering");

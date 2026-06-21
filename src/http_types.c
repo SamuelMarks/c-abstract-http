@@ -78,7 +78,6 @@ int http_headers_init(struct HttpHeaders *headers) {
 }
 
 void http_headers_free(struct HttpHeaders *headers) {
-  size_t i;
   if (!headers)
     return;
 
@@ -137,7 +136,8 @@ int http_headers_get(const struct HttpHeaders *headers, const char *key,
 
   for (i = 0; i < headers->count; ++i) {
     int diff = -1;
-    if (strcasecmp_portable(headers->headers[i].key, key, &diff) == 0 &&
+    strcasecmp_portable(headers->headers[i].key, key, &diff);
+    if (
         diff == 0) {
       *out = headers->headers[i].value;
       return 0;
@@ -154,7 +154,8 @@ int http_headers_remove(struct HttpHeaders *headers, const char *key) {
 
   for (i = 0; i < headers->count;) {
     int diff = -1;
-    if (strcasecmp_portable(headers->headers[i].key, key, &diff) == 0 &&
+    strcasecmp_portable(headers->headers[i].key, key, &diff);
+    if (
         diff == 0) {
       /* Free memory */
       free(headers->headers[i].key);
@@ -188,7 +189,6 @@ int http_parts_init(struct HttpParts *parts) {
 }
 
 void http_parts_free(struct HttpParts *parts) {
-  size_t i;
   if (!parts)
     return;
   if (parts->parts) {
@@ -333,7 +333,7 @@ int http_request_flatten_parts(struct HttpRequest *req) {
 
     for (h = 0; h < part->headers.count; ++h) {
       const struct HttpHeader *hdr = &part->headers.headers[h];
-      
+
       estimated_size += strlen(hdr->key) + 2 + strlen(hdr->value) + 2;
     }
 
@@ -389,7 +389,7 @@ int http_request_flatten_parts(struct HttpRequest *req) {
 
     for (h = 0; h < part->headers.count; ++h) {
       const struct HttpHeader *hdr = &part->headers.headers[h];
-      
+
       written = sprintf_s_wrapper(buffer, pos, estimated_size, "%s: %s\r\n",
                                   hdr->key, hdr->value);
       pos += written;
@@ -458,7 +458,6 @@ int http_cookie_jar_init(struct HttpCookieJar *jar) {
 }
 
 void http_cookie_jar_free(struct HttpCookieJar *jar) {
-  size_t i;
   if (!jar)
     return;
   if (jar->cookies) {
@@ -727,8 +726,7 @@ int http_multi_request_add(struct HttpMultiRequest *multi,
 }
 
 int http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
-  char *val = NULL;
-  int rc;
+  const char *val = NULL;
   size_t len;
 
   if (!req || !token)
@@ -752,8 +750,7 @@ int http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
 }
 
 int http_request_set_auth_basic(struct HttpRequest *req, const char *token) {
-  char *val = NULL;
-  int rc;
+  const char *val = NULL;
   size_t len;
 
   if (!req || !token)
@@ -782,7 +779,7 @@ static int base64_encode(const unsigned char *src, size_t len, char **out) {
   char *res;
   size_t olen = 4 * ((len + 2) / 3);
   size_t i, j;
-  
+
   res = (char *)malloc(olen + 1);
   if (!res)
     return ENOMEM;
@@ -816,7 +813,6 @@ int http_request_set_auth_basic_userpwd(struct HttpRequest *req,
   char *raw;
   char *encoded = NULL;
   size_t len;
-  int rc;
   if (!req || !username || !password)
     return EINVAL;
 
@@ -845,7 +841,7 @@ int http_request_set_auth_basic_userpwd(struct HttpRequest *req,
 static size_t urlencode_len(const char *src) {
   size_t len = 0;
   const char *p;
-  
+
   for (p = src; *p; p++) {
     unsigned char c = (unsigned char)*p;
     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -865,7 +861,7 @@ static void urlencode_append(char **dest, const char *src) {
   static const char *hex = "0123456789ABCDEF";
   const char *p;
   char *q = *dest;
-  
+
   for (p = src; *p; p++) {
     unsigned char c = (unsigned char)*p;
     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -890,7 +886,6 @@ int http_request_init_oauth2_password_grant(
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
-  int rc;
   const char *grant_type = "password";
 
   if (!req || !token_endpoint_url || !username || !password)
@@ -974,7 +969,6 @@ int http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
-  int rc;
   const char *grant_type = "refresh_token";
 
   if (!req || !token_endpoint_url || !refresh_token)
@@ -1050,7 +1044,6 @@ int http_request_init_oauth2_authorization_code_grant(
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
-  int rc;
   const char *grant_type = "authorization_code";
 
   if (!req || !token_endpoint_url || !code)
@@ -1133,7 +1126,6 @@ int http_request_init_oauth2_client_credentials_grant(
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
-  int rc;
   const char *grant_type = "client_credentials";
 
   if (!req || !token_endpoint_url)
@@ -1203,7 +1195,6 @@ int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
-  int rc;
   const char *grant_type = "urn:ietf:params:oauth:grant-type:jwt-bearer";
 
   if (!req || !token_endpoint_url || !assertion)
@@ -1262,7 +1253,6 @@ int http_request_init_oauth2_device_authorization_request(
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
-  int rc;
 
   if (!req || !device_endpoint_url || !client_id)
     return EINVAL;
@@ -1311,7 +1301,6 @@ int http_request_init_oauth2_device_access_token_request(
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
-  int rc;
   const char *grant_type = "urn:ietf:params:oauth:grant-type:device_code";
 
   if (!req || !token_endpoint_url || !client_id || !device_code)
@@ -1364,7 +1353,6 @@ int http_request_init_oauth2_token_revocation(
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
-  int rc;
 
   if (!req || !revocation_endpoint_url || !token)
     return EINVAL;
@@ -1431,7 +1419,6 @@ int http_request_init_oauth2_token_introspection(
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
-  int rc;
 
   if (!req || !introspection_endpoint_url || !token)
     return EINVAL;
@@ -1591,7 +1578,7 @@ typedef int cdd_socket_t;
 static int urldecode_alloc(const char *src, size_t src_len, char **out) {
   char *dst = (char *)malloc(src_len + 1);
   size_t i, j = 0;
-  
+
   if (!dst)
     return ENOMEM;
 
@@ -1712,8 +1699,8 @@ int http_oauth2_localhost_intercept(unsigned short port,
   if (*p == '?') {
     p++;
     while (*p && *p != ' ') {
-      char *key = p;
-      char *val = NULL;
+      const char *key = p;
+      const char *val = NULL;
       size_t key_len = 0;
       size_t val_len = 0;
 
@@ -1821,7 +1808,6 @@ int http_client_send_multi(struct HttpClient *client,
                            http_multi_progress_cb progress_cb, void *user_data,
                            int fail_fast) {
   size_t i;
-  int rc;
   struct HttpMultiRequest multi;
 
   if (!client || !requests || num_requests == 0 || !futures) {

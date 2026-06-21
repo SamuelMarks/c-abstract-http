@@ -21,7 +21,6 @@ int http_fetch_global_init(void) { return 0; }
 void http_fetch_global_cleanup(void) {}
 
 int http_fetch_context_init(struct HttpTransportContext **const ctx) {
-  int rc;
   LOG_DEBUG("http_fetch_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_fetch_context_init: Error EINVAL");
@@ -92,7 +91,6 @@ int http_fetch_send(struct HttpTransportContext *ctx,
   struct url *u;
   FILE *f;
   const char *method_str = "GET";
-  int rc = 0;
   char buf[4096];
   size_t bytes_read;
   struct HttpResponse *new_res = NULL;

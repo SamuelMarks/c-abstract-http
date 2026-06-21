@@ -49,7 +49,6 @@ void http_libsoup3_global_cleanup(void) {
 }
 
 int http_libsoup3_context_init(struct HttpTransportContext **const ctx) {
-  int rc;
   LOG_DEBUG("http_libsoup3_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_libsoup3_context_init: Error EINVAL");
@@ -179,12 +178,10 @@ int http_libsoup3_send(struct HttpTransportContext *ctx,
                        struct HttpResponse **const res) {
   SoupMessage *msg = NULL;
   SoupMessageHeaders *req_headers = NULL;
-  SoupMessageHeaders *resp_headers = NULL;
   GBytes *body_bytes = NULL;
   GBytes *resp_bytes = NULL;
   GError *error = NULL;
   struct HttpResponse *new_res = NULL;
-  int rc = 0;
   size_t i;
   void *payload = NULL;
   size_t payload_len = 0;

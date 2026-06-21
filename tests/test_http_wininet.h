@@ -32,7 +32,6 @@ extern "C" {
 TEST test_wininet_lifecycle(void) {
 #ifdef _WIN32
   struct HttpTransportContext *ctx = NULL;
-  int rc;
 
   /* Init */
   rc = http_wininet_global_init();
@@ -53,11 +52,12 @@ TEST test_wininet_lifecycle(void) {
 
 TEST test_wininet_config_apply(void) {
   char *_ast_strdup_proxy = NULL;
+  (void)_ast_strdup_proxy;
   char *_ast_strdup_proxy2 = NULL;
+  (void)_ast_strdup_proxy2;
 #ifdef _WIN32
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig config;
-  int rc;
 
   http_wininet_context_init(&ctx);
   http_config_init(&config);
@@ -90,11 +90,11 @@ TEST test_wininet_config_apply(void) {
 
 TEST test_wininet_send_validation(void) {
   char *_ast_strdup_0 = NULL;
+  (void)_ast_strdup_0;
 #ifdef _WIN32
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
-  int rc;
 
   http_wininet_context_init(&ctx);
   http_request_init(&req);
@@ -149,7 +149,6 @@ TEST test_wininet_send_chunked(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct wininet_TestChunkState state;
-  int rc;
   char url[128];
   char *_ast_strdup_2 = NULL;
 
@@ -212,7 +211,6 @@ TEST test_wininet_send_chunked_abort(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct wininet_TestChunkState state;
-  int rc;
   char url[128];
   char *_ast_strdup_3 = NULL;
 
@@ -285,7 +283,6 @@ TEST test_wininet_send_upload_chunked(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct wininet_TestUploadState up_state;
-  int rc;
   char url[128];
   char *_ast_strdup_4 = NULL;
   const char *payload = "UPLOAD_TEST_DATA";

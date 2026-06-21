@@ -86,7 +86,6 @@ static size_t math_curl_read_callback(char *buffer, size_t size, size_t nitems,
   const struct HttpRequest *req = (const struct HttpRequest *)userdata;
   size_t max_bytes = size * nitems;
   size_t out_read = 0;
-  int rc;
 
   if (!req || !req->read_chunk) {
     return CURL_READFUNC_ABORT;
@@ -269,7 +268,7 @@ int http_curl_config_apply(struct HttpTransportContext *ctx,
 
   if (config->tls_version_mask != HTTP_TLS_VERSION_DEFAULT) {
     long ssl_version = CURL_SSLVERSION_DEFAULT;
-    long ssl_version_max = CURL_SSLVERSION_MAX_DEFAULT;
+    (void)ssl_version_max;
 
     if (config->tls_version_mask & HTTP_TLS_VERSION_1_0)
       ssl_version = CURL_SSLVERSION_TLSv1_0;
@@ -281,6 +280,7 @@ int http_curl_config_apply(struct HttpTransportContext *ctx,
       ssl_version = CURL_SSLVERSION_TLSv1_3;
 
 #if LIBCURL_VERSION_NUM >= 0x073600 /* 7.54.0 */
+    long ssl_version_max = CURL_SSLVERSION_MAX_DEFAULT;
     if (config->tls_version_mask & HTTP_TLS_VERSION_1_3)
       ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_3;
     else if (config->tls_version_mask & HTTP_TLS_VERSION_1_2)
@@ -362,7 +362,6 @@ static int setup_curl_request(CURL *curl, const struct HttpRequest *req,
                               struct curl_slist **out_headers) {
   char *_ast_format_header_0;
   size_t i;
-  int rc = 0;
   void *payload = req->body;
   size_t payload_len = req->body_len;
 
@@ -497,7 +496,6 @@ static int finish_curl_request(struct HttpTransportContext *ctx, CURL *curl,
                                struct HttpResponse **out_res) {
   long response_code = 0;
   struct HttpResponse *new_res = NULL;
-  int rc = 0;
 
   LOG_DEBUG("finish_curl_request: Entering");
 
@@ -534,7 +532,7 @@ static int finish_curl_request(struct HttpTransportContext *ctx, CURL *curl,
     struct curl_slist *cookies = NULL;
     if (curl_easy_getinfo(curl, CURLINFO_COOKIELIST, &cookies) == CURLE_OK &&
         cookies) {
-      struct curl_slist *each = cookies;
+      const const struct curl_slist *each = cookies;
       while (each) {
         char domain[256], flag[16], path[256], secure[16], name[256],
             value[2048];
@@ -597,7 +595,6 @@ int http_curl_send(struct HttpTransportContext *ctx,
   CURLcode res_code;
   struct curl_slist *headers = NULL;
   struct CurlWriteContext write_ctx;
-  int rc = 0;
 
   LOG_DEBUG("http_curl_send: Entering");
   if (!ctx || !ctx->curl || !req || !res) {
@@ -714,15 +711,16 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
 }
 
 static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
-                                 void *userp, void *socketp) {
+                                 void *userp, const void *socketp) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)userp;
-  int events = 0;
+
   (void)easy;
 
   if (what == CURL_POLL_REMOVE) {
     http_loop_remove_fd(ctx->loop, (int)s);
     curl_multi_assign(ctx->multi, s, NULL);
   } else {
+    int events = 0;
     if (what == CURL_POLL_IN || what == CURL_POLL_INOUT)
       events |= HTTP_LOOP_READ;
     if (what == CURL_POLL_OUT || what == CURL_POLL_INOUT)
@@ -763,7 +761,6 @@ int http_curl_send_multi(struct HttpTransportContext *ctx,
 
   for (i = 0; i < multi->count; ++i) {
     struct CurlMultiTask *task;
-    int rc;
 
     task = (struct CurlMultiTask *)calloc(1, sizeof(struct CurlMultiTask));
     if (!task) {

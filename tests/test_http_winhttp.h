@@ -31,7 +31,6 @@ extern "C" {
 TEST test_winhttp_lifecycle(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   struct HttpTransportContext *ctx = NULL;
-  int rc;
 
   /* Global init */
   rc = http_winhttp_global_init();
@@ -62,7 +61,6 @@ TEST test_winhttp_config_usage(void) {
   char *_ast_strdup_0 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
-  int rc;
 
   http_winhttp_context_init(&ctx);
   http_config_init(&cfg);
@@ -114,7 +112,6 @@ TEST test_winhttp_send_fail(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
-  int rc;
 
   rc = http_winhttp_context_init(&ctx);
   if (rc != 0) {
@@ -147,7 +144,6 @@ TEST test_winhttp_send_null_checks(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   struct HttpConfig cfg;
-  int rc;
 
   http_winhttp_context_init(&ctx);
   http_config_init(&cfg);
@@ -201,7 +197,6 @@ TEST test_winhttp_send_chunked(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct winhttp_TestChunkState state;
-  int rc;
   char url[128];
   char *_ast_strdup_2 = NULL;
 
@@ -264,7 +259,6 @@ TEST test_winhttp_send_chunked_abort(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct winhttp_TestChunkState state;
-  int rc;
   char url[128];
   char *_ast_strdup_3 = NULL;
 
@@ -337,7 +331,6 @@ TEST test_winhttp_send_upload_chunked(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct winhttp_TestUploadState up_state;
-  int rc;
   char url[128];
   char *_ast_strdup_4 = NULL;
   const char *payload = "UPLOAD_TEST_DATA";
@@ -398,7 +391,6 @@ static void dummy_timeout_cb(struct ModalityEventLoop *loop, int timer_id,
 
 static int setup_request(struct HttpRequest *req, int port) {
   char *_ast_strdup_0 = NULL;
-  int rc;
   char url[64];
 
   rc = http_request_init(req);
@@ -430,7 +422,6 @@ TEST test_winhttp_send_multi(void) {
   struct ModalityEventLoop *loop = NULL;
   MockServerPtr server1 = NULL;
   MockServerPtr server2 = NULL;
-  int rc;
 
   (void)multi;
   (void)loop;

@@ -28,7 +28,6 @@ extern "C" {
 
 static int setup_request(struct HttpRequest *req, int port) {
   char *_ast_strdup_0 = NULL;
-  int rc;
   char url[64];
 
   rc = http_request_init(req);
@@ -119,7 +118,6 @@ TEST test_msh3_send_connection_failure(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
-  int rc;
 
   http_msh3_global_init();
   http_msh3_context_init(&ctx);

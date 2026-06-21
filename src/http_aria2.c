@@ -21,7 +21,6 @@ int http_aria2_global_init(void) { return 0; }
 void http_aria2_global_cleanup(void) {}
 
 int http_aria2_context_init(struct HttpTransportContext **const ctx) {
-  int rc;
   LOG_DEBUG("http_aria2_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_aria2_context_init: Error EINVAL");
@@ -68,16 +67,15 @@ int http_aria2_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-int http_aria2_send(struct HttpTransportContext *ctx,
+int http_aria2_send(const struct HttpTransportContext *ctx,
                     const struct HttpRequest *req,
                     struct HttpResponse **const res) {
   char cmd[4096];
   char tmp_filename[256];
-  int rc = 0;
   struct HttpResponse *new_res = NULL;
   FILE *f = NULL;
-  long file_size = 0;
-  size_t bytes_read = 0;
+  long file_size;
+  size_t bytes_read;
 
   LOG_DEBUG("http_aria2_send: Entering");
   if (!ctx || !req || !res || !req->url) {
@@ -169,6 +167,7 @@ int http_aria2_send_multi(struct HttpTransportContext *ctx,
                           struct ModalityEventLoop *loop,
                           const struct HttpMultiRequest *multi,
                           struct HttpFuture **futures) {
+  cah_cppcheck_mut_ptr((void *)ctx);
   size_t i;
   (void)loop;
 

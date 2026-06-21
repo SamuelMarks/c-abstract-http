@@ -48,7 +48,6 @@ static lsquic_stream_ctx_t *lsq_on_new_stream(void *stream_if_ctx,
 }
 
 static void lsq_on_read(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
-  struct lsquic_req_ctx *rctx = (struct lsquic_req_ctx *)h;
   unsigned char buf[4096];
   ssize_t nr = lsquic_stream_read(s, buf, sizeof(buf));
   if (nr > 0) {
@@ -77,7 +76,6 @@ static void lsq_on_read(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
 }
 
 static void lsq_on_write(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
-  struct lsquic_req_ctx *rctx = (struct lsquic_req_ctx *)h;
   /* Typically we would write the request headers and body here */
   lsquic_stream_wantwrite(s, 0);
   lsquic_stream_wantread(s, 1);
@@ -85,7 +83,6 @@ static void lsq_on_write(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
 }
 
 static void lsq_on_close(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
-  struct lsquic_req_ctx *rctx = (struct lsquic_req_ctx *)h;
   rctx->is_complete = 1;
 }
 
@@ -115,7 +112,6 @@ void http_lsquic_global_cleanup(void) {
 
 int http_lsquic_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  int rc;
   LOG_DEBUG("http_lsquic_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_lsquic_context_init: Error EINVAL");
@@ -190,7 +186,6 @@ int http_lsquic_config_apply(struct HttpTransportContext *ctx,
 
 int http_lsquic_send(struct HttpTransportContext *ctx,
                      const struct HttpRequest *req, struct HttpResponse **res) {
-  int rc;
   LOG_DEBUG("http_lsquic_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_lsquic_send: Error EINVAL");

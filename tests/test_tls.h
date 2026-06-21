@@ -83,7 +83,6 @@ TEST test_tls_isolation(void) {
 TEST test_tls_oom(void) {
   struct CddTlsKey *key = NULL;
 
-  int rc;
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_tls_key_create(&key, NULL);

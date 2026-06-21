@@ -44,7 +44,6 @@ int cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
 int cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
                            struct HttpConfig *http_config) {
   enum ExecutionModality http_mod;
-  int rc;
 
   LOG_DEBUG("cmp_http_inject_config: Entering");
   if (!cmp_config || !http_config) {
@@ -76,8 +75,6 @@ int cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
 int cmp_http_progress_adapter(size_t current_bytes, size_t total_bytes,
                               void *user_data) {
   struct CmpProgressBinding *binding = (struct CmpProgressBinding *)user_data;
-  float pct;
-
   LOG_DEBUG("cmp_http_progress_adapter: Entering");
   if (!binding) {
     LOG_DEBUG("cmp_http_progress_adapter: Success (no binding)");
@@ -90,7 +87,7 @@ int cmp_http_progress_adapter(size_t current_bytes, size_t total_bytes,
   }
 
   if (binding->update_progress && total_bytes > 0) {
-    pct = (float)current_bytes / (float)total_bytes;
+    float pct = (float)current_bytes / (float)total_bytes;
     return binding->update_progress(binding->ui_component, pct);
   }
 

@@ -276,7 +276,6 @@ TEST test_sse_max_line_size(void) {
   struct sse_parser_ctx parser;
   char *huge_line;
   size_t huge_len = 32768 + 100;
-  int rc;
 
   struct test_sse_ctx ctx = {0};
   ASSERT_EQ(
@@ -361,7 +360,6 @@ TEST test_sse_oom_branches(void) {
   struct HttpRequest req;
   struct c_abstract_http_sse_config config = {0};
   int i;
-  int rc;
 
   config.last_event_id = "12345";
   config.retry_timeout_ms = 2000;
@@ -404,7 +402,6 @@ TEST test_sse_parser_feed_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: hello\n\n";
-  int rc;
 
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
                                test_sse_on_error, test_sse_on_close, &ctx));
@@ -425,7 +422,6 @@ TEST test_sse_parser_feed_id_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "id: 99\n\n";
-  int rc;
 
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
                                test_sse_on_error, test_sse_on_close, &ctx));
@@ -446,7 +442,6 @@ TEST test_sse_parser_feed_event_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "event: custom\n\n";
-  int rc;
 
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
                                test_sse_on_error, test_sse_on_close, &ctx));
@@ -509,7 +504,6 @@ TEST test_sse_parser_feed_data_capacity_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[8192];
-  int rc;
   memset(chunk, 'a', sizeof(chunk) - 2);
   chunk[0] = 'd';
   chunk[1] = 'a';
@@ -571,7 +565,6 @@ TEST test_sse_parser_dispatch_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: hi\n\n";
-  int rc;
 
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
                                test_sse_on_error, test_sse_on_close, &ctx));
@@ -684,7 +677,6 @@ TEST test_sse_parser_feed_realloc_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[8192];
-  int rc;
   memset(chunk, 'a', sizeof(chunk) - 2);
   chunk[0] = 'd';
   chunk[1] = 'a';
@@ -719,7 +711,6 @@ TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[2048];
-  int rc;
   memset(chunk, 'a', sizeof(chunk));
   /* No newlines, forces line_buffer to grow */
 
@@ -743,7 +734,6 @@ TEST test_sse_parser_feed_current_data_oom(void) {
   struct test_sse_ctx ctx = {0};
   char chunk[8192] = {0};
   int i;
-  int rc = 0;
 
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
                                test_sse_on_error, test_sse_on_close, &ctx));
@@ -815,7 +805,6 @@ TEST test_sse_sync_loop_oom_branches(void) {
   struct HttpClient client = {0};
   struct HttpRequest req;
   struct test_sse_ctx ctx = {0};
-  int rc;
   int i;
 
   for (i = 0; i < 10; i++) {
@@ -858,7 +847,6 @@ TEST test_sse_parser_feed_data_capacity_limit_real(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[50000] = {0};
-  int rc;
   memset(chunk, 'a', 34000);
   chunk[0] = 'd';
   chunk[1] = 'a';
@@ -889,7 +877,6 @@ TEST test_sse_parser_feed_current_data_limit_real(void) {
   struct test_sse_ctx ctx = {0};
   char chunk[50000] = {0};
   int i;
-  int rc = 0;
 
   for (i = 0; i < 80; i++) {
     strcat(chunk, "data: ");
@@ -947,7 +934,6 @@ TEST test_sse_parser_feed_huge_single_line(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[15000] = {0};
-  int rc = 0;
 
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
                                test_sse_on_error, test_sse_on_close, &ctx));

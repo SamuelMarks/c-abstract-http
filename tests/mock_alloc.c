@@ -381,8 +381,11 @@ int c_abstract_http_mock_cdd_strdup(const char *s, char **out) {
       return ENOMEM;
     }
     memcpy(d, s, len + 1);
-    if (out)
+    if (out) {
       *out = d;
+    } else {
+      mock_free(d);
+    }
     return 0;
   }
 }

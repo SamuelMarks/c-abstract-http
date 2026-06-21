@@ -61,7 +61,6 @@ void http_picoquic_global_cleanup(void) {
 
 int http_picoquic_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  int rc;
   LOG_DEBUG("http_picoquic_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_picoquic_context_init: Error EINVAL");
@@ -140,9 +139,9 @@ int http_picoquic_config_apply(struct HttpTransportContext *ctx,
 }
 
 int http_picoquic_send(struct HttpTransportContext *ctx,
+                       cah_cppcheck_mut_ptr((void *)ctx);
                        const struct HttpRequest *req,
                        struct HttpResponse **res) {
-  int rc;
   LOG_DEBUG("http_picoquic_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_picoquic_send: Error EINVAL");
@@ -190,6 +189,7 @@ int http_picoquic_send_multi(struct HttpTransportContext *ctx,
                              struct ModalityEventLoop *loop,
                              const struct HttpMultiRequest *multi,
                              struct HttpFuture **futures) {
+  cah_cppcheck_mut_ptr((void *)ctx);
   size_t i;
   /* Attach picoquic_prepare_next_packet timing to the event loop */
   (void)loop;
