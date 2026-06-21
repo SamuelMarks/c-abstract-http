@@ -16,7 +16,6 @@
 #undef select
 /* clang-format off */
 #include <winsock2.h>
-/* clang-format on */
 #pragma pop_macro("select")
 #pragma pop_macro("recv")
 #pragma pop_macro("accept")
@@ -24,14 +23,14 @@
 #pragma pop_macro("bind")
 #pragma pop_macro("socket")
 #else
-/* clang-format off */
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-/* clang-format on */
 #endif
 
 #include <stdio.h>
+#include <c_abstract_http/http_types.h>
+/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {
@@ -114,7 +113,7 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_accept_fail (*cdd_mock_get_g_mock_accept_fail())
 #define g_mock_recv_fail (*cdd_mock_get_g_mock_recv_fail())
 
-long long c_abstract_http_mock_math_get_current_time_ms(void);
+uint64_t c_abstract_http_mock_math_get_current_time_ms(void);
 
 void dummy_cb_thread(void *arg);
 extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);

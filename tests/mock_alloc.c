@@ -217,7 +217,7 @@ extern int pipe(int[2]);
 extern pid_t fork(void);
 extern pid_t waitpid(pid_t, int *, int);
 extern int select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
-extern long long real_math_get_current_time_ms(void);
+extern uint64_t real_math_get_current_time_ms(void);
 extern int pthread_setspecific(pthread_key_t, const void *);
 extern void *pthread_getspecific(pthread_key_t);
 #endif
@@ -244,7 +244,7 @@ int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
 int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
                                 fd_set *errorfds, struct timeval *timeout);
 #endif
-long long c_abstract_http_mock_math_get_current_time_ms(void);
+uint64_t c_abstract_http_mock_math_get_current_time_ms(void);
 int c_abstract_http_mock_pthread_setspecific(pthread_key_t key,
                                              const void *value);
 void *c_abstract_http_mock_pthread_getspecific(pthread_key_t key);
@@ -347,10 +347,10 @@ int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
 }
 
 #undef math_get_current_time_ms
-extern long long real_math_get_current_time_ms(void);
+extern uint64_t real_math_get_current_time_ms(void);
 
-long long c_abstract_http_mock_math_get_current_time_ms(void) {
-  long long now = real_math_get_current_time_ms();
+uint64_t c_abstract_http_mock_math_get_current_time_ms(void) {
+  uint64_t now = real_math_get_current_time_ms();
   if (g_mock_time_jump) {
     if (g_mock_time_jump_count-- <= 0) {
       now += 1000;
