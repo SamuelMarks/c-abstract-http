@@ -530,9 +530,10 @@ int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
                                       c_abstract_http_ws_on_close on_close,
                                       void *user_data,
                                       volatile int *exit_flag) {
-  cah_cppcheck_mut_ptr((void *)exit_flag);
+  int rc;
   struct HttpResponse *res = NULL;
   struct ws_parser_ctx parser;
+  cah_cppcheck_mut_ptr((void *)exit_flag);
 
   if (!client || !req) {
     LOG_DEBUG("c_abstract_http_ws_sync_read_loop: Error EINVAL");

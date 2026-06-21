@@ -273,6 +273,7 @@ TEST test_sse_sync_loop_fail(void) {
 }
 
 TEST test_sse_max_line_size(void) {
+  int rc;
   struct sse_parser_ctx parser;
   char *huge_line;
   size_t huge_len = 32768 + 100;
@@ -357,6 +358,7 @@ TEST test_sse_async_register_thread_pool(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_oom_branches(void) {
+  int rc;
   struct HttpRequest req;
   struct c_abstract_http_sse_config config = {0};
   int i;
@@ -399,6 +401,7 @@ TEST test_sse_oom_branches(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_oom(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: hello\n\n";
@@ -419,6 +422,7 @@ TEST test_sse_parser_feed_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_id_oom(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "id: 99\n\n";
@@ -439,6 +443,7 @@ TEST test_sse_parser_feed_id_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_event_oom(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "event: custom\n\n";
@@ -501,6 +506,7 @@ TEST test_sse_parser_feed_data_capacity(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_data_capacity_oom(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[8192];
@@ -562,6 +568,7 @@ TEST test_sse_parser_no_colon(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_dispatch_oom(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: hi\n\n";
@@ -674,6 +681,7 @@ TEST test_sse_async_register_success(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_realloc_oom(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[8192];
@@ -708,6 +716,7 @@ TEST test_sse_parser_feed_realloc_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[2048];
@@ -730,6 +739,7 @@ TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_current_data_oom(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[8192] = {0};
@@ -802,6 +812,7 @@ static int mock_send_success_huge_body(struct HttpTransportContext *ctx,
 }
 
 TEST test_sse_sync_loop_oom_branches(void) {
+  int rc;
   struct HttpClient client = {0};
   struct HttpRequest req;
   struct test_sse_ctx ctx = {0};
@@ -844,6 +855,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
 #endif
 
 TEST test_sse_parser_feed_data_capacity_limit_real(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[50000] = {0};
@@ -873,6 +885,7 @@ TEST test_sse_parser_feed_data_capacity_limit_real(void) {
 }
 
 TEST test_sse_parser_feed_current_data_limit_real(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[50000] = {0};
@@ -931,6 +944,7 @@ TEST test_sse_async_task_error(void) {
 }
 
 TEST test_sse_parser_feed_huge_single_line(void) {
+  int rc;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[15000] = {0};

@@ -54,6 +54,19 @@ extern int *cdd_mock_get_g_mock_listen_fail(void);
 extern int *cdd_mock_get_g_mock_accept_fail(void);
 extern int *cdd_mock_get_g_mock_recv_fail(void);
 
+void *c_abstract_http_mock_malloc(size_t size);
+void *c_abstract_http_mock_calloc(size_t count, size_t size);
+void *c_abstract_http_mock_realloc(void *ptr, size_t size);
+void c_abstract_http_mock_free(void *ptr);
+size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nmemb,
+                                   FILE *stream);
+int c_abstract_http_mock_fclose(FILE *stream);
+#ifndef _WIN32
+int c_abstract_http_mock_pipe(int fildes[2]);
+pid_t c_abstract_http_mock_fork(void);
+pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options);
+#endif
+
 #if defined(_WIN32)
 extern SOCKET WSAAPI c_abstract_http_mock_socket(int domain, int type,
                                                  int protocol);

@@ -36,6 +36,11 @@ extern "C" {
 #define ECANCELED EINVAL
 #endif
 
+/**
+ * @brief Macro to suppress cppcheck warnings about unused mutable pointers
+ */
+#define cah_cppcheck_mut_ptr(x) ((void)(x))
+
 /** @brief Error: WebSocket framing violation or protocol error */
 #define C_ABSTRACT_HTTP_ERR_WS_FRAMING -1001
 
