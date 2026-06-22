@@ -23,6 +23,7 @@ extern "C" {
 
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_winhttp.h>
+#include "mock_alloc.h"
 #include "functions/parse/str.h"
 
 #include "cdd_test_helpers/mock_server.h"
@@ -30,6 +31,7 @@ extern "C" {
 
 TEST test_winhttp_lifecycle(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+  int rc = 0;
   struct HttpTransportContext *ctx = NULL;
 
   /* Global init */
@@ -58,6 +60,7 @@ TEST test_winhttp_lifecycle(void) {
 
 TEST test_winhttp_config_usage(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+  int rc = 0;
   char *_ast_strdup_0 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
@@ -82,15 +85,19 @@ TEST test_winhttp_config_usage(void) {
   if (cfg.proxy_url)
     free(cfg.proxy_url);
   cfg.proxy_url =
-      (c_cdd_strdup("http://127.0.0.1:8888", &_ast_strdup_0), _ast_strdup_0);
+      (c_abstract_http_mock_cdd_strdup("http://127.0.0.1:8888", &_ast_strdup_0),
+       _ast_strdup_0);
 
   if (cfg.proxy_username)
     free(cfg.proxy_username);
-  cfg.proxy_username = (c_cdd_strdup("admin", &_ast_strdup_0), _ast_strdup_0);
+  cfg.proxy_username =
+      (c_abstract_http_mock_cdd_strdup("admin", &_ast_strdup_0), _ast_strdup_0);
 
   if (cfg.proxy_password)
     free(cfg.proxy_password);
-  cfg.proxy_password = (c_cdd_strdup("secret", &_ast_strdup_0), _ast_strdup_0);
+  cfg.proxy_password =
+      (c_abstract_http_mock_cdd_strdup("secret", &_ast_strdup_0),
+       _ast_strdup_0);
 
   rc = http_winhttp_config_apply(ctx, &cfg);
   if (rc != 0) {
@@ -108,6 +115,7 @@ TEST test_winhttp_config_usage(void) {
 
 TEST test_winhttp_send_fail(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+  int rc = 0;
   char *_ast_strdup_1 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -122,7 +130,8 @@ TEST test_winhttp_send_fail(void) {
   /* Initialize request */
   http_request_init(&req);
   /* Invalid URL syntax to trigger immediate failure in CrackUrl */
-  req.url = (c_cdd_strdup("not_a_url", &_ast_strdup_1), _ast_strdup_1);
+  req.url = (c_abstract_http_mock_cdd_strdup("not_a_url", &_ast_strdup_1),
+             _ast_strdup_1);
 
   rc = http_winhttp_send(ctx, &req, &res);
 
@@ -140,6 +149,7 @@ TEST test_winhttp_send_fail(void) {
 
 TEST test_winhttp_send_null_checks(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+  int rc = 0;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
@@ -191,6 +201,7 @@ static int winhttp_mock_chunk_cb(void *user_data, const void *chunk,
 
 TEST test_winhttp_send_chunked(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+  int rc = 0;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -216,7 +227,8 @@ TEST test_winhttp_send_chunked(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url = (c_cdd_strdup(url, &_ast_strdup_2), _ast_strdup_2);
+  req.url =
+      (c_abstract_http_mock_cdd_strdup(url, &_ast_strdup_2), _ast_strdup_2);
 
   /* Setup chunk callback */
   state.call_count = 0;
@@ -253,6 +265,7 @@ TEST test_winhttp_send_chunked(void) {
 
 TEST test_winhttp_send_chunked_abort(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+  int rc = 0;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -277,7 +290,8 @@ TEST test_winhttp_send_chunked_abort(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url = (c_cdd_strdup(url, &_ast_strdup_3), _ast_strdup_3);
+  req.url =
+      (c_abstract_http_mock_cdd_strdup(url, &_ast_strdup_3), _ast_strdup_3);
 
   state.call_count = 0;
   state.total_bytes = 0;
@@ -325,6 +339,7 @@ static int winhttp_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
 
 TEST test_winhttp_send_upload_chunked(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+  int rc = 0;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -350,7 +365,8 @@ TEST test_winhttp_send_upload_chunked(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url = (c_cdd_strdup(url, &_ast_strdup_4), _ast_strdup_4);
+  req.url =
+      (c_abstract_http_mock_cdd_strdup(url, &_ast_strdup_4), _ast_strdup_4);
   req.method = HTTP_POST;
 
   up_state.data = payload;
@@ -390,6 +406,7 @@ static void dummy_timeout_cb(struct ModalityEventLoop *loop, int timer_id,
 }
 
 static int setup_request(struct HttpRequest *req, int port) {
+  int rc;
   char *_ast_strdup_0 = NULL;
   char url[64];
 
@@ -403,7 +420,8 @@ static int setup_request(struct HttpRequest *req, int port) {
   sprintf(url, "http://127.0.0.1:%d/test", port);
 #endif
 
-  req->url = (c_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
+  req->url =
+      (c_abstract_http_mock_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
   if (!req->url) {
     http_request_free(req);
     return ENOMEM;
@@ -413,6 +431,7 @@ static int setup_request(struct HttpRequest *req, int port) {
 
 TEST test_winhttp_send_multi(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
+  int rc = 0;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req1, req2;
   struct HttpConfig config;

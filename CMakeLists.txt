@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 3.10)
 project(c-abstract-http C)
 
+include(CTest)
+
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    option(C_ABSTRACT_HTTP_BUILD_TESTS "Build tests" ON)
+else()
+    option(C_ABSTRACT_HTTP_BUILD_TESTS "Build tests" OFF)
+endif()
+
+list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP ON CACHE BOOL "Skip system libs" FORCE)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 #Set C standards
 set(CMAKE_C_STANDARD 90)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -83,6 +95,7 @@ if(C_ABSTRACT_HTTP_LTO)
 endif()
 
 if(MSVC)
+    add_compile_options(/wd4005)
     if(C_ABSTRACT_HTTP_STATIC_CRT)
         foreach(flag_var
             CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
@@ -282,7 +295,9 @@ macro(c_abstract_http_configure_curl)
     elseif(C_ABSTRACT_HTTP_USE_COMMONCRYPTO)
         set(CURL_USE_SECTRANSP ON CACHE BOOL "" FORCE)
     endif()
-    set(BUILD_TESTING ${BUILD_TESTING_OLD_CURL})
+    if(DEFINED BUILD_TESTING_OLD_CURL)
+        set(BUILD_TESTING ${BUILD_TESTING_OLD_CURL} CACHE BOOL "" FORCE)
+    endif()
 endmacro()
 
 if(C_ABSTRACT_HTTP_HEADER_ONLY)
@@ -605,12 +620,6 @@ endif()
     c_abstract_http_apply_crypto(c-abstract-http PUBLIC)
 endif()
 
-include(CTest)
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    option(C_ABSTRACT_HTTP_BUILD_TESTS "Build tests" ON)
-else()
-    option(C_ABSTRACT_HTTP_BUILD_TESTS "Build tests" OFF)
-endif()
 
 if(C_ABSTRACT_HTTP_BUILD_TESTS AND BUILD_TESTING)
     add_subdirectory(tests)

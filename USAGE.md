@@ -458,7 +458,7 @@ The library provides zero-dependency C89 state-machines for streaming HTTP proto
 
 ### WebSockets
 
-`c
+```c
 #include <c_abstract_http/c_abstract_http.h>
 #include <c_abstract_http/http_ws.h>
 #include <stdio.h>
@@ -493,11 +493,11 @@ int connect_ws(struct HttpClient *client) {
     http_request_free(&req);
     return rc;
 }
-`
+```
 
 ### Server-Sent Events
 
-`c
+```c
 #include <c_abstract_http/c_abstract_http.h>
 #include <c_abstract_http/http_sse.h>
 #include <stdio.h>
@@ -531,13 +531,13 @@ int connect_sse(struct HttpClient *client) {
     http_request_free(&req);
     return rc;
 }
-`
+```
 
 ## 10. Multipart Form-Data Serialization
 
 The HTTP types layer enables robust multipart/form-data serialization natively, preventing buffer overrun edge-cases securely via sprintf_s_wrapper inside the HttpRequest generation logic:
 
-`c
+```c
 #include <c_abstract_http/c_abstract_http.h>
 
 int upload_file(struct HttpClient *client) {
@@ -573,4 +573,64 @@ int upload_file(struct HttpClient *client) {
     http_request_free(&req);
     return rc;
 }
-`
+```
+
+## 11. Advanced Concurrency (Thread Pools, Event Loops, Coroutines)
+
+`c-abstract-http` supports massive concurrency through specialized pluggable engines. By default, standard OS mechanisms (like `pthreads` or Windows Threads/Fibers) are used, but they can be intercepted.
+
+### Thread Pool Example
+
+```c
+#include <c_abstract_http/c_abstract_http.h>
+#include <c_abstract_http/thread_pool.h>
+#include <stdio.h>
+
+void worker_task(void *arg) {
+    const char *url = (const char *)arg;
+    printf("Downloading %s on worker thread...\n", url);
+    /* Execute blocking HTTP requests safely here */
+}
+
+int dispatch_work(void) {
+    struct CddThreadPool *pool;
+    int rc = cdd_thread_pool_init(&pool, 4); /* 4 Worker Threads */
+    if (rc != 0) return rc;
+
+    cdd_thread_pool_push(pool, worker_task, "https://example.com/1");
+    cdd_thread_pool_push(pool, worker_task, "https://example.com/2");
+
+    cdd_thread_pool_free(pool); /* Blocks until all tasks complete */
+    return 0;
+}
+```
+
+### Hooking into an External Event Loop
+If you are using an application framework like `libuv`, `GTK`, or `c-multiplatform`, you can bind the HTTP event loop directly into your framework:
+
+```c
+#include <c_abstract_http/c_abstract_http.h>
+#include <c_abstract_http/event_loop.h>
+#include <stdio.h>
+
+/* Assume my_custom_add_fd is a function bridging to epoll or select in your app */
+int my_custom_add_fd(void *ctx, int fd, int events, http_loop_cb cb, void *user_data) {
+    /* Bind FD to your framework's reactor */
+    return 0;
+}
+
+int setup_external_loop(void) {
+    struct ModalityEventLoop *loop;
+    struct HttpLoopHooks hooks = {0};
+
+    hooks.add_fd = my_custom_add_fd;
+    /* Map out other hooks: mod_fd, remove_fd, add_timer, cancel_timer, wakeup */
+
+    int rc = http_loop_init_external(&loop, &hooks);
+    if (rc == 0) {
+        printf("Event loop successfully proxied!\n");
+        http_loop_free(loop);
+    }
+    return rc;
+}
+```

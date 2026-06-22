@@ -135,5 +135,14 @@ if(WIN32 AND BUILD_SHARED_LIBS)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:cfs>
             $<TARGET_FILE_DIR:c-abstract-http-test>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:c_cdd>
+            $<TARGET_FILE_DIR:c-abstract-http-test>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:parson>
+            $<TARGET_FILE_DIR:c-abstract-http-test>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:c_str_span>
+            $<TARGET_FILE_DIR:c-abstract-http-test>
     )
 endif()

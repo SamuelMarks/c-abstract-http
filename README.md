@@ -6,7 +6,7 @@ c-abstract-http
 [![Test Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](#)
 [![Doc Coverage](https://img.shields.io/badge/docs-100%25-brightgreen.svg)](#)
 
-A highly robust, cross-platform abstract HTTP network library for C. It unifies various platform-specific network and crypto libraries under a single strict C89 API. Designed with strict C89 compliance, memory safety, and high portability in mind, this library is suitable for deeply embedded environments, legacy systems, and modern high-performance backends. It now supports massive scale HTTP/3 integration spanning 4 native cross-platform engines.
+A highly robust, cross-platform abstract HTTP network library for C. It unifies various platform-specific network and crypto libraries under a single strict C89 API. Designed with strict C89 compliance, memory safety, and high portability in mind, this library is suitable for deeply embedded environments, legacy systems, and modern high-performance backends. It now supports massive scale HTTP/3 integration spanning 4 native cross-platform engines, and features a completely pluggable Execution Modality engine (Actors, Coroutines, Multiprocessing, Async, Thread Pools) seamlessly integrated with frameworks like `c-multiplatform`.
 
 ## Key Capabilities
 
@@ -17,6 +17,7 @@ A highly robust, cross-platform abstract HTTP network library for C. It unifies 
 - **Multipart Form-Data & Muxing**: Robust, random-boundary multipart/form-data serialization.
 - **WebSockets & SSE**: Zero-dependency, C89 state-machine based streaming modalities.
 - **Modern CMake Integration**: Powered exclusively by FetchContent_MakeAvailable for clean, warning-free dependency ingestion.
+- **Pluggable Concurrency & Multi-Modality**: First-class abstractions for Event Loops, Thread Pools, Coroutines (Greenthreads), Multiprocessing (IPC), and Actor-model message passing via an Inversion-of-Control (Hooks) architecture.
 
 ## Target Platforms
 
@@ -89,6 +90,21 @@ The library features extensive built-in support for generating and managing OAut
 - **Token Introspection** (RFC 7662)
 - **Localhost Intercept Server**: For handling local loopback flows synchronously.
 
+## Concurrency & Execution Modalities
+
+`c-abstract-http` allows developers to bypass the standard blocking synchronous paradigm by offering extensive abstraction interfaces for complex concurrent systems. Every modality exposes a generic struct (e.g., `ModalityEventLoop`, `CddThreadPool`, `CddCoroutine`, `CddMessageBus`, `CddProcess`) and a corresponding `*Hooks` interface.
+
+This Inversion-of-Control allows applications to either use the built-in cross-platform implementations, or proxy the abstractions perfectly into an external framework.
+
+- **Sync** (`MODALITY_SYNC`): Sequential requests natively executed on the calling thread.
+- **Async** (`MODALITY_ASYNC`): Non-blocking execution mapped to an event loop via `event_loop.h`.
+- **Thread Pool** (`MODALITY_THREAD_POOL`): Background worker thread execution mapped via `thread_pool.h`.
+- **Multiprocess** (`MODALITY_MULTIPROCESS`): Isolates networking logic in separate processes using IPC mapped via `process.h`.
+- **Greenthread** (`MODALITY_GREENTHREAD`): Cooperative user-space threads (`ucontext`/Fibers) mapped via `coroutine.h`.
+- **Message Passing** (`MODALITY_MESSAGE_PASSING`): Actor-model abstraction utilizing message pipes mapped via `actor.h`.
+
+First-class integration with the **`c-multiplatform`** framework is provided out-of-the-box (`cmp_integration.h`).
+
 ## HTTP/3 Cross-Platform Support (C Implementations)
 
 The library guarantees 100% C code compliance routing HTTP/3 frames. The following table showcases pure C network engines capable of driving QUIC/H3 streams which have been integrated as native abstraction backends:
@@ -132,6 +148,10 @@ Configure your build precisely by passing these flags to CMake:
 | `C_ABSTRACT_HTTP_USE_LIBEVENT` | OFF | Use libevent instead of libcurl |
 | `C_ABSTRACT_HTTP_USE_LIBFETCH` | OFF | Use libfetch instead of libcurl |
 | `C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION` | ON | Enable c-multiplatform integration |
+| `C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS` | OFF | Enable WebSocket support |
+| `C_ABSTRACT_HTTP_ENABLE_SSE` | OFF | Enable Server-Sent Events support |
+| `C_ABSTRACT_HTTP_ENABLE_FUZZING` | OFF | Enable fuzzing targets |
+| `C_ABSTRACT_HTTP_ENABLE_COVERAGE` | OFF | Enable code coverage (gcov) |
 | `BUILD_SHARED_LIBS` | OFF | Build Shared Library |
 | `C_ABSTRACT_HTTP_USE_ASAN` | OFF | Enable AddressSanitizer |
 | `C_ABSTRACT_HTTP_USE_TSAN` | OFF | Enable ThreadSanitizer |

@@ -14,6 +14,7 @@
 #include <winbase.h>
 #include <winerror.h>
 #include <wininet.h>
+
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #pragma comment(lib, "wininet.lib")
 #endif
@@ -56,6 +57,9 @@ struct HttpTransportContext {
   DWORD security_flags;
   /** @brief proxy_username (variable) of struct HttpTransportContext */
   /** @brief proxy_password (variable) of struct HttpTransportContext */
+  char *proxy_username;
+  char *proxy_password;
+  struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
 };
 
@@ -178,6 +182,7 @@ int http_wininet_context_init(struct HttpTransportContext **ctx) {
 #ifdef _WIN32
   HINTERNET hInternet;
   DWORD flags = 0;
+  int rc;
 
   LOG_DEBUG("http_wininet_context_init: Entering");
   CHECK_EINVAL(ctx);
@@ -211,9 +216,9 @@ int http_wininet_context_init(struct HttpTransportContext **ctx) {
 
   (*ctx)->hInternet = hInternet;
   (*ctx)->security_flags = 0;
-  (*ctx)->proxy_username = NULL;
-  (*ctx)->proxy_password = NULL;
-  (*ctx)->cookie_jar = NULL;
+  (*ctx)->config.proxy_username = NULL;
+  (*ctx)->config.proxy_password = NULL;
+  (*ctx)->config.cookie_jar = NULL;
 
   LOG_DEBUG("http_wininet_context_init: Success");
   return 0;
@@ -295,7 +300,7 @@ int http_wininet_config_apply(struct HttpTransportContext *ctx,
     ctx->security_flags |= INTERNET_FLAG_NO_AUTO_REDIRECT;
   }
 
-  ctx->cookie_jar = config->cookie_jar;
+  ctx->config.cookie_jar = config->cookie_jar;
   if (ctx->config.proxy_username)
     free((void *)ctx->config.proxy_username);
   if (ctx->config.proxy_password)
@@ -353,6 +358,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   char *readChunk = NULL;
   size_t bodySize = 0;
   DWORD bytesRead = 0;
+  int rc = 0;
 #endif
 
   LOG_DEBUG("http_wininet_send: Entering");
@@ -421,18 +427,18 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   }
 
   /* Apply Proxy Credentials if using a proxy and configured */
-  if (ctx->proxy_username && ctx->proxy_password) {
+  if (ctx->config.proxy_username && ctx->config.proxy_password) {
     if (!InternetSetOptionA(hConnect, INTERNET_OPTION_PROXY_USERNAME,
-                            ctx->proxy_username,
-                            (DWORD)strlen(ctx->proxy_username))) {
+                            ctx->config.proxy_username,
+                            (DWORD)strlen(ctx->config.proxy_username))) {
       LOG_DEBUG(
           "http_wininet_send: Error InternetSetOptionA proxy username failed");
       rc = EIO;
       goto cleanup;
     }
     if (!InternetSetOptionA(hConnect, INTERNET_OPTION_PROXY_PASSWORD,
-                            ctx->proxy_password,
-                            (DWORD)strlen(ctx->proxy_password))) {
+                            ctx->config.proxy_password,
+                            (DWORD)strlen(ctx->config.proxy_password))) {
       LOG_DEBUG(
           "http_wininet_send: Error InternetSetOptionA proxy password failed");
       rc = EIO;
@@ -456,20 +462,21 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   }
 
   /* Set cookies from jar before headers */
-  if (ctx->cookie_jar && ctx->cookie_jar->count > 0) {
+  if (ctx->config.cookie_jar && ctx->config.cookie_jar->count > 0) {
     size_t i;
-    for (i = 0; i < ctx->cookie_jar->count; ++i) {
+    for (i = 0; i < ctx->config.cookie_jar->count; ++i) {
       char cbuf[4096];
       wchar_t wcbuf[4096];
       size_t written = 0;
       /* format: Cookie: name=value */
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
       sprintf_s(cbuf, sizeof(cbuf), "Cookie: %s=%s\r\n",
-                ctx->cookie_jar->cookies[i].name,
-                ctx->cookie_jar->cookies[i].value);
+                ctx->config.cookie_jar->cookies[i].name,
+                ctx->config.cookie_jar->cookies[i].value);
 #else
-      sprintf(cbuf, "Cookie: %s=%s\r\n", ctx->cookie_jar->cookies[i].name,
-              ctx->cookie_jar->cookies[i].value);
+      sprintf(cbuf, "Cookie: %s=%s\r\n",
+              ctx->config.cookie_jar->cookies[i].name,
+              ctx->config.cookie_jar->cookies[i].value);
 #endif
 
       if (ascii_to_wide(cbuf, wcbuf, 4096, &written) == 0) {
@@ -556,7 +563,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   }
 
   /* Extract Set-Cookie into Jar */
-  if (ctx->cookie_jar) {
+  if (ctx->config.cookie_jar) {
     DWORD dwIndex = 0;
     DWORD cbCookie = 0;
 
@@ -579,7 +586,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
               if (semi)
                 *semi = '\0';
 
-              rc = http_cookie_jar_set(ctx->cookie_jar, name, val);
+              rc = http_cookie_jar_set(ctx->config.cookie_jar, name, val);
               if (rc != 0) {
                 LOG_DEBUG("http_wininet_send: Error http_cookie_jar_set failed "
                           "with %d",

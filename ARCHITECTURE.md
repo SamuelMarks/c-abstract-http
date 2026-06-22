@@ -28,16 +28,19 @@ The `c-abstract-http` library is designed to offer a clean, unified API over dis
    - Every #include hierarchy is shielded by /* clang-format off */ and /* clang-format on */.
    - Ensures automated formatting never silently breaks delicate header dependency orders.
 
-## Execution Modalities
+## Execution Modalities & Inversion of Control (IoC)
 
-To accommodate varied concurrency models, `c-abstract-http` supports multiple execution modalities natively through the dispatcher:
+To accommodate varied concurrency models, `c-abstract-http` supports multiple execution modalities natively through the dispatcher. Crucially, the library implements a strict **Inversion of Control (Hooks) Architecture** across all concurrent modalities. This allows developers to use the library's built-in implementations (e.g., lightweight `pthread` wrappers or Windows Fibers) or inject their own external framework's scheduler via `*Hooks` structures (e.g., `HttpLoopHooks`, `CddThreadPoolHooks`, `CddCoroutineHooks`, `CddActorHooks`, `CddProcessHooks`).
 
 - **Sync** (`MODALITY_SYNC`): Blocking, sequential requests natively executed on the calling thread.
-- **Async** (`MODALITY_ASYNC`): Non-blocking execution mapped to the underlying backend's native event loop (e.g., libuv, libevent, IOCP).
-- **Thread Pool** (`MODALITY_THREAD_POOL`): Background worker thread execution, abstracting synchronization.
-- **Multiprocess** (`MODALITY_MULTIPROCESS`): Isolates networking logic in separate processes, communicating via IPC.
-- **Greenthread** (`MODALITY_GREENTHREAD`): Cooperative user-space threads (e.g., `ucontext`/`setjmp` abstractions).
-- **Message Passing** (`MODALITY_MESSAGE_PASSING`): Actor-model abstraction utilizing message pipes.
+- **Async** (`MODALITY_ASYNC`): Non-blocking execution mapped to the underlying backend's native event loop (e.g., libuv, libevent, IOCP). Hookable via `HttpLoopHooks` and `event_loop.h`.
+- **Thread Pool** (`MODALITY_THREAD_POOL`): Background worker thread execution, abstracting synchronization. Hookable via `CddThreadPoolHooks` and `thread_pool.h`.
+- **Multiprocess** (`MODALITY_MULTIPROCESS`): Isolates networking logic in separate processes, communicating via IPC. Hookable via `CddProcessHooks` and `process.h`.
+- **Greenthread** (`MODALITY_GREENTHREAD`): Cooperative user-space threads (e.g., `ucontext`/Fibers abstractions). Hookable via `CddCoroutineHooks` and `coroutine.h`.
+- **Message Passing** (`MODALITY_MESSAGE_PASSING`): Actor-model abstraction utilizing message pipes. Hookable via `CddActorHooks` and `actor.h`.
+
+### `c-multiplatform` Integration
+The library ships with first-class adapter layers for the `c-multiplatform` engine (`cmp_integration.h`). This integration allows applications to seamlessly inject the `c-multiplatform` runtime configuration (including UI progress dispatchers and thread pool constraints) directly into the `c-abstract-http` pipeline.
 
 ## Abstraction Layers
 

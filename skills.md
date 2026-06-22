@@ -86,3 +86,9 @@ Every public header MUST be wrapped with #ifdef __cplusplus and extern "C" exact
 
 ## 7. Clang-Format Safety
 All #include blocks MUST be wrapped in /* clang-format off */ and /* clang-format on */ (maximum once per file). This strictly preserves include ordering and dependency hierarchies during automated formatting.
+
+## 8. Pluggable Execution Modalities (Actors, Threads, Event Loops)
+When extending or bridging the concurrency capabilities of the library to an external framework (such as `c-multiplatform`), you must implement the respective `*Hooks` structure (e.g., `HttpLoopHooks` in `event_loop.h`, `CddThreadPoolHooks` in `thread_pool.h`).
+- **Do not modify the generic C-side headers.** The hook structures (`*Hooks`) are specifically designed to enable Inversion-of-Control.
+- Ensure that memory allocated inside a hook proxy is correctly cleaned up inside the corresponding `free` hook.
+- When adapting an event loop (`HttpLoopHooks`), the custom `add_fd` and `mod_fd` functions should never block the main loop of the host framework.

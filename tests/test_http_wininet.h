@@ -24,6 +24,7 @@ extern "C" {
 
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_wininet.h>
+#include "mock_alloc.h"
 #include "functions/parse/str.h"
 
 #include "cdd_test_helpers/mock_server.h"
@@ -69,9 +70,11 @@ TEST test_wininet_config_apply(void) {
 
   /* Test with Proxy Auth */
   config.proxy_username =
-      (c_cdd_strdup("admin", &_ast_strdup_proxy), _ast_strdup_proxy);
+      (c_abstract_http_mock_cdd_strdup("admin", &_ast_strdup_proxy),
+       _ast_strdup_proxy);
   config.proxy_password =
-      (c_cdd_strdup("secret", &_ast_strdup_proxy2), _ast_strdup_proxy2);
+      (c_abstract_http_mock_cdd_strdup("secret", &_ast_strdup_proxy2),
+       _ast_strdup_proxy2);
 
   rc = http_wininet_config_apply(ctx, &config);
   ASSERT_EQ(0, rc);
@@ -110,7 +113,8 @@ TEST test_wininet_send_validation(void) {
   ASSERT_EQ(EINVAL, rc);
 
   /* Malformed URL handling in local testing (CrackUrl check) */
-  req.url = (c_cdd_strdup("not-a-valid-url", &_ast_strdup_0), _ast_strdup_0);
+  req.url = (c_abstract_http_mock_cdd_strdup("not-a-valid-url", &_ast_strdup_0),
+             _ast_strdup_0);
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(EINVAL, rc);
 
@@ -168,7 +172,8 @@ TEST test_wininet_send_chunked(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url = (c_cdd_strdup(url, &_ast_strdup_2), _ast_strdup_2);
+  req.url =
+      (c_abstract_http_mock_cdd_strdup(url, &_ast_strdup_2), _ast_strdup_2);
 
   /* Setup chunk callback */
   state.call_count = 0;
@@ -229,7 +234,8 @@ TEST test_wininet_send_chunked_abort(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url = (c_cdd_strdup(url, &_ast_strdup_3), _ast_strdup_3);
+  req.url =
+      (c_abstract_http_mock_cdd_strdup(url, &_ast_strdup_3), _ast_strdup_3);
 
   state.call_count = 0;
   state.total_bytes = 0;
@@ -302,7 +308,8 @@ TEST test_wininet_send_upload_chunked(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url = (c_cdd_strdup(url, &_ast_strdup_4), _ast_strdup_4);
+  req.url =
+      (c_abstract_http_mock_cdd_strdup(url, &_ast_strdup_4), _ast_strdup_4);
   req.method = HTTP_POST;
 
   up_state.data = payload;

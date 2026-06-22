@@ -15,6 +15,7 @@
 #include <winerror.h>
 #include <winhttp.h>
 
+
 #endif
 
 #include <c_abstract_http/event_loop.h>
@@ -174,6 +175,7 @@ void http_winhttp_global_cleanup(void) {}
 int http_winhttp_context_init(struct HttpTransportContext **ctx) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   HINTERNET hSession;
+  int rc;
 
   LOG_DEBUG("http_winhttp_context_init: Entering");
   if (!ctx) {
@@ -399,6 +401,7 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
   char *totalBody = NULL;
   size_t totalSize = 0;
   DWORD dwDownloaded = 0;
+  int rc = 0;
 
   LOG_DEBUG("http_winhttp_send: Entering");
   if (!ctx || !ctx->hSession || !req || !res) {
@@ -680,6 +683,7 @@ static DWORD WINAPI winhttp_async_worker(LPVOID lpParam) {
   struct WinHttpAsyncWorkerCtx *worker_ctx =
       (struct WinHttpAsyncWorkerCtx *)lpParam;
   struct HttpResponse *res = NULL;
+  int rc;
 
   rc = http_winhttp_send(worker_ctx->ctx, worker_ctx->req, &res);
 
