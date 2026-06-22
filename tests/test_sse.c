@@ -266,8 +266,14 @@ TEST test_sse_sync_loop_fail(void) {
   struct HttpRequest req;
   http_request_init(&req);
   client.send = mock_send_fail;
+  ASSERT_EQ(EINVAL, c_abstract_http_sse_sync_read_loop(&client, NULL, NULL,
+                                                       NULL, NULL, NULL, NULL));
+
+  /* Mock send failure with no error callback */
+  client.send = mock_send_fail;
   ASSERT_EQ(EIO, c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL,
                                                     NULL, NULL, NULL));
+
   http_request_free(&req);
   PASS();
 }
@@ -287,11 +293,13 @@ TEST test_sse_max_line_size(void) {
 
   /* Feed huge line */
   rc = sse_parser_feed(&parser, huge_line, huge_len);
-  ASSERT_EQ(
-      ENOMEM,
-      rc); /* ENOMEM equivalent used in sse_parser_feed for too large line */
+  ASSERT_EQ(ENOMEM, rc);
 
+  ASSERT_EQ(0, sse_parser_init(&parser, NULL, NULL, NULL, NULL, &ctx));
+  rc = sse_parser_feed(&parser, huge_line, huge_len);
+  ASSERT_EQ(ENOMEM, rc);
   sse_parser_destroy(&parser);
+
   free(huge_line);
   PASS();
 }
@@ -301,18 +309,41 @@ TEST test_sse_async_register(void) {
   struct HttpRequest req;
   ASSERT_EQ(EINVAL, c_abstract_http_sse_async_register(NULL, NULL, NULL, NULL,
                                                        NULL, NULL));
+  ASSERT_EQ(EINVAL, c_abstract_http_sse_async_register(&client, NULL, NULL,
+                                                       NULL, NULL, NULL));
+  ASSERT_EQ(EINVAL, c_abstract_http_sse_async_register(NULL, &req, NULL, NULL,
+                                                       NULL, NULL));
   ASSERT_EQ(ENOTSUP, c_abstract_http_sse_async_register(&client, &req, NULL,
                                                         NULL, NULL, NULL));
   PASS();
 }
 
 TEST test_sse_init_headers_null(void) {
+  struct HttpRequest req;
+  struct c_abstract_http_sse_config config = {0};
+
   ASSERT_EQ(EINVAL, c_abstract_http_sse_init(NULL, NULL));
+
+  ASSERT_EQ(0, http_request_init(&req));
+  ASSERT_EQ(0, c_abstract_http_sse_init(&req, NULL));
+  ASSERT_EQ(0, c_abstract_http_sse_init(&req, &config));
+  http_request_free(&req);
   PASS();
 }
 
 TEST test_sse_parser_init_null(void) {
+  struct sse_parser_ctx parser;
+  struct test_sse_ctx ctx = {0};
+  struct c_abstract_http_sse_config config = {0};
+
   ASSERT_EQ(EINVAL, sse_parser_init(NULL, NULL, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
+                               test_sse_on_error, test_sse_on_close, &ctx));
+  sse_parser_destroy(&parser);
+
+  ASSERT_EQ(0, sse_parser_init(&parser, &config, test_sse_on_event,
+                               test_sse_on_error, test_sse_on_close, &ctx));
+  sse_parser_destroy(&parser);
   PASS();
 }
 
@@ -541,15 +572,63 @@ TEST test_sse_parser_feed_invalid_utf8(void) {
 
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
                                test_sse_on_error, test_sse_on_close, &ctx));
-
   ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
-
   sse_parser_destroy(&parser);
+
+  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event, NULL,
+                               test_sse_on_close, &ctx));
+  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  sse_parser_destroy(&parser);
+
   PASS();
 }
 
 TEST test_sse_parser_destroy_null(void) {
   sse_parser_destroy(NULL);
+  PASS();
+}
+
+TEST test_sse_parser_null_callbacks(void) {
+  struct sse_parser_ctx parser;
+  struct test_sse_ctx ctx = {0};
+  const char *chunk = "data: hi\n\n";
+
+  ASSERT_EQ(0, sse_parser_init(&parser, NULL, NULL, NULL, NULL, &ctx));
+  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  sse_parser_destroy(&parser);
+  PASS();
+}
+
+TEST test_sse_parser_empty_dispatch(void) {
+  struct sse_parser_ctx parser;
+  struct test_sse_ctx ctx = {0};
+
+  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
+                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(0, sse_parser_feed(&parser, "\n\n", 2));
+
+  ASSERT_EQ(0, ctx.event_count);
+  sse_parser_destroy(&parser);
+  PASS();
+}
+
+TEST test_sse_parser_no_space(void) {
+  struct sse_parser_ctx parser;
+  struct test_sse_ctx ctx = {0};
+  const char *chunk = "data:hello\nevent:ping\nid:123\nretry:100\ndata:\nix:"
+                      "1\ndaaa:2\nretrx:3\nunknown:4\n\n";
+
+  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
+                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+
+  ASSERT_EQ(1, ctx.event_count);
+  ASSERT_STR_EQ("hello\n", ctx.last_data);
+  ASSERT_STR_EQ("ping", ctx.last_event);
+  ASSERT_STR_EQ("123", ctx.last_id);
+  ASSERT_EQ(100, parser.retry_ms);
+
+  sse_parser_destroy(&parser);
   PASS();
 }
 
@@ -613,6 +692,54 @@ static int test_sse_mock_send_empty(struct HttpTransportContext *ctx,
   res->body_len = 0;
   *res_out = res;
   return 0;
+}
+
+static int test_sse_mock_send_null_res(struct HttpTransportContext *ctx,
+                                       const struct HttpRequest *req,
+                                       struct HttpResponse **res_out) {
+  (void)ctx;
+  (void)req;
+  *res_out = NULL;
+  return 0;
+}
+
+static int test_sse_mock_send_null_body(struct HttpTransportContext *ctx,
+                                        const struct HttpRequest *req,
+                                        struct HttpResponse **res_out) {
+  struct HttpResponse *res = calloc(1, sizeof(*res));
+  (void)ctx;
+  (void)req;
+  res->body = NULL;
+  res->body_len = 0;
+  *res_out = res;
+  return 0;
+}
+
+TEST test_sse_sync_loop_null_body(void) {
+  struct HttpClient client = {0};
+  struct HttpRequest req;
+  struct test_sse_ctx ctx = {0};
+  http_request_init(&req);
+  client.send = test_sse_mock_send_null_body;
+
+  ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(
+                   &client, &req, test_sse_on_event, test_sse_on_error,
+                   test_sse_on_close, &ctx, NULL));
+  http_request_free(&req);
+  PASS();
+}
+TEST test_sse_sync_loop_null_res(void) {
+  struct HttpClient client = {0};
+  struct HttpRequest req;
+  struct test_sse_ctx ctx = {0};
+  http_request_init(&req);
+  client.send = test_sse_mock_send_null_res;
+
+  ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(
+                   &client, &req, test_sse_on_event, test_sse_on_error,
+                   test_sse_on_close, &ctx, NULL));
+  http_request_free(&req);
+  PASS();
 }
 
 TEST test_sse_sync_loop_errors(void) {
@@ -823,9 +950,39 @@ TEST test_sse_sync_loop_oom_branches(void) {
     client.send = test_sse_mock_send_empty;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
+    rc = c_abstract_http_sse_sync_read_loop(
+        &client, &req, test_sse_on_event, NULL, test_sse_on_close, &ctx, NULL);
+    g_mock_alloc_fail = 0;
+    if (rc == 0) {
+      http_request_free(&req);
+      break;
+    }
+    http_request_free(&req);
+  }
+
+  for (i = 0; i < 10; i++) {
+    http_request_init(&req);
+    client.send = test_sse_mock_send_empty;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = i;
     rc = c_abstract_http_sse_sync_read_loop(&client, &req, test_sse_on_event,
                                             test_sse_on_error,
                                             test_sse_on_close, &ctx, NULL);
+    g_mock_alloc_fail = 0;
+    if (rc == 0) {
+      http_request_free(&req);
+      break;
+    }
+    http_request_free(&req);
+  }
+
+  for (i = 0; i < 15; i++) {
+    http_request_init(&req);
+    client.send = mock_send_success_huge_body;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = i;
+    rc = c_abstract_http_sse_sync_read_loop(
+        &client, &req, test_sse_on_event, NULL, test_sse_on_close, &ctx, NULL);
     g_mock_alloc_fail = 0;
     if (rc == 0) {
       http_request_free(&req);
@@ -902,6 +1059,13 @@ TEST test_sse_parser_feed_current_data_limit_real(void) {
   rc = sse_parser_feed(&parser, chunk, strlen(chunk));
   ASSERT_EQ(90, rc); /* 90 is EMSGSIZE */
   sse_parser_destroy(&parser);
+
+  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event, NULL,
+                               test_sse_on_close, &ctx));
+  rc = sse_parser_feed(&parser, chunk, strlen(chunk));
+  ASSERT_EQ(90, rc);
+  sse_parser_destroy(&parser);
+
   PASS();
 }
 
@@ -940,6 +1104,20 @@ TEST test_sse_async_task_error(void) {
 
   ASSERT_EQ(EIO, t_ctx.error_code);
   http_request_free(&req);
+
+  /* Async task error with NULL error callback */
+  ctx = malloc(sizeof(*ctx));
+  http_request_init(&req);
+  memset(ctx, 0, sizeof(*ctx));
+  ctx->client = &client;
+  ctx->req = &req;
+  ctx->on_evt = NULL;
+  ctx->on_err = NULL;
+  ctx->on_close = NULL;
+  ctx->user_data = NULL;
+  c_abstract_http_sse_async_task(ctx);
+  http_request_free(&req);
+
   PASS();
 }
 
@@ -983,11 +1161,16 @@ SUITE(sse_suite) {
 #endif
   RUN_TEST(test_sse_parser_feed_invalid_utf8);
   RUN_TEST(test_sse_parser_destroy_null);
+  RUN_TEST(test_sse_parser_null_callbacks);
+  RUN_TEST(test_sse_parser_empty_dispatch);
+  RUN_TEST(test_sse_parser_no_space);
   RUN_TEST(test_sse_parser_no_colon);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_parser_dispatch_oom);
 #endif
 
+  RUN_TEST(test_sse_sync_loop_null_res);
+  RUN_TEST(test_sse_sync_loop_null_body);
   RUN_TEST(test_sse_sync_loop_errors);
   RUN_TEST(test_sse_async_register_success);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

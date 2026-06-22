@@ -94,6 +94,7 @@ TEST test_mutex_lock_unlock(void) {
   ASSERT_EQ(0, cdd_mutex_init(&lock));
   ASSERT_EQ(0, cdd_mutex_lock(lock));
   ASSERT_EQ(0, cdd_mutex_unlock(lock));
+
   cdd_mutex_free(lock);
   PASS();
 }
@@ -102,6 +103,9 @@ TEST test_thread_pool_errors(void) {
   struct CddMutex *lock = NULL;
   struct CddCond *cond = NULL;
   struct CddThreadPool *pool = NULL;
+  struct CddThreadPoolHooks hooks;
+
+  memset(&hooks, 0, sizeof(hooks));
 
   ASSERT_EQ(EINVAL, cdd_mutex_init(NULL));
   ASSERT_EQ(EINVAL, cdd_mutex_lock(NULL));
@@ -111,12 +115,13 @@ TEST test_thread_pool_errors(void) {
   ASSERT_EQ(EINVAL, cdd_cond_init(NULL));
   ASSERT_EQ(EINVAL, cdd_cond_wait(NULL, NULL));
   ASSERT_EQ(0, cdd_mutex_init(&lock));
+  ASSERT_EQ(0, cdd_cond_init(&cond));
   ASSERT_EQ(EINVAL, cdd_cond_wait(NULL, lock));
+  ASSERT_EQ(EINVAL, cdd_cond_wait(cond, NULL));
   ASSERT_EQ(EINVAL, cdd_cond_signal(NULL));
   ASSERT_EQ(EINVAL, cdd_cond_broadcast(NULL));
   cdd_cond_free(NULL);
 
-  ASSERT_EQ(0, cdd_cond_init(&cond));
   ASSERT_EQ(0, cdd_cond_signal(cond));
   ASSERT_EQ(0, cdd_cond_broadcast(cond));
 
@@ -125,8 +130,31 @@ TEST test_thread_pool_errors(void) {
 
   ASSERT_EQ(EINVAL, cdd_thread_pool_init(NULL, 1));
   ASSERT_EQ(EINVAL, cdd_thread_pool_init(&pool, 0));
-  ASSERT_EQ(EINVAL, cdd_thread_pool_push(NULL, NULL, NULL));
+
+  ASSERT_EQ(EINVAL, cdd_thread_pool_push(NULL, dummy_cb_thread, NULL));
+  ASSERT_EQ(EINVAL,
+            cdd_thread_pool_push((struct CddThreadPool *)1, NULL, NULL));
+
+  ASSERT_EQ(EINVAL, cdd_thread_pool_init_external(NULL, &hooks));
+  ASSERT_EQ(EINVAL, cdd_thread_pool_init_external(&pool, NULL));
+
   cdd_thread_pool_free(NULL);
+
+  cdd_thread_pool_test_set_stop(NULL);
+  cdd_thread_pool_test_inject_task(NULL);
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  cdd_thread_pool_init(
+      &pool, 1); /* this will fail due to ENOMEM or we just use a valid pool */
+  g_mock_alloc_fail = 0;
+
+  cdd_thread_pool_init(&pool, 1);
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  cdd_thread_pool_test_inject_task(pool);
+  g_mock_alloc_fail = 0;
+  cdd_thread_pool_free(pool);
 
   PASS();
 }

@@ -243,14 +243,10 @@ static void init_tls_key(void) {
 static void ucontext_entry(void) {
   struct CddCoroutine *co =
       (struct CddCoroutine *)pthread_getspecific(co_tls_key);
-  if (co) {
-    if (co->cb) {
-      co->cb(co->arg);
-    }
-    co->is_done = 1;
-    /* Swap back to caller */
-    swapcontext(&co->ctx, &co->caller_ctx);
-  }
+  co->cb(co->arg);
+  co->is_done = 1;
+  /* Swap back to caller */
+  swapcontext(&co->ctx, &co->caller_ctx);
 }
 
 int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
@@ -292,12 +288,7 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
     return ENOMEM;
   }
 
-  if (getcontext(&c->ctx) != 0) {
-    LOG_DEBUG("cdd_coroutine_init: Error getcontext failed");
-    free(c->stack);
-    free(c);
-    return EIO;
-  }
+  getcontext(&c->ctx);
 
   c->ctx.uc_stack.ss_sp = c->stack;
   c->ctx.uc_stack.ss_size = c->stack_size;
@@ -322,8 +313,7 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
   }
 
   if (co) {
-    if (co->stack)
-      free(co->stack);
+    free(co->stack);
     free(co);
   }
   LOG_DEBUG("cdd_coroutine_free: Exiting");
@@ -344,10 +334,7 @@ int cdd_coroutine_resume(struct CddCoroutine *co) {
   init_tls_key();
   pthread_setspecific(co_tls_key, co);
 
-  if (swapcontext(&co->caller_ctx, &co->ctx) != 0) {
-    LOG_DEBUG("cdd_coroutine_resume: Error EIO (swapcontext failed)");
-    return EIO;
-  }
+  swapcontext(&co->caller_ctx, &co->ctx);
   LOG_DEBUG("cdd_coroutine_resume: Success");
   return 0;
 }
@@ -361,10 +348,7 @@ int cdd_coroutine_yield(void) {
     return g_coroutine_hooks.yield();
   }
 
-  if (!co_tls_initialized) {
-    LOG_DEBUG("cdd_coroutine_yield: Error EINVAL (TLS not initialized)");
-    return EINVAL;
-  }
+  init_tls_key();
   co = (struct CddCoroutine *)pthread_getspecific(co_tls_key);
 
   if (!co) {
@@ -372,10 +356,7 @@ int cdd_coroutine_yield(void) {
     return EINVAL;
   }
 
-  if (swapcontext(&co->ctx, &co->caller_ctx) != 0) {
-    LOG_DEBUG("cdd_coroutine_yield: Error EIO (swapcontext failed)");
-    return EIO;
-  }
+  swapcontext(&co->ctx, &co->caller_ctx);
   LOG_DEBUG("cdd_coroutine_yield: Success");
   return 0;
 }

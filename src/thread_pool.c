@@ -252,13 +252,13 @@ int cdd_mutex_init(struct CddMutex **mutex) {
 int cdd_mutex_lock(struct CddMutex *mutex) {
   if (!mutex)
     return EINVAL;
-  return (pthread_mutex_lock(&mutex->mtx) == 0) ? 0 : EIO;
+  return pthread_mutex_lock(&mutex->mtx);
 }
 
 int cdd_mutex_unlock(struct CddMutex *mutex) {
   if (!mutex)
     return EINVAL;
-  return (pthread_mutex_unlock(&mutex->mtx) == 0) ? 0 : EIO;
+  return pthread_mutex_unlock(&mutex->mtx);
 }
 
 void cdd_mutex_free(struct CddMutex *mutex) {
@@ -284,19 +284,19 @@ int cdd_cond_init(struct CddCond **cond) {
 int cdd_cond_wait(struct CddCond *cond, struct CddMutex *mutex) {
   if (!cond || !mutex)
     return EINVAL;
-  return (pthread_cond_wait(&cond->cond, &mutex->mtx) == 0) ? 0 : EIO;
+  return pthread_cond_wait(&cond->cond, &mutex->mtx);
 }
 
 int cdd_cond_signal(struct CddCond *cond) {
   if (!cond)
     return EINVAL;
-  return (pthread_cond_signal(&cond->cond) == 0) ? 0 : EIO;
+  return pthread_cond_signal(&cond->cond);
 }
 
 int cdd_cond_broadcast(struct CddCond *cond) {
   if (!cond)
     return EINVAL;
-  return (pthread_cond_broadcast(&cond->cond) == 0) ? 0 : EIO;
+  return pthread_cond_broadcast(&cond->cond);
 }
 
 void cdd_cond_free(struct CddCond *cond) {
@@ -376,19 +376,15 @@ static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
     }
 
     task = pool->head;
-    if (task) {
-      pool->head = task->next;
-      if (!pool->head) {
-        pool->tail = NULL;
-      }
+    pool->head = task->next;
+    if (!pool->head) {
+      pool->tail = NULL;
     }
 
     cdd_mutex_unlock(pool->lock);
 
-    if (task) {
-      task->cb(task->arg);
-      free(task);
-    }
+    task->cb(task->arg);
+    free(task);
   }
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)

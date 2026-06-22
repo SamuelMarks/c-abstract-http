@@ -12,7 +12,7 @@ BUILD_DIR=".build-coverage"
 # We'll try to build. If it fails, we warn but don't strictly block the commit,
 # or we can block the commit. Usually blocking is better for a pre-commit hook.
 echo "--> Configuring CMake for coverage..."
-if ! cmake -B "$BUILD_DIR" -DC_ABSTRACT_HTTP_ENABLE_COVERAGE=ON -DC_ABSTRACT_HTTP_BUILD_TESTS=ON -DC_ABSTRACT_HTTP_ENABLE_WEBSOCKETS=ON -DC_ABSTRACT_HTTP_ENABLE_SSE=ON > /dev/null; then
+if ! cmake -B "$BUILD_DIR" -DC_ABSTRACT_HTTP_ENABLE_COVERAGE=ON -DBUILD_TESTING_c-abstract-http=ON -DC_ABSTRACT_HTTP_ENABLE_WEBSOCKETS=ON -DC_ABSTRACT_HTTP_ENABLE_SSE=ON > /dev/null; then
     echo "Warning: CMake configuration failed. Skipping coverage update."
     exit 0
 fi

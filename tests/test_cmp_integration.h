@@ -48,6 +48,10 @@ TEST test_inject_config(void) {
   ASSERT_EQ(4, http_cfg.min_threads);
   ASSERT_EQ(16, http_cfg.max_threads);
 
+  cmp_cfg.modality = CMP_MODALITY_SYNC_SINGLE;
+  ASSERT_EQ(0, cmp_http_inject_config(&cmp_cfg, &http_cfg));
+  ASSERT_EQ(MODALITY_SYNC, http_cfg.modality);
+
   http_config_free(&http_cfg);
   PASS();
 }
@@ -66,6 +70,9 @@ TEST test_progress_adapter(void) {
   g_last_pct = 0.0f;
   ASSERT_EQ(0, cmp_http_progress_adapter(50, 100, &binding));
   ASSERT_EQ(0.5f, g_last_pct);
+
+  /* Test total_bytes == 0 */
+  ASSERT_EQ(0, cmp_http_progress_adapter(0, 0, &binding));
 
   binding.cancel_requested = 1;
   ASSERT_EQ(1, cmp_http_progress_adapter(75, 100, &binding));

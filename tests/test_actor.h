@@ -77,12 +77,16 @@ TEST test_actor_spawn_and_message(void) {
   /* Actor 2 should have received it */
   ASSERT_EQ(1, state2.received_messages);
 
-  /* Send shutdown */
+  /* Send shutdown AND another message */
+  msg.type = CDD_MSG_HTTP_SEND;
+  msg.receiver = actor1;
+  ASSERT_EQ(0, cdd_actor_send(bus, &msg));
+
   msg.type = CDD_MSG_SHUTDOWN;
   msg.receiver = actor1;
   ASSERT_EQ(0, cdd_actor_send(bus, &msg));
 
-  ASSERT_EQ(1, cdd_message_bus_process(bus));
+  ASSERT_EQ(2, cdd_message_bus_process(bus));
   ASSERT_EQ(1, state1.shutdown);
 
   cdd_message_bus_free(bus);
@@ -136,6 +140,8 @@ static int mock_actor_get_name(const struct CddActor *actor,
   return 0;
 }
 
+static int dummy_handler(struct CddActor *self, struct CddMessage *msg);
+
 TEST test_actor_hooks(void) {
   struct CddActorHooks hooks;
   struct CddMessageBus *bus = NULL;
@@ -186,10 +192,19 @@ TEST test_actor_errors(void) {
   ASSERT_EQ(EINVAL, cdd_actor_send(NULL, &msg));
 
   ASSERT_EQ(0, cdd_message_bus_init(&bus));
-  ASSERT_EQ(EINVAL, cdd_actor_spawn(bus, NULL, NULL, NULL, &actor));
-  ASSERT_EQ(EINVAL, cdd_actor_spawn(bus, "test", NULL, NULL, NULL));
+  ASSERT_EQ(EINVAL, cdd_actor_spawn(bus, NULL, dummy_handler, NULL, &actor));
+  ASSERT_EQ(EINVAL, cdd_actor_spawn(bus, "test", NULL, NULL, &actor));
+  ASSERT_EQ(EINVAL, cdd_actor_spawn(bus, "test", dummy_handler, NULL, NULL));
+
+  msg.receiver = actor;
+  ASSERT_EQ(EINVAL, cdd_actor_send(bus, NULL));
+  msg.receiver = NULL;
+  ASSERT_EQ(EINVAL, cdd_actor_send(bus, &msg));
+
   cdd_message_bus_free(bus);
   cdd_message_bus_free(NULL);
+
+  cdd_actor_set_hooks(NULL);
 
   PASS();
 }

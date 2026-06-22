@@ -58,14 +58,33 @@ TEST test_coroutine_execution(void) {
   PASS();
 }
 
+static void dummy_coroutine_cb(void *arg) { (void)arg; }
+
 TEST test_coroutine_errors(void) {
   struct CddCoroutine *co = NULL;
   int rc = cdd_coroutine_init(&co, 0, NULL, NULL);
   ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(EINVAL, cdd_coroutine_init(NULL, 1024, dummy_coroutine_cb, NULL));
+
+  /* Test stack_size == 0 */
+  rc = cdd_coroutine_init(&co, 0, dummy_coroutine_cb, NULL);
+  ASSERT_EQ(0, rc);
+  cdd_coroutine_free(co);
+  co = NULL;
+
+  /* Test stack_size != 0 */
+  rc = cdd_coroutine_init(&co, 2048, dummy_coroutine_cb, NULL);
+  ASSERT_EQ(0, rc);
+  cdd_coroutine_free(co);
+  co = NULL;
+
   ASSERT_EQ(EINVAL, cdd_coroutine_resume(co));
   ASSERT_EQ(EINVAL, cdd_coroutine_yield());
   ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
   cdd_coroutine_free(co);
+
+  cdd_coroutine_set_hooks(NULL);
+
   PASS();
 }
 

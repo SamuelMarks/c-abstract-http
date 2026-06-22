@@ -125,24 +125,33 @@ if(C_ABSTRACT_HTTP_ENABLE_FUZZING)
 endif()
 
 if(WIN32 AND BUILD_SHARED_LIBS)
-    add_custom_command(TARGET c-abstract-http-test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:c-abstract-http>
-            $<TARGET_FILE_DIR:c-abstract-http-test>
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:c89stringutils>
-            $<TARGET_FILE_DIR:c-abstract-http-test>
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:cfs>
-            $<TARGET_FILE_DIR:c-abstract-http-test>
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:c_cdd>
-            $<TARGET_FILE_DIR:c-abstract-http-test>
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:parson>
-            $<TARGET_FILE_DIR:c-abstract-http-test>
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:c_str_span>
-            $<TARGET_FILE_DIR:c-abstract-http-test>
-    )
+    macro(copy_dlls_to_test_target TARGET_NAME)
+        if(TARGET ${TARGET_NAME})
+            add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:c-abstract-http>
+                    $<TARGET_FILE_DIR:${TARGET_NAME}>
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:c89stringutils>
+                    $<TARGET_FILE_DIR:${TARGET_NAME}>
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:cfs>
+                    $<TARGET_FILE_DIR:${TARGET_NAME}>
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:c_cdd>
+                    $<TARGET_FILE_DIR:${TARGET_NAME}>
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:parson>
+                    $<TARGET_FILE_DIR:${TARGET_NAME}>
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:c_str_span>
+                    $<TARGET_FILE_DIR:${TARGET_NAME}>
+            )
+        endif()
+    endmacro()
+
+    copy_dlls_to_test_target(c-abstract-http-test)
+    copy_dlls_to_test_target(c-abstract-http-test-ws)
+    copy_dlls_to_test_target(c-abstract-http-test-sse)
+    copy_dlls_to_test_target(c-abstract-http-test-crypto)
 endif()

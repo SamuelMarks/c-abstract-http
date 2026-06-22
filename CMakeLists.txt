@@ -1,13 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(c-abstract-http C)
 
-include(CTest)
-
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    option(C_ABSTRACT_HTTP_BUILD_TESTS "Build tests" ON)
-else()
-    option(C_ABSTRACT_HTTP_BUILD_TESTS "Build tests" OFF)
-endif()
 
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP ON CACHE BOOL "Skip system libs" FORCE)
@@ -201,9 +194,9 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
     if(TARGET c_str_span)
         set_target_properties(c_str_span PROPERTIES COMPILE_WARNING_AS_ERROR OFF)
     endif()
-    set(OLD_C_ABSTRACT_HTTP_BUILD_TESTS ${C_ABSTRACT_HTTP_BUILD_TESTS})
+    set(OLD_BUILD_TESTING_${PROJECT_NAME} ${BUILD_TESTING_${PROJECT_NAME}})
     c_abstract_http_resolve_dependency(cdd_c https://github.com/SamuelMarks/cdd-c.git master)
-    set(C_ABSTRACT_HTTP_BUILD_TESTS ${OLD_C_ABSTRACT_HTTP_BUILD_TESTS} CACHE BOOL "Build tests" FORCE)
+    set(BUILD_TESTING_${PROJECT_NAME} ${OLD_BUILD_TESTING_${PROJECT_NAME}} CACHE BOOL "Build tests" FORCE)
     if(TARGET c_cdd)
         set_target_properties(c_cdd PROPERTIES COMPILE_WARNING_AS_ERROR OFF)
 
@@ -620,45 +613,54 @@ endif()
     c_abstract_http_apply_crypto(c-abstract-http PUBLIC)
 endif()
 
-
-if(C_ABSTRACT_HTTP_BUILD_TESTS AND BUILD_TESTING)
-    add_subdirectory(tests)
-
-    if(NOT (WIN32 AND BUILD_SHARED_LIBS))
-    target_compile_definitions(c-abstract-http PUBLIC
-        C_ABSTRACT_HTTP_TEST_OOM=1
-        malloc=c_abstract_http_mock_malloc
-        calloc=c_abstract_http_mock_calloc
-        realloc=c_abstract_http_mock_realloc
-        free=c_abstract_http_mock_free
-        fwrite=c_abstract_http_mock_fwrite
-        fclose=c_abstract_http_mock_fclose
-        socket=c_abstract_http_mock_socket
-        bind=c_abstract_http_mock_bind
-        listen=c_abstract_http_mock_listen
-        accept=c_abstract_http_mock_accept
-        recv=c_abstract_http_mock_recv
-        pthread_key_create=c_abstract_http_mock_pthread_key_create
-        pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
-        pthread_cond_init=c_abstract_http_mock_pthread_cond_init
-        pthread_create=c_abstract_http_mock_pthread_create
-        pipe=c_abstract_http_mock_pipe
-        fork=c_abstract_http_mock_fork
-        waitpid=c_abstract_http_mock_waitpid
-        select=c_abstract_http_mock_select
-        math_get_current_time_ms=c_abstract_http_mock_math_get_current_time_ms
-        pthread_setspecific=c_abstract_http_mock_pthread_setspecific
-        pthread_getspecific=c_abstract_http_mock_pthread_getspecific
-        CDD_STRDUP=c_abstract_http_mock_cdd_strdup
-    )
-    if(NOT C_ABSTRACT_HTTP_HEADER_ONLY)
-        target_sources(c-abstract-http PRIVATE tests/mock_alloc.c)
-        if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
-            target_sources(c-abstract-http PRIVATE tests/cdd_test_helpers/mock_server.c)
-        endif()
-    endif()
-    endif()
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    option(BUILD_TESTING_${PROJECT_NAME} "Build tests" ON)
+else()
+    option(BUILD_TESTING_${PROJECT_NAME} "Build tests" OFF)
 endif()
+
+if(BUILD_TESTING_${PROJECT_NAME})
+    include(CTest)
+
+    if(BUILD_TESTING)
+        add_subdirectory(tests)
+
+        if(NOT (WIN32 AND BUILD_SHARED_LIBS))
+        target_compile_definitions(c-abstract-http PUBLIC
+            C_ABSTRACT_HTTP_TEST_OOM=1
+            malloc=c_abstract_http_mock_malloc
+            calloc=c_abstract_http_mock_calloc
+            realloc=c_abstract_http_mock_realloc
+            free=c_abstract_http_mock_free
+            fwrite=c_abstract_http_mock_fwrite
+            fclose=c_abstract_http_mock_fclose
+            socket=c_abstract_http_mock_socket
+            bind=c_abstract_http_mock_bind
+            listen=c_abstract_http_mock_listen
+            accept=c_abstract_http_mock_accept
+            recv=c_abstract_http_mock_recv
+            pthread_key_create=c_abstract_http_mock_pthread_key_create
+            pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
+            pthread_cond_init=c_abstract_http_mock_pthread_cond_init
+            pthread_create=c_abstract_http_mock_pthread_create
+            pipe=c_abstract_http_mock_pipe
+            fork=c_abstract_http_mock_fork
+            waitpid=c_abstract_http_mock_waitpid
+            select=c_abstract_http_mock_select
+            math_get_current_time_ms=c_abstract_http_mock_math_get_current_time_ms
+            pthread_setspecific=c_abstract_http_mock_pthread_setspecific
+            pthread_getspecific=c_abstract_http_mock_pthread_getspecific
+            CDD_STRDUP=c_abstract_http_mock_cdd_strdup
+        )
+        if(NOT C_ABSTRACT_HTTP_HEADER_ONLY)
+            target_sources(c-abstract-http PRIVATE tests/mock_alloc.c)
+            if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http PRIVATE tests/cdd_test_helpers/mock_server.c)
+            endif()
+        endif()
+        endif()
+    endif(BUILD_TESTING)
+endif(BUILD_TESTING_${PROJECT_NAME})
 
 
 if(C_ABSTRACT_HTTP_USE_ASAN)
@@ -680,7 +682,7 @@ endif()
 
 
 
-if(C_ABSTRACT_HTTP_BUILD_TESTS AND NOT (WIN32 AND BUILD_SHARED_LIBS))
+if(BUILD_TESTING_${PROJECT_NAME} AND NOT (WIN32 AND BUILD_SHARED_LIBS))
     target_compile_definitions(c-abstract-http PUBLIC
         C_ABSTRACT_HTTP_TEST_OOM=1
         malloc=c_abstract_http_mock_malloc

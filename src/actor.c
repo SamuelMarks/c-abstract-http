@@ -133,8 +133,7 @@ void cdd_message_bus_free(struct CddMessageBus *bus) {
 
   /* Free actors */
   for (i = 0; i < bus->actor_count; ++i) {
-    if (bus->actors[i]->name)
-      CDD_FREE(bus->actors[i]->name);
+    CDD_FREE(bus->actors[i]->name);
     CDD_FREE(bus->actors[i]);
   }
   CDD_FREE(bus->actors);
@@ -164,9 +163,7 @@ int cdd_message_bus_process(struct CddMessageBus *bus) {
       bus->tail = NULL;
     }
 
-    if (node->msg.receiver && node->msg.receiver->handler) {
-      node->msg.receiver->handler(node->msg.receiver, &node->msg);
-    }
+    node->msg.receiver->handler(node->msg.receiver, &node->msg);
 
     CDD_FREE(node);
     count++;

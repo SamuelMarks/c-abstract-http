@@ -119,6 +119,8 @@ TEST test_tls_errors(void) {
   ASSERT_EQ(EINVAL, cdd_tls_key_create(NULL, NULL));
   ASSERT_EQ(EINVAL, cdd_tls_set(NULL, NULL));
   ASSERT_EQ(EINVAL, cdd_tls_get(NULL, NULL));
+  ASSERT_EQ(EINVAL, cdd_tls_get((struct CddTlsKey *)1, NULL));
+  cdd_tls_key_delete(NULL);
   PASS();
 }
 

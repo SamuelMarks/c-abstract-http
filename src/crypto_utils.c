@@ -77,7 +77,9 @@ int sha1_update(struct sha1_ctx *ctx, const unsigned char *data, size_t len) {
   uint32_t i;
   uint32_t j;
 
-  if (!ctx || (!data && len > 0))
+  if (!ctx)
+    return EINVAL;
+  if (len > 0 && !data)
     return EINVAL;
 
   j = (ctx->count[0] >> 3) & 63;
@@ -141,7 +143,9 @@ int base64_encode(const unsigned char *in, size_t in_len, char **out_str,
   size_t j;
   char *out;
 
-  if (!out_str || !out_len || (!in && in_len > 0))
+  if (!out_str || !out_len)
+    return EINVAL;
+  if (in_len > 0 && !in)
     return EINVAL;
 
   len = 4 * ((in_len + 2) / 3);
@@ -151,7 +155,7 @@ int base64_encode(const unsigned char *in, size_t in_len, char **out_str,
 
   for (i = 0, j = 0; i < in_len;) {
     uint32_t octet_a, octet_b, octet_c, triple;
-    octet_a = i < in_len ? (unsigned char)in[i++] : 0;
+    octet_a = (unsigned char)in[i++];
     octet_b = i < in_len ? (unsigned char)in[i++] : 0;
     octet_c = i < in_len ? (unsigned char)in[i++] : 0;
     triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
@@ -196,16 +200,22 @@ int base64_decode(const char *in, size_t in_len, unsigned char **out_data,
   size_t out_size;
   unsigned char *out;
 
-  if (!out_data || !out_len || (!in && in_len > 0))
+  if (!out_data || !out_len)
+    return EINVAL;
+  if (in_len > 0 && !in)
     return EINVAL;
   if (in_len % 4 != 0)
     return EINVAL;
 
   out_size = in_len / 4 * 3;
-  if (in_len > 0 && in[in_len - 1] == '=')
-    out_size--;
-  if (in_len > 1 && in[in_len - 2] == '=')
-    out_size--;
+  if (in_len > 0) {
+    if (in[in_len - 1] == '=')
+      out_size--;
+  }
+  if (in_len > 1) {
+    if (in[in_len - 2] == '=')
+      out_size--;
+  }
 
   out = (unsigned char *)malloc(out_size);
   if (!out)
@@ -225,8 +235,7 @@ int base64_decode(const char *in, size_t in_len, unsigned char **out_data,
     triple = (sextet_a << 3 * 6) + (sextet_b << 2 * 6) + (sextet_c << 1 * 6) +
              (sextet_d << 0 * 6);
 
-    if (j < out_size)
-      out[j++] = (triple >> 2 * 8) & 0xFF;
+    out[j++] = (triple >> 2 * 8) & 0xFF;
     if (j < out_size)
       out[j++] = (triple >> 1 * 8) & 0xFF;
     if (j < out_size)

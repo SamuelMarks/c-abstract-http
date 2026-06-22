@@ -9,6 +9,7 @@ extern "C" {
 #include "greatest.h"
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/transport.h>
+#include "mock_alloc.h"
 /* clang-format on */
 
 TEST test_transport_global(void) {
@@ -29,6 +30,14 @@ TEST test_transport_factory(void) {
 
   transport_factory_cleanup_client(&client);
   ASSERT(client.transport == NULL);
+
+  transport_factory_cleanup_client(
+      &client); /* test client->transport == NULL case */
+
+  g_mock_alloc_count = 0;
+  g_mock_alloc_fail = 1;
+  ASSERT_EQ(ENOMEM, transport_factory_init_client(&client));
+  g_mock_alloc_fail = 0;
 
   PASS();
 }

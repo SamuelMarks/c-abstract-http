@@ -165,10 +165,8 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
          FEED (LF) character, then remove the last character from the data
          buffer."
       */
-      if (ctx->current_data[ctx->data_offset - 1] == '\n') {
-        ctx->current_data[ctx->data_offset - 1] = '\0';
-        ctx->data_offset--;
-      }
+      ctx->current_data[ctx->data_offset - 1] = '\0';
+      ctx->data_offset--;
 
       if (ctx->on_event) {
         struct c_abstract_http_sse_event ev;
@@ -188,8 +186,7 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
       return dup_rc;
     }
     ctx->data_offset = 0;
-    if (ctx->current_data)
-      ctx->current_data[0] = '\0';
+    ctx->current_data[0] = '\0';
     return 0;
   }
 

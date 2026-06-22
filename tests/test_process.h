@@ -10,6 +10,7 @@ extern "C" {
 #include <greatest.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/process.h>
@@ -167,6 +168,28 @@ TEST test_cdd_process_hooks(void) {
   PASS();
 }
 
+TEST test_cdd_ipc_short_rw(void) {
+  struct CddIpcPipe pipe = {0};
+  char buf[4] = {0};
+  ASSERT_EQ(0, cdd_ipc_pipe_init(&pipe));
+
+  /* Write 2 bytes */
+  ASSERT_EQ(0, cdd_ipc_write(pipe.write_handle, "ab", 2));
+
+  /* Try to read 4 bytes. The pipe only has 2. It will either block or return 2!
+     Wait, if it blocks, the test hangs!
+     UNIX pipes block by default if less than requested is available and writer
+     is still open. If we close the write handle before reading, it returns EOF
+     (0) or 2! */
+  close((int)(size_t)pipe.write_handle);
+  pipe.write_handle = NULL;
+
+  ASSERT_EQ(EIO, cdd_ipc_read(pipe.read_handle, buf, 4));
+
+  cdd_ipc_pipe_free(&pipe);
+  PASS();
+}
+
 TEST test_cdd_ipc_rw(void) {
   struct CddIpcPipe pipe = {0};
   char buf[5];
@@ -188,7 +211,14 @@ TEST test_cdd_ipc_rw(void) {
 
 TEST test_cdd_process_spawn_errors(void) {
   struct CddIpcPipe rw = {0};
+  struct CddProcess *proc = NULL;
+
+  cdd_ipc_pipe_free(NULL);
+
   ASSERT_EQ(EINVAL, cdd_process_spawn(NULL, NULL, NULL));
+  ASSERT_EQ(EINVAL, cdd_process_spawn(&proc, NULL, NULL));
+  ASSERT_EQ(EINVAL, cdd_process_spawn(&proc, &rw, NULL));
+
   ASSERT_EQ(EINVAL, cdd_process_wait_and_free(NULL, NULL));
   if (cdd_ipc_pipe_init(&rw) == 0)
     cdd_ipc_pipe_free(&rw);
@@ -629,14 +659,29 @@ TEST test_process_misc_coverage(void) {
   PASS();
 }
 
+TEST test_process_waitpid_fail_2(void) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  void *proc = malloc(1024);
+  int exit_code = 0;
+
+  g_mock_waitpid_fail = 2;
+  ASSERT_EQ(0,
+            cdd_process_wait_and_free((struct CddProcess *)proc, &exit_code));
+  ASSERT_EQ(-1, exit_code);
+  g_mock_waitpid_fail = 0;
+#endif
+  PASS();
+}
+
 TEST test_process_wait_signal(void) {
 #if !defined(_WIN32)
   struct CddProcess *proc = NULL;
   struct CddIpcPipe p2c = {0}, c2p = {0};
-  int exit_code;
+  int exit_code = 0;
   ASSERT_EQ(0, cdd_ipc_pipe_init(&p2c));
   ASSERT_EQ(0, cdd_ipc_pipe_init(&c2p));
   ASSERT_EQ(0, cdd_process_spawn(&proc, &p2c, &c2p));
+
   cdd_ipc_pipe_free(&p2c);
   cdd_ipc_pipe_free(&c2p);
   ASSERT_EQ(0, cdd_process_wait_and_free(proc, &exit_code));
@@ -724,8 +769,10 @@ SUITE(process_suite) {
   RUN_TEST(test_process_null_header_keys);
 
   RUN_TEST(test_process_wait_signal);
+  RUN_TEST(test_process_waitpid_fail_2);
   RUN_TEST(test_process_misc_coverage);
   RUN_TEST(test_cdd_process_hooks);
+  RUN_TEST(test_cdd_ipc_short_rw);
   RUN_TEST(test_cdd_ipc_rw);
   RUN_TEST(test_cdd_process_spawn_errors);
   RUN_TEST(test_cdd_serialize_errors);

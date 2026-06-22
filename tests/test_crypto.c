@@ -97,6 +97,30 @@ TEST test_base64_decode_invalid(void) {
   PASS();
 }
 
+TEST test_base64_decode_1_pad(void) {
+  const char *input = "YWI="; /* "ab" */
+  unsigned char *output = NULL;
+  size_t out_len = 0;
+
+  ASSERT_EQ(0, base64_decode(input, strlen(input), &output, &out_len));
+  ASSERT_EQ(2, out_len);
+  ASSERT_MEM_EQ("ab", output, 2);
+  free(output);
+  PASS();
+}
+
+TEST test_base64_decode_all_pad(void) {
+  const char *input = "====";
+  unsigned char *output = NULL;
+  size_t out_len = 0;
+
+  ASSERT_EQ(0, base64_decode(input, strlen(input), &output, &out_len));
+  ASSERT_EQ(1, out_len);
+  ASSERT_EQ(0, output[0]);
+  free(output);
+  PASS();
+}
+
 TEST test_const_time_streq(void) {
   ASSERT_EQ(1, const_time_streq("hello", "hello"));
   ASSERT_EQ(0, const_time_streq("hello", "world"));
@@ -118,6 +142,7 @@ TEST test_crypto_errors(void) {
 
   ASSERT_EQ(EINVAL, sha1_init(NULL));
   ASSERT_EQ(EINVAL, sha1_update(NULL, (const unsigned char *)"a", 1));
+  ASSERT_EQ(EINVAL, sha1_update(&ctx, NULL, 1));
   ASSERT_EQ(EINVAL, sha1_final(NULL, out));
   ASSERT_EQ(EINVAL, sha1_final(&ctx, NULL));
 
@@ -130,6 +155,15 @@ TEST test_crypto_errors(void) {
   ASSERT_EQ(EINVAL, base64_decode(NULL, 4, &dec_data, &dec_len));
   ASSERT_EQ(EINVAL, base64_decode("abcd", 4, NULL, &dec_len));
   ASSERT_EQ(EINVAL, base64_decode("abcd", 4, &dec_data, NULL));
+
+  /* Test length 0 */
+  ASSERT_EQ(0,
+            base64_encode((const unsigned char *)"a", 0, &b64_str, &b64_len));
+  if (b64_str)
+    free(b64_str);
+  ASSERT_EQ(0, base64_decode("abcd", 0, &dec_data, &dec_len));
+  if (dec_data)
+    free(dec_data);
 
   /* Invalid length (not multiple of 4) */
   ASSERT_EQ(EINVAL, base64_decode("abc", 3, &dec_data, &dec_len));
@@ -206,6 +240,8 @@ SUITE(crypto_suite) {
   RUN_TEST(test_base64_decode_basic);
   RUN_TEST(test_base64_decode_padded);
   RUN_TEST(test_base64_decode_invalid);
+  RUN_TEST(test_base64_decode_1_pad);
+  RUN_TEST(test_base64_decode_all_pad);
   RUN_TEST(test_const_time_streq);
 }
 
