@@ -142,7 +142,7 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
 
 #b) try system if TRY_SYS_LIB is set
     if(NOT ${PkgName}_RESOLVED AND TRY_SYS_LIB AND NOT ${PkgName} STREQUAL "c89stringutils" AND NOT ${PkgName} STREQUAL "cfs")
-        find_package(${PkgName} QUIET NO_CMAKE_BUILDS_PATH)
+        find_package(${PkgName} QUIET)
         if(${PkgName}_FOUND)
             message(STATUS "Found ${PkgName} via system packages")
             set(${PkgName}_RESOLVED ON)
