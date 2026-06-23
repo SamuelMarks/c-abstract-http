@@ -297,7 +297,8 @@ if(C_ABSTRACT_HTTP_HEADER_ONLY)
     add_library(c-abstract-http INTERFACE)
     target_include_directories(c-abstract-http INTERFACE include)
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+        malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Android" OR ANDROID)
@@ -340,7 +341,8 @@ endif()
         c_abstract_http_resolve_dependency(lsquic https://github.com/litespeedtech/lsquic.git master)
         target_include_directories(c-abstract-http PRIVATE "${CMAKE_BINARY_DIR}/_deps/lsquic-src/include")
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+        malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
         target_link_libraries(c-abstract-http PUBLIC lsquic ssl crypto)
@@ -352,7 +354,8 @@ endif()
         c_abstract_http_resolve_dependency(picoquic https://github.com/private-octopus/picoquic.git master)
         target_include_directories(c-abstract-http PRIVATE "${CMAKE_BINARY_DIR}/_deps/picoquic-src/picoquic" "${CMAKE_BINARY_DIR}/_deps/picoquic-src/picoquic-mbedtls")
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+        malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
         target_link_libraries(c-abstract-http INTERFACE picoquic mbedtls mbedcrypto mbedx509 c89stringutils cfs c_cdd)
@@ -384,7 +387,8 @@ endif()
         pkg_check_modules(LIBSOUP3 REQUIRED libsoup-3.0)
         target_include_directories(c-abstract-http INTERFACE ${LIBSOUP3_INCLUDE_DIRS})
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+        malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
         target_link_libraries(c-abstract-http INTERFACE ${LIBSOUP3_LIBRARIES} c89stringutils cfs c_cdd)
@@ -440,7 +444,8 @@ else()
     target_include_directories(c-abstract-http SYSTEM PUBLIC include)
     target_include_directories(c-abstract-http PRIVATE src)
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+        malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
@@ -516,7 +521,8 @@ endif()
         c_abstract_http_resolve_dependency(lsquic https://github.com/litespeedtech/lsquic.git master)
         target_include_directories(c-abstract-http PRIVATE "${CMAKE_BINARY_DIR}/_deps/lsquic-src/include")
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+        malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
         target_link_libraries(c-abstract-http PUBLIC lsquic ssl crypto)
@@ -538,7 +544,8 @@ endif()
         c_abstract_http_resolve_dependency(nghttp3 https://github.com/ngtcp2/nghttp3.git main)
         target_include_directories(c-abstract-http PRIVATE "${CMAKE_BINARY_DIR}/_deps/nghttp3-src/lib/includes" "${CMAKE_BINARY_DIR}/_deps/nghttp3-build/lib/includes")
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+        malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
         target_link_libraries(c-abstract-http PUBLIC nghttp3)
@@ -585,7 +592,8 @@ endif()
 
 target_include_directories(c-abstract-http PUBLIC ${LIBSOUP3_INCLUDE_DIRS})
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+        malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
         target_link_libraries(c-abstract-http PUBLIC ${LIBSOUP3_LIBRARIES})
@@ -628,7 +636,8 @@ if(BUILD_TESTING_${PROJECT_NAME})
         if(NOT (WIN32 AND BUILD_SHARED_LIBS))
         target_compile_definitions(c-abstract-http PUBLIC
             C_ABSTRACT_HTTP_TEST_OOM=1
-            malloc=c_abstract_http_mock_malloc
+            _ACRTIMP=
+        malloc=c_abstract_http_mock_malloc
             calloc=c_abstract_http_mock_calloc
             realloc=c_abstract_http_mock_realloc
             free=c_abstract_http_mock_free
@@ -685,6 +694,7 @@ endif()
 if(BUILD_TESTING_${PROJECT_NAME} AND NOT (WIN32 AND BUILD_SHARED_LIBS))
     target_compile_definitions(c-abstract-http PUBLIC
         C_ABSTRACT_HTTP_TEST_OOM=1
+        _ACRTIMP=
         malloc=c_abstract_http_mock_malloc
         calloc=c_abstract_http_mock_calloc
         realloc=c_abstract_http_mock_realloc

@@ -106,6 +106,7 @@ TEST test_process_spawn_wait(void) {
   struct CddIpcPipe parent_to_child, child_to_parent;
   struct CddProcess *proc = NULL;
   int exit_code = 0;
+  printf("I AM EXECUTING\n");
 
   ASSERT_EQ(0, cdd_ipc_pipe_init(&parent_to_child));
   ASSERT_EQ(0, cdd_ipc_pipe_init(&child_to_parent));
@@ -181,7 +182,11 @@ TEST test_cdd_ipc_short_rw(void) {
      UNIX pipes block by default if less than requested is available and writer
      is still open. If we close the write handle before reading, it returns EOF
      (0) or 2! */
+#if defined(_WIN32)
+  CloseHandle((HANDLE)pipe.write_handle);
+#else
   close((int)(size_t)pipe.write_handle);
+#endif
   pipe.write_handle = NULL;
 
   ASSERT_EQ(EIO, cdd_ipc_read(pipe.read_handle, buf, 4));
@@ -663,6 +668,7 @@ TEST test_process_waitpid_fail_2(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   void *proc = malloc(1024);
   int exit_code = 0;
+  printf("I AM EXECUTING\n");
 
   g_mock_waitpid_fail = 2;
   ASSERT_EQ(0,
@@ -678,6 +684,7 @@ TEST test_process_wait_signal(void) {
   struct CddProcess *proc = NULL;
   struct CddIpcPipe p2c = {0}, c2p = {0};
   int exit_code = 0;
+  printf("I AM EXECUTING\n");
   ASSERT_EQ(0, cdd_ipc_pipe_init(&p2c));
   ASSERT_EQ(0, cdd_ipc_pipe_init(&c2p));
   ASSERT_EQ(0, cdd_process_spawn(&proc, &p2c, &c2p));

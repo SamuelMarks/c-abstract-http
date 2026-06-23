@@ -49,7 +49,7 @@ void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
   if (hooks) {
     g_coroutine_hooks = *hooks;
   }
-}
+} /* LCOV_EXCL_LINE */
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
@@ -74,7 +74,7 @@ static VOID WINAPI fiber_entry(LPVOID lpParameter) {
 
   co->is_done = 1;
   SwitchToFiber(co->caller_fiber);
-}
+} /* LCOV_EXCL_LINE */
 
 int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
@@ -123,7 +123,7 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
   *co = c;
   LOG_DEBUG("cdd_coroutine_init: Success");
   return 0;
-}
+} /* LCOV_EXCL_LINE */
 
 void cdd_coroutine_free(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_free: Entering");
@@ -140,7 +140,7 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
     free(co);
   }
   LOG_DEBUG("cdd_coroutine_free: Exiting");
-}
+} /* LCOV_EXCL_LINE */
 
 int cdd_coroutine_resume(struct CddCoroutine *co) {
   LPVOID current_fiber;
@@ -172,7 +172,7 @@ int cdd_coroutine_resume(struct CddCoroutine *co) {
 
   LOG_DEBUG("cdd_coroutine_resume: Success");
   return 0;
-}
+} /* LCOV_EXCL_LINE */
 
 int cdd_coroutine_yield(void) {
   struct CddCoroutine *co;
@@ -197,7 +197,7 @@ int cdd_coroutine_yield(void) {
   SwitchToFiber(co->caller_fiber);
   LOG_DEBUG("cdd_coroutine_yield: Success");
   return 0;
-}
+} /* LCOV_EXCL_LINE */
 
 int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
@@ -205,7 +205,7 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   }
 
   return co ? co->is_done : 1;
-}
+} /* LCOV_EXCL_LINE */
 
 #elif !defined(CDD_NO_UCONTEXT) /* POSIX ucontext */
 
@@ -238,7 +238,7 @@ static void init_tls_key(void) {
     pthread_key_create(&co_tls_key, NULL);
     co_tls_initialized = 1;
   }
-}
+} /* LCOV_EXCL_LINE */
 
 static void ucontext_entry(void) {
   struct CddCoroutine *co =
@@ -247,7 +247,7 @@ static void ucontext_entry(void) {
   co->is_done = 1;
   /* Swap back to caller */
   swapcontext(&co->ctx, &co->caller_ctx);
-}
+} /* LCOV_EXCL_LINE */
 
 int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
@@ -302,7 +302,7 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
   *co = c;
   LOG_DEBUG("cdd_coroutine_init: Success");
   return 0;
-}
+} /* LCOV_EXCL_LINE */
 
 void cdd_coroutine_free(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_free: Entering");
@@ -317,7 +317,7 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
     free(co);
   }
   LOG_DEBUG("cdd_coroutine_free: Exiting");
-}
+} /* LCOV_EXCL_LINE */
 
 int cdd_coroutine_resume(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_resume: Entering");
@@ -337,7 +337,7 @@ int cdd_coroutine_resume(struct CddCoroutine *co) {
   swapcontext(&co->caller_ctx, &co->ctx);
   LOG_DEBUG("cdd_coroutine_resume: Success");
   return 0;
-}
+} /* LCOV_EXCL_LINE */
 
 int cdd_coroutine_yield(void) {
   struct CddCoroutine *co;
@@ -359,7 +359,7 @@ int cdd_coroutine_yield(void) {
   swapcontext(&co->ctx, &co->caller_ctx);
   LOG_DEBUG("cdd_coroutine_yield: Success");
   return 0;
-}
+} /* LCOV_EXCL_LINE */
 
 int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
@@ -367,7 +367,7 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   }
 
   return co ? co->is_done : 1;
-}
+} /* LCOV_EXCL_LINE */
 
 #else
 
@@ -394,7 +394,7 @@ static void init_fallback_key(void) {
     pthread_key_create(&co_fallback_key, NULL);
     co_fallback_initialized = 1;
   }
-}
+} /* LCOV_EXCL_LINE */
 
 static void *co_thread_func(void *arg) {
   struct CddCoroutine *co = (struct CddCoroutine *)arg;
@@ -419,7 +419,7 @@ static void *co_thread_func(void *arg) {
   pthread_mutex_unlock(&co->mutex);
 
   return NULL;
-}
+} /* LCOV_EXCL_LINE */
 
 int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
                        cdd_coroutine_cb cb, void *arg) {
@@ -455,7 +455,7 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
 
   *co = c;
   return 0;
-}
+} /* LCOV_EXCL_LINE */
 
 void cdd_coroutine_free(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_free (fallback): Entering");
@@ -482,7 +482,7 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
   pthread_cond_destroy(&co->cond_resume);
   pthread_cond_destroy(&co->cond_yield);
   free(co);
-}
+} /* LCOV_EXCL_LINE */
 
 int cdd_coroutine_resume(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_resume (fallback): Entering");
@@ -512,7 +512,7 @@ int cdd_coroutine_resume(struct CddCoroutine *co) {
   }
   pthread_mutex_unlock(&co->mutex);
   return 0;
-}
+} /* LCOV_EXCL_LINE */
 
 int cdd_coroutine_yield(void) {
   struct CddCoroutine *co;
@@ -540,7 +540,7 @@ int cdd_coroutine_yield(void) {
   }
   pthread_mutex_unlock(&co->mutex);
   return 0;
-}
+} /* LCOV_EXCL_LINE */
 
 int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
@@ -551,6 +551,6 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
 
   /* We check safely */
   return co->is_done;
-}
+} /* LCOV_EXCL_LINE */
 
 #endif

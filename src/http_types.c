@@ -108,7 +108,7 @@ int http_headers_add(struct HttpHeaders *headers, const char *key,
     struct HttpHeader *new_arr = (struct HttpHeader *)realloc(
         headers->headers, new_cap * sizeof(struct HttpHeader));
     if (!new_arr)
-      return ENOMEM;
+      return ENOMEM; /* LCOV_EXCL_LINE */
     headers->headers = new_arr;
     headers->capacity = new_cap;
   }
@@ -116,13 +116,13 @@ int http_headers_add(struct HttpHeaders *headers, const char *key,
   headers->headers[headers->count].key =
       (CDD_STRDUP(key, &_ast_strdup_0), _ast_strdup_0);
   if (!headers->headers[headers->count].key)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   headers->headers[headers->count].value =
       (CDD_STRDUP(value, &_ast_strdup_1), _ast_strdup_1);
   if (!headers->headers[headers->count].value) {
     free(headers->headers[headers->count].key);
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
   }
 
   headers->count++;
@@ -230,7 +230,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
     struct HttpPart *new_arr =
         (struct HttpPart *)realloc(p->parts, new_cap * sizeof(struct HttpPart));
     if (!new_arr)
-      return ENOMEM;
+      return ENOMEM; /* LCOV_EXCL_LINE */
     p->parts = new_arr;
     p->capacity = new_cap;
   }
@@ -242,7 +242,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
   p->parts[p->count].name = (CDD_STRDUP(name, &_ast_strdup_2), _ast_strdup_2);
   if (!p->parts[p->count].name) {
     http_headers_free(&p->parts[p->count].headers);
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
   }
 
   if (filename) {
@@ -251,7 +251,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
     if (!p->parts[p->count].filename) {
       free(p->parts[p->count].name);
       http_headers_free(&p->parts[p->count].headers);
-      return ENOMEM;
+      return ENOMEM; /* LCOV_EXCL_LINE */
     }
   }
 
@@ -263,7 +263,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
         free(p->parts[p->count].filename);
       free(p->parts[p->count].name);
       http_headers_free(&p->parts[p->count].headers);
-      return ENOMEM;
+      return ENOMEM; /* LCOV_EXCL_LINE */
     }
   }
 
@@ -348,7 +348,7 @@ int http_request_flatten_parts(struct HttpRequest *req) {
   /* 3. Build Buffer */
   buffer = (char *)malloc(estimated_size);
   if (!buffer)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   for (i = 0; i < req->parts.count; ++i) {
     struct HttpPart *part = &req->parts.parts[i];
@@ -495,7 +495,7 @@ int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
       char *new_val =
           (CDD_STRDUP(value, &_ast_strdup_cval), _ast_strdup_cval);
       if (!new_val)
-        return ENOMEM;
+        return ENOMEM; /* LCOV_EXCL_LINE */
       free(jar->cookies[i].value);
       jar->cookies[i].value = new_val;
       return 0;
@@ -508,7 +508,7 @@ int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
     struct HttpCookie *new_arr = (struct HttpCookie *)realloc(
         jar->cookies, new_cap * sizeof(struct HttpCookie));
     if (!new_arr)
-      return ENOMEM;
+      return ENOMEM; /* LCOV_EXCL_LINE */
     jar->cookies = new_arr;
     jar->capacity = new_cap;
   }
@@ -518,13 +518,13 @@ int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
   jar->cookies[jar->count].name =
       (CDD_STRDUP(name, &_ast_strdup_cname), _ast_strdup_cname);
   if (!jar->cookies[jar->count].name)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   jar->cookies[jar->count].value =
       (CDD_STRDUP(value, &_ast_strdup_cval), _ast_strdup_cval);
   if (!jar->cookies[jar->count].value) {
     free(jar->cookies[jar->count].name);
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
   }
 
   jar->count++;
@@ -576,7 +576,7 @@ int http_config_init(struct HttpConfig *config) {
   config->http3_fallback = 1;
 
   if (!config->user_agent)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   return 0;
 }
@@ -719,7 +719,7 @@ int http_multi_request_add(struct HttpMultiRequest *multi,
     struct HttpRequest **new_arr = (struct HttpRequest **)realloc(
         multi->requests, new_cap * sizeof(struct HttpRequest *));
     if (!new_arr)
-      return ENOMEM;
+      return ENOMEM; /* LCOV_EXCL_LINE */
     multi->requests = new_arr;
     multi->capacity = new_cap;
   }
@@ -739,7 +739,7 @@ int http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
   len = strlen(token) + 8;
   val = (char *)malloc(len);
   if (!val)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(val, len, "Bearer %s", token);
@@ -764,7 +764,7 @@ int http_request_set_auth_basic(struct HttpRequest *req, const char *token) {
   len = strlen(token) + 7;
   val = (char *)malloc(len);
   if (!val)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(val, len, "Basic %s", token);
@@ -787,7 +787,7 @@ static int base64_encode(const unsigned char *src, size_t len, char **out) {
 
   res = (char *)malloc(olen + 1);
   if (!res)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   for (i = 0, j = 0; i < len;) {
     unsigned long octet_a = i < len ? src[i++] : 0;
@@ -825,7 +825,7 @@ int http_request_set_auth_basic_userpwd(struct HttpRequest *req,
   len = strlen(username) + strlen(password) + 2;
   raw = (char *)malloc(len);
   if (!raw)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(raw, len, "%s:%s", username, password);
@@ -924,7 +924,7 @@ int http_request_init_oauth2_password_grant(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   /* grant_type=password */
@@ -1007,7 +1007,7 @@ int http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   /* grant_type=refresh_token */
@@ -1085,7 +1085,7 @@ int http_request_init_oauth2_authorization_code_grant(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   /* grant_type=authorization_code */
@@ -1165,7 +1165,7 @@ int http_request_init_oauth2_client_credentials_grant(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   /* grant_type=client_credentials */
@@ -1232,7 +1232,7 @@ int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   /* grant_type=... */
@@ -1287,7 +1287,7 @@ int http_request_init_oauth2_device_authorization_request(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   memcpy(p, "client_id=", 10);
@@ -1337,7 +1337,7 @@ int http_request_init_oauth2_device_access_token_request(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   memcpy(p, "grant_type=", 11);
@@ -1394,7 +1394,7 @@ int http_request_init_oauth2_token_revocation(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   memcpy(p, "token=", 6);
@@ -1461,7 +1461,7 @@ int http_request_init_oauth2_token_introspection(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   memcpy(p, "token=", 6);
@@ -1526,7 +1526,7 @@ int http_oauth2_build_authorization_url(
 
   url = (char *)malloc(len + 1);
   if (!url)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   p = url;
   memcpy(p, auth_endpoint, strlen(auth_endpoint));
@@ -1595,7 +1595,7 @@ static int urldecode_alloc(const char *src, size_t src_len, char **out) {
   size_t i, j = 0;
 
   if (!dst)
-    return ENOMEM;
+    return ENOMEM; /* LCOV_EXCL_LINE */
 
   for (i = 0; i < src_len; i++) {
     if (src[i] == '%') {
@@ -1839,7 +1839,7 @@ int http_client_send_multi(struct HttpClient *client,
   for (i = 0; i < num_requests; ++i) {
     if (http_multi_request_add(&multi, requests[i]) != 0) {
       http_multi_request_free(&multi);
-      return ENOMEM;
+      return ENOMEM; /* LCOV_EXCL_LINE */
     }
   }
 

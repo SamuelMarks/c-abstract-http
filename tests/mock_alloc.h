@@ -43,6 +43,7 @@ extern int *cdd_mock_get_g_mock_pipe_fail(void);
 extern int *cdd_mock_get_g_mock_fork_fail(void);
 extern int *cdd_mock_get_g_mock_waitpid_fail(void);
 extern int *cdd_mock_get_g_mock_select_fail(void);
+extern int *cdd_mock_get_g_mock_select_error_fds(void);
 extern int *cdd_mock_get_g_mock_time_jump(void);
 extern int *cdd_mock_get_g_mock_time_jump_count(void);
 extern int *cdd_mock_get_g_mock_fwrite_fail(void);
@@ -103,6 +104,7 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_fork_fail (*cdd_mock_get_g_mock_fork_fail())
 #define g_mock_waitpid_fail (*cdd_mock_get_g_mock_waitpid_fail())
 #define g_mock_select_fail (*cdd_mock_get_g_mock_select_fail())
+#define g_mock_select_error_fds (*cdd_mock_get_g_mock_select_error_fds())
 #define g_mock_time_jump (*cdd_mock_get_g_mock_time_jump())
 #define g_mock_time_jump_count (*cdd_mock_get_g_mock_time_jump_count())
 #define g_mock_fwrite_fail (*cdd_mock_get_g_mock_fwrite_fail())

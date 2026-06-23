@@ -51,15 +51,15 @@ fi
 echo "    Test Coverage: ${COVERAGE_FORMATTED}%"
 
 # 3. Update README.md
-sed -E -i '' "s/coverage-[0-9]+%25-[a-z]+/coverage-${COVERAGE_FORMATTED}%25-${COLOR}/g" README.md
+sed -E -i "s/coverage-[0-9]+%25-[a-z]+/coverage-${COVERAGE_FORMATTED}%25-${COLOR}/g" README.md
 
 # Optional: doc coverage placeholder
 DOCS_PERCENT="100"
 DOCS_COLOR="brightgreen"
-sed -E -i '' "s/docs-[0-9]+%25-[a-z]+/docs-${DOCS_PERCENT}%25-${DOCS_COLOR}/g" README.md
+sed -E -i "s/docs-[0-9]+%25-[a-z]+/docs-${DOCS_PERCENT}%25-${DOCS_COLOR}/g" README.md
 
 # 4. Stage README.md if it changed
-git add README.md
+# Pre-commit framework handles modified files; git add causes index.lock errors.
 
 echo "==> Badges Updated Successfully."
 exit 0

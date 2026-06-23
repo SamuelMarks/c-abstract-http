@@ -70,6 +70,7 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length, int f
 #undef g_mock_fork_fail
 #undef g_mock_waitpid_fail
 #undef g_mock_select_fail
+#undef g_mock_select_error_fds
 #undef g_mock_time_jump
 #undef g_mock_time_jump_count
 #undef g_mock_fwrite_fail
@@ -86,6 +87,7 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length, int f
 #undef g_mock_fork_fail
 #undef g_mock_waitpid_fail
 #undef g_mock_select_fail
+#undef g_mock_select_error_fds
 #undef g_mock_time_jump
 #undef g_mock_time_jump_count
 #undef g_mock_fwrite_fail
@@ -102,6 +104,7 @@ int g_mock_pipe_fail = 0;
 int g_mock_fork_fail = 0;
 int g_mock_waitpid_fail = 0;
 int g_mock_select_fail = 0;
+int g_mock_select_error_fds = 0;
 int g_mock_time_jump = 0;
 int g_mock_time_jump_count = 0;
 int g_mock_fwrite_fail = 0;
@@ -119,6 +122,7 @@ int *cdd_mock_get_g_mock_pipe_fail(void) { return &g_mock_pipe_fail; }
 int *cdd_mock_get_g_mock_fork_fail(void) { return &g_mock_fork_fail; }
 int *cdd_mock_get_g_mock_waitpid_fail(void) { return &g_mock_waitpid_fail; }
 int *cdd_mock_get_g_mock_select_fail(void) { return &g_mock_select_fail; }
+int *cdd_mock_get_g_mock_select_error_fds(void) { return &g_mock_select_error_fds; }
 int *cdd_mock_get_g_mock_time_jump(void) { return &g_mock_time_jump; }
 int *cdd_mock_get_g_mock_time_jump_count(void) { return &g_mock_time_jump_count; }
 int *cdd_mock_get_g_mock_fwrite_fail(void) { return &g_mock_fwrite_fail; }
@@ -334,14 +338,22 @@ int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
                                 fd_set *errorfds, struct timeval *timeout) {
 #endif
   if (g_mock_select_fail == 1) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (g_mock_select_error_fds == 1) {
+    if (readfds)
+      FD_ZERO(readfds);
+    if (writefds)
+      FD_ZERO(writefds);
     if (errorfds) {
       /* Force error flag on all fds */
       unsigned int i;
       for (i = 0; i < (unsigned int)nfds; ++i) {
         FD_SET(i, errorfds);
       }
+      return 1;
     }
-    return -1;
   }
   return select(nfds, readfds, writefds, errorfds, timeout);
 }

@@ -690,6 +690,7 @@ TEST test_event_loop_mock_error_fd(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
   int triggered = 0;
+  int rc1, rc2, rc3, rc4;
   (void)triggered;
 
   ASSERT_EQ(0, http_loop_init(&loop));
@@ -699,14 +700,35 @@ TEST test_event_loop_mock_error_fd(void) {
                                 &triggered));
 
   g_mock_select_fail = 1;
-  ASSERT_EQ(0, http_loop_tick(loop));
+  rc1 = http_loop_tick(loop);
   g_mock_select_fail = 0;
+  ASSERT_EQ(0, rc1);
+
+  g_mock_select_error_fds = 1;
+  rc2 = http_loop_tick(loop);
+  g_mock_select_error_fds = 0;
+  ASSERT_EQ(0, rc2);
+
+  http_loop_free(loop);
+  ASSERT_EQ(0, http_loop_init(&loop));
 
   /* also test run processing */
   g_mock_select_fail = 1;
   ASSERT_EQ(0, http_loop_add_timer(loop, 10, stop_loop_cb, NULL, NULL));
-  ASSERT_EQ(0, http_loop_run(loop));
+  rc3 = http_loop_run(loop);
   g_mock_select_fail = 0;
+  ASSERT_EQ(0, rc3);
+
+  http_loop_free(loop);
+  ASSERT_EQ(0, http_loop_init(&loop));
+
+  g_mock_select_error_fds = 1;
+  ASSERT_EQ(0, http_loop_add_fd(loop, pipefd[0], HTTP_LOOP_ERROR, mock_fd_cb,
+                                &triggered));
+  ASSERT_EQ(0, http_loop_add_timer(loop, 10, stop_loop_cb, NULL, NULL));
+  rc4 = http_loop_run(loop);
+  g_mock_select_error_fds = 0;
+  ASSERT_EQ(0, rc4);
 
   http_loop_free(loop);
   close(pipefd[0]);

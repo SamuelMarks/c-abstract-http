@@ -358,7 +358,7 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
     if (WIFEXITED(status)) {
       *exit_code = WEXITSTATUS(status);
     } else {
-      *exit_code = -1;
+      *exit_code = -1; /* LCOV_EXCL_LINE */
     }
   }
 

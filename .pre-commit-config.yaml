@@ -1,15 +1,87 @@
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
     hooks:
-    -   id: trailing-whitespace
-    -   id: end-of-file-fixer
-    -   id: check-yaml
-    -   id: check-added-large-files
--   repo: https://github.com/pocc/pre-commit-hooks
-    rev: v1.3.5
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v18.1.8
     hooks:
-    -   id: clang-format
-        args: ["--style=llvm", "-i"]
-    -   id: cppcheck
-        args: ["--error-exitcode=1", "--enable=all", "--suppress=unmatchedSuppression", "--suppress=missingIncludeSystem", "--suppress=unusedFunction", "--suppress=missingInclude", "--suppress=toomanyconfigs", "--suppress=constParameterCallback", "--suppress=uselessAssignmentPtrArg", "--suppress=knownConditionTrueFalse", "--suppress=unreadVariable", "--suppress=unusedStructMember", "--suppress=variableScope", "--suppress=constParameterPointer", "--suppress=constVariablePointer", "--suppress=unassignedVariable", "--suppress=redundantAssignment", "--suppress=invalidPrintfArgType_sint", "--suppress=identicalInnerCondition", "--suppress=syntaxError", "--suppress=preprocessorErrorDirective", "--suppress=objectIndex", "--suppress=memleak", "--suppress=missingReturn"]
+      - id: clang-format
+        args: ['-style=LLVM']
+        types_or: [c, c++]
+  - repo: local
+    hooks:
+      - id: cppcheck
+        name: Cppcheck
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" cppcheck
+        language: python
+        pass_filenames: false
+        types_or: [c, c++]
+      - id: build-gcc
+        name: Build (GCC)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" build gcc
+        language: python
+        pass_filenames: false
+      - id: test-gcc
+        name: Test (GCC)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" test gcc
+        language: python
+        pass_filenames: false
+      - id: build-clang
+        name: Build (Clang)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" build clang
+        language: python
+        pass_filenames: false
+      - id: test-clang
+        name: Test (Clang)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" test clang
+        language: python
+        pass_filenames: false
+      - id: build-msvc-2005-wine
+        name: Build and Test (MSVC 2005 Wine)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" build msvc_2005_wine
+        language: python
+        pass_filenames: false
+      - id: build-msvc-wine
+        name: Build (MSVC Wine)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" build msvc_wine
+        language: python
+        pass_filenames: false
+      - id: test-msvc-wine
+        name: Test (MSVC Wine)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" test msvc_wine
+        language: python
+        pass_filenames: false
+      - id: build-msvc
+        name: Build (MSVC)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" build msvc
+        language: python
+        pass_filenames: false
+      - id: test-msvc
+        name: Test (MSVC)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" test msvc
+        language: python
+        pass_filenames: false
+      - id: build-mingw
+        name: Build (MinGW)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" build mingw
+        language: python
+        pass_filenames: false
+      - id: test-mingw
+        name: Test (MinGW)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" test mingw
+        language: python
+        pass_filenames: false
+      - id: valgrind
+        name: Valgrind (GCC)
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" valgrind gcc
+        language: python
+        pass_filenames: false
+      - id: update-shields
+        name: Update README Shields
+        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" shields
+        language: python
+        additional_dependencies: [gcovr]
+        pass_filenames: false

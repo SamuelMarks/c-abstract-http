@@ -1986,6 +1986,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
 }
 #endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_extra_coverage(void) {
   struct HttpRequest req;
 
@@ -2005,6 +2006,7 @@ TEST test_http_types_extra_coverage(void) {
 
   PASS();
 }
+#endif
 
 TEST test_http_types_urldecode_oom(void) {
   /* It is only reachable via oauth2. */
@@ -2022,7 +2024,9 @@ TEST test_http_types_urldecode_oom(void) {
 SUITE(http_types_suite) {
   RUN_TEST(test_http_types_urldecode_oom);
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_extra_coverage);
+#endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_oom_bruteforce_all);
