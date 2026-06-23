@@ -61,7 +61,9 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 #else
-struct HttpTransportContext {};
+struct HttpTransportContext {
+  int dummy;
+};
 #endif
 
 /* ... (Helpers like method_to_wide, safe_close_handle omitted for brevity if
