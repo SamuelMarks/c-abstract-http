@@ -73,13 +73,13 @@
 #else
 #include "test_http_curl.h"
 #endif
-/* clang-format on */
-
-GREATEST_MAIN_DEFS();
 
 #if defined(_MSC_VER)
 #include <crtdbg.h>
 #endif
+/* clang-format on */
+
+GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
   int i;
