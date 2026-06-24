@@ -21,6 +21,23 @@ extern "C" {
 #include <stddef.h>
 
 /* clang-format on */
+
+#ifdef _MSC_VER
+#define C_ABSTRACT_HTTP_VSPRINTF_S(dest, sz, fmt, args)                        \
+  vsprintf_s(dest, sz, fmt, args)
+#define C_ABSTRACT_HTTP_STRCPY_S(dest, sz, src) strcpy_s(dest, sz, src)
+#define C_ABSTRACT_HTTP_STRNCPY_S(dest, sz, src, count)                        \
+  strncpy_s(dest, sz, src, count)
+#define C_ABSTRACT_HTTP_STRCAT_S(dest, sz, src) strcat_s(dest, sz, src)
+#else
+#define C_ABSTRACT_HTTP_VSPRINTF_S(dest, sz, fmt, args)                        \
+  vsprintf(dest, fmt, args)
+#define C_ABSTRACT_HTTP_STRCPY_S(dest, sz, src) strcpy(dest, src)
+#define C_ABSTRACT_HTTP_STRNCPY_S(dest, sz, src, count)                        \
+  strncpy(dest, src, count)
+#define C_ABSTRACT_HTTP_STRCAT_S(dest, sz, src) strcat(dest, src)
+#endif
+
 #ifndef ENOTSUP
 /** @brief ENOTSUP macro */
 #define ENOTSUP EINVAL
@@ -126,7 +143,18 @@ typedef unsigned __int32 uint32_t;
 typedef __int64 int64_t;
 typedef unsigned __int64 uint64_t;
 #else
+#if defined(_MSC_VER) && _MSC_VER < 1600
+typedef signed char int8_t;
+typedef short int16_t;
+typedef int int32_t;
+typedef __int64 int64_t;
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int uint32_t;
+typedef unsigned __int64 uint64_t;
+#else
 #include <stdint.h>
+#endif
 #endif
 #endif
 #endif

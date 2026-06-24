@@ -465,6 +465,12 @@ else()
 
     target_include_directories(c-abstract-http SYSTEM PUBLIC include)
     target_include_directories(c-abstract-http PRIVATE src)
+
+    if(MSVC)
+        target_compile_options(c-abstract-http PRIVATE "/W4" "/WX")
+    else()
+        target_compile_options(c-abstract-http PRIVATE "-Wall" "-Wextra" "-Werror" "-pedantic" "-std=c89")
+    endif()
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
   target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)

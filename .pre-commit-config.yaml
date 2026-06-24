@@ -81,7 +81,6 @@ repos:
         pass_filenames: false
       - id: update-shields
         name: Update README Shields
-        entry: python3 -c "import urllib.request; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" shields
+        entry: python3 scripts/update_badges.py
         language: python
-        additional_dependencies: [gcovr]
         pass_filenames: false

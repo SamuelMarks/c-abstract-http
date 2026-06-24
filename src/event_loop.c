@@ -19,7 +19,9 @@
 #include <sys/select.h>
 #include <sys/time.h>
 #if !defined(_MSC_VER)
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 #endif
 #include <fcntl.h>
 #endif

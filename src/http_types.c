@@ -25,7 +25,9 @@ extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 #include <sys/types.h>
 #include <sys/socket.h>
 #if !defined(_MSC_VER)
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 #endif
 #endif
 #endif
@@ -62,7 +64,7 @@ static int sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fm
   written = vsprintf_s(buf + start, cap - start, fmt, args);
 #else
   (void)cap; /* Unused in C89 fallback */
-  written = vsprintf(buf + start, fmt, args);
+  written = C_ABSTRACT_HTTP_VSPRINTF_S(buf + start, cap - start, fmt, args);
 #endif
   va_end(args);
   return written;
