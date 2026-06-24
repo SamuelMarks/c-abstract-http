@@ -32,6 +32,7 @@ extern "C" {
 
 TEST test_wininet_lifecycle(void) {
 #ifdef _WIN32
+  int rc;
   struct HttpTransportContext *ctx = NULL;
 
   /* Init */
@@ -52,13 +53,14 @@ TEST test_wininet_lifecycle(void) {
 }
 
 TEST test_wininet_config_apply(void) {
-  char *_ast_strdup_proxy = NULL;
-  (void)_ast_strdup_proxy;
-  char *_ast_strdup_proxy2 = NULL;
-  (void)_ast_strdup_proxy2;
 #ifdef _WIN32
+  char *_ast_strdup_proxy = NULL;
+  char *_ast_strdup_proxy2 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig config;
+  int rc;
+  (void)_ast_strdup_proxy;
+  (void)_ast_strdup_proxy2;
 
   http_wininet_context_init(&ctx);
   http_config_init(&config);
@@ -92,12 +94,13 @@ TEST test_wininet_config_apply(void) {
 }
 
 TEST test_wininet_send_validation(void) {
-  char *_ast_strdup_0 = NULL;
-  (void)_ast_strdup_0;
 #ifdef _WIN32
+  char *_ast_strdup_0 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
+  int rc;
+  (void)_ast_strdup_0;
 
   http_wininet_context_init(&ctx);
   http_request_init(&req);
@@ -155,6 +158,7 @@ TEST test_wininet_send_chunked(void) {
   struct wininet_TestChunkState state;
   char url[128];
   char *_ast_strdup_2 = NULL;
+  int rc;
 
   /* Start mock server */
   ASSERT_EQ(0, mock_server_init(&server));
@@ -218,6 +222,7 @@ TEST test_wininet_send_chunked_abort(void) {
   struct wininet_TestChunkState state;
   char url[128];
   char *_ast_strdup_3 = NULL;
+  int rc;
 
   ASSERT_EQ(0, mock_server_init(&server));
   ASSERT_EQ(0, mock_server_start(server));
@@ -292,6 +297,7 @@ TEST test_wininet_send_upload_chunked(void) {
   char url[128];
   char *_ast_strdup_4 = NULL;
   const char *payload = "UPLOAD_TEST_DATA";
+  int rc;
 
   ASSERT_EQ(0, mock_server_init(&server));
   ASSERT_EQ(0, mock_server_start(server));

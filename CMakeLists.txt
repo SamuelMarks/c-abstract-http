@@ -1,6 +1,30 @@
 cmake_minimum_required(VERSION 3.10)
 cmake_policy(SET CMP0091 NEW)
+if(POLICY CMP0077)
+    cmake_policy(SET CMP0077 NEW)
+endif()
 project(c-abstract-http C)
+
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    option(BUILD_TESTING_${PROJECT_NAME} "Build tests" ON)
+else()
+    option(BUILD_TESTING_${PROJECT_NAME} "Build tests" OFF)
+endif()
+
+if(CYGWIN)
+    foreach(dep parson c89stringutils c_str_span c_orm cdd_c cfs)
+        string(TOUPPER "${dep}" DEP_UPPER)
+        set(VAR_NAME "FETCHCONTENT_SOURCE_DIR_${DEP_UPPER}")
+        if(DEFINED CACHE{${VAR_NAME}})
+            set(VAL "$CACHE{${VAR_NAME}}")
+            if(VAL MATCHES "^([a-zA-Z]):[\\\\/](.*)")
+                string(TOLOWER "${CMAKE_MATCH_1}" DRIVE_LETTER)
+                string(REPLACE "\\" "/" CYG_PATH "/cygdrive/${DRIVE_LETTER}/${CMAKE_MATCH_2}")
+                set(${VAR_NAME} "${CYG_PATH}" CACHE PATH "" FORCE)
+            endif()
+        endif()
+    endforeach()
+endif()
 
 
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -289,16 +313,13 @@ macro(c_abstract_http_configure_curl)
     elseif(C_ABSTRACT_HTTP_USE_COMMONCRYPTO)
         set(CURL_USE_SECTRANSP ON CACHE BOOL "" FORCE)
     endif()
-    if(DEFINED BUILD_TESTING_OLD_CURL)
-        set(BUILD_TESTING ${BUILD_TESTING_OLD_CURL} CACHE BOOL "" FORCE)
-    endif()
 endmacro()
 
 if(C_ABSTRACT_HTTP_HEADER_ONLY)
     add_library(c-abstract-http INTERFACE)
     target_include_directories(c-abstract-http INTERFACE include)
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
@@ -342,7 +363,7 @@ endif()
         c_abstract_http_resolve_dependency(lsquic https://github.com/litespeedtech/lsquic.git master)
         target_include_directories(c-abstract-http PRIVATE "${CMAKE_BINARY_DIR}/_deps/lsquic-src/include")
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
@@ -355,7 +376,7 @@ endif()
         c_abstract_http_resolve_dependency(picoquic https://github.com/private-octopus/picoquic.git master)
         target_include_directories(c-abstract-http PRIVATE "${CMAKE_BINARY_DIR}/_deps/picoquic-src/picoquic" "${CMAKE_BINARY_DIR}/_deps/picoquic-src/picoquic-mbedtls")
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
@@ -388,7 +409,7 @@ endif()
         pkg_check_modules(LIBSOUP3 REQUIRED libsoup-3.0)
         target_include_directories(c-abstract-http INTERFACE ${LIBSOUP3_INCLUDE_DIRS})
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
@@ -445,7 +466,7 @@ else()
     target_include_directories(c-abstract-http SYSTEM PUBLIC include)
     target_include_directories(c-abstract-http PRIVATE src)
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
@@ -522,7 +543,7 @@ endif()
         c_abstract_http_resolve_dependency(lsquic https://github.com/litespeedtech/lsquic.git master)
         target_include_directories(c-abstract-http PRIVATE "${CMAKE_BINARY_DIR}/_deps/lsquic-src/include")
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
@@ -545,7 +566,7 @@ endif()
         c_abstract_http_resolve_dependency(nghttp3 https://github.com/ngtcp2/nghttp3.git main)
         target_include_directories(c-abstract-http PRIVATE "${CMAKE_BINARY_DIR}/_deps/nghttp3-src/lib/includes" "${CMAKE_BINARY_DIR}/_deps/nghttp3-build/lib/includes")
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
@@ -593,7 +614,7 @@ endif()
 
 target_include_directories(c-abstract-http PUBLIC ${LIBSOUP3_INCLUDE_DIRS})
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
-  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP=
+  target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc calloc=c_abstract_http_mock_calloc realloc=c_abstract_http_mock_realloc free=c_abstract_http_mock_free strdup=c_abstract_http_mock_strdup)
 endif()
 
@@ -616,16 +637,13 @@ endif()
         )
         c_abstract_http_configure_curl()
         c_abstract_http_resolve_dependency(CURL https://github.com/curl/curl.git curl-8_0_1)
+        if(DEFINED BUILD_TESTING_OLD_CURL)
+            set(BUILD_TESTING ${BUILD_TESTING_OLD_CURL})
+        endif()
         target_link_libraries(c-abstract-http PUBLIC CURL::libcurl)
     endif()
 
     c_abstract_http_apply_crypto(c-abstract-http PUBLIC)
-endif()
-
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    option(BUILD_TESTING_${PROJECT_NAME} "Build tests" ON)
-else()
-    option(BUILD_TESTING_${PROJECT_NAME} "Build tests" OFF)
 endif()
 
 if(BUILD_TESTING_${PROJECT_NAME})
@@ -637,7 +655,7 @@ if(BUILD_TESTING_${PROJECT_NAME})
         if(NOT (WIN32 AND BUILD_SHARED_LIBS))
         target_compile_definitions(c-abstract-http PUBLIC
             C_ABSTRACT_HTTP_TEST_OOM=1
-            _ACRTIMP=
+            _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc
             calloc=c_abstract_http_mock_calloc
             realloc=c_abstract_http_mock_realloc
@@ -695,7 +713,7 @@ endif()
 if(BUILD_TESTING_${PROJECT_NAME} AND NOT (WIN32 AND BUILD_SHARED_LIBS))
     target_compile_definitions(c-abstract-http PUBLIC
         C_ABSTRACT_HTTP_TEST_OOM=1
-        _ACRTIMP=
+        _ACRTIMP= _CRTIMP=
         malloc=c_abstract_http_mock_malloc
         calloc=c_abstract_http_mock_calloc
         realloc=c_abstract_http_mock_realloc

@@ -34,6 +34,12 @@
 #include <string.h>
 #include "mock_alloc.h"
 
+#if defined(_MSC_VER)
+#pragma warning(disable : 4565)
+#pragma warning(disable : 4559)
+#pragma warning(disable : 4273)
+#endif
+
 #ifdef _WIN32
 int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
                                 fd_set *errorfds, const struct timeval *timeout);
@@ -154,30 +160,30 @@ int *cdd_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
 
 
 
-void *c_abstract_http_mock_malloc(size_t size);
-void *c_abstract_http_mock_calloc(size_t count, size_t size);
-void *c_abstract_http_mock_realloc(void *ptr, size_t size);
-void c_abstract_http_mock_free(void *ptr);
+CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc(size_t size);
+CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_calloc(size_t count, size_t size);
+CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_realloc(void *ptr, size_t size);
+CDD_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
 char *c_abstract_http_mock_strdup(const char *s, char **out);
 
-void *c_abstract_http_mock_malloc(size_t size) {
+CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc(size_t size) {
     if (g_mock_alloc_fail) { if (g_mock_alloc_count-- == 0) { return NULL; } }
     return malloc(size);
 }
 
-void *c_abstract_http_mock_calloc(size_t count, size_t size) {
+CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_calloc(size_t count, size_t size) {
     if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
         return NULL;
     }
     return calloc(count, size);
 }
 
-void *c_abstract_http_mock_realloc(void *ptr, size_t size) {
+CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_realloc(void *ptr, size_t size) {
     if (g_mock_alloc_fail) { if (g_mock_alloc_count-- == 0) { return NULL; } }
     return realloc(ptr, size);
 }
 
-void c_abstract_http_mock_free(void *ptr) {
+CDD_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr) {
     free(ptr);
 }
 

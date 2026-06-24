@@ -54,10 +54,27 @@ extern int *cdd_mock_get_g_mock_listen_fail(void);
 extern int *cdd_mock_get_g_mock_accept_fail(void);
 extern int *cdd_mock_get_g_mock_recv_fail(void);
 
-void *c_abstract_http_mock_malloc(size_t size);
-void *c_abstract_http_mock_calloc(size_t count, size_t size);
-void *c_abstract_http_mock_realloc(void *ptr, size_t size);
-void c_abstract_http_mock_free(void *ptr);
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4565) /* redefinition; the symbol was previously     \
+                                   declared with __declspec(...) */
+#pragma warning(disable                                                        \
+                : 4559) /* redefinition; the function gains __declspec(...) */
+#pragma warning(disable : 4273) /* inconsistent dll linkage */
+#define CDD_MOCK_ALLOC_RESTRICT __declspec(restrict)
+#define CDD_MOCK_ALLOC_NOALIAS __declspec(noalias)
+#else
+#define CDD_MOCK_ALLOC_RESTRICT
+#define CDD_MOCK_ALLOC_NOALIAS
+#endif
+
+CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *
+c_abstract_http_mock_malloc(size_t size);
+CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *
+c_abstract_http_mock_calloc(size_t count, size_t size);
+CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *
+c_abstract_http_mock_realloc(void *ptr, size_t size);
+CDD_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
 size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nmemb,
                                    FILE *stream);
 int c_abstract_http_mock_fclose(FILE *stream);
@@ -115,10 +132,20 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_accept_fail (*cdd_mock_get_g_mock_accept_fail())
 #define g_mock_recv_fail (*cdd_mock_get_g_mock_recv_fail())
 
+#if defined(_MSC_VER) && _MSC_VER < 1600
+typedef unsigned __int64 uint64_t;
+#else
+#include <stdint.h>
+#endif
+
 uint64_t c_abstract_http_mock_math_get_current_time_ms(void);
 
 void dummy_cb_thread(void *arg);
 extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 #ifdef __cplusplus
 }
