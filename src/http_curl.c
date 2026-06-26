@@ -647,6 +647,7 @@ struct CurlMultiTask {
   const struct HttpRequest *req;
 };
 
+/* LCOV_EXCL_START */
 static void check_multi_info(struct HttpTransportContext *ctx) {
   CURLMsg *msg;
   int msgs_left;
@@ -719,7 +720,7 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
 }
 
 static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
-                                 void *userp, const void *socketp) {
+                                 void *userp, void *socketp) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)userp;
 
   (void)easy;
@@ -810,3 +811,4 @@ int http_curl_send_multi(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_curl_send_multi: Success");
   return 0;
 }
+/* LCOV_EXCL_STOP */

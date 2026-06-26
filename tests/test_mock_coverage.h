@@ -6,6 +6,10 @@
 #include "mock_alloc.h"
 /* clang-format on */
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 extern char *c_abstract_http_mock_strdup(const char *s, char **out);
 #if !defined(_WIN32)
 extern void *c_abstract_http_mock_pthread_getspecific(unsigned long key);
@@ -108,4 +112,8 @@ SUITE(mock_coverage_suite) {
   RUN_TEST(test_mock_alloc_more);
   RUN_TEST(test_mock_server_coverage);
 }
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 #endif
