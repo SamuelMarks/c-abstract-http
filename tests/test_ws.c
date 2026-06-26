@@ -1,3 +1,10 @@
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE 1
+#endif
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 500
+#endif
+
 /* clang-format off */
 #include "greatest.h"
 #include "../include/c_abstract_http/http_ws.h"
@@ -56,7 +63,7 @@ TEST test_ws_verify_accept_failure(void) {
 }
 
 TEST test_ws_init_headers(void) {
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct c_abstract_http_ws_config config = {0};
   const char *custom_headers[] = {"X-Custom", "value1", NULL};
   const char *val = NULL;
@@ -274,6 +281,7 @@ TEST test_ws_sync_loop_exit_flag(void) {
   struct HttpRequest req = {0};
   ASSERT_EQ(0, c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL,
                                                  NULL, NULL, &exit_flag));
+  http_request_free(&req);
   PASS();
 }
 
@@ -320,6 +328,7 @@ TEST test_ws_sync_loop_success(void) {
   ASSERT_EQ(0, c_abstract_http_ws_sync_read_loop(
                    &client, &req, test_ws_on_message, test_ws_on_error,
                    test_ws_on_close, &ctx, NULL));
+  http_request_free(&req);
   PASS();
 }
 
@@ -331,6 +340,7 @@ TEST test_ws_sync_loop_fail(void) {
   ASSERT_EQ(EIO, c_abstract_http_ws_sync_read_loop(
                      &client, &req, test_ws_on_message, test_ws_on_error,
                      test_ws_on_close, &ctx, NULL));
+  http_request_free(&req);
   PASS();
 }
 
@@ -453,7 +463,7 @@ TEST test_ws_parser_errors(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_oom_branches(void) {
   int rc;
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct c_abstract_http_ws_config config = {0};
   const char *headers[] = {"X-Test", "123", NULL};
   int i;
@@ -475,6 +485,7 @@ TEST test_ws_oom_branches(void) {
     ASSERT_EQ_FMT(ENOMEM, rc, "%d");
     memset(&req, 0, sizeof(req));
   }
+  http_request_free(&req);
   PASS();
 }
 #endif
@@ -856,6 +867,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
       }
     }
   }
+  http_request_free(&req);
   PASS();
 }
 #endif

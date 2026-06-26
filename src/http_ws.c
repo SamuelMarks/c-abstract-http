@@ -574,6 +574,7 @@ int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
 
   ws_parser_destroy(&parser);
   http_response_free(res);
+  free(res);
 
   if (on_close)
     on_close(200, user_data);

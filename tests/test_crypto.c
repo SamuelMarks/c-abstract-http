@@ -1,3 +1,10 @@
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE 1
+#endif
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 500
+#endif
+
 /* clang-format off */
 #include "../src/crypto_utils.h"
 #include "greatest.h"

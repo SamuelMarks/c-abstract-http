@@ -295,13 +295,10 @@ int cdd_coroutine_init(struct CddCoroutine **co, size_t stack_size,
   c->ctx.uc_link = &c->caller_ctx;
 
   /* makecontext expects integer arguments, passing pointers requires some care
-   * /* LCOV_EXCL_LINE */
-  on 64 - bit systems but standard ucontext usage often
-                  passes nothing and /* LCOV_EXCL_LINE */
-                      relies on globals /
-              TLS,
-      which we do.*/ /* LCOV_EXCL_LINE */
-          makecontext(&c->ctx, (void (*)(void))ucontext_entry, 0);
+   * on 64-bit systems but standard ucontext usage often
+   * passes nothing and relies on globals/TLS,
+   * which we do. */ /* LCOV_EXCL_LINE */
+  makecontext(&c->ctx, (void (*)(void))ucontext_entry, 0);
 
   *co = c;
   LOG_DEBUG("cdd_coroutine_init: Success");

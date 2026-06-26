@@ -58,8 +58,8 @@ extern int *cdd_mock_get_g_mock_recv_fail(void);
 #pragma warning(push)
 #pragma warning(disable : 4565) /* redefinition; the symbol was previously     \
                                    declared with __declspec(...) */
-#pragma warning(disable                                                        \
-                : 4559) /* redefinition; the function gains __declspec(...) */
+#pragma warning(                                                               \
+    disable : 4559) /* redefinition; the function gains __declspec(...) */
 #pragma warning(disable : 4273) /* inconsistent dll linkage */
 #define CDD_MOCK_ALLOC_RESTRICT __declspec(restrict)
 #define CDD_MOCK_ALLOC_NOALIAS __declspec(noalias)

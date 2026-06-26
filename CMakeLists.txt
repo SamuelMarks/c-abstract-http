@@ -183,6 +183,11 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
 #c) try fetchcontent
     if(NOT ${PkgName}_RESOLVED)
         message(STATUS "Fetching ${PkgName} via FetchContent")
+        string(TOUPPER "${PkgName}" PkgNameUpper)
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../${PkgName}")
+            set(FETCHCONTENT_SOURCE_DIR_${PkgNameUpper} "${CMAKE_CURRENT_SOURCE_DIR}/../${PkgName}" CACHE PATH "" FORCE)
+            message(STATUS "Using local ${PkgName} from ${CMAKE_CURRENT_SOURCE_DIR}/../${PkgName}")
+        endif()
         FetchContent_Declare(${PkgName}
             GIT_REPOSITORY ${FetchRepo}
             GIT_TAG ${FetchTag}
@@ -215,6 +220,8 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
         target_include_directories(parson PUBLIC "$<BUILD_INTERFACE:${parson_SOURCE_DIR}>")
     endif()
     c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
+    if(TARGET c89stringutils)
+    endif()
     c_abstract_http_resolve_dependency(c_str_span https://github.com/SamuelMarks/c-str-span.git master)
     if(TARGET c_str_span)
         set_target_properties(c_str_span PROPERTIES COMPILE_WARNING_AS_ERROR OFF)

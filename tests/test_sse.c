@@ -1,3 +1,10 @@
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE 1
+#endif
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 500
+#endif
+
 /* clang-format off */
 #include "greatest.h"
 
@@ -170,7 +177,7 @@ TEST test_sse_chunked_delivery(void) {
 }
 
 TEST test_sse_init_headers(void) {
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct c_abstract_http_sse_config config = {0};
   const char *val = NULL;
 
@@ -200,10 +207,11 @@ TEST test_sse_init_headers(void) {
 TEST test_sse_sync_loop_exit_flag(void) {
   volatile int exit_flag = 1;
   struct HttpClient client = {0};
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   http_request_init(&req);
   ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL,
                                                   NULL, NULL, &exit_flag));
+  http_request_free(&req);
   PASS();
 }
 
@@ -250,7 +258,7 @@ static int mock_on_event_cb(const struct c_abstract_http_sse_event *ev,
 
 TEST test_sse_sync_loop_success(void) {
   struct HttpClient client = {0};
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   http_request_init(&req);
   client.send = mock_send_success;
   mock_on_event_called = 0;
@@ -263,7 +271,7 @@ TEST test_sse_sync_loop_success(void) {
 
 TEST test_sse_sync_loop_fail(void) {
   struct HttpClient client = {0};
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   http_request_init(&req);
   client.send = mock_send_fail;
   ASSERT_EQ(EINVAL, c_abstract_http_sse_sync_read_loop(&client, NULL, NULL,
@@ -294,6 +302,7 @@ TEST test_sse_max_line_size(void) {
   /* Feed huge line */
   rc = sse_parser_feed(&parser, huge_line, huge_len);
   ASSERT_EQ(ENOMEM, rc);
+  sse_parser_destroy(&parser);
 
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, NULL, NULL, NULL, &ctx));
   rc = sse_parser_feed(&parser, huge_line, huge_len);
@@ -306,7 +315,7 @@ TEST test_sse_max_line_size(void) {
 
 TEST test_sse_async_register(void) {
   struct HttpClient client = {0};
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   ASSERT_EQ(EINVAL, c_abstract_http_sse_async_register(NULL, NULL, NULL, NULL,
                                                        NULL, NULL));
   ASSERT_EQ(EINVAL, c_abstract_http_sse_async_register(&client, NULL, NULL,
@@ -315,11 +324,12 @@ TEST test_sse_async_register(void) {
                                                        NULL, NULL));
   ASSERT_EQ(ENOTSUP, c_abstract_http_sse_async_register(&client, &req, NULL,
                                                         NULL, NULL, NULL));
+  http_request_free(&req);
   PASS();
 }
 
 TEST test_sse_init_headers_null(void) {
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct c_abstract_http_sse_config config = {0};
 
   ASSERT_EQ(EINVAL, c_abstract_http_sse_init(NULL, NULL));
@@ -356,7 +366,7 @@ static int mock_push_fail(void *ctx, cdd_thread_task_cb cb, void *arg) {
 
 TEST test_sse_async_register_thread_pool(void) {
   struct HttpClient client;
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct CddThreadPool *pool = NULL;
   struct CddThreadPoolHooks hooks;
 
@@ -390,7 +400,7 @@ TEST test_sse_async_register_thread_pool(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_oom_branches(void) {
   int rc;
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct c_abstract_http_sse_config config = {0};
   int i;
 
@@ -425,6 +435,8 @@ TEST test_sse_oom_branches(void) {
     }
     ASSERT_EQ_FMT(ENOMEM, rc, "%d");
   }
+
+  http_request_free(&req);
 
   PASS();
 }
@@ -717,7 +729,7 @@ static int test_sse_mock_send_null_body(struct HttpTransportContext *ctx,
 
 TEST test_sse_sync_loop_null_body(void) {
   struct HttpClient client = {0};
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct test_sse_ctx ctx = {0};
   http_request_init(&req);
   client.send = test_sse_mock_send_null_body;
@@ -730,7 +742,7 @@ TEST test_sse_sync_loop_null_body(void) {
 }
 TEST test_sse_sync_loop_null_res(void) {
   struct HttpClient client = {0};
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct test_sse_ctx ctx = {0};
   http_request_init(&req);
   client.send = test_sse_mock_send_null_res;
@@ -744,7 +756,7 @@ TEST test_sse_sync_loop_null_res(void) {
 
 TEST test_sse_sync_loop_errors(void) {
   struct HttpClient client = {0};
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct test_sse_ctx ctx = {0};
   http_request_init(&req);
   /* Mock send failure */
@@ -789,7 +801,7 @@ static int mock_push_success(void *ctx, cdd_thread_task_cb cb, void *arg) {
 
 TEST test_sse_async_register_success(void) {
   struct HttpClient client = {0};
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct CddThreadPool *pool = NULL;
   struct CddThreadPoolHooks hooks = {0};
   struct test_sse_ctx ctx = {0};
@@ -907,6 +919,7 @@ TEST test_sse_parser_feed_current_data_capacity_limit(void) {
      the limit might be hard. We'll skip limit if it's too big, or use a huge
      chunk if it's small. Instead, just mock it. Wait, the limit is a macro. If
      we can't hit it, we just accept the uncovered line. */
+  sse_parser_destroy(&parser);
   PASS();
 }
 
@@ -941,7 +954,7 @@ static int mock_send_success_huge_body(struct HttpTransportContext *ctx,
 TEST test_sse_sync_loop_oom_branches(void) {
   int rc;
   struct HttpClient client = {0};
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct test_sse_ctx ctx = {0};
   int i;
 
@@ -1006,6 +1019,8 @@ TEST test_sse_sync_loop_oom_branches(void) {
     }
     http_request_free(&req);
   }
+
+  http_request_free(&req);
 
   PASS();
 }
@@ -1086,7 +1101,7 @@ static int mock_send_err_for_task(struct HttpTransportContext *ctx,
 TEST test_sse_async_task_error(void) {
   struct c_abstract_http_sse_async_ctx *ctx = malloc(sizeof(*ctx));
   struct HttpClient client = {0};
-  struct HttpRequest req;
+  struct HttpRequest req = {0};
   struct test_sse_ctx t_ctx = {0};
 
   http_request_init(&req);
@@ -1117,7 +1132,6 @@ TEST test_sse_async_task_error(void) {
   ctx->user_data = NULL;
   c_abstract_http_sse_async_task(ctx);
   http_request_free(&req);
-
   PASS();
 }
 

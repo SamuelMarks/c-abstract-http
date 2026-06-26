@@ -383,6 +383,7 @@ int c_abstract_http_sse_sync_read_loop(struct HttpClient *client,
 
   sse_parser_destroy(&parser);
   http_response_free(res);
+  free(res);
 
   if (on_close)
     on_close(user_data);
