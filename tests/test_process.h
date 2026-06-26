@@ -551,6 +551,7 @@ TEST test_process_final_edge_cases(void) {
 
   /* 390: EIO from read */
   {
+    char dummy_buf[10];
     /* read fails */
     g_mock_pipe_fail = 1; /* Wait, does my mock intercept read? */
     /* If not intercepted, reading from an invalid handle or a pipe closed early
@@ -558,8 +559,9 @@ TEST test_process_final_edge_cases(void) {
     /* No, I didn't mock `read`. Let's mock it or skip it or use a closed pipe?
      */
     /* A closed pipe returns 0. An invalid fd returns -1. */
-    /* I can just pass an invalid handle like (void*)-1 */
-    rc = cdd_ipc_read((void *)(size_t)-1, buf, 10);
+    /* I can just pass an invalid handle like (void*)9999 to avoid valgrind
+     * warnings on -1 */
+    rc = cdd_ipc_read((void *)(size_t)9999, dummy_buf, 10);
 #if defined(_WIN32)
     ASSERT(rc == EIO || rc == EINVAL);
 #else
