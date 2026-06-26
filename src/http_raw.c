@@ -49,6 +49,7 @@ struct RawCtx {
 
 int http_raw_context_init(struct HttpTransportContext **ctx) {
   struct RawCtx *c;
+  int rc;
   LOG_DEBUG("http_raw_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_raw_context_init: Error EINVAL");
@@ -182,11 +183,11 @@ int http_raw_send(struct HttpTransportContext *ctx,
 }
 
 int http_raw_send_multi(struct HttpTransportContext *ctx,
-                        cah_cppcheck_mut_ptr((void *)ctx);
-                        struct ModalityEventLoop * loop,
+                        struct ModalityEventLoop *loop,
                         const struct HttpMultiRequest *reqs,
                         struct HttpFuture **future) {
   size_t i;
+  cah_cppcheck_mut_ptr((void *)ctx);
   (void)loop;
 
   if (!ctx || !reqs || !future) {
@@ -196,6 +197,7 @@ int http_raw_send_multi(struct HttpTransportContext *ctx,
 
   for (i = 0; i < reqs->count; i++) {
     struct HttpResponse *res = NULL;
+    int rc = http_raw_send(ctx, reqs->requests[i], &res);
     future[i]->response = res;
     future[i]->error_code = rc;
     future[i]->is_ready = 1;

@@ -34,6 +34,7 @@ void http_wasm_global_cleanup(void) {
 }
 
 int http_wasm_context_init(struct HttpTransportContext **ctx) {
+  int rc;
   LOG_DEBUG("http_wasm_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_wasm_context_init: Error EINVAL");

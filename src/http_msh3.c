@@ -353,7 +353,7 @@ static int parse_url(const char *url, char **host, char **port, char **path,
   return 0;
 }
 
-int http_msh3_send(struct HttpTransportContext *ctx,
+int http_msh3_send(const struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, struct HttpResponse **res) {
   struct msh3_req_ctx rctx;
   MSH3_CONNECTION *conn;

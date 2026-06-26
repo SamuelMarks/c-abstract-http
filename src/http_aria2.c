@@ -20,7 +20,8 @@ struct HttpTransportContext {
 int http_aria2_global_init(void) { return 0; }
 void http_aria2_global_cleanup(void) {}
 
-int http_aria2_context_init(struct HttpTransportContext **const ctx) {
+int http_aria2_context_init(struct HttpTransportContext **ctx) {
+  int rc;
   LOG_DEBUG("http_aria2_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_aria2_context_init: Error EINVAL");
@@ -70,6 +71,7 @@ int http_aria2_config_apply(struct HttpTransportContext *ctx,
 int http_aria2_send(const struct HttpTransportContext *ctx,
                     const struct HttpRequest *req,
                     struct HttpResponse **const res) {
+  int rc;
   char cmd[4096];
   char tmp_filename[256];
   struct HttpResponse *new_res = NULL;
@@ -167,8 +169,8 @@ int http_aria2_send_multi(struct HttpTransportContext *ctx,
                           struct ModalityEventLoop *loop,
                           const struct HttpMultiRequest *multi,
                           struct HttpFuture **futures) {
-  cah_cppcheck_mut_ptr((void *)ctx);
   size_t i;
+  cah_cppcheck_mut_ptr((void *)ctx);
   (void)loop;
 
   if (!ctx || !multi || !futures) {

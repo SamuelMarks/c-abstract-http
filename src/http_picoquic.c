@@ -61,6 +61,9 @@ void http_picoquic_global_cleanup(void) {
 
 int http_picoquic_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
+  int rc;
+  uint8_t reset_seed[16] = {0};
+
   LOG_DEBUG("http_picoquic_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_picoquic_context_init: Error EINVAL");
@@ -84,8 +87,7 @@ int http_picoquic_context_init(struct HttpTransportContext **ctx) {
 
   /* Initialize an empty picoquic state machine configured as a client */
   /* Requires 16 bytes of random seed for statless resets, we pass zeros for the
-   * mock mapping. */
-  uint8_t reset_seed[16] = {0};
+   * mock mock mapping. */
   c->quic = picoquic_create(8, NULL, NULL, NULL, "h3", NULL, NULL, NULL, NULL,
                             reset_seed, 0, NULL, NULL, NULL, 0);
 
@@ -138,10 +140,11 @@ int http_picoquic_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-int http_picoquic_send(struct HttpTransportContext *ctx,
-                       cah_cppcheck_mut_ptr((void *)ctx);
+int http_picoquic_send(const struct HttpTransportContext *ctx,
                        const struct HttpRequest *req,
                        struct HttpResponse **res) {
+  int rc;
+  cah_cppcheck_mut_ptr((void *)ctx);
   LOG_DEBUG("http_picoquic_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_picoquic_send: Error EINVAL");
@@ -189,8 +192,8 @@ int http_picoquic_send_multi(struct HttpTransportContext *ctx,
                              struct ModalityEventLoop *loop,
                              const struct HttpMultiRequest *multi,
                              struct HttpFuture **futures) {
-  cah_cppcheck_mut_ptr((void *)ctx);
   size_t i;
+  cah_cppcheck_mut_ptr((void *)ctx);
   /* Attach picoquic_prepare_next_packet timing to the event loop */
   (void)loop;
 

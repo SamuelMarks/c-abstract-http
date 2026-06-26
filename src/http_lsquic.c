@@ -184,7 +184,7 @@ int http_lsquic_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-int http_lsquic_send(struct HttpTransportContext *ctx,
+int http_lsquic_send(const struct HttpTransportContext *ctx,
                      const struct HttpRequest *req, struct HttpResponse **res) {
   LOG_DEBUG("http_lsquic_send: Entering");
   if (!ctx || !req || !res) {

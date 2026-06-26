@@ -34,6 +34,7 @@ void http_libuv_global_cleanup(void) {
 }
 
 int http_libuv_context_init(struct HttpTransportContext **ctx) {
+  int rc;
   LOG_DEBUG("http_libuv_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_libuv_context_init: Error EINVAL");

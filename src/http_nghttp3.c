@@ -244,8 +244,8 @@ int http_nghttp3_send_multi(struct HttpTransportContext *ctx,
                             struct ModalityEventLoop *loop,
                             const struct HttpMultiRequest *multi,
                             struct HttpFuture **futures) {
-  cah_cppcheck_mut_ptr((void *)ctx);
   size_t i;
+  cah_cppcheck_mut_ptr((void *)ctx);
   /* Attach to the UDP event loop driving ngtcp2 */
   (void)loop;
 
