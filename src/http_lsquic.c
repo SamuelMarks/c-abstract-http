@@ -86,13 +86,7 @@ static void lsq_on_close(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
   rctx->is_complete = 1;
 }
 
-static const struct lsquic_stream_if lsq_stream_if = {
-    .on_new_conn = lsq_on_new_conn,
-    .on_conn_closed = lsq_on_conn_closed,
-    .on_new_stream = lsq_on_new_stream,
-    .on_read = lsq_on_read,
-    .on_write = lsq_on_write,
-    .on_close = lsq_on_close};
+static struct lsquic_stream_if lsq_stream_if;
 
 int http_lsquic_global_init(void) {
   if (g_lsquic_init_count++ == 0) {
@@ -100,6 +94,13 @@ int http_lsquic_global_init(void) {
       g_lsquic_init_count--;
       return EIO;
     }
+    memset(&lsq_stream_if, 0, sizeof(lsq_stream_if));
+    lsq_stream_if.on_new_conn = lsq_on_new_conn;
+    lsq_stream_if.on_conn_closed = lsq_on_conn_closed;
+    lsq_stream_if.on_new_stream = lsq_on_new_stream;
+    lsq_stream_if.on_read = lsq_on_read;
+    lsq_stream_if.on_write = lsq_on_write;
+    lsq_stream_if.on_close = lsq_on_close;
   }
   return 0;
 }
