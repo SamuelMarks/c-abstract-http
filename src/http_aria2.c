@@ -68,7 +68,7 @@ int http_aria2_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-int http_aria2_send(const struct HttpTransportContext *ctx,
+int http_aria2_send(struct HttpTransportContext *ctx,
                     const struct HttpRequest *req,
                     struct HttpResponse **const res) {
   int rc;

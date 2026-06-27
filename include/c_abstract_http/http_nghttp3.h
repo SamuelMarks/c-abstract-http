@@ -74,7 +74,7 @@ extern int http_nghttp3_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Double pointer to receive the newly allocated response.
  * @return 0 on success, or a mapped error code on failure.
  */
-extern int http_nghttp3_send(const struct HttpTransportContext *ctx,
+extern int http_nghttp3_send(struct HttpTransportContext *ctx,
                              const struct HttpRequest *req,
                              struct HttpResponse **res);
 

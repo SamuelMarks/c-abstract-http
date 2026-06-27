@@ -201,7 +201,7 @@ int http_nghttp3_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-int http_nghttp3_send(const struct HttpTransportContext *ctx,
+int http_nghttp3_send(struct HttpTransportContext *ctx,
                       const struct HttpRequest *req,
                       struct HttpResponse **res) {
   LOG_DEBUG("http_nghttp3_send: Entering");

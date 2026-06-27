@@ -70,7 +70,7 @@ int http_apple_config_apply(struct HttpTransportContext *ctx,
   return 0;
 }
 
-int http_apple_send(const struct HttpTransportContext *ctx,
+int http_apple_send(struct HttpTransportContext *ctx,
                     const struct HttpRequest *req, struct HttpResponse **res) {
   CFURLRef url;
   CFStringRef urlStr;

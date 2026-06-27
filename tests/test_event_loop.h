@@ -803,6 +803,7 @@ TEST test_event_loop_timeout_underflow(void) {
   PASS();
 }
 
+#if !defined(_WIN32)
 static void dummy_write_cb(struct ModalityEventLoop *loop, int fd, int revents,
                            void *user_data) {
   int *triggered = (int *)user_data;
@@ -810,6 +811,7 @@ static void dummy_write_cb(struct ModalityEventLoop *loop, int fd, int revents,
   *triggered |= revents;
   http_loop_stop(loop);
 }
+#endif
 
 TEST test_event_loop_write_error_coverage(void) {
   struct ModalityEventLoop *loop;
@@ -867,6 +869,7 @@ TEST test_event_loop_timer_past_coverage(void) {
   PASS();
 }
 
+#if !defined(_WIN32)
 static void dummy_error_cb(struct ModalityEventLoop *loop, int fd, int revents,
                            void *user_data) {
   int *triggered = (int *)user_data;
@@ -874,6 +877,7 @@ static void dummy_error_cb(struct ModalityEventLoop *loop, int fd, int revents,
   (void)fd;
   *triggered |= revents;
 }
+#endif
 
 TEST test_event_loop_write_error_coverage2(void) {
   struct ModalityEventLoop *loop;
