@@ -68,7 +68,7 @@ static void lsq_on_read(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
     rctx->is_complete = 1;
     lsquic_stream_close(s);
   } else {
-    LOG_DEBUG("lsq_on_read: Error nr=%zd", nr);
+    LOG_DEBUG("lsq_on_read: Error nr=%ld", (long)nr);
     rctx->error_code = EIO;
     rctx->is_complete = 1;
     lsquic_stream_close(s);

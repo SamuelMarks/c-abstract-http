@@ -1,7 +1,7 @@
 {
   "name": "c-abstract-http",
   "version-string": "0.1.0",
-  "builtin-baseline": "d650b88928fd894464bea1fa83a9b4e57fc21a02",
+  "builtin-baseline": "d16d7d2ae11624e99f9071a21fa99c3850118b3a",
 
   "dependencies": [
     {
