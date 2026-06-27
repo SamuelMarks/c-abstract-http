@@ -5,7 +5,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* clang-format off */
 #if defined(_WIN32) && defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #if defined(_M_AMD64) && !defined(_AMD64_)
 #define _AMD64_
@@ -15,6 +14,7 @@ extern "C" {
 #define _ARM64_
 #elif defined(_M_ARM) && !defined(_ARM_)
 #define _ARM_
+/* clang-format off */
 #endif
 #include <string.h>
 #if _MSC_VER < 1900
@@ -27,8 +27,8 @@ extern "C" {
 
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
 #include <inttypes.h>
-/* clang-format on */
 #define SIZE_T_FMT "zu"
+/* clang-format on */
 
 #elif defined(__LP64__) || defined(_LP64)
 #define SIZE_T_FMT "lu"

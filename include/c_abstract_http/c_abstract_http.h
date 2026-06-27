@@ -17,57 +17,40 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-
 #include "http_types.h"
 
-/* clang-format boundary */
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) || !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
 #include "cmp_integration.h"
 #endif
 
-/* clang-format boundary */
 #include "event_loop.h"
 
-/* clang-format boundary */
 #include "thread_pool.h"
 
-/* clang-format boundary */
 #include "cdd_tls.h"
 
-/* clang-format boundary */
 #include "coroutine.h"
 
-/* clang-format boundary */
 #include "actor.h"
 
-/* clang-format boundary */
 #include "http_libsoup3.h"
 
-/* clang-format boundary */
 #include "http_curl.h"
 
-/* clang-format boundary */
 #include "http_winhttp.h"
 
-/* clang-format boundary */
 #include "http_wininet.h"
 
-/* clang-format boundary */
 #include "http_apple.h"
 
-/* clang-format boundary */
 #include "http_android.h"
 
-/* clang-format boundary */
 #include "http_aria2.h"
 
-/* clang-format boundary */
 #include "http_wasm.h"
 
-/* clang-format boundary */
 #include "http_libuv.h"
 
-/* clang-format boundary */
 #include "http_libevent.h"
 
 #ifdef C_ABSTRACT_HTTP_IMPLEMENTATION
@@ -108,10 +91,9 @@ extern "C" {
 #else
 #include "../../src/http_curl.c"
 #endif
+/* clang-format on */
 
 #endif /* C_ABSTRACT_HTTP_IMPLEMENTATION */
-
-/* clang-format on */
 
 #ifdef __cplusplus
 }

@@ -12,7 +12,6 @@ extern "C" {
 #include <string.h>
 
 #include <c_abstract_http/actor.h>
-/* clang-format on */
 
 struct TestActorState {
   int received_messages;
@@ -263,6 +262,7 @@ TEST test_actor_getters(void) {
 }
 
 #include "mock_alloc.h"
+/* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_actor_oom(void) {

@@ -28,7 +28,6 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #endif
 #endif
 #endif
-/* clang-format on */
 
 static struct CddTlsKey *tls_key = NULL;
 
@@ -78,6 +77,7 @@ TEST test_tls_isolation(void) {
 }
 
 #include "mock_alloc.h"
+/* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_tls_oom(void) {

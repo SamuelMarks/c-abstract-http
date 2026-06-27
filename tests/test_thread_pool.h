@@ -33,9 +33,9 @@ extern "C" {
 #endif
 
 #include <c_abstract_http/thread_pool.h>
-/* clang-format on */
 
 #include "mock_alloc.h"
+/* clang-format on */
 
 extern void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool);
 extern void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool);

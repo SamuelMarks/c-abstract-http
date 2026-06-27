@@ -17,10 +17,9 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-
 #include <c_abstract_http/http_types.h>
-
 /* clang-format on */
+
 /**
  * @brief Initialize the global aria2 environment safely.
  *

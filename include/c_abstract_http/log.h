@@ -1,7 +1,5 @@
-/* clang-format off */
 #ifndef C_ABSTRACT_HTTP_LOG_H
 #define C_ABSTRACT_HTTP_LOG_H
-/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {

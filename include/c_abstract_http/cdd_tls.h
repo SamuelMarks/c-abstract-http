@@ -15,10 +15,9 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-
 #include <stddef.h>
-
 /* clang-format on */
+
 /**
  * @brief Opaque structure representing a Thread Local Storage key.
  */

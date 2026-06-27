@@ -13,10 +13,9 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-
 #include <c_abstract_http/http_types.h>
-
 /* clang-format on */
+
 /**
  * @brief Initialize the global transport layer.
  * @return 0 on success, error code on failure.

@@ -13,9 +13,9 @@ extern "C" {
 #include <string.h>
 
 #include <c_abstract_http/event_loop.h>
-/* clang-format on */
 
 #include "mock_alloc.h"
+/* clang-format on */
 
 static void timer_cb_1(struct ModalityEventLoop *loop, int timer_id,
                        void *user_data) {

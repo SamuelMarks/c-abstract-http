@@ -11,6 +11,7 @@
 #ifndef C_CDD_TEST_HTTP_APPLE_H
 #define C_CDD_TEST_HTTP_APPLE_H
 
+/* clang-format off */
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,7 +32,6 @@ static char *c_abstract_http_test_apple_strdup(const char *s) {
 extern "C" {
 #endif /* __cplusplus */
 
-/* clang-format off */
 #include <greatest.h>
 #include <stdlib.h>
 #include <string.h>

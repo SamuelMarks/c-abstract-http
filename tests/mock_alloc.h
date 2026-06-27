@@ -1,6 +1,7 @@
 #ifndef CDD_MOCK_ALLOC_H
 #define CDD_MOCK_ALLOC_H
 
+/* clang-format off */
 #ifdef _WIN32
 #pragma push_macro("socket")
 #pragma push_macro("bind")
@@ -14,7 +15,6 @@
 #undef accept
 #undef recv
 #undef select
-/* clang-format off */
 #include <winsock2.h>
 #pragma pop_macro("select")
 #pragma pop_macro("recv")
@@ -30,7 +30,6 @@
 
 #include <stdio.h>
 #include <c_abstract_http/http_types.h>
-/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {
@@ -137,6 +136,7 @@ typedef unsigned __int64 uint64_t;
 #else
 #include <stdint.h>
 #endif
+/* clang-format on */
 
 uint64_t c_abstract_http_mock_math_get_current_time_ms(void);
 

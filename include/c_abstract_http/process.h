@@ -16,11 +16,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-
 #include <stddef.h>
 #include <c_abstract_http/http_types.h>
-
 /* clang-format on */
+
 /**
  * @brief Opaque process handle.
  */

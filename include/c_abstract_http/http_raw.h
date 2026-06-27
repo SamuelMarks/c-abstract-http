@@ -11,11 +11,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
-
 /* clang-format on */
+
 /**
  * @brief Initialize the global raw socket environment.
  * @return 0 on success.

@@ -6,15 +6,14 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-
 #include "c_abstract_http/http_types.h"
 #include "c_abstract_http/win_compat_sym.h"
 
 #ifdef _WIN32
 #include <windef.h>
 #endif
-
 /* clang-format on */
+
 #ifdef _MSC_VER
 #define C_ABSTRACT_HTTP_STRCPY_S(dest, sz, src) strcpy_s(dest, sz, src)
 #else

@@ -1,9 +1,8 @@
 #if defined(_WIN32) && defined(_MSC_VER)
 #pragma warning(disable : 4273)
 #endif
-/* clang-format off */
 #if defined(_MSC_VER)
-#pragma warning(disable: 4273)
+#pragma warning(disable : 4273)
 #endif
 #undef malloc
 #undef calloc
@@ -29,6 +28,7 @@
 #undef accept
 #undef recv
 
+/* clang-format off */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -216,7 +216,6 @@ char *c_abstract_http_mock_strdup(const char *s, char **out) {
 #include <sys/wait.h>
 #endif
 #include <errno.h>
-/* clang-format on */
 #if !defined(_WIN32)
 extern int pthread_key_create(pthread_key_t *, void (*)(void *));
 extern int pthread_mutex_init(pthread_mutex_t *, const pthread_mutexattr_t *);
@@ -471,6 +470,7 @@ int c_abstract_http_mock_fclose(FILE *stream) {
 
 #ifdef _WIN32
 #include <BaseTsd.h>
+/* clang-format on */
 SOCKET WSAAPI c_abstract_http_mock_socket(int domain, int type, int protocol) {
   if (g_mock_socket_fail)
     return INVALID_SOCKET;

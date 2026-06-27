@@ -1,6 +1,6 @@
 
-/* clang-format off */
 extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
+/* clang-format off */
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +8,7 @@ extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 #include <c_abstract_http/actor.h>
 #include "c_abstract_http/log.h"
 #include "str.h"
+/* clang-format on */
 
 #ifndef CDD_MALLOC
 #define CDD_MALLOC malloc
@@ -28,7 +29,6 @@ extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 #ifndef CDD_STRDUP
 #define CDD_STRDUP c_cdd_strdup
 #endif
-/* clang-format on */
 
 static struct CddActorHooks g_actor_hooks = {NULL, NULL, NULL, NULL,
                                              NULL, NULL, NULL};

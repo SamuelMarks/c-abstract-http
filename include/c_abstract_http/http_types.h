@@ -16,11 +16,9 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-
 #include <errno.h>
 #include <stddef.h>
 
-/* clang-format on */
 
 #ifdef _MSC_VER
 #define C_ABSTRACT_HTTP_VSPRINTF_S(dest, sz, fmt, args)                        \
@@ -160,6 +158,7 @@ typedef unsigned __int64 uint64_t;
 #endif
 #endif
 #endif
+/* clang-format on */
 /** @brief cdd_int64_t typedef */
 typedef int64_t cdd_int64_t;
 /** @brief cdd_uint64_t typedef */

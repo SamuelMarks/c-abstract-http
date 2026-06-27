@@ -14,11 +14,10 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-
 #include <stddef.h>
 #include "http_types.h"
-
 /* clang-format on */
+
 /**
  * @brief Expected modality values from c-multiplatform.
  *
