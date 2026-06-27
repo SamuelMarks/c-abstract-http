@@ -35,7 +35,7 @@ static int acked_stream_data(nghttp3_conn *conn, int64_t stream_id,
   (void)datalen;
   (void)conn_user_data;
   (void)stream_user_data;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int stream_close(nghttp3_conn *conn, int64_t stream_id,
@@ -46,7 +46,7 @@ static int stream_close(nghttp3_conn *conn, int64_t stream_id,
   (void)app_error_code;
   (void)conn_user_data;
   (void)stream_user_data;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int recv_data(nghttp3_conn *conn, int64_t stream_id, const uint8_t *data,
@@ -58,7 +58,7 @@ static int recv_data(nghttp3_conn *conn, int64_t stream_id, const uint8_t *data,
   (void)datalen;
   (void)conn_user_data;
   (void)stream_user_data;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int deferred_consume(nghttp3_conn *conn, int64_t stream_id,
@@ -69,7 +69,7 @@ static int deferred_consume(nghttp3_conn *conn, int64_t stream_id,
   (void)consumed;
   (void)conn_user_data;
   (void)stream_user_data;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int begin_headers(nghttp3_conn *conn, int64_t stream_id,
@@ -78,7 +78,7 @@ static int begin_headers(nghttp3_conn *conn, int64_t stream_id,
   (void)stream_id;
   (void)conn_user_data;
   (void)stream_user_data;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int recv_header(nghttp3_conn *conn, int64_t stream_id, int32_t token,
@@ -92,7 +92,7 @@ static int recv_header(nghttp3_conn *conn, int64_t stream_id, int32_t token,
   (void)flags;
   (void)conn_user_data;
   (void)stream_user_data;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int end_headers(nghttp3_conn *conn, int64_t stream_id, int fin,
@@ -102,14 +102,14 @@ static int end_headers(nghttp3_conn *conn, int64_t stream_id, int fin,
   (void)fin;
   (void)conn_user_data;
   (void)stream_user_data;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_nghttp3_global_init(void) {
+enum c_abstract_http_error http_nghttp3_global_init(void) {
   if (g_nghttp3_init_count++ == 0) {
     /* Setup cryptographic or global QUIC prerequisites here if needed */
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_nghttp3_global_cleanup(void) {
@@ -118,18 +118,19 @@ void http_nghttp3_global_cleanup(void) {
   }
 }
 
-int http_nghttp3_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_nghttp3_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
   LOG_DEBUG("http_nghttp3_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_nghttp3_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   c = calloc(1, sizeof(*c));
   if (!c) {
     LOG_DEBUG("http_nghttp3_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_config_init(&c->config);
@@ -157,12 +158,12 @@ int http_nghttp3_context_init(struct HttpTransportContext **ctx) {
         "http_nghttp3_context_init: Error nghttp3_conn_client_new failed");
     http_config_free(&c->config);
     free(c);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   *ctx = c;
   LOG_DEBUG("http_nghttp3_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_nghttp3_context_free(struct HttpTransportContext *ctx) {
@@ -180,12 +181,13 @@ void http_nghttp3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_nghttp3_context_free: Exiting");
 }
 
-int http_nghttp3_config_apply(struct HttpTransportContext *ctx,
-                              const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_nghttp3_config_apply(struct HttpTransportContext *ctx,
+                          const struct HttpConfig *config) {
   LOG_DEBUG("http_nghttp3_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_nghttp3_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   ctx->verify_peer = config->verify_peer;
@@ -198,27 +200,27 @@ int http_nghttp3_config_apply(struct HttpTransportContext *ctx,
   ctx->config = *config;
   ctx->is_configured = 1;
   LOG_DEBUG("http_nghttp3_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_nghttp3_send(struct HttpTransportContext *ctx,
-                      const struct HttpRequest *req,
-                      struct HttpResponse **res) {
+enum c_abstract_http_error http_nghttp3_send(struct HttpTransportContext *ctx,
+                                             const struct HttpRequest *req,
+                                             struct HttpResponse **res) {
   LOG_DEBUG("http_nghttp3_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_nghttp3_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (!ctx->is_configured) {
     LOG_DEBUG("http_nghttp3_send: Error EINVAL (not configured)");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   *res = calloc(1, sizeof(**res));
   if (!*res) {
     LOG_DEBUG("http_nghttp3_send: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_response_init(*res);
@@ -237,13 +239,12 @@ int http_nghttp3_send(struct HttpTransportContext *ctx,
    */
 
   LOG_DEBUG("http_nghttp3_send: Success (simulated)");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_nghttp3_send_multi(struct HttpTransportContext *ctx,
-                            struct ModalityEventLoop *loop,
-                            const struct HttpMultiRequest *multi,
-                            struct HttpFuture **futures) {
+enum c_abstract_http_error http_nghttp3_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
   cah_cppcheck_mut_ptr((void *)ctx);
   /* Attach to the UDP event loop driving ngtcp2 */
@@ -251,7 +252,7 @@ int http_nghttp3_send_multi(struct HttpTransportContext *ctx,
 
   if (!ctx || !multi || !futures) {
     LOG_DEBUG("http_nghttp3_send_multi: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   for (i = 0; i < multi->count; i++) {
@@ -261,7 +262,7 @@ int http_nghttp3_send_multi(struct HttpTransportContext *ctx,
     futures[i]->error_code = rc;
     futures[i]->is_ready = 1;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #endif

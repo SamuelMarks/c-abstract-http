@@ -151,10 +151,10 @@ TEST test_event_loop_external(void) {
   hooks.cancel_timer = mock_loop_cancel_timer;
   hooks.wakeup = mock_loop_wakeup;
 
-  ASSERT_EQ(EINVAL, http_loop_init_external(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_init_external(NULL, NULL));
   ASSERT_EQ(0, http_loop_init_external(&loop, &hooks));
 
-  ASSERT_EQ(ENOTSUP, http_loop_run(loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_loop_run(loop));
   ASSERT_EQ(0, http_loop_tick(loop));
   http_loop_stop(loop);
 
@@ -233,22 +233,26 @@ TEST test_event_loop_fd(void) {
 
 TEST test_event_loop_errors(void) {
   struct ModalityEventLoop *loop = NULL;
-  ASSERT_EQ(EINVAL, http_loop_init(NULL));
-  ASSERT_EQ(EINVAL, http_loop_run(NULL));
-  ASSERT_EQ(EINVAL, http_loop_tick(NULL));
-  ASSERT_EQ(EINVAL, http_loop_stop(NULL));
-  ASSERT_EQ(EINVAL, http_loop_add_fd(NULL, 0, 0, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_loop_mod_fd(NULL, 0, 0));
-  ASSERT_EQ(EINVAL, http_loop_remove_fd(NULL, 0));
-  ASSERT_EQ(EINVAL, http_loop_add_timer(NULL, 0, NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_loop_cancel_timer(NULL, 0));
-  ASSERT_EQ(EINVAL, http_loop_wakeup(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_run(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_tick(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_stop(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_loop_add_fd(NULL, 0, 0, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_mod_fd(NULL, 0, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_remove_fd(NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_loop_add_timer(NULL, 0, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_cancel_timer(NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_wakeup(NULL));
 
   ASSERT_EQ(0, http_loop_init(&loop));
-  ASSERT_EQ(EINVAL, http_loop_add_timer(loop, 10, NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_loop_add_fd(loop, -1, 1, mock_fd_cb, NULL));
-  ASSERT_EQ(EINVAL, http_loop_mod_fd(loop, -1, 1));
-  ASSERT_EQ(EINVAL, http_loop_remove_fd(loop, -1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_loop_add_timer(loop, 10, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_loop_add_fd(loop, -1, 1, mock_fd_cb, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_mod_fd(loop, -1, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_remove_fd(loop, -1));
 
   ASSERT_EQ(0, http_loop_add_fd(loop, 5, 1, mock_fd_cb, NULL));
   ASSERT_EQ(EEXIST, http_loop_add_fd(loop, 5, 1, mock_fd_cb, NULL));
@@ -372,13 +376,13 @@ TEST test_event_loop_alloc_errors(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, http_loop_init(&loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_loop_init(&loop));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  ASSERT_EQ(ENOMEM, http_loop_init(&loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_loop_init(&loop));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2;
-  ASSERT_EQ(ENOMEM, http_loop_init(&loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_loop_init(&loop));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -386,11 +390,11 @@ TEST test_event_loop_alloc_errors(void) {
   {
     int rc_test_tmp = http_loop_init_external(&loop, &hooks);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
-  /* Other ENOMEM points in event_loop.c */
-  /* 430 is ENOMEM for add_timer */
+  /* Other C_ABSTRACT_HTTP_ERR_NOMEM points in event_loop.c */
+  /* 430 is C_ABSTRACT_HTTP_ERR_NOMEM for add_timer */
   ASSERT_EQ(0, http_loop_init(&loop));
   {
     int i, id;
@@ -403,7 +407,7 @@ TEST test_event_loop_alloc_errors(void) {
       int rc_test_tmp =
           http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &id);
       g_mock_alloc_fail = 0;
-      ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+      ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
     }
   }
   http_loop_free(loop);
@@ -417,7 +421,7 @@ TEST test_event_loop_pipe_fail(void) {
   struct ModalityEventLoop *loop = NULL;
 
   g_mock_pipe_fail = 1;
-  ASSERT_EQ(EIO, http_loop_init(&loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_init(&loop));
   g_mock_pipe_fail = 0;
 
   /* also test free NULL */
@@ -436,12 +440,13 @@ TEST test_event_loop_missing_hooks(void) {
 
   ASSERT_EQ(0, http_loop_init_external(&loop, &empty_hooks));
 
-  ASSERT_EQ(ENOTSUP, http_loop_add_fd(loop, 1, 1, NULL, NULL));
-  ASSERT_EQ(ENOTSUP, http_loop_mod_fd(loop, 1, 2));
-  ASSERT_EQ(ENOTSUP, http_loop_remove_fd(loop, 1));
-  ASSERT_EQ(ENOTSUP,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            http_loop_add_fd(loop, 1, 1, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_loop_mod_fd(loop, 1, 2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_loop_remove_fd(loop, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
             http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &timer_id));
-  ASSERT_EQ(ENOTSUP, http_loop_cancel_timer(loop, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_loop_cancel_timer(loop, 1));
 
   /* wakeup is a no-op if hook is missing, returns 0 */
   ASSERT_EQ(0, http_loop_wakeup(loop));
@@ -498,7 +503,7 @@ TEST test_event_loop_fd_edges(void) {
   {
     int rc_test_tmp = http_loop_add_fd(loop, 20, 1, mock_fd_cb, NULL);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   http_loop_free(loop);

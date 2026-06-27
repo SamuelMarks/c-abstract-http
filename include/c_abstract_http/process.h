@@ -60,7 +60,7 @@ extern void cdd_process_set_hooks(const struct CddProcessHooks *hooks);
  * @param[out] pipe The pipe structure to populate.
  * @return 0 on success, error code on failure.
  */
-extern int cdd_ipc_pipe_init(struct CddIpcPipe *pipe);
+extern enum c_abstract_http_error cdd_ipc_pipe_init(struct CddIpcPipe *pipe);
 
 /**
  * @brief Close an IPC pipe.
@@ -78,9 +78,9 @@ extern void cdd_ipc_pipe_free(struct CddIpcPipe *pipe);
  * @param[out] child_to_parent The pipe for child -> parent communication.
  * @return 0 on success, error code on failure.
  */
-extern int cdd_process_spawn(struct CddProcess **proc,
-                             struct CddIpcPipe *parent_to_child,
-                             struct CddIpcPipe *child_to_parent);
+extern enum c_abstract_http_error
+cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
+                  struct CddIpcPipe *child_to_parent);
 
 /**
  * @brief Wait for a process to exit and free its handle.
@@ -88,7 +88,8 @@ extern int cdd_process_spawn(struct CddProcess **proc,
  * @param[out] exit_code Pointer to store the exit code (optional).
  * @return 0 on success.
  */
-extern int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code);
+extern enum c_abstract_http_error
+cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code);
 
 /**
  * @brief Serialize an HttpRequest into a buffer.
@@ -97,8 +98,9 @@ extern int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code);
  * @param[out] out_len Length of the buffer.
  * @return 0 on success.
  */
-extern int cdd_ipc_serialize_request(const struct HttpRequest *req,
-                                     char **out_buf, size_t *out_len);
+extern enum c_abstract_http_error
+cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
+                          size_t *out_len);
 
 /**
  * @brief Deserialize a buffer into an HttpRequest.
@@ -107,8 +109,9 @@ extern int cdd_ipc_serialize_request(const struct HttpRequest *req,
  * @param[out] req The request to populate.
  * @return 0 on success.
  */
-extern int cdd_ipc_deserialize_request(const char *buf, size_t len,
-                                       struct HttpRequest *req);
+extern enum c_abstract_http_error
+cdd_ipc_deserialize_request(const char *buf, size_t len,
+                            struct HttpRequest *req);
 
 /**
  * @brief Serialize an HttpResponse into a buffer.
@@ -117,8 +120,9 @@ extern int cdd_ipc_deserialize_request(const char *buf, size_t len,
  * @param[out] out_len Length of the buffer.
  * @return 0 on success.
  */
-extern int cdd_ipc_serialize_response(const struct HttpResponse *res,
-                                      char **out_buf, size_t *out_len);
+extern enum c_abstract_http_error
+cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
+                           size_t *out_len);
 
 /**
  * @brief Deserialize a buffer into an HttpResponse.
@@ -127,8 +131,9 @@ extern int cdd_ipc_serialize_response(const struct HttpResponse *res,
  * @param[out] res The response to populate.
  * @return 0 on success.
  */
-extern int cdd_ipc_deserialize_response(const char *buf, size_t len,
-                                        struct HttpResponse *res);
+extern enum c_abstract_http_error
+cdd_ipc_deserialize_response(const char *buf, size_t len,
+                             struct HttpResponse *res);
 
 /**
  * @brief Write data to an IPC pipe endpoint securely.
@@ -137,7 +142,8 @@ extern int cdd_ipc_deserialize_response(const char *buf, size_t len,
  * @param len The len parameter.
  * @return 0 on success, or an error code.
  */
-extern int cdd_ipc_write(void *handle, const void *data, size_t len);
+extern enum c_abstract_http_error cdd_ipc_write(void *handle, const void *data,
+                                                size_t len);
 
 /**
  * @brief Read data from an IPC pipe endpoint securely.
@@ -146,7 +152,8 @@ extern int cdd_ipc_write(void *handle, const void *data, size_t len);
  * @param len The len parameter.
  * @return 0 on success, or an error code.
  */
-extern int cdd_ipc_read(void *handle, void *data, size_t len);
+extern enum c_abstract_http_error cdd_ipc_read(void *handle, void *data,
+                                               size_t len);
 
 #ifdef __cplusplus
 }

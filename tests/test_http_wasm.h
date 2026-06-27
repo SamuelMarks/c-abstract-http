@@ -114,8 +114,8 @@ TEST test_wasm_send_connection_failure(void) {
 
   rc = http_wasm_send(ctx, &req, &res);
 
-  if (rc != ETIMEDOUT && rc != ECONNREFUSED && rc != EHOSTUNREACH &&
-      rc != EIO) {
+  if (rc != C_ABSTRACT_HTTP_ERR_TIMEOUT && rc != ECONNREFUSED &&
+      rc != EHOSTUNREACH && rc != C_ABSTRACT_HTTP_ERR_IO) {
     fprintf(stderr, "Unexpected return code: %d (%s)\n", rc, strerror(rc));
     FAIL();
   }
@@ -138,12 +138,12 @@ TEST test_wasm_send_invalid_arguments(void) {
   http_wasm_context_init(&ctx);
   http_request_init(&req);
 
-  ASSERT_EQ(EINVAL, http_wasm_send(NULL, &req, &res));
-  ASSERT_EQ(EINVAL, http_wasm_send(ctx, NULL, &res));
-  ASSERT_EQ(EINVAL, http_wasm_send(ctx, &req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wasm_send(NULL, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wasm_send(ctx, NULL, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wasm_send(ctx, &req, NULL));
 
-  ASSERT_EQ(EINVAL, http_wasm_config_apply(NULL, NULL));
-  ASSERT_EQ(EINVAL, http_wasm_config_apply(ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wasm_config_apply(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wasm_config_apply(ctx, NULL));
 
   http_request_free(&req);
   http_wasm_context_free(ctx);

@@ -25,11 +25,12 @@ struct CddTlsKey {
   DWORD dwTlsIndex;
 };
 
-int cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *)) {
+enum c_abstract_http_error cdd_tls_key_create(struct CddTlsKey **key,
+                                              void (*destructor)(void *)) {
   LOG_DEBUG("cdd_tls_key_create: Entering");
   if (!key) {
     LOG_DEBUG("cdd_tls_key_create: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   /* Windows FlsAlloc supports destructors, TlsAlloc does not. We'll stick to
    * TlsAlloc for maximum compatibility but ignore destructors for now. */
@@ -37,45 +38,46 @@ int cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *)) {
   *key = (struct CddTlsKey *)malloc(sizeof(struct CddTlsKey));
   if (!*key) {
     LOG_DEBUG("cdd_tls_key_create: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   (*key)->dwTlsIndex = TlsAlloc();
   if ((*key)->dwTlsIndex == TLS_OUT_OF_INDEXES) {
     LOG_DEBUG("cdd_tls_key_create: Error EIO (TLS_OUT_OF_INDEXES)");
     free(*key);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   LOG_DEBUG("cdd_tls_key_create: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_tls_set(struct CddTlsKey *key, void *value) {
+enum c_abstract_http_error cdd_tls_set(struct CddTlsKey *key, void *value) {
   LOG_DEBUG("cdd_tls_set: Entering");
   if (!key) {
     LOG_DEBUG("cdd_tls_set: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   if (!TlsSetValue(key->dwTlsIndex, value)) {
     LOG_DEBUG("cdd_tls_set: Error EIO (TlsSetValue failed)");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   LOG_DEBUG("cdd_tls_set: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_tls_get(struct CddTlsKey *key, void **out_value) {
+enum c_abstract_http_error cdd_tls_get(struct CddTlsKey *key,
+                                       void **out_value) {
   LOG_DEBUG("cdd_tls_get: Entering");
   if (!key || !out_value) {
     LOG_DEBUG("cdd_tls_get: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   *out_value = TlsGetValue(key->dwTlsIndex);
   if (!*out_value && GetLastError() != ERROR_SUCCESS) {
     LOG_DEBUG("cdd_tls_get: Error EIO (TlsGetValue failed)");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   LOG_DEBUG("cdd_tls_get: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void cdd_tls_key_delete(struct CddTlsKey *key) {
@@ -95,54 +97,56 @@ struct CddTlsKey {
   pthread_key_t key;
 };
 
-int cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *)) {
+enum c_abstract_http_error cdd_tls_key_create(struct CddTlsKey **key,
+                                              void (*destructor)(void *)) {
   int rc;
   LOG_DEBUG("cdd_tls_key_create: Entering");
   if (!key) {
     LOG_DEBUG("cdd_tls_key_create: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   *key = (struct CddTlsKey *)malloc(sizeof(struct CddTlsKey));
   if (!*key) {
     LOG_DEBUG("cdd_tls_key_create: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   rc = pthread_key_create(&(*key)->key, destructor);
   if (rc != 0) {
     LOG_DEBUG("cdd_tls_key_create: Error pthread_key_create failed with %d",
               rc);
     free(*key);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   LOG_DEBUG("cdd_tls_key_create: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_tls_set(struct CddTlsKey *key, void *value) {
+enum c_abstract_http_error cdd_tls_set(struct CddTlsKey *key, void *value) {
   int rc;
   LOG_DEBUG("cdd_tls_set: Entering");
   if (!key) {
     LOG_DEBUG("cdd_tls_set: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   rc = pthread_setspecific(key->key, value);
   if (rc != 0) {
     LOG_DEBUG("cdd_tls_set: Error pthread_setspecific failed with %d", rc);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   LOG_DEBUG("cdd_tls_set: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_tls_get(struct CddTlsKey *key, void **out_value) {
+enum c_abstract_http_error cdd_tls_get(struct CddTlsKey *key,
+                                       void **out_value) {
   LOG_DEBUG("cdd_tls_get: Entering");
   if (!key || !out_value) {
     LOG_DEBUG("cdd_tls_get: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   *out_value = pthread_getspecific(key->key);
   LOG_DEBUG("cdd_tls_get: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void cdd_tls_key_delete(struct CddTlsKey *key) {

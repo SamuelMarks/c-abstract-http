@@ -118,8 +118,8 @@ TEST test_libsoup3_send_connection_failure(void) {
 
   rc = http_libsoup3_send(ctx, &req, &res);
 
-  if (rc != ECONNREFUSED && rc != ETIMEDOUT && rc != EHOSTUNREACH &&
-      rc != EIO) {
+  if (rc != ECONNREFUSED && rc != C_ABSTRACT_HTTP_ERR_TIMEOUT &&
+      rc != EHOSTUNREACH && rc != C_ABSTRACT_HTTP_ERR_IO) {
     fprintf(stderr, "Unexpected return code: %d (%s)\n", rc, strerror(rc));
     FAIL();
   }
@@ -144,12 +144,12 @@ TEST test_libsoup3_send_invalid_arguments(void) {
   http_libsoup3_context_init(&ctx);
   http_request_init(&req);
 
-  ASSERT_EQ(EINVAL, http_libsoup3_send(NULL, &req, &res));
-  ASSERT_EQ(EINVAL, http_libsoup3_send(ctx, NULL, &res));
-  ASSERT_EQ(EINVAL, http_libsoup3_send(ctx, &req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_send(NULL, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_send(ctx, NULL, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_send(ctx, &req, NULL));
 
-  ASSERT_EQ(EINVAL, http_libsoup3_config_apply(NULL, NULL));
-  ASSERT_EQ(EINVAL, http_libsoup3_config_apply(ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_config_apply(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_config_apply(ctx, NULL));
 
   http_request_free(&req);
   http_libsoup3_context_free(ctx);

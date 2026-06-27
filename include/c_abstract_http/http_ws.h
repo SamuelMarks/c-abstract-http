@@ -11,6 +11,7 @@ extern "C" {
 
 #ifdef _WIN32
 #include <windef.h>
+#include <c_abstract_http/http_types.h>
 #endif
 /* clang-format on */
 
@@ -98,8 +99,9 @@ typedef int (*c_abstract_http_ws_on_close)(int status_code, void *user_data);
  * @param config Optional WebSocket configuration.
  * @return 0 on success, or a negative error code.
  */
-int c_abstract_http_ws_init(struct HttpRequest *req,
-                            const struct c_abstract_http_ws_config *config);
+enum c_abstract_http_error
+c_abstract_http_ws_init(struct HttpRequest *req,
+                        const struct c_abstract_http_ws_config *config);
 
 /**
  * @brief Run a blocking loop to read WebSocket frames for the given connection.
@@ -113,12 +115,11 @@ int c_abstract_http_ws_init(struct HttpRequest *req,
  * *exit_flag != 0.
  * @return 0 on clean exit, negative error code on failure.
  */
-int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
-                                      struct HttpRequest *req,
-                                      c_abstract_http_ws_on_message on_msg,
-                                      c_abstract_http_ws_on_error on_err,
-                                      c_abstract_http_ws_on_close on_close,
-                                      void *user_data, volatile int *exit_flag);
+enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
+    struct HttpClient *client, struct HttpRequest *req,
+    c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
+    c_abstract_http_ws_on_close on_close, void *user_data,
+    volatile int *exit_flag);
 
 /**
  * @brief Register a WebSocket connection with the underlying transport's

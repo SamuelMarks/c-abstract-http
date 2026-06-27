@@ -61,13 +61,13 @@ TEST test_apple_oom_branches(void) {
   ASSERT_EQ(0, http_request_init(&req));
   req.url = strdup("http://fail_url_str");
   req.method = HTTP_GET;
-  ASSERT_EQ(EINVAL, http_apple_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
   http_request_free(&req);
 
   ASSERT_EQ(0, http_request_init(&req));
   req.url = strdup("http://fail_url");
   req.method = HTTP_GET;
-  ASSERT_EQ(EINVAL, http_apple_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
   http_request_free(&req);
 
   /* fail_url_ref removed because urlRef parsing was optimized out */
@@ -77,7 +77,7 @@ TEST test_apple_oom_branches(void) {
   req.method = HTTP_GET;
   {
     int debug_rc = http_apple_send(ctx, &req, &res);
-    ASSERT_EQ(ENOMEM, debug_rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, debug_rc);
   }
   http_request_free(&req);
 
@@ -86,19 +86,19 @@ TEST test_apple_oom_branches(void) {
   req.method = HTTP_POST;
   req.body = strdup("test");
   req.body_len = 4;
-  ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
   http_request_free(&req);
 
   ASSERT_EQ(0, http_request_init(&req));
   req.url = strdup("http://fail_read_stream");
   req.method = HTTP_GET;
-  ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
   http_request_free(&req);
 
   ASSERT_EQ(0, http_request_init(&req));
   req.url = strdup("http://fail_read_stream_open");
   req.method = HTTP_GET;
-  ASSERT_EQ(EIO, http_apple_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
   http_request_free(&req);
 
   ASSERT_EQ(0, http_request_init(&req));
@@ -106,7 +106,7 @@ TEST test_apple_oom_branches(void) {
   req.method = HTTP_POST;
   req.read_chunk = (http_read_chunk_fn)1;
   req.expected_body_len = 10;
-  ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
   http_request_free(&req);
 
   ASSERT_EQ(0, http_request_init(&req));
@@ -118,7 +118,7 @@ TEST test_apple_oom_branches(void) {
   {
     int calls = 0;
     req.on_chunk_user_data = &calls;
-    ASSERT_EQ(ENOMEM, http_apple_send(ctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
   }
   http_request_free(&req);
 #endif
@@ -138,7 +138,7 @@ TEST test_apple_oom(void) {
   {
     int rc_test_tmp = http_apple_context_init(&ctx);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   ASSERT_EQ(0, http_apple_context_init(&ctx));
@@ -153,7 +153,7 @@ TEST test_apple_oom(void) {
   {
     int rc_test_tmp = http_apple_send(ctx, &req, &res);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   http_apple_context_free(ctx);
@@ -232,7 +232,7 @@ TEST test_apple_lifecycle(void) {
   ASSERT_EQ(0, http_apple_global_init());
 
   /* Init */
-  ASSERT_EQ(EINVAL, http_apple_context_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_context_init(NULL));
   ASSERT_EQ(0, http_apple_context_init(&ctx));
   ASSERT(ctx != NULL);
 
@@ -254,8 +254,8 @@ TEST test_apple_config(void) {
 
   ASSERT_EQ(0, http_config_init(&cfg));
 
-  ASSERT_EQ(EINVAL, http_apple_config_apply(NULL, &cfg));
-  ASSERT_EQ(EINVAL, http_apple_config_apply(ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_config_apply(NULL, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_config_apply(ctx, NULL));
   ASSERT_EQ(0, http_apple_config_apply(ctx, &cfg));
 
   http_config_free(&cfg);
@@ -270,9 +270,9 @@ TEST test_apple_send_invalid(void) {
   ASSERT_EQ(0, http_apple_context_init(&ctx));
   ASSERT_EQ(0, http_request_init(&req));
 
-  ASSERT_EQ(EINVAL, http_apple_send(NULL, &req, &res));
-  ASSERT_EQ(EINVAL, http_apple_send(ctx, NULL, &res));
-  ASSERT_EQ(EINVAL, http_apple_send(ctx, &req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(NULL, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, NULL, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, NULL));
 
 #if defined(__APPLE__)
   /* Valid input but we need to mock a real URL so it fails gracefully */
@@ -283,7 +283,8 @@ TEST test_apple_send_invalid(void) {
   strcpy(req.url, "http://localhost:1");
 #endif
   req.method = HTTP_GET;
-  /* Might fail with EIO due to no connection or return an allocated res */
+  /* Might fail with C_ABSTRACT_HTTP_ERR_IO due to no connection or return an
+   * allocated res */
   {
     int rc = http_apple_send(ctx, &req, &res);
     ASSERT(rc != 0);
@@ -357,7 +358,7 @@ static int mock_read_chunk_fail(void *user_data, void *buf, size_t buf_len,
   (void)buf;
   (void)buf_len;
   (void)out_read;
-  return EIO;
+  return C_ABSTRACT_HTTP_ERR_IO;
 }
 
 TEST test_apple_read_chunk(void) {
@@ -399,8 +400,8 @@ TEST test_apple_read_chunk(void) {
   req.read_chunk_user_data = NULL;
   req.expected_body_len = 8;
 
-  /* Will fail with EIO */
-  ASSERT_EQ(EIO, http_apple_send(ctx, &req, &res));
+  /* Will fail with C_ABSTRACT_HTTP_ERR_IO */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
   http_request_free(&req);
   if (res) {
     http_response_free(res);

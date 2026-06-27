@@ -99,7 +99,10 @@ TEST test_ws_init_headers(void) {
 
 TEST test_ws_pack_header_small(void) {
   unsigned char buf[10];
-  int len = ws_pack_header_small(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1, 10);
+  size_t len;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_pack_header_small(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1, 10,
+                                 &len));
   ASSERT_EQ(2, len);
   ASSERT_EQ(0x81, buf[0]); /* FIN=1, Opcode=1 */
   ASSERT_EQ(0x8A, buf[1]); /* Mask=1, Len=10 */
@@ -108,8 +111,10 @@ TEST test_ws_pack_header_small(void) {
 
 TEST test_ws_pack_header_medium(void) {
   unsigned char buf[10];
-  int len =
-      ws_pack_header_medium(buf, 0, C_ABSTRACT_HTTP_WS_OPCODE_BINARY, 0, 1024);
+  size_t len;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_pack_header_medium(buf, 0, C_ABSTRACT_HTTP_WS_OPCODE_BINARY, 0,
+                                  1024, &len));
   ASSERT_EQ(4, len);
   ASSERT_EQ(0x02, buf[0]); /* FIN=0, Opcode=2 */
   ASSERT_EQ(126, buf[1]);  /* Mask=0, Len=126 */
@@ -120,8 +125,10 @@ TEST test_ws_pack_header_medium(void) {
 
 TEST test_ws_pack_header_large(void) {
   unsigned char buf[10];
-  int len =
-      ws_pack_header_large(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_BINARY, 1, 65536);
+  size_t len;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_pack_header_large(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_BINARY, 1,
+                                 65536, &len));
   ASSERT_EQ(10, len);
   ASSERT_EQ(0x82, buf[0]); /* FIN=1, Opcode=2 */
   ASSERT_EQ(0xFF, buf[1]); /* Mask=1, Len=127 */
@@ -286,8 +293,9 @@ TEST test_ws_sync_loop_exit_flag(void) {
 }
 
 TEST test_ws_sync_loop_null(void) {
-  ASSERT_EQ(EINVAL, c_abstract_http_ws_sync_read_loop(NULL, NULL, NULL, NULL,
-                                                      NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_ws_sync_read_loop(NULL, NULL, NULL, NULL, NULL,
+                                              NULL, NULL));
   PASS();
 }
 
@@ -317,7 +325,7 @@ static int mock_send_fail_ws(struct HttpTransportContext *ctx,
   (void)ctx;
   (void)req;
   (void)res_out;
-  return EIO;
+  return C_ABSTRACT_HTTP_ERR_IO;
 }
 
 TEST test_ws_sync_loop_success(void) {
@@ -337,15 +345,16 @@ TEST test_ws_sync_loop_fail(void) {
   struct HttpRequest req = {0};
   struct test_ws_ctx ctx = {0};
   client.send = mock_send_fail_ws;
-  ASSERT_EQ(EIO, c_abstract_http_ws_sync_read_loop(
-                     &client, &req, test_ws_on_message, test_ws_on_error,
-                     test_ws_on_close, &ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_sync_read_loop(&client, &req, test_ws_on_message,
+                                              test_ws_on_error,
+                                              test_ws_on_close, &ctx, NULL));
   http_request_free(&req);
   PASS();
 }
 
 TEST test_ws_init_headers_null(void) {
-  ASSERT_EQ(EINVAL, c_abstract_http_ws_init(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_ws_init(NULL, NULL));
   PASS();
 }
 
@@ -353,26 +362,33 @@ TEST test_ws_pack_header_invalid(void) {
   unsigned char buf[10];
 
   /* Small buffer invalid payload length */
-  ASSERT_EQ(
-      -1, ws_pack_header_small(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1, 126));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            ws_pack_header_small(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1, 126,
+                                 NULL));
 
   /* Medium buffer invalid payload length */
-  ASSERT_EQ(-1, ws_pack_header_medium(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
-                                      125));
-  ASSERT_EQ(-1, ws_pack_header_medium(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
-                                      65536));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            ws_pack_header_medium(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
+                                  125, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            ws_pack_header_medium(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
+                                  65536, NULL));
 
   /* Large buffer invalid payload length */
-  ASSERT_EQ(-1, ws_pack_header_large(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
-                                     65535));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            ws_pack_header_large(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
+                                 65535, NULL));
 
   /* Null buffer */
-  ASSERT_EQ(
-      -1, ws_pack_header_small(NULL, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1, 10));
-  ASSERT_EQ(-1, ws_pack_header_medium(NULL, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
-                                      1, 126));
-  ASSERT_EQ(-1, ws_pack_header_large(NULL, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
-                                     65536));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            ws_pack_header_small(NULL, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1, 10,
+                                 NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            ws_pack_header_medium(NULL, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
+                                  126, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            ws_pack_header_large(NULL, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
+                                 65536, NULL));
 
   PASS();
 }
@@ -441,7 +457,8 @@ TEST test_ws_parser_errors(void) {
   struct ws_parser_ctx ctx;
   unsigned char frame[2];
 
-  ASSERT_EQ(EINVAL, ws_parser_init(NULL, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            ws_parser_init(NULL, NULL, NULL, NULL, NULL));
   ws_parser_init(&ctx, NULL, NULL, NULL, NULL);
 
   frame[0] = 0x0F; /* Reserved opcode */
@@ -452,8 +469,8 @@ TEST test_ws_parser_errors(void) {
   ws_parser_destroy(&ctx);
 
   /* NULL tests */
-  ASSERT_EQ(EINVAL, ws_parser_feed(NULL, frame, 2));
-  ASSERT_EQ(EINVAL, ws_parser_feed(&ctx, NULL, 2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, ws_parser_feed(NULL, frame, 2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, ws_parser_feed(&ctx, NULL, 2));
 
   ws_parser_destroy(NULL);
 
@@ -482,7 +499,7 @@ TEST test_ws_oom_branches(void) {
       break;
     }
     http_request_free(&req);
-    ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
     memset(&req, 0, sizeof(req));
   }
   http_request_free(&req);
@@ -499,7 +516,7 @@ TEST test_ws_parser_init_oom(void) {
   rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
   g_mock_alloc_fail = 0;
   ws_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -566,7 +583,7 @@ TEST test_ws_realloc_oom(void) {
   rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
   g_mock_alloc_fail = 0;
   ws_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -691,7 +708,7 @@ TEST test_ws_parser_reassembly_fin_oom(void) {
   g_mock_alloc_fail = 0;
 
   ws_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -724,7 +741,7 @@ TEST test_ws_parser_reassembly_fin_expand_oom(void) {
   g_mock_alloc_fail = 0;
 
   ws_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -737,7 +754,7 @@ TEST test_ws_sign_key_oom(void) {
   g_mock_alloc_count = 0;
   rc = ws_sign_key("dGhlIHNhbXBsZSBub25jZQ==", out_accept);
   g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -810,7 +827,7 @@ TEST test_ws_parser_reassembly_frag_oom(void) {
   g_mock_alloc_fail = 0;
 
   ws_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -829,7 +846,7 @@ TEST test_ws_sync_loop_init_oom(void) {
         &client, &req, test_ws_on_message, test_ws_on_error, test_ws_on_close,
         &ctx, NULL);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
   http_request_free(&req);
   PASS();
@@ -861,7 +878,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
       g_mock_alloc_fail = 0;
       http_request_free(&req);
       memset(&req, 0, sizeof(req));
-      if (rc == ENOMEM) {
+      if (rc == C_ABSTRACT_HTTP_ERR_NOMEM) {
         /* we just want to cover the branches, so doing this in a loop is fine
          */
       }

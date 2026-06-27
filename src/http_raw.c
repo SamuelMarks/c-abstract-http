@@ -38,7 +38,9 @@
 #endif
 #endif
 /* clang-format on */
-int http_raw_global_init(void) { return 0; }
+enum c_abstract_http_error http_raw_global_init(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 void http_raw_global_cleanup(void) {}
 
@@ -47,18 +49,19 @@ struct RawCtx {
   struct HttpConfig config;
 };
 
-int http_raw_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_raw_context_init(struct HttpTransportContext **ctx) {
   struct RawCtx *c;
   int rc;
   LOG_DEBUG("http_raw_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_raw_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   c = (struct RawCtx *)calloc(1, sizeof(struct RawCtx));
   if (!c) {
     LOG_DEBUG("http_raw_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_config_init(&c->config);
@@ -72,7 +75,7 @@ int http_raw_context_init(struct HttpTransportContext **ctx) {
   c->timeout_ms = 30000;
   *ctx = (struct HttpTransportContext *)c;
   LOG_DEBUG("http_raw_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_raw_context_free(struct HttpTransportContext *ctx) {
@@ -84,8 +87,9 @@ void http_raw_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_raw_context_free: Exiting");
 }
 
-int http_raw_send(struct HttpTransportContext *ctx,
-                  const struct HttpRequest *req, struct HttpResponse **res) {
+enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
+                                         const struct HttpRequest *req,
+                                         struct HttpResponse **res) {
   /* Manual fallback doing select/read/write/open/close */
   int sock = -1;
   char request_buf[1024];
@@ -96,7 +100,7 @@ int http_raw_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_raw_send: Entering");
   if (!req || !res) {
     LOG_DEBUG("http_raw_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   /* Here you would resolve the hostname and open the socket */
@@ -104,7 +108,8 @@ int http_raw_send(struct HttpTransportContext *ctx,
 
   if (sock < 0) {
     LOG_DEBUG("http_raw_send: Error ENOTSUP (socket not connected)");
-    return ENOTSUP; /* Placeholder until user links specific TCP stack */
+    return C_ABSTRACT_HTTP_ERR_NOTSUP; /* Placeholder until user links specific
+                                          TCP stack */
   }
 
   /* Build simple HTTP GET/POST */
@@ -167,7 +172,7 @@ int http_raw_send(struct HttpTransportContext *ctx,
 #else
     close(sock);
 #endif
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
 #if defined(_WIN32)
@@ -179,20 +184,19 @@ int http_raw_send(struct HttpTransportContext *ctx,
 #endif
 
   LOG_DEBUG("http_raw_send: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_raw_send_multi(struct HttpTransportContext *ctx,
-                        struct ModalityEventLoop *loop,
-                        const struct HttpMultiRequest *reqs,
-                        struct HttpFuture **future) {
+enum c_abstract_http_error http_raw_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *reqs, struct HttpFuture **future) {
   size_t i;
   cah_cppcheck_mut_ptr((void *)ctx);
   (void)loop;
 
   if (!ctx || !reqs || !future) {
     LOG_DEBUG("http_raw_send_multi: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   for (i = 0; i < reqs->count; i++) {
@@ -202,7 +206,7 @@ int http_raw_send_multi(struct HttpTransportContext *ctx,
     future[i]->error_code = rc;
     future[i]->is_ready = 1;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #endif

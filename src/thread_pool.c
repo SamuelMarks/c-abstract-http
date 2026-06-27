@@ -44,28 +44,28 @@ struct CddCond {
 #endif
 };
 
-int cdd_mutex_init(struct CddMutex **mutex) {
+enum c_abstract_http_error cdd_mutex_init(struct CddMutex **mutex) {
   if (!mutex)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   *mutex = (struct CddMutex *)malloc(sizeof(struct CddMutex));
   if (!*mutex)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   InitializeCriticalSection(&(*mutex)->cs);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_mutex_lock(struct CddMutex *mutex) {
+enum c_abstract_http_error cdd_mutex_lock(struct CddMutex *mutex) {
   if (!mutex)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   EnterCriticalSection(&mutex->cs);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_mutex_unlock(struct CddMutex *mutex) {
+enum c_abstract_http_error cdd_mutex_unlock(struct CddMutex *mutex) {
   if (!mutex)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   LeaveCriticalSection(&mutex->cs);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void cdd_mutex_free(struct CddMutex *mutex) {
@@ -75,24 +75,25 @@ void cdd_mutex_free(struct CddMutex *mutex) {
   }
 }
 
-int cdd_cond_init(struct CddCond **cond) {
+enum c_abstract_http_error cdd_cond_init(struct CddCond **cond) {
   if (!cond)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   *cond = (struct CddCond *)malloc(sizeof(struct CddCond));
   if (!*cond)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 #if defined(_MSC_VER) && _MSC_VER < 1600
   (*cond)->semaphore = CreateSemaphore(NULL, 0, MAXLONG, NULL);
   (*cond)->waiters = 0;
 #else
   InitializeConditionVariable(&(*cond)->cv);
 #endif
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_cond_wait(struct CddCond *cond, struct CddMutex *mutex) {
+enum c_abstract_http_error cdd_cond_wait(struct CddCond *cond,
+                                         struct CddMutex *mutex) {
   if (!cond || !mutex)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(_MSC_VER) && _MSC_VER < 1600
   cond->waiters++;
   LeaveCriticalSection(&mutex->cs);
@@ -101,12 +102,12 @@ int cdd_cond_wait(struct CddCond *cond, struct CddMutex *mutex) {
 #else
   SleepConditionVariableCS(&cond->cv, &mutex->cs, INFINITE);
 #endif
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_cond_signal(struct CddCond *cond) {
+enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond) {
   if (!cond)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(_MSC_VER) && _MSC_VER < 1600
   if (cond->waiters > 0) {
     cond->waiters--;
@@ -115,12 +116,12 @@ int cdd_cond_signal(struct CddCond *cond) {
 #else
   WakeConditionVariable(&cond->cv);
 #endif
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_cond_broadcast(struct CddCond *cond) {
+enum c_abstract_http_error cdd_cond_broadcast(struct CddCond *cond) {
   if (!cond)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(_MSC_VER) && _MSC_VER < 1600
   if (cond->waiters > 0) {
     ReleaseSemaphore(cond->semaphore, cond->waiters, NULL);
@@ -129,7 +130,7 @@ int cdd_cond_broadcast(struct CddCond *cond) {
 #else
   WakeAllConditionVariable(&cond->cv);
 #endif
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void cdd_cond_free(struct CddCond *cond) {
@@ -171,40 +172,41 @@ struct CddCond {
   int dummy;
 };
 
-int cdd_mutex_init(struct CddMutex **mutex) {
+enum c_abstract_http_error cdd_mutex_init(struct CddMutex **mutex) {
   if (!mutex)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   *mutex = (struct CddMutex *)malloc(sizeof(struct CddMutex));
   return *mutex ? 0 : ENOMEM;
 }
-int cdd_mutex_lock(struct CddMutex *mutex) {
+enum c_abstract_http_error cdd_mutex_lock(struct CddMutex *mutex) {
   (void)mutex;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
-int cdd_mutex_unlock(struct CddMutex *mutex) {
+enum c_abstract_http_error cdd_mutex_unlock(struct CddMutex *mutex) {
   (void)mutex;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 void cdd_mutex_free(struct CddMutex *mutex) { free(mutex); }
 
-int cdd_cond_init(struct CddCond **cond) {
+enum c_abstract_http_error cdd_cond_init(struct CddCond **cond) {
   if (!cond)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   *cond = (struct CddCond *)malloc(sizeof(struct CddCond));
   return *cond ? 0 : ENOMEM;
 }
-int cdd_cond_wait(struct CddCond *cond, struct CddMutex *mutex) {
+enum c_abstract_http_error cdd_cond_wait(struct CddCond *cond,
+                                         struct CddMutex *mutex) {
   (void)cond;
   (void)mutex;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
-int cdd_cond_signal(struct CddCond *cond) {
+enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond) {
   (void)cond;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
-int cdd_cond_broadcast(struct CddCond *cond) {
+enum c_abstract_http_error cdd_cond_broadcast(struct CddCond *cond) {
   (void)cond;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 void cdd_cond_free(struct CddCond *cond) { free(cond); }
 
@@ -218,7 +220,7 @@ static int thread_create(cdd_thread_t *thread,
   (void)thread;
   (void)start_routine;
   (void)arg;
-  return ENOTSUP;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
 static void thread_join(cdd_thread_t thread) { (void)thread; }
 
@@ -236,28 +238,28 @@ struct CddCond {
   pthread_cond_t cond;
 };
 
-int cdd_mutex_init(struct CddMutex **mutex) {
+enum c_abstract_http_error cdd_mutex_init(struct CddMutex **mutex) {
   if (!mutex)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   *mutex = (struct CddMutex *)malloc(sizeof(struct CddMutex));
   if (!*mutex)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   if (pthread_mutex_init(&(*mutex)->mtx, NULL) != 0) {
     free(*mutex);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_mutex_lock(struct CddMutex *mutex) {
+enum c_abstract_http_error cdd_mutex_lock(struct CddMutex *mutex) {
   if (!mutex)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_mutex_lock(&mutex->mtx);
 }
 
-int cdd_mutex_unlock(struct CddMutex *mutex) {
+enum c_abstract_http_error cdd_mutex_unlock(struct CddMutex *mutex) {
   if (!mutex)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_mutex_unlock(&mutex->mtx);
 }
 
@@ -268,34 +270,35 @@ void cdd_mutex_free(struct CddMutex *mutex) {
   }
 }
 
-int cdd_cond_init(struct CddCond **cond) {
+enum c_abstract_http_error cdd_cond_init(struct CddCond **cond) {
   if (!cond)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   *cond = (struct CddCond *)malloc(sizeof(struct CddCond));
   if (!*cond)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   if (pthread_cond_init(&(*cond)->cond, NULL) != 0) {
     free(*cond);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_cond_wait(struct CddCond *cond, struct CddMutex *mutex) {
+enum c_abstract_http_error cdd_cond_wait(struct CddCond *cond,
+                                         struct CddMutex *mutex) {
   if (!cond || !mutex)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_cond_wait(&cond->cond, &mutex->mtx);
 }
 
-int cdd_cond_signal(struct CddCond *cond) {
+enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond) {
   if (!cond)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_cond_signal(&cond->cond);
 }
 
-int cdd_cond_broadcast(struct CddCond *cond) {
+enum c_abstract_http_error cdd_cond_broadcast(struct CddCond *cond) {
   if (!cond)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_cond_broadcast(&cond->cond);
 }
 
@@ -388,42 +391,43 @@ static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
   }
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #else
   return NULL;
 #endif
 }
 
-int cdd_thread_pool_init(struct CddThreadPool **pool, size_t num_threads) {
+enum c_abstract_http_error cdd_thread_pool_init(struct CddThreadPool **pool,
+                                                size_t num_threads) {
   struct CddThreadPool *p;
   size_t i;
 
   if (!pool || num_threads == 0)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   p = (struct CddThreadPool *)malloc(sizeof(struct CddThreadPool));
   if (!p)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   memset(p, 0, sizeof(struct CddThreadPool));
 
   p->num_threads = num_threads;
   p->threads = (cdd_thread_t *)malloc(num_threads * sizeof(cdd_thread_t));
   if (!p->threads) {
     free(p);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   if (cdd_mutex_init(&p->lock) != 0) {
     free(p->threads);
     free(p);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   if (cdd_cond_init(&p->cond) != 0) {
     cdd_mutex_free(p->lock);
     free(p->threads);
     free(p);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   p->stop = 0;
@@ -442,41 +446,43 @@ int cdd_thread_pool_init(struct CddThreadPool **pool, size_t num_threads) {
       cdd_mutex_free(p->lock);
       free(p->threads);
       free(p);
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
   }
 
   *pool = p;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_thread_pool_init_external(struct CddThreadPool **pool,
-                                  const struct CddThreadPoolHooks *hooks) {
+enum c_abstract_http_error
+cdd_thread_pool_init_external(struct CddThreadPool **pool,
+                              const struct CddThreadPoolHooks *hooks) {
   struct CddThreadPool *p;
 
   if (!pool || !hooks)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   p = (struct CddThreadPool *)malloc(sizeof(struct CddThreadPool));
   if (!p)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   memset(p, 0, sizeof(struct CddThreadPool));
 
   p->is_external = 1;
   p->hooks = *hooks;
 
   *pool = p;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
-                         void *arg) {
+enum c_abstract_http_error cdd_thread_pool_push(struct CddThreadPool *pool,
+                                                cdd_thread_task_cb cb,
+                                                void *arg) {
   struct TaskNode *task;
 
   LOG_DEBUG("cdd_thread_pool_push: Entering");
   if (!pool || !cb) {
     LOG_DEBUG("cdd_thread_pool_push: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (pool->is_external) {
@@ -485,13 +491,13 @@ int cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
       return pool->hooks.push(pool->hooks.external_context, cb, arg);
     }
     LOG_DEBUG("cdd_thread_pool_push: Error ENOTSUP (hook missing)");
-    return ENOTSUP;
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
 
   task = (struct TaskNode *)malloc(sizeof(struct TaskNode));
   if (!task) {
     LOG_DEBUG("cdd_thread_pool_push: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   task->cb = cb;
@@ -503,7 +509,7 @@ int cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
     cdd_mutex_unlock(pool->lock);
     free(task);
     LOG_DEBUG("cdd_thread_pool_push: Error EINVAL (pool stopped)");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (!pool->head) {
@@ -518,7 +524,7 @@ int cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
   cdd_mutex_unlock(pool->lock);
 
   LOG_DEBUG("cdd_thread_pool_push: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void cdd_thread_pool_free(struct CddThreadPool *pool) {

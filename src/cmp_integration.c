@@ -5,11 +5,12 @@
 #include <errno.h>
 /* clang-format on */
 
-int cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
+enum c_abstract_http_error
+cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
   LOG_DEBUG("cmp_http_modality_adapter: Entering");
   if (!out_mod) {
     LOG_DEBUG("cmp_http_modality_adapter: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   switch ((enum CmpModality)cmp_mod) {
@@ -34,22 +35,23 @@ int cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
   default:
     LOG_DEBUG("cmp_http_modality_adapter: Error EINVAL (unknown modality %d)",
               cmp_mod);
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   LOG_DEBUG("cmp_http_modality_adapter: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
-                           struct HttpConfig *http_config) {
+enum c_abstract_http_error
+cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
+                       struct HttpConfig *http_config) {
   enum ExecutionModality http_mod;
   int rc;
 
   LOG_DEBUG("cmp_http_inject_config: Entering");
   if (!cmp_config || !http_config) {
     LOG_DEBUG("cmp_http_inject_config: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   /* Adapter converts the framework modality integer into HTTP enum */
@@ -70,16 +72,17 @@ int cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
   }
 
   LOG_DEBUG("cmp_http_inject_config: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cmp_http_progress_adapter(size_t current_bytes, size_t total_bytes,
-                              void *user_data) {
+enum c_abstract_http_error cmp_http_progress_adapter(size_t current_bytes,
+                                                     size_t total_bytes,
+                                                     void *user_data) {
   struct CmpProgressBinding *binding = (struct CmpProgressBinding *)user_data;
   LOG_DEBUG("cmp_http_progress_adapter: Entering");
   if (!binding) {
     LOG_DEBUG("cmp_http_progress_adapter: Success (no binding)");
-    return 0; /* continue */
+    return C_ABSTRACT_HTTP_SUCCESS; /* continue */
   }
 
   if (binding->cancel_requested) {
@@ -92,5 +95,5 @@ int cmp_http_progress_adapter(size_t current_bytes, size_t total_bytes,
     return binding->update_progress(binding->ui_component, pct);
   }
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }

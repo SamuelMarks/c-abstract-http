@@ -76,17 +76,17 @@ TEST test_picoquic_send_invalid_arguments(void) {
   http_request_init(&req);
 
   /* NULL ctx */
-  ASSERT_EQ(EINVAL, http_picoquic_send(NULL, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_picoquic_send(NULL, &req, &res));
 
   /* NULL req */
-  ASSERT_EQ(EINVAL, http_picoquic_send(ctx, NULL, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_picoquic_send(ctx, NULL, &res));
 
   /* NULL res pointer */
-  ASSERT_EQ(EINVAL, http_picoquic_send(ctx, &req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_picoquic_send(ctx, &req, NULL));
 
   /* NULL internal config application */
-  ASSERT_EQ(EINVAL, http_picoquic_config_apply(NULL, NULL));
-  ASSERT_EQ(EINVAL, http_picoquic_config_apply(ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_picoquic_config_apply(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_picoquic_config_apply(ctx, NULL));
 
   http_request_free(&req);
   http_picoquic_context_free(ctx);

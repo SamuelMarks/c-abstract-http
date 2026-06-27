@@ -25,7 +25,7 @@ extern "C" {
  *
  * @return 0 on success, EIO on failure.
  */
-int http_aria2_global_init(void);
+enum c_abstract_http_error http_aria2_global_init(void);
 
 /**
  * @brief Decrement the global initialization reference count.
@@ -38,7 +38,8 @@ void http_aria2_global_cleanup(void);
  * @param[out] ctx Pointer to a pointer to receive the context.
  * @return 0 on success, ENOMEM or EINVAL on error.
  */
-int http_aria2_context_init(struct HttpTransportContext **const ctx);
+enum c_abstract_http_error
+http_aria2_context_init(struct HttpTransportContext **const ctx);
 
 /**
  * @brief Free an aria2 context and its configuration.
@@ -54,8 +55,9 @@ void http_aria2_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration to apply.
  * @return 0 on success, EINVAL on error.
  */
-int http_aria2_config_apply(struct HttpTransportContext *ctx,
-                            const struct HttpConfig *config);
+enum c_abstract_http_error
+http_aria2_config_apply(struct HttpTransportContext *ctx,
+                        const struct HttpConfig *config);
 
 /**
  * @brief Perform a single blocking HTTP request via aria2.
@@ -65,9 +67,9 @@ int http_aria2_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Pointer to receive the response pointer.
  * @return 0 on success, or an error code.
  */
-int http_aria2_send(struct HttpTransportContext *ctx,
-                    const struct HttpRequest *req,
-                    struct HttpResponse **const res);
+enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
+                                           const struct HttpRequest *req,
+                                           struct HttpResponse **const res);
 
 /**
  * @brief Perform multiple HTTP requests concurrently via aria2.
@@ -78,10 +80,9 @@ int http_aria2_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures to populate.
  * @return 0 on success, ENOTSUP if unsupported.
  */
-int http_aria2_send_multi(struct HttpTransportContext *ctx,
-                          struct ModalityEventLoop *loop,
-                          const struct HttpMultiRequest *multi,
-                          struct HttpFuture **futures);
+enum c_abstract_http_error http_aria2_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

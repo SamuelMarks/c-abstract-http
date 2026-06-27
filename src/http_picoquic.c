@@ -46,11 +46,11 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
-int http_picoquic_global_init(void) {
+enum c_abstract_http_error http_picoquic_global_init(void) {
   if (g_picoquic_init_count++ == 0) {
     /* Setup cryptographic or global QUIC prerequisites here if needed */
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_picoquic_global_cleanup(void) {
@@ -59,7 +59,8 @@ void http_picoquic_global_cleanup(void) {
   }
 }
 
-int http_picoquic_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_picoquic_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
   int rc;
   uint8_t reset_seed[16] = {0};
@@ -67,13 +68,13 @@ int http_picoquic_context_init(struct HttpTransportContext **ctx) {
   LOG_DEBUG("http_picoquic_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_picoquic_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   c = calloc(1, sizeof(*c));
   if (!c) {
     LOG_DEBUG("http_picoquic_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_config_init(&c->config);
@@ -95,12 +96,12 @@ int http_picoquic_context_init(struct HttpTransportContext **ctx) {
     LOG_DEBUG("http_picoquic_context_init: Error picoquic_create failed");
     http_config_free(&c->config);
     free(c);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   *ctx = c;
   LOG_DEBUG("http_picoquic_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_picoquic_context_free(struct HttpTransportContext *ctx) {
@@ -118,12 +119,13 @@ void http_picoquic_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_picoquic_context_free: Exiting");
 }
 
-int http_picoquic_config_apply(struct HttpTransportContext *ctx,
-                               const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_picoquic_config_apply(struct HttpTransportContext *ctx,
+                           const struct HttpConfig *config) {
   LOG_DEBUG("http_picoquic_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_picoquic_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   ctx->verify_peer = config->verify_peer;
@@ -137,29 +139,29 @@ int http_picoquic_config_apply(struct HttpTransportContext *ctx,
   ctx->config = *config;
   ctx->is_configured = 1;
   LOG_DEBUG("http_picoquic_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_picoquic_send(const struct HttpTransportContext *ctx,
-                       const struct HttpRequest *req,
-                       struct HttpResponse **res) {
+enum c_abstract_http_error
+http_picoquic_send(const struct HttpTransportContext *ctx,
+                   const struct HttpRequest *req, struct HttpResponse **res) {
   int rc;
   cah_cppcheck_mut_ptr((void *)ctx);
   LOG_DEBUG("http_picoquic_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_picoquic_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (!ctx->is_configured) {
     LOG_DEBUG("http_picoquic_send: Error EINVAL (not configured)");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   *res = calloc(1, sizeof(**res));
   if (!*res) {
     LOG_DEBUG("http_picoquic_send: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_response_init(*res);
@@ -185,13 +187,12 @@ int http_picoquic_send(const struct HttpTransportContext *ctx,
    * abstract API */
 
   LOG_DEBUG("http_picoquic_send: Success (simulated)");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_picoquic_send_multi(struct HttpTransportContext *ctx,
-                             struct ModalityEventLoop *loop,
-                             const struct HttpMultiRequest *multi,
-                             struct HttpFuture **futures) {
+enum c_abstract_http_error http_picoquic_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
   cah_cppcheck_mut_ptr((void *)ctx);
   /* Attach picoquic_prepare_next_packet timing to the event loop */
@@ -199,7 +200,7 @@ int http_picoquic_send_multi(struct HttpTransportContext *ctx,
 
   if (!ctx || !multi || !futures) {
     LOG_DEBUG("http_picoquic_send_multi: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   for (i = 0; i < multi->count; i++) {
@@ -209,7 +210,7 @@ int http_picoquic_send_multi(struct HttpTransportContext *ctx,
     futures[i]->error_code = rc;
     futures[i]->is_ready = 1;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #endif

@@ -1,3 +1,4 @@
+#include <c_abstract_http/http_types.h>
 #ifndef C_ABSTRACT_HTTP_WS_INTERNAL_H
 #define C_ABSTRACT_HTTP_WS_INTERNAL_H
 
@@ -81,7 +82,7 @@ uint64_t ws_ntohll(uint64_t netqword);
  * @param out_key The array to store the masking key.
  * @return 0 on success.
  */
-int ws_generate_mask_key(unsigned char out_key[4]);
+enum c_abstract_http_error ws_generate_mask_key(unsigned char out_key[4]);
 
 /**
  * @brief Apply a WebSocket mask to a payload in place.
@@ -90,8 +91,8 @@ int ws_generate_mask_key(unsigned char out_key[4]);
  * @param mask_key The 4-byte masking key.
  * @return 0 on success.
  */
-int ws_apply_mask(unsigned char *payload, size_t len,
-                  const unsigned char mask_key[4]);
+enum c_abstract_http_error ws_apply_mask(unsigned char *payload, size_t len,
+                                         const unsigned char mask_key[4]);
 
 /**
  * @brief Pack a small WebSocket frame header (payload <= 125).
@@ -102,8 +103,9 @@ int ws_apply_mask(unsigned char *payload, size_t len,
  * @param len Payload length.
  * @return Number of bytes written.
  */
-int ws_pack_header_small(unsigned char *buf, int fin, int opcode, int mask,
-                         size_t len);
+enum c_abstract_http_error ws_pack_header_small(unsigned char *buf, int fin,
+                                                int opcode, int mask,
+                                                size_t len, size_t *out_len);
 
 /**
  * @brief Pack a medium WebSocket frame header (126 <= payload <= 65535).
@@ -114,8 +116,9 @@ int ws_pack_header_small(unsigned char *buf, int fin, int opcode, int mask,
  * @param len Payload length.
  * @return Number of bytes written.
  */
-int ws_pack_header_medium(unsigned char *buf, int fin, int opcode, int mask,
-                          size_t len);
+enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin,
+                                                 int opcode, int mask,
+                                                 size_t len, size_t *out_len);
 
 /**
  * @brief Pack a large WebSocket frame header (payload > 65535).
@@ -126,8 +129,9 @@ int ws_pack_header_medium(unsigned char *buf, int fin, int opcode, int mask,
  * @param len Payload length.
  * @return Number of bytes written.
  */
-int ws_pack_header_large(unsigned char *buf, int fin, int opcode, int mask,
-                         size_t len);
+enum c_abstract_http_error ws_pack_header_large(unsigned char *buf, int fin,
+                                                int opcode, int mask,
+                                                size_t len, size_t *out_len);
 
 /**
  * @brief State machine enum for the WebSocket parser.
@@ -173,10 +177,11 @@ struct ws_parser_ctx {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, negative error code on failure.
  */
-int ws_parser_init(struct ws_parser_ctx *ctx,
-                   c_abstract_http_ws_on_message on_msg,
-                   c_abstract_http_ws_on_error on_err,
-                   c_abstract_http_ws_on_close on_cls, void *user_data);
+enum c_abstract_http_error ws_parser_init(struct ws_parser_ctx *ctx,
+                                          c_abstract_http_ws_on_message on_msg,
+                                          c_abstract_http_ws_on_error on_err,
+                                          c_abstract_http_ws_on_close on_cls,
+                                          void *user_data);
 
 /**
  * @brief Destroy a WebSocket parser context and free its buffers.
@@ -191,8 +196,9 @@ void ws_parser_destroy(struct ws_parser_ctx *ctx);
  * @param len The length of the chunk.
  * @return 0 on success, negative error code on protocol violation.
  */
-int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
-                   size_t len);
+enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
+                                          const unsigned char *chunk,
+                                          size_t len);
 
 /**
  * @brief Generate a random 24-character Base64 encoded client key.
@@ -200,7 +206,7 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
  * null-terminator).
  * @return 0 on success, negative error code on failure.
  */
-int ws_generate_key(char out_key[25]);
+enum c_abstract_http_error ws_generate_key(char out_key[25]);
 
 /**
  * @brief Sign a client key with the RFC 6455 magic GUID and Base64 encode the
@@ -210,7 +216,8 @@ int ws_generate_key(char out_key[25]);
  * null-terminator).
  * @return 0 on success, negative error code on failure.
  */
-int ws_sign_key(const char *client_key, char out_accept[29]);
+enum c_abstract_http_error ws_sign_key(const char *client_key,
+                                       char out_accept[29]);
 
 /**
  * @brief Verify a server's Sec-WebSocket-Accept response against a given client
@@ -219,7 +226,8 @@ int ws_sign_key(const char *client_key, char out_accept[29]);
  * @param server_accept The server's response.
  * @return 0 on success, negative error code on failure.
  */
-int ws_verify_accept(const char *client_key, const char *server_accept);
+enum c_abstract_http_error ws_verify_accept(const char *client_key,
+                                            const char *server_accept);
 
 #ifdef __cplusplus
 }

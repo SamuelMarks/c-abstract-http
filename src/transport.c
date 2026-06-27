@@ -39,7 +39,7 @@
 #include <stddef.h>
 /* clang-format on */
 
-int transport_global_init(void) {
+enum c_abstract_http_error transport_global_init(void) {
 #if defined(C_ABSTRACT_HTTP_USE_ARIA2)
   return http_aria2_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
@@ -111,11 +111,12 @@ void transport_global_cleanup(void) {
 #endif
 }
 
-int transport_factory_init_client(struct HttpClient *client) {
+enum c_abstract_http_error
+transport_factory_init_client(struct HttpClient *client) {
   int rc;
 
   if (!client) {
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   client->thread_pool = NULL;

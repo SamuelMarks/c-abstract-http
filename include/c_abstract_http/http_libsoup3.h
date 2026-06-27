@@ -23,7 +23,7 @@ extern "C" {
  *
  * @return 0 on success, error code on failure.
  */
-int http_libsoup3_global_init(void);
+enum c_abstract_http_error http_libsoup3_global_init(void);
 
 /**
  * @brief Decrement the global initialization reference count.
@@ -36,7 +36,8 @@ void http_libsoup3_global_cleanup(void);
  * @param[out] ctx Double pointer to receive the allocated context.
  * @return 0 on success, ENOMEM on allocation failure, error on init failure.
  */
-int http_libsoup3_context_init(struct HttpTransportContext **ctx);
+enum c_abstract_http_error
+http_libsoup3_context_init(struct HttpTransportContext **ctx);
 
 /**
  * @brief Free the transport context.
@@ -52,8 +53,9 @@ void http_libsoup3_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration structure to apply.
  * @return 0 on success, EINVAL if inputs invalid.
  */
-int http_libsoup3_config_apply(struct HttpTransportContext *ctx,
-                               const struct HttpConfig *config);
+enum c_abstract_http_error
+http_libsoup3_config_apply(struct HttpTransportContext *ctx,
+                           const struct HttpConfig *config);
 
 /**
  * @brief The send implementation for libsoup3.
@@ -64,9 +66,9 @@ int http_libsoup3_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res The response.
  * @return 0 on success, error code on failure.
  */
-int http_libsoup3_send(struct HttpTransportContext *ctx,
-                       const struct HttpRequest *req,
-                       struct HttpResponse **res);
+enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
+                                              const struct HttpRequest *req,
+                                              struct HttpResponse **res);
 
 #ifdef __cplusplus
 }

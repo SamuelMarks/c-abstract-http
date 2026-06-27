@@ -28,18 +28,18 @@ static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
                          size_t *out_len) {
   cfs_size_t written = 0;
   if (cfs_mb_to_wide(s, ws, (cfs_size_t)buf_cap, &written) != 0 || written == 0)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_len = (size_t)(written - 1);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
                          size_t *out_len) {
   cfs_size_t written = 0;
   if (cfs_wide_to_mb(ws, s, (cfs_size_t)buf_cap, &written) != 0 || written == 0)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_len = (size_t)(written - 1);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
@@ -75,37 +75,37 @@ static int method_to_wide(enum HttpMethod method, const wchar_t **out) {
   switch (method) {
   case HTTP_GET:
     *out = L"GET";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_POST:
     *out = L"POST";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_PUT:
     *out = L"PUT";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_DELETE:
     *out = L"DELETE";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_HEAD:
     *out = L"HEAD";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_OPTIONS:
     *out = L"OPTIONS";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_TRACE:
     *out = L"TRACE";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_QUERY:
     *out = L"QUERY";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_CONNECT:
     *out = L"CONNECT";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_PATCH:
     *out = L"PATCH";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   default:
     *out = L"GET";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 }
 
@@ -125,7 +125,7 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
 
   *out = NULL;
   if (!headers || headers->count == 0)
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
 
   for (i = 0; i < headers->count; ++i) {
     total_wide_chars += strlen(headers->headers[i].key);
@@ -136,7 +136,7 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
 
   buf = (wchar_t *)calloc(total_wide_chars, sizeof(wchar_t));
   if (!buf)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = buf;
   for (i = 0; i < headers->count; ++i) {
@@ -144,7 +144,7 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
     if (ascii_to_wide(headers->headers[i].key, p, total_wide_chars - (p - buf),
                       &written) != 0) {
       free(buf);
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
     p += written;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -156,7 +156,7 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
     if (ascii_to_wide(headers->headers[i].value, p,
                       total_wide_chars - (p - buf), &written) != 0) {
       free(buf);
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
     p += written;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -167,14 +167,17 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
     p += 2;
   }
   *out = buf;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif /* _WIN32 */
 
-int http_winhttp_global_init(void) { return 0; }
+enum c_abstract_http_error http_winhttp_global_init(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 void http_winhttp_global_cleanup(void) {}
 
-int http_winhttp_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_winhttp_context_init(struct HttpTransportContext **ctx) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   HINTERNET hSession;
   int rc;
@@ -182,14 +185,14 @@ int http_winhttp_context_init(struct HttpTransportContext **ctx) {
   LOG_DEBUG("http_winhttp_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_winhttp_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   hSession = WinHttpOpen(L"c_cdd/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                          WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
   if (!hSession) {
     LOG_DEBUG("http_winhttp_context_init: Error EIO");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   *ctx = (struct HttpTransportContext *)malloc(
@@ -197,7 +200,7 @@ int http_winhttp_context_init(struct HttpTransportContext **ctx) {
   if (!*ctx) {
     LOG_DEBUG("http_winhttp_context_init: Error ENOMEM");
     WinHttpCloseHandle(hSession);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_config_init(&(*ctx)->config);
@@ -215,13 +218,13 @@ int http_winhttp_context_init(struct HttpTransportContext **ctx) {
   (*ctx)->cookie_jar = NULL;
 
   LOG_DEBUG("http_winhttp_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #else
   (void)ctx;
 #ifdef ENOTSUP
-  return ENOTSUP;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
 #else
-  return EINVAL;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 #endif
 #endif
 }
@@ -248,14 +251,15 @@ void http_winhttp_context_free(struct HttpTransportContext *ctx) {
 #endif
 }
 
-int http_winhttp_config_apply(struct HttpTransportContext *ctx,
-                              const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_winhttp_config_apply(struct HttpTransportContext *ctx,
+                          const struct HttpConfig *config) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   DWORD dwResolveTimeout, dwConnectTimeout, dwSendTimeout, dwReceiveTimeout;
   LOG_DEBUG("http_winhttp_config_apply: Entering");
   if (!ctx || !ctx->hSession || !config) {
     LOG_DEBUG("http_winhttp_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   dwResolveTimeout = (config->connect_timeout_ms > 0)
@@ -274,7 +278,7 @@ int http_winhttp_config_apply(struct HttpTransportContext *ctx,
   if (!WinHttpSetTimeouts(ctx->hSession, dwResolveTimeout, dwConnectTimeout,
                           dwSendTimeout, dwReceiveTimeout)) {
     LOG_DEBUG("http_winhttp_config_apply: Error WinHttpSetTimeouts failed");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   if (config->proxy_url) {
@@ -285,12 +289,12 @@ int http_winhttp_config_apply(struct HttpTransportContext *ctx,
     wProxy = (wchar_t *)calloc(bufSize, sizeof(wchar_t));
     if (!wProxy) {
       LOG_DEBUG("http_winhttp_config_apply: Error ENOMEM");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     if (ascii_to_wide(config->proxy_url, wProxy, bufSize, &wLen) != 0) {
       LOG_DEBUG("http_winhttp_config_apply: Error ascii_to_wide failed");
       free(wProxy);
-      return EINVAL;
+      return C_ABSTRACT_HTTP_ERR_INVAL;
     }
     proxyInfo.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
     proxyInfo.lpszProxy = wProxy;
@@ -299,7 +303,7 @@ int http_winhttp_config_apply(struct HttpTransportContext *ctx,
                           sizeof(proxyInfo))) {
       LOG_DEBUG("http_winhttp_config_apply: Error WinHttpSetOption failed");
       free(wProxy);
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
     free(wProxy);
 
@@ -317,7 +321,7 @@ int http_winhttp_config_apply(struct HttpTransportContext *ctx,
           free(wUser);
         if (wPass)
           free(wPass);
-        return ENOMEM;
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
       }
 
       if (ascii_to_wide(config->proxy_username, wUser, uBufSize, &uLen) == 0 &&
@@ -365,14 +369,14 @@ int http_winhttp_config_apply(struct HttpTransportContext *ctx,
   ctx->disable_redirects = !config->follow_redirects;
   ctx->cookie_jar = config->cookie_jar;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #else
   (void)ctx;
   (void)config;
 #ifdef ENOTSUP
-  return ENOTSUP;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
 #else
-  return EINVAL;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 #endif
 #endif
 }
@@ -383,9 +387,9 @@ int http_winhttp_config_apply(struct HttpTransportContext *ctx,
     goto cleanup;                                                              \
   } while (0)
 
-int http_winhttp_send(struct HttpTransportContext *ctx,
-                      const struct HttpRequest *req,
-                      struct HttpResponse **res) {
+enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
+                                             const struct HttpRequest *req,
+                                             struct HttpResponse **res) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   HINTERNET hConnect = NULL, hRequest = NULL;
   URL_COMPONENTS urlComp;
@@ -408,7 +412,7 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_winhttp_send: Entering");
   if (!ctx || !ctx->hSession || !req || !res) {
     LOG_DEBUG("http_winhttp_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   {
@@ -416,12 +420,12 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
     wUrl = (wchar_t *)malloc(cap * sizeof(wchar_t));
     if (!wUrl) {
       LOG_DEBUG("http_winhttp_send: Error ENOMEM (wUrl)");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     if (ascii_to_wide(req->url, wUrl, cap, &wLen) != 0) {
       LOG_DEBUG("http_winhttp_send: Error ascii_to_wide (wUrl) failed");
       free(wUrl);
-      return EINVAL;
+      return C_ABSTRACT_HTTP_ERR_INVAL;
     }
   }
 
@@ -436,7 +440,7 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
       free(hostName);
     if (urlPath)
       free(urlPath);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   urlComp.lpszHostName = hostName;
   urlComp.dwHostNameLength = (DWORD)wLen + 1;
@@ -665,9 +669,9 @@ cleanup:
   (void)req;
   (void)res;
 #ifdef ENOTSUP
-  return ENOTSUP;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
 #else
-  return EINVAL;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 #endif
 #endif
 }
@@ -695,18 +699,17 @@ static DWORD WINAPI winhttp_async_worker(LPVOID lpParam) {
 
   http_loop_wakeup(worker_ctx->loop);
   free(worker_ctx);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_winhttp_send_multi(struct HttpTransportContext *ctx,
-                            struct ModalityEventLoop *loop,
-                            const struct HttpMultiRequest *multi,
-                            struct HttpFuture **futures) {
+enum c_abstract_http_error http_winhttp_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
   LOG_DEBUG("http_winhttp_send_multi: Entering");
   if (!ctx || !loop || !multi || !futures) {
     LOG_DEBUG("http_winhttp_send_multi: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   for (i = 0; i < multi->count; ++i) {
@@ -714,7 +717,7 @@ int http_winhttp_send_multi(struct HttpTransportContext *ctx,
         sizeof(struct WinHttpAsyncWorkerCtx));
     if (!wctx) {
       LOG_DEBUG("http_winhttp_send_multi: Error ENOMEM");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     wctx->ctx = ctx;
     wctx->loop = loop;
@@ -724,25 +727,24 @@ int http_winhttp_send_multi(struct HttpTransportContext *ctx,
     if (!QueueUserWorkItem(winhttp_async_worker, wctx, WT_EXECUTEDEFAULT)) {
       LOG_DEBUG("http_winhttp_send_multi: Error QueueUserWorkItem failed");
       free(wctx);
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
   }
   LOG_DEBUG("http_winhttp_send_multi: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #else
-int http_winhttp_send_multi(struct HttpTransportContext *ctx,
-                            struct ModalityEventLoop *loop,
-                            const struct HttpMultiRequest *multi,
-                            struct HttpFuture **futures) {
+enum c_abstract_http_error http_winhttp_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   (void)ctx;
   (void)loop;
   (void)multi;
   (void)futures;
 #ifdef ENOTSUP
-  return ENOTSUP;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
 #else
-  return EINVAL;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 #endif
 }
 #endif

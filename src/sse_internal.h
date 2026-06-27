@@ -1,3 +1,4 @@
+#include <c_abstract_http/http_types.h>
 #ifndef C_ABSTRACT_HTTP_SSE_INTERNAL_H
 #define C_ABSTRACT_HTTP_SSE_INTERNAL_H
 
@@ -72,11 +73,10 @@ struct sse_parser_ctx {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, negative error code on failure.
  */
-int sse_parser_init(struct sse_parser_ctx *ctx,
-                    const struct c_abstract_http_sse_config *config,
-                    c_abstract_http_sse_on_event on_evt,
-                    c_abstract_http_sse_on_error on_err,
-                    c_abstract_http_sse_on_close on_cls, void *user_data);
+enum c_abstract_http_error sse_parser_init(
+    struct sse_parser_ctx *ctx, const struct c_abstract_http_sse_config *config,
+    c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
+    c_abstract_http_sse_on_close on_cls, void *user_data);
 
 /**
  * @brief Destroy an SSE parser context and free its buffers.
@@ -91,7 +91,8 @@ void sse_parser_destroy(struct sse_parser_ctx *ctx);
  * @param len The length of the chunk.
  * @return 0 on success, negative error code on protocol violation.
  */
-int sse_parser_feed(struct sse_parser_ctx *ctx, const char *chunk, size_t len);
+enum c_abstract_http_error sse_parser_feed(struct sse_parser_ctx *ctx,
+                                           const char *chunk, size_t len);
 
 #ifdef __cplusplus
 }

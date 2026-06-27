@@ -30,7 +30,7 @@ TEST test_android_lifecycle(void) {
   ASSERT_EQ(0, http_android_global_init());
 
   /* Init */
-  ASSERT_EQ(EINVAL, http_android_context_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_context_init(NULL));
   ASSERT_EQ(0, http_android_context_init(&ctx));
   ASSERT(ctx != NULL);
 
@@ -52,8 +52,8 @@ TEST test_android_config(void) {
 
   ASSERT_EQ(0, http_config_init(&cfg));
 
-  ASSERT_EQ(EINVAL, http_android_config_apply(NULL, &cfg));
-  ASSERT_EQ(EINVAL, http_android_config_apply(ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_config_apply(NULL, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_config_apply(ctx, NULL));
   ASSERT_EQ(0, http_android_config_apply(ctx, &cfg));
 
   http_config_free(&cfg);
@@ -69,9 +69,9 @@ TEST test_android_send_invalid(void) {
   ASSERT_EQ(0, http_android_context_init(&ctx));
   ASSERT_EQ(0, http_request_init(&req));
 
-  ASSERT_EQ(EINVAL, http_android_send(NULL, &req, &res));
-  ASSERT_EQ(EINVAL, http_android_send(ctx, NULL, &res));
-  ASSERT_EQ(EINVAL, http_android_send(ctx, &req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_send(NULL, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_send(ctx, NULL, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_send(ctx, &req, NULL));
 
   /* Valid input but not implemented (or no JVM) should return ENOSYS */
   ASSERT_EQ(ENOSYS, http_android_send(ctx, &req, &res));

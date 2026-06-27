@@ -82,8 +82,9 @@ TEST test_wininet_config_apply(void) {
   ASSERT_EQ(0, rc);
 
   /* Invalid args */
-  ASSERT_EQ(EINVAL, http_wininet_config_apply(NULL, &config));
-  ASSERT_EQ(EINVAL, http_wininet_config_apply(ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_wininet_config_apply(NULL, &config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wininet_config_apply(ctx, NULL));
 
   http_config_free(&config);
   http_wininet_context_free(ctx);
@@ -107,19 +108,19 @@ TEST test_wininet_send_validation(void) {
 
   /* Null checks */
   rc = http_wininet_send(NULL, &req, &res);
-  ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
   rc = http_wininet_send(ctx, NULL, &res);
-  ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
   rc = http_wininet_send(ctx, &req, NULL);
-  ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
   /* Malformed URL handling in local testing (CrackUrl check) */
   req.url = (c_abstract_http_mock_cdd_strdup("not-a-valid-url", &_ast_strdup_0),
              _ast_strdup_0);
   rc = http_wininet_send(ctx, &req, &res);
-  ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
   http_request_free(&req);
   http_wininet_context_free(ctx);

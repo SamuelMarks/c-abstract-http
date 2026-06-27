@@ -75,13 +75,14 @@ TEST test_mock_alloc_more(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(ENOMEM, c_abstract_http_mock_cdd_strdup("test", &out2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+            c_abstract_http_mock_cdd_strdup("test", &out2));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   {
     int rc_test_tmp = c_abstract_http_mock_cdd_strdup("test", NULL);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   g_mock_recv_fail = 1;

@@ -32,7 +32,7 @@ TEST test_modality_adapter(void) {
             cmp_http_modality_adapter(CMP_MODALITY_MULTIPROCESS_ACTOR, &out));
   ASSERT_EQ(MODALITY_MULTIPROCESS, out);
 
-  ASSERT_EQ(EINVAL, cmp_http_modality_adapter(999, &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cmp_http_modality_adapter(999, &out));
 
   PASS();
 }
@@ -90,14 +90,15 @@ TEST test_cmp_integration_errors(void) {
   memset(&http_cfg, 0, sizeof(http_cfg));
   memset(&binding, 0, sizeof(binding));
 
-  ASSERT_EQ(EINVAL, cmp_http_modality_adapter(0, NULL));
-  ASSERT_EQ(EINVAL, cmp_http_modality_adapter(999, &mod));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cmp_http_modality_adapter(0, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cmp_http_modality_adapter(999, &mod));
 
-  ASSERT_EQ(EINVAL, cmp_http_inject_config(NULL, &http_cfg));
-  ASSERT_EQ(EINVAL, cmp_http_inject_config(&cmp_cfg, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cmp_http_inject_config(NULL, &http_cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cmp_http_inject_config(&cmp_cfg, NULL));
 
   cmp_cfg.modality = 999;
-  ASSERT_EQ(EINVAL, cmp_http_inject_config(&cmp_cfg, &http_cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            cmp_http_inject_config(&cmp_cfg, &http_cfg));
 
   /* Progress adapter without binding returns 0 */
   ASSERT_EQ(0, cmp_http_progress_adapter(0, 0, NULL));

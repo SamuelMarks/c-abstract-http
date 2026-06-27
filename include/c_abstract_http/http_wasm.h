@@ -25,7 +25,7 @@ extern "C" {
  *
  * @return 0 on success.
  */
-int http_wasm_global_init(void);
+enum c_abstract_http_error http_wasm_global_init(void);
 
 /**
  * @brief Cleanup the global wasm environment.
@@ -38,7 +38,8 @@ void http_wasm_global_cleanup(void);
  * @param[out] ctx Double pointer to receive the allocated context.
  * @return 0 on success, ENOMEM on allocation failure.
  */
-int http_wasm_context_init(struct HttpTransportContext **ctx);
+enum c_abstract_http_error
+http_wasm_context_init(struct HttpTransportContext **ctx);
 
 /**
  * @brief Free the transport context.
@@ -54,8 +55,9 @@ void http_wasm_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration structure to apply.
  * @return 0 on success, EINVAL if inputs invalid.
  */
-int http_wasm_config_apply(struct HttpTransportContext *ctx,
-                           const struct HttpConfig *config);
+enum c_abstract_http_error
+http_wasm_config_apply(struct HttpTransportContext *ctx,
+                       const struct HttpConfig *config);
 
 /**
  * @brief The send implementation for Emscripten fetch.
@@ -66,8 +68,9 @@ int http_wasm_config_apply(struct HttpTransportContext *ctx,
  * object.
  * @return 0 on success, or a mapped error code on failure.
  */
-int http_wasm_send(struct HttpTransportContext *ctx,
-                   const struct HttpRequest *req, struct HttpResponse **res);
+enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
+                                          const struct HttpRequest *req,
+                                          struct HttpResponse **res);
 
 #ifdef __cplusplus
 }

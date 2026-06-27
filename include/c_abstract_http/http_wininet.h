@@ -32,7 +32,7 @@ extern "C" {
  *
  * @return 0 on success.
  */
-int http_wininet_global_init(void);
+enum c_abstract_http_error http_wininet_global_init(void);
 
 /**
  * @brief Cleanup global WinInet environment.
@@ -48,7 +48,8 @@ void http_wininet_global_cleanup(void);
  * @return 0 on success, ENOMEM on allocation failure, or EIO on WinInet
  * failure.
  */
-int http_wininet_context_init(struct HttpTransportContext **ctx);
+enum c_abstract_http_error
+http_wininet_context_init(struct HttpTransportContext **ctx);
 
 /**
  * @brief Free the transport context.
@@ -68,8 +69,9 @@ void http_wininet_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration to apply.
  * @return 0 on success, EIO if WinInet calls fail.
  */
-int http_wininet_config_apply(struct HttpTransportContext *ctx,
-                              const struct HttpConfig *config);
+enum c_abstract_http_error
+http_wininet_config_apply(struct HttpTransportContext *ctx,
+                          const struct HttpConfig *config);
 
 /**
  * @brief The send implementation for WinInet.
@@ -87,8 +89,9 @@ int http_wininet_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Double pointer to receive the allocated response object.
  * @return 0 on success, error code (EIO/EINVAL/ENOMEM) on failure.
  */
-int http_wininet_send(struct HttpTransportContext *ctx,
-                      const struct HttpRequest *req, struct HttpResponse **res);
+enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
+                                             const struct HttpRequest *req,
+                                             struct HttpResponse **res);
 
 #ifdef __cplusplus
 }

@@ -61,26 +61,27 @@ static void sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
   state[4] += e;
 }
 
-int sha1_init(struct sha1_ctx *ctx) {
+enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx) {
   if (!ctx)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   ctx->count[0] = ctx->count[1] = 0;
   ctx->state[0] = 0x67452301;
   ctx->state[1] = 0xEFCDAB89;
   ctx->state[2] = 0x98BADCFE;
   ctx->state[3] = 0x10325476;
   ctx->state[4] = 0xC3D2E1F0;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int sha1_update(struct sha1_ctx *ctx, const unsigned char *data, size_t len) {
+enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
+                                       const unsigned char *data, size_t len) {
   uint32_t i;
   uint32_t j;
 
   if (!ctx)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   if (len > 0 && !data)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   j = (ctx->count[0] >> 3) & 63;
   if ((ctx->count[0] += (uint32_t)(len << 3)) < (len << 3)) {
@@ -101,16 +102,17 @@ int sha1_update(struct sha1_ctx *ctx, const unsigned char *data, size_t len) {
   }
 
   memcpy(&ctx->buffer[j], &data[i], len - i);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int sha1_final(struct sha1_ctx *ctx, unsigned char out_hash[20]) {
+enum c_abstract_http_error sha1_final(struct sha1_ctx *ctx,
+                                      unsigned char out_hash[20]) {
   unsigned char finalcount[8];
   unsigned char c;
   int i;
 
   if (!ctx || !out_hash)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   for (i = 0; i < 8; i++) {
     finalcount[i] =
@@ -130,28 +132,28 @@ int sha1_final(struct sha1_ctx *ctx, unsigned char out_hash[20]) {
   }
 
   memset(ctx, 0, sizeof(*ctx));
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static const char base64_chars[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-int base64_encode(const unsigned char *in, size_t in_len, char **out_str,
-                  size_t *out_len) {
+enum c_abstract_http_error base64_encode(const unsigned char *in, size_t in_len,
+                                         char **out_str, size_t *out_len) {
   size_t len;
   size_t i;
   size_t j;
   char *out;
 
   if (!out_str || !out_len)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   if (in_len > 0 && !in)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   len = 4 * ((in_len + 2) / 3);
   out = (char *)malloc(len + 1);
   if (!out)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   for (i = 0, j = 0; i < in_len;) {
     uint32_t octet_a, octet_b, octet_c, triple;
@@ -174,7 +176,7 @@ int base64_encode(const unsigned char *in, size_t in_len, char **out_str,
   *out_str = out;
   *out_len = len;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static const unsigned char base64_decode_table[256] = {
@@ -193,19 +195,20 @@ static const unsigned char base64_decode_table[256] = {
     64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
     64, 64, 64, 64, 64, 64, 64, 64, 64};
 
-int base64_decode(const char *in, size_t in_len, unsigned char **out_data,
-                  size_t *out_len) {
+enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
+                                         unsigned char **out_data,
+                                         size_t *out_len) {
   size_t i;
   size_t j;
   size_t out_size;
   unsigned char *out;
 
   if (!out_data || !out_len)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   if (in_len > 0 && !in)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   if (in_len % 4 != 0)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   out_size = in_len / 4 * 3;
   if (in_len > 0) {
@@ -219,7 +222,7 @@ int base64_decode(const char *in, size_t in_len, unsigned char **out_data,
 
   out = (unsigned char *)malloc(out_size);
   if (!out)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   for (i = 0, j = 0; i < in_len;) {
     uint32_t sextet_a, sextet_b, sextet_c, sextet_d, triple;
@@ -245,7 +248,7 @@ int base64_decode(const char *in, size_t in_len, unsigned char **out_data,
   *out_data = out;
   *out_len = out_size;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 int const_time_streq(const char *a, const char *b) {
@@ -255,7 +258,7 @@ int const_time_streq(const char *a, const char *b) {
   int diff = 0;
 
   if (len_a != len_b)
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
 
   for (i = 0; i < len_a; i++) {
     diff |= (a[i] ^ b[i]);

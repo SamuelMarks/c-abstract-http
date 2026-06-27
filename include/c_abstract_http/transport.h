@@ -20,7 +20,7 @@ extern "C" {
  * @brief Initialize the global transport layer.
  * @return 0 on success, error code on failure.
  */
-int transport_global_init(void);
+enum c_abstract_http_error transport_global_init(void);
 
 /**
  * @brief Clean up the global transport layer.
@@ -32,7 +32,8 @@ void transport_global_cleanup(void);
  * @param[in,out] client The HTTP client to initialize.
  * @return 0 on success, error code on failure.
  */
-int transport_factory_init_client(struct HttpClient *client);
+enum c_abstract_http_error
+transport_factory_init_client(struct HttpClient *client);
 
 /**
  * @brief Clean up an HTTP client transport.

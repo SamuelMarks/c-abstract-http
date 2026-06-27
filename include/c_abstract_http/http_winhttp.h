@@ -32,7 +32,7 @@ extern "C" {
  *
  * @return 0 on success.
  */
-int http_winhttp_global_init(void);
+enum c_abstract_http_error http_winhttp_global_init(void);
 
 /**
  * @brief Cleanup global WinHTTP environment.
@@ -48,7 +48,8 @@ void http_winhttp_global_cleanup(void);
  * @return 0 on success, ENOMEM on allocation failure, or EIO on WinHTTP
  * failure.
  */
-int http_winhttp_context_init(struct HttpTransportContext **ctx);
+enum c_abstract_http_error
+http_winhttp_context_init(struct HttpTransportContext **ctx);
 
 /**
  * @brief Free the transport context.
@@ -71,8 +72,9 @@ void http_winhttp_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration to apply.
  * @return 0 on success, EIO if WinHTTP calls fail.
  */
-int http_winhttp_config_apply(struct HttpTransportContext *ctx,
-                              const struct HttpConfig *config);
+enum c_abstract_http_error
+http_winhttp_config_apply(struct HttpTransportContext *ctx,
+                          const struct HttpConfig *config);
 
 /**
  * @brief The send implementation for WinHTTP.
@@ -92,8 +94,9 @@ int http_winhttp_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Double pointer to receive the allocated response object.
  * @return 0 on success, error code (EIO/EINVAL/ENOMEM) on failure.
  */
-int http_winhttp_send(struct HttpTransportContext *ctx,
-                      const struct HttpRequest *req, struct HttpResponse **res);
+enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
+                                             const struct HttpRequest *req,
+                                             struct HttpResponse **res);
 
 /**
  * @brief Asynchronous multi-send implementation for WinHTTP.
@@ -108,10 +111,9 @@ int http_winhttp_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures.
  * @return 0 on success.
  */
-extern int http_winhttp_send_multi(struct HttpTransportContext *ctx,
-                                   struct ModalityEventLoop *loop,
-                                   const struct HttpMultiRequest *multi,
-                                   struct HttpFuture **futures);
+extern enum c_abstract_http_error http_winhttp_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

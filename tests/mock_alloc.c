@@ -343,7 +343,7 @@ int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
                                 fd_set *errorfds, struct timeval *timeout) {
 #endif
   if (g_mock_select_fail == 1) {
-    errno = EINVAL;
+    errno = C_ABSTRACT_HTTP_ERR_INVAL;
     return -1;
   }
   if (g_mock_select_error_fds == 1) {
@@ -382,12 +382,12 @@ int c_abstract_http_mock_cdd_strdup(const char *s, char **out) {
   if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
     if (out)
       *out = NULL;
-    return ENOMEM; /* ENOMEM */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* C_ABSTRACT_HTTP_ERR_NOMEM */
   }
   if (!s) {
     if (out)
       *out = NULL;
-    return 22; /* EINVAL */
+    return 22; /* C_ABSTRACT_HTTP_ERR_INVAL */
   }
   {
     size_t len = strlen(s);
@@ -395,7 +395,7 @@ int c_abstract_http_mock_cdd_strdup(const char *s, char **out) {
     if (!d) {
       if (out)
         *out = NULL;
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     memcpy(d, s, len + 1);
     if (out) {

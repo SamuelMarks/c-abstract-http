@@ -17,21 +17,24 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
-int http_aria2_global_init(void) { return 0; }
+enum c_abstract_http_error http_aria2_global_init(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 void http_aria2_global_cleanup(void) {}
 
-int http_aria2_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_aria2_context_init(struct HttpTransportContext **ctx) {
   int rc;
   LOG_DEBUG("http_aria2_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_aria2_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   *ctx = (struct HttpTransportContext *)calloc(
       1, sizeof(struct HttpTransportContext));
   if (!*ctx) {
     LOG_DEBUG("http_aria2_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_config_init(&(*ctx)->config);
@@ -44,7 +47,7 @@ int http_aria2_context_init(struct HttpTransportContext **ctx) {
   }
 
   LOG_DEBUG("http_aria2_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_aria2_context_free(struct HttpTransportContext *ctx) {
@@ -56,21 +59,22 @@ void http_aria2_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_aria2_context_free: Exiting");
 }
 
-int http_aria2_config_apply(struct HttpTransportContext *ctx,
-                            const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_aria2_config_apply(struct HttpTransportContext *ctx,
+                        const struct HttpConfig *config) {
   LOG_DEBUG("http_aria2_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_aria2_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   ctx->config = *config;
   LOG_DEBUG("http_aria2_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_aria2_send(struct HttpTransportContext *ctx,
-                    const struct HttpRequest *req,
-                    struct HttpResponse **const res) {
+enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
+                                           const struct HttpRequest *req,
+                                           struct HttpResponse **const res) {
   int rc;
   char cmd[4096];
   char tmp_filename[256];
@@ -82,7 +86,7 @@ int http_aria2_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_aria2_send: Entering");
   if (!ctx || !req || !res || !req->url) {
     LOG_DEBUG("http_aria2_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -101,14 +105,14 @@ int http_aria2_send(struct HttpTransportContext *ctx,
   if (rc != 0) {
     LOG_DEBUG("http_aria2_send: Error system() failed with %d", rc);
     remove(tmp_filename);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   new_res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
   if (!new_res) {
     LOG_DEBUG("http_aria2_send: Error ENOMEM");
     remove(tmp_filename);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_response_init(new_res);
@@ -142,13 +146,13 @@ int http_aria2_send(struct HttpTransportContext *ctx,
         ((char *)new_res->body)[bytes_read] = '\0';
       } else {
         LOG_DEBUG("http_aria2_send: Error ENOMEM reading body");
-        rc = ENOMEM;
+        rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       }
     }
     fclose(f);
   } else {
     LOG_DEBUG("http_aria2_send: Error EIO (cannot open temp file)");
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
   }
 
   remove(tmp_filename);
@@ -165,17 +169,16 @@ int http_aria2_send(struct HttpTransportContext *ctx,
   return rc;
 }
 
-int http_aria2_send_multi(struct HttpTransportContext *ctx,
-                          struct ModalityEventLoop *loop,
-                          const struct HttpMultiRequest *multi,
-                          struct HttpFuture **futures) {
+enum c_abstract_http_error http_aria2_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
   cah_cppcheck_mut_ptr((void *)ctx);
   (void)loop;
 
   if (!ctx || !multi || !futures) {
     LOG_DEBUG("http_aria2_send_multi: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   for (i = 0; i < multi->count; i++) {
@@ -185,5 +188,5 @@ int http_aria2_send_multi(struct HttpTransportContext *ctx,
     futures[i]->error_code = rc;
     futures[i]->is_ready = 1;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }

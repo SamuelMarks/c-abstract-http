@@ -135,7 +135,7 @@ TEST test_winhttp_send_fail(void) {
 
   rc = http_winhttp_send(ctx, &req, &res);
 
-  /* Should fail at CrackUrl stage with EINVAL */
+  /* Should fail at CrackUrl stage with C_ABSTRACT_HTTP_ERR_INVAL */
   ASSERT(rc != 0);
   ASSERT(res == NULL);
 
@@ -160,17 +160,17 @@ TEST test_winhttp_send_null_checks(void) {
 
   /* Send with NULLs */
   rc = http_winhttp_send(ctx, NULL, &res);
-  ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
   rc = http_winhttp_send(NULL, &req, &res);
-  ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
   rc = http_winhttp_send(ctx, &req, NULL);
-  ASSERT_EQ(EINVAL, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
   /* Config Apply with NULLs */
-  ASSERT_EQ(EINVAL, http_winhttp_config_apply(NULL, &cfg));
-  ASSERT_EQ(EINVAL, http_winhttp_config_apply(ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_winhttp_config_apply(NULL, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_winhttp_config_apply(ctx, NULL));
 
   http_config_free(&cfg);
   http_winhttp_context_free(ctx);
@@ -424,7 +424,7 @@ static int setup_request(struct HttpRequest *req, int port) {
       (c_abstract_http_mock_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
   if (!req->url) {
     http_request_free(req);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   return 0;
 }

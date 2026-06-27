@@ -29,7 +29,7 @@ struct HttpTransportContext {
 
 static int libevent_global_init_count = 0;
 
-int http_libevent_global_init(void) {
+enum c_abstract_http_error http_libevent_global_init(void) {
   libevent_global_init_count++;
 #ifdef _WIN32
   if (libevent_global_init_count == 1) {
@@ -37,7 +37,7 @@ int http_libevent_global_init(void) {
     WSAStartup(MAKEWORD(2, 2), &wsaData);
   }
 #endif
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_libevent_global_cleanup(void) {
@@ -51,18 +51,19 @@ void http_libevent_global_cleanup(void) {
   }
 }
 
-int http_libevent_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_libevent_context_init(struct HttpTransportContext **ctx) {
   int rc;
   LOG_DEBUG("http_libevent_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_libevent_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   *ctx = (struct HttpTransportContext *)malloc(
       sizeof(struct HttpTransportContext));
   if (!*ctx) {
     LOG_DEBUG("http_libevent_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   memset(*ctx, 0, sizeof(struct HttpTransportContext));
 
@@ -77,7 +78,7 @@ int http_libevent_context_init(struct HttpTransportContext **ctx) {
   }
 
   LOG_DEBUG("http_libevent_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_libevent_context_free(struct HttpTransportContext *ctx) {
@@ -89,13 +90,14 @@ void http_libevent_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libevent_context_free: Exiting");
 }
 
-int http_libevent_config_apply(struct HttpTransportContext *ctx,
-                               const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_libevent_config_apply(struct HttpTransportContext *ctx,
+                           const struct HttpConfig *config) {
   if (!ctx || !config) {
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   ctx->config = *config;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #ifdef C_ABSTRACT_HTTP_USE_LIBEVENT
@@ -216,14 +218,14 @@ static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
 
 #endif /* C_ABSTRACT_HTTP_USE_LIBEVENT */
 
-int http_libevent_send(const struct HttpTransportContext *ctx,
-                       const struct HttpRequest *req,
-                       struct HttpResponse **res) {
+enum c_abstract_http_error
+http_libevent_send(const struct HttpTransportContext *ctx,
+                   const struct HttpRequest *req, struct HttpResponse **res) {
   cah_cppcheck_mut_ptr((void *)ctx);
   LOG_DEBUG("http_libevent_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_libevent_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
 #ifndef C_ABSTRACT_HTTP_USE_LIBEVENT
@@ -284,7 +286,7 @@ int http_libevent_send(const struct HttpTransportContext *ctx,
     state.base = event_base_new();
     if (!state.base) {
       LOG_DEBUG("http_libevent_send: Error ENOMEM (event_base_new failed)");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
 
     state.conn = evhttp_connection_base_new(state.base, NULL, host, port);
@@ -292,7 +294,7 @@ int http_libevent_send(const struct HttpTransportContext *ctx,
       LOG_DEBUG("http_libevent_send: Error ENOMEM (evhttp_connection_base_new "
                 "failed)");
       event_base_free(state.base);
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
 
     if (ctx->config.timeout_ms > 0) {
@@ -304,7 +306,7 @@ int http_libevent_send(const struct HttpTransportContext *ctx,
       LOG_DEBUG("http_libevent_send: Error ENOMEM (evhttp_request_new failed)");
       evhttp_connection_free(state.conn);
       event_base_free(state.base);
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
 
     if (req->on_chunk) {

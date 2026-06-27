@@ -61,7 +61,8 @@ static size_t math_write_memory_callback(void *contents, size_t size,
         ctx->req->on_chunk(ctx->req->on_chunk_user_data, contents, realsize);
     if (rc != 0) {
       ctx->user_aborted = rc;
-      return 0; /* Returning less than realsize aborts the curl transfer */
+      return C_ABSTRACT_HTTP_SUCCESS; /* Returning less than realsize aborts the
+                                         curl transfer */
     }
     return realsize;
   }
@@ -70,7 +71,7 @@ static size_t math_write_memory_callback(void *contents, size_t size,
   ptr = (char *)realloc(ctx->chunk.memory, ctx->chunk.size + realsize + 1);
   if (!ptr) {
     /* Out of memory */
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   ctx->chunk.memory = ptr;
@@ -112,47 +113,47 @@ static int format_header(const char *key, const char *value, char **_out_val) {
   }
   {
     *_out_val = buf;
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 }
 
 static int map_curl_error(CURLcode res) {
   switch (res) {
   case CURLE_OK:
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case CURLE_UNSUPPORTED_PROTOCOL:
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   case CURLE_COULDNT_RESOLVE_PROXY:
   case CURLE_COULDNT_RESOLVE_HOST:
     return EHOSTUNREACH;
   case CURLE_COULDNT_CONNECT:
     return ECONNREFUSED;
   case CURLE_OPERATION_TIMEDOUT:
-    return ETIMEDOUT;
+    return C_ABSTRACT_HTTP_ERR_TIMEOUT;
   case CURLE_SSL_CONNECT_ERROR:
   case CURLE_PEER_FAILED_VERIFICATION:
     return EACCES;
   case CURLE_OUT_OF_MEMORY:
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   case CURLE_TOO_MANY_REDIRECTS:
     return ELOOP;
   case CURLE_SEND_ERROR:
   case CURLE_RECV_ERROR:
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   default:
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 }
 
 static int g_curl_init_count = 0;
-int http_curl_global_init(void) {
+enum c_abstract_http_error http_curl_global_init(void) {
   if (g_curl_init_count == 0) {
     if (curl_global_init(CURL_GLOBAL_ALL) != 0) {
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
   }
   g_curl_init_count++;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_curl_global_cleanup(void) {
@@ -164,18 +165,19 @@ void http_curl_global_cleanup(void) {
   }
 }
 
-int http_curl_context_init(struct HttpTransportContext **const ctx) {
+enum c_abstract_http_error
+http_curl_context_init(struct HttpTransportContext **const ctx) {
   LOG_DEBUG("http_curl_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_curl_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   *ctx = (struct HttpTransportContext *)malloc(
       sizeof(struct HttpTransportContext));
   if (!*ctx) {
     LOG_DEBUG("http_curl_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   (*ctx)->curl = curl_easy_init();
@@ -192,10 +194,10 @@ int http_curl_context_init(struct HttpTransportContext **const ctx) {
       curl_multi_cleanup((*ctx)->multi);
     free(*ctx);
     *ctx = NULL;
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   LOG_DEBUG("http_curl_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_curl_context_free(struct HttpTransportContext *const ctx) {
@@ -210,13 +212,14 @@ void http_curl_context_free(struct HttpTransportContext *const ctx) {
   LOG_DEBUG("http_curl_context_free: Exiting");
 }
 
-int http_curl_config_apply(struct HttpTransportContext *ctx,
-                           const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_curl_config_apply(struct HttpTransportContext *ctx,
+                       const struct HttpConfig *config) {
   long ssl_version_max = 0;
   LOG_DEBUG("http_curl_config_apply: Entering");
   if (!ctx || !ctx->curl || !config) {
     LOG_DEBUG("http_curl_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (config->version_mask & HTTP_VERSION_3) {
@@ -226,46 +229,46 @@ int http_curl_config_apply(struct HttpTransportContext *ctx,
         config->http3_fallback) {
       if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
                            CURL_HTTP_VERSION_3) != CURLE_OK)
-        return EIO;
+        return C_ABSTRACT_HTTP_ERR_IO;
     } else {
 #if LIBCURL_VERSION_NUM >= 0x075000 /* 7.80.0 */
       if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
                            CURL_HTTP_VERSION_3ONLY) != CURLE_OK)
-        return EIO;
+        return C_ABSTRACT_HTTP_ERR_IO;
 #else
       if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
                            CURL_HTTP_VERSION_3) != CURLE_OK)
-        return EIO;
+        return C_ABSTRACT_HTTP_ERR_IO;
 #endif
     }
 #else
     /* Fallback to default if libcurl is too old */
     if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
                          CURL_HTTP_VERSION_NONE) != CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
 #endif
   } else if (config->version_mask & HTTP_VERSION_2) {
 #if LIBCURL_VERSION_NUM >= 0x072100 /* 7.33.0 */
     if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
                          CURL_HTTP_VERSION_2_0) != CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
 #else
     if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
                          CURL_HTTP_VERSION_NONE) != CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
 #endif
   } else if (config->version_mask & HTTP_VERSION_1_1) {
     if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
                          CURL_HTTP_VERSION_1_1) != CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
   } else if (config->version_mask & HTTP_VERSION_1_0) {
     if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
                          CURL_HTTP_VERSION_1_0) != CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
   } else {
     if (curl_easy_setopt(ctx->curl, CURLOPT_HTTP_VERSION,
                          CURL_HTTP_VERSION_NONE) != CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   if (config->tls_version_mask != HTTP_TLS_VERSION_DEFAULT) {
@@ -297,51 +300,51 @@ int http_curl_config_apply(struct HttpTransportContext *ctx,
 
     if (curl_easy_setopt(ctx->curl, CURLOPT_SSLVERSION,
                          ssl_version | ssl_version_max) != CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
 #else
     if (curl_easy_setopt(ctx->curl, CURLOPT_SSLVERSION, ssl_version) !=
         CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
 #endif
   }
 
   if (curl_easy_setopt(ctx->curl, CURLOPT_TIMEOUT_MS, config->timeout_ms) !=
       CURLE_OK)
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
 
   if (curl_easy_setopt(ctx->curl, CURLOPT_CONNECTTIMEOUT_MS,
                        config->timeout_ms) != CURLE_OK)
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
 
   if (curl_easy_setopt(ctx->curl, CURLOPT_SSL_VERIFYPEER,
                        config->verify_peer ? 1L : 0L) != CURLE_OK)
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   if (curl_easy_setopt(ctx->curl, CURLOPT_SSL_VERIFYHOST,
                        config->verify_host ? 2L : 0L) != CURLE_OK)
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
 
   if (curl_easy_setopt(ctx->curl, CURLOPT_FOLLOWLOCATION,
                        config->follow_redirects ? 1L : 0L) != CURLE_OK)
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
 
   if (config->user_agent) {
     if (curl_easy_setopt(ctx->curl, CURLOPT_USERAGENT, config->user_agent) !=
         CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   if (config->proxy_url) {
     if (curl_easy_setopt(ctx->curl, CURLOPT_PROXY, config->proxy_url) !=
         CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
 
     if (config->proxy_username && config->proxy_password) {
       if (curl_easy_setopt(ctx->curl, CURLOPT_PROXYUSERNAME,
                            config->proxy_username) != CURLE_OK)
-        return EIO;
+        return C_ABSTRACT_HTTP_ERR_IO;
       if (curl_easy_setopt(ctx->curl, CURLOPT_PROXYPASSWORD,
                            config->proxy_password) != CURLE_OK)
-        return EIO;
+        return C_ABSTRACT_HTTP_ERR_IO;
     }
   } else {
     curl_easy_setopt(ctx->curl, CURLOPT_PROXY, "");
@@ -351,7 +354,7 @@ int http_curl_config_apply(struct HttpTransportContext *ctx,
     ctx->cookie_jar = config->cookie_jar;
     /* Enable curl's cookie engine without reading a file */
     if (curl_easy_setopt(ctx->curl, CURLOPT_COOKIEFILE, "") != CURLE_OK)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     /* Instruct curl to write cookies to a dummy state (handled manually or via
      * curl's getinfo later) */
   } else {
@@ -359,7 +362,7 @@ int http_curl_config_apply(struct HttpTransportContext *ctx,
   }
 
   LOG_DEBUG("http_curl_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int setup_curl_request(CURL *curl, const struct HttpRequest *req,
@@ -374,14 +377,14 @@ static int setup_curl_request(CURL *curl, const struct HttpRequest *req,
   LOG_DEBUG("setup_curl_request: Entering");
   if (req->parts.count > 0 && !payload) {
     LOG_DEBUG("setup_curl_request: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   write_ctx->chunk.memory = (char *)malloc(1);
   write_ctx->chunk.size = 0;
   if (!write_ctx->chunk.memory) {
     LOG_DEBUG("setup_curl_request: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   write_ctx->chunk.memory[0] = '\0';
   write_ctx->req = req;
@@ -469,14 +472,14 @@ static int setup_curl_request(CURL *curl, const struct HttpRequest *req,
          _ast_format_header_0);
     if (!h_str) {
       LOG_DEBUG("setup_curl_request: Error ENOMEM in format_header");
-      rc = ENOMEM;
+      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       break;
     }
     *out_headers = curl_slist_append(*out_headers, h_str);
     free(h_str);
     if (!*out_headers) {
       LOG_DEBUG("setup_curl_request: Error ENOMEM in curl_slist_append");
-      rc = ENOMEM;
+      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       break;
     }
   }
@@ -492,7 +495,7 @@ static int setup_curl_request(CURL *curl, const struct HttpRequest *req,
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)write_ctx);
 
   LOG_DEBUG("setup_curl_request: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int finish_curl_request(struct HttpTransportContext *ctx, CURL *curl,
@@ -521,7 +524,7 @@ static int finish_curl_request(struct HttpTransportContext *ctx, CURL *curl,
   new_res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
   if (!new_res) {
     LOG_DEBUG("finish_curl_request: Error ENOMEM for new_res");
-    rc = ENOMEM;
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     goto cleanup;
   }
 
@@ -596,9 +599,9 @@ cleanup:
   return rc;
 }
 
-int http_curl_send(struct HttpTransportContext *ctx,
-                   const struct HttpRequest *req,
-                   struct HttpResponse **const res) {
+enum c_abstract_http_error http_curl_send(struct HttpTransportContext *ctx,
+                                          const struct HttpRequest *req,
+                                          struct HttpResponse **const res) {
   int rc = 0;
   CURLcode res_code;
   struct curl_slist *headers = NULL;
@@ -607,7 +610,7 @@ int http_curl_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_curl_send: Entering");
   if (!ctx || !ctx->curl || !req || !res) {
     LOG_DEBUG("http_curl_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   rc = setup_curl_request(ctx->curl, req, &write_ctx, &headers);
@@ -716,7 +719,7 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
     http_loop_add_timer(ctx->loop, timeout_ms, multi_timer_cb, ctx,
                         &ctx->timer_id);
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
@@ -742,20 +745,19 @@ static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
       http_loop_mod_fd(ctx->loop, (int)s, events);
     }
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_curl_send_multi(struct HttpTransportContext *ctx,
-                         struct ModalityEventLoop *loop,
-                         const struct HttpMultiRequest *multi,
-                         struct HttpFuture **futures) {
+enum c_abstract_http_error http_curl_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   int rc;
   size_t i;
 
   LOG_DEBUG("http_curl_send_multi: Entering");
   if (!ctx || !ctx->multi || !loop || !multi || !futures) {
     LOG_DEBUG("http_curl_send_multi: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   ctx->loop = loop;
@@ -775,14 +777,14 @@ int http_curl_send_multi(struct HttpTransportContext *ctx,
     task = (struct CurlMultiTask *)calloc(1, sizeof(struct CurlMultiTask));
     if (!task) {
       LOG_DEBUG("http_curl_send_multi: Error ENOMEM (task)");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
 
     task->easy = curl_easy_duphandle(ctx->curl);
     if (!task->easy) {
       LOG_DEBUG("http_curl_send_multi: Error ENOMEM (easy_duphandle)");
       free(task);
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
 
     task->ctx = ctx;
@@ -809,6 +811,6 @@ int http_curl_send_multi(struct HttpTransportContext *ctx,
   }
 
   LOG_DEBUG("http_curl_send_multi: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 /* LCOV_EXCL_STOP */

@@ -30,13 +30,13 @@ struct HttpTransportContext {
 
 static int g_libsoup3_init_count = 0;
 
-int http_libsoup3_global_init(void) {
+enum c_abstract_http_error http_libsoup3_global_init(void) {
   if (g_libsoup3_init_count == 0) {
     /* glib/gio handles its own initialization mostly, but if we needed anything
      * it goes here */
   }
   g_libsoup3_init_count++;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_libsoup3_global_cleanup(void) {
@@ -48,18 +48,19 @@ void http_libsoup3_global_cleanup(void) {
   }
 }
 
-int http_libsoup3_context_init(struct HttpTransportContext **const ctx) {
+enum c_abstract_http_error
+http_libsoup3_context_init(struct HttpTransportContext **const ctx) {
   LOG_DEBUG("http_libsoup3_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_libsoup3_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   *ctx = (struct HttpTransportContext *)malloc(
       sizeof(struct HttpTransportContext));
   if (!*ctx) {
     LOG_DEBUG("http_libsoup3_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_config_init(&(*ctx)->config);
@@ -78,12 +79,12 @@ int http_libsoup3_context_init(struct HttpTransportContext **const ctx) {
     http_config_free(&(*ctx)->config);
     free(*ctx);
     *ctx = NULL;
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   (*ctx)->cookie_jar = NULL;
 
   LOG_DEBUG("http_libsoup3_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_libsoup3_context_free(struct HttpTransportContext *ctx) {
@@ -98,12 +99,13 @@ void http_libsoup3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libsoup3_context_free: Exiting");
 }
 
-int http_libsoup3_config_apply(struct HttpTransportContext *ctx,
-                               const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_libsoup3_config_apply(struct HttpTransportContext *ctx,
+                           const struct HttpConfig *config) {
   LOG_DEBUG("http_libsoup3_config_apply: Entering");
   if (!ctx || !ctx->session || !config) {
     LOG_DEBUG("http_libsoup3_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (config->timeout_ms > 0) {
@@ -139,43 +141,43 @@ int http_libsoup3_config_apply(struct HttpTransportContext *ctx,
 
   ctx->config = *config;
   LOG_DEBUG("http_libsoup3_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int math_get_method_string(enum HttpMethod method, const char **out) {
   if (!out)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   switch (method) {
   case HTTP_GET:
     *out = "GET";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_POST:
     *out = "POST";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_PUT:
     *out = "PUT";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_DELETE:
     *out = "DELETE";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_HEAD:
     *out = "HEAD";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_PATCH:
     *out = "PATCH";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_QUERY:
     *out = "QUERY";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   default:
     *out = "GET";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 }
 
-int http_libsoup3_send(struct HttpTransportContext *ctx,
-                       const struct HttpRequest *req,
-                       struct HttpResponse **const res) {
+enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
+                                              const struct HttpRequest *req,
+                                              struct HttpResponse **const res) {
   SoupMessage *msg = NULL;
   SoupMessageHeaders *req_headers = NULL;
   GBytes *body_bytes = NULL;
@@ -193,7 +195,7 @@ int http_libsoup3_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_libsoup3_send: Entering");
   if (!ctx || !ctx->session || !req || !res) {
     LOG_DEBUG("http_libsoup3_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   payload = req->body;
@@ -202,7 +204,7 @@ int http_libsoup3_send(struct HttpTransportContext *ctx,
   if (req->parts.count > 0 && !payload) {
     LOG_DEBUG(
         "http_libsoup3_send: Error EINVAL (multipart parts with no payload)");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   rc = math_get_method_string(req->method, &method_str);
@@ -213,7 +215,7 @@ int http_libsoup3_send(struct HttpTransportContext *ctx,
   msg = soup_message_new(method_str, req->url);
   if (!msg) {
     LOG_DEBUG("http_libsoup3_send: Error soup_message_new failed (bad URL?)");
-    return EINVAL; /* Bad URL likely */
+    return C_ABSTRACT_HTTP_ERR_INVAL; /* Bad URL likely */
   }
 
   req_headers = soup_message_get_request_headers(msg);
@@ -233,7 +235,7 @@ int http_libsoup3_send(struct HttpTransportContext *ctx,
     /* Fallback for chunked upload without input stream: not fully supported in
      * this simplified binding */
     LOG_DEBUG("http_libsoup3_send: Error ENOTSUP (chunked upload stream)");
-    rc = ENOTSUP;
+    rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
     goto cleanup;
   }
 
@@ -245,9 +247,9 @@ int http_libsoup3_send(struct HttpTransportContext *ctx,
     if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CONNECTION_REFUSED)) {
       rc = ECONNREFUSED;
     } else if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_TIMED_OUT)) {
-      rc = ETIMEDOUT;
+      rc = C_ABSTRACT_HTTP_ERR_TIMEOUT;
     } else {
-      rc = EIO;
+      rc = C_ABSTRACT_HTTP_ERR_IO;
     }
     goto cleanup;
   }
@@ -255,7 +257,7 @@ int http_libsoup3_send(struct HttpTransportContext *ctx,
   new_res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
   if (!new_res) {
     LOG_DEBUG("http_libsoup3_send: Error ENOMEM allocating new_res");
-    rc = ENOMEM;
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     goto cleanup;
   }
 
@@ -295,7 +297,7 @@ int http_libsoup3_send(struct HttpTransportContext *ctx,
               "http_libsoup3_send: Error ENOMEM allocating response_body_copy");
           free(new_res);
           new_res = NULL;
-          rc = ENOMEM;
+          rc = C_ABSTRACT_HTTP_ERR_NOMEM;
           goto cleanup;
         }
         memcpy(response_body_copy, resp_data, resp_len);

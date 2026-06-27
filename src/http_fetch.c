@@ -17,20 +17,23 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
-int http_fetch_global_init(void) { return 0; }
+enum c_abstract_http_error http_fetch_global_init(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 void http_fetch_global_cleanup(void) {}
 
-int http_fetch_context_init(struct HttpTransportContext **const ctx) {
+enum c_abstract_http_error
+http_fetch_context_init(struct HttpTransportContext **const ctx) {
   LOG_DEBUG("http_fetch_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_fetch_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   *ctx = (struct HttpTransportContext *)calloc(
       1, sizeof(struct HttpTransportContext));
   if (!*ctx) {
     LOG_DEBUG("http_fetch_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_config_init(&(*ctx)->config);
@@ -43,7 +46,7 @@ int http_fetch_context_init(struct HttpTransportContext **const ctx) {
   }
 
   LOG_DEBUG("http_fetch_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_fetch_context_free(struct HttpTransportContext *ctx) {
@@ -55,39 +58,40 @@ void http_fetch_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_fetch_context_free: Exiting");
 }
 
-int http_fetch_config_apply(struct HttpTransportContext *ctx,
-                            const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_fetch_config_apply(struct HttpTransportContext *ctx,
+                        const struct HttpConfig *config) {
   LOG_DEBUG("http_fetch_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_fetch_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   ctx->config = *config;
   LOG_DEBUG("http_fetch_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int map_fetch_error(int err) {
   switch (err) {
   case FETCH_OK:
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case FETCH_TIMEOUT:
-    return ETIMEDOUT;
+    return C_ABSTRACT_HTTP_ERR_TIMEOUT;
   case FETCH_DOWN:
   case FETCH_NETWORK:
     return ECONNREFUSED;
   case FETCH_RESOLV:
     return EHOSTUNREACH;
   case FETCH_MEMORY:
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   default:
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 }
 
-int http_fetch_send(struct HttpTransportContext *ctx,
-                    const struct HttpRequest *req,
-                    struct HttpResponse **const res) {
+enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
+                                           const struct HttpRequest *req,
+                                           struct HttpResponse **const res) {
   struct url *u;
   FILE *f;
   const char *method_str = "GET";
@@ -99,13 +103,13 @@ int http_fetch_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_fetch_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_fetch_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   u = fetchParseURL(req->url);
   if (!u) {
     LOG_DEBUG("http_fetch_send: Error fetchParseURL failed");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   switch (req->method) {
@@ -157,7 +161,7 @@ int http_fetch_send(struct HttpTransportContext *ctx,
   if (!new_res) {
     LOG_DEBUG("http_fetch_send: Error ENOMEM allocating new_res");
     fclose(f);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_response_init(new_res);
@@ -184,7 +188,7 @@ int http_fetch_send(struct HttpTransportContext *ctx,
                             new_res->body_len + bytes_read + 1);
       if (!tmp) {
         LOG_DEBUG("http_fetch_send: Error ENOMEM reallocating body");
-        rc = ENOMEM;
+        rc = C_ABSTRACT_HTTP_ERR_NOMEM;
         break;
       }
       memcpy(tmp + new_res->body_len, buf, bytes_read);
@@ -206,18 +210,17 @@ int http_fetch_send(struct HttpTransportContext *ctx,
 
   *res = new_res;
   LOG_DEBUG("http_fetch_send: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
-int http_fetch_send_multi(struct HttpTransportContext *ctx,
-                          struct ModalityEventLoop *loop,
-                          const struct HttpMultiRequest *multi,
-                          struct HttpFuture **futures) {
+enum c_abstract_http_error http_fetch_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
   (void)loop;
 
   if (!ctx || !multi || !futures) {
     LOG_DEBUG("http_fetch_send_multi: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   for (i = 0; i < multi->count; i++) {
@@ -227,5 +230,5 @@ int http_fetch_send_multi(struct HttpTransportContext *ctx,
     futures[i]->error_code = rc;
     futures[i]->is_ready = 1;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }

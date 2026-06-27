@@ -107,7 +107,8 @@ TEST test_libevent_config_application(void) {
 }
 
 TEST test_libevent_send_connection_failure(void) {
-  /* Expect mapped error (ECONNREFUSED or ETIMEDOUT or EHOSTUNREACH) */
+  /* Expect mapped error (ECONNREFUSED or C_ABSTRACT_HTTP_ERR_TIMEOUT or
+   * EHOSTUNREACH) */
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
@@ -128,10 +129,10 @@ TEST test_libevent_send_connection_failure(void) {
 
   /* Verify mapping logic.
      Note: On some systems connection refused happens instanly (ECONNREFUSED),
-     on others it times out (ETIMEDOUT). Both are valid error mappings
-     for this test. */
-  if (rc != ECONNREFUSED && rc != ETIMEDOUT && rc != EHOSTUNREACH &&
-      rc != EIO) {
+     on others it times out (C_ABSTRACT_HTTP_ERR_TIMEOUT). Both are valid error
+     mappings for this test. */
+  if (rc != ECONNREFUSED && rc != C_ABSTRACT_HTTP_ERR_TIMEOUT &&
+      rc != EHOSTUNREACH && rc != C_ABSTRACT_HTTP_ERR_IO) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     char errbuf[256];
     strerror_s(errbuf, sizeof(errbuf), rc);
@@ -160,17 +161,17 @@ TEST test_libevent_send_invalid_arguments(void) {
   http_request_init(&req);
 
   /* NULL ctx */
-  ASSERT_EQ(EINVAL, http_libevent_send(NULL, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libevent_send(NULL, &req, &res));
 
   /* NULL req */
-  ASSERT_EQ(EINVAL, http_libevent_send(ctx, NULL, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libevent_send(ctx, NULL, &res));
 
   /* NULL res pointer */
-  ASSERT_EQ(EINVAL, http_libevent_send(ctx, &req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libevent_send(ctx, &req, NULL));
 
   /* NULL internal config application */
-  ASSERT_EQ(EINVAL, http_libevent_config_apply(NULL, NULL));
-  ASSERT_EQ(EINVAL, http_libevent_config_apply(ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libevent_config_apply(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libevent_config_apply(ctx, NULL));
 
   http_request_free(&req);
   http_libevent_context_free(ctx);

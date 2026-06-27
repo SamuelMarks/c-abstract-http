@@ -114,7 +114,8 @@ TEST test_curl_config_application(void) {
 
 TEST test_curl_send_connection_failure(void) {
   int rc;
-  /* Expect mapped error (ECONNREFUSED or ETIMEDOUT or EHOSTUNREACH) */
+  /* Expect mapped error (ECONNREFUSED or C_ABSTRACT_HTTP_ERR_TIMEOUT or
+   * EHOSTUNREACH) */
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
@@ -135,10 +136,10 @@ TEST test_curl_send_connection_failure(void) {
 
   /* Verify mapping logic.
      Note: On some systems connection refused happens instanly (ECONNREFUSED),
-     on others it times out (ETIMEDOUT). Both are valid error mappings
-     for this test. */
-  if (rc != ECONNREFUSED && rc != ETIMEDOUT && rc != EHOSTUNREACH &&
-      rc != EIO) {
+     on others it times out (C_ABSTRACT_HTTP_ERR_TIMEOUT). Both are valid error
+     mappings for this test. */
+  if (rc != ECONNREFUSED && rc != C_ABSTRACT_HTTP_ERR_TIMEOUT &&
+      rc != EHOSTUNREACH && rc != C_ABSTRACT_HTTP_ERR_IO) {
     fprintf(stderr, "Unexpected return code: %d (%s)\n", rc, strerror(rc));
     FAIL();
   }
@@ -162,17 +163,17 @@ TEST test_curl_send_invalid_arguments(void) {
   http_request_init(&req);
 
   /* NULL ctx */
-  ASSERT_EQ(EINVAL, http_curl_send(NULL, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(NULL, &req, &res));
 
   /* NULL req */
-  ASSERT_EQ(EINVAL, http_curl_send(ctx, NULL, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(ctx, NULL, &res));
 
   /* NULL res pointer */
-  ASSERT_EQ(EINVAL, http_curl_send(ctx, &req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(ctx, &req, NULL));
 
   /* NULL internal config application */
-  ASSERT_EQ(EINVAL, http_curl_config_apply(NULL, NULL));
-  ASSERT_EQ(EINVAL, http_curl_config_apply(ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_config_apply(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_config_apply(ctx, NULL));
 
   http_request_free(&req);
   http_curl_context_free(ctx);
@@ -383,7 +384,7 @@ TEST test_curl_http3_config(void) {
   ASSERT_EQ(0, http_curl_context_init(&ctx));
 
   ret = http_curl_config_apply(ctx, &config);
-  ASSERT(ret == 0 || ret == EIO);
+  ASSERT(ret == 0 || ret == C_ABSTRACT_HTTP_ERR_IO);
 
   http_config_free(&config);
   http_curl_context_free(ctx);
@@ -400,14 +401,14 @@ TEST test_curl_edge_cases(void) {
   ASSERT_EQ(0, http_curl_context_init(&ctx));
 
   /* Missing parameters */
-  ASSERT_EQ(EINVAL, http_curl_send(NULL, &req, &res));
-  ASSERT_EQ(EINVAL, http_curl_send(ctx, NULL, &res));
-  ASSERT_EQ(EINVAL, http_curl_send(ctx, &req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(NULL, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(ctx, NULL, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(ctx, &req, NULL));
 
   /* Bad URL */
   http_request_init(&req);
   req.url = "badurl://";
-  /* ASSERT_EQ(EINVAL, http_curl_send(ctx, &req, &res)); */
+  /* ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(ctx, &req, &res)); */
 
   /* OOM loop for http_curl_send */
   for (i = 0; i < 2; i++) {
@@ -424,7 +425,7 @@ TEST test_curl_edge_cases(void) {
         }
         continue;
       }
-      /* ASSERT_EQ(ENOMEM, rc_test_tmp); */
+      /* ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp); */
     }
   }
 
@@ -493,7 +494,7 @@ TEST test_curl_send_unsupported_protocol(void) {
   req.url = "badprotocol://localhost/";
   req.method = HTTP_GET;
 
-  ASSERT_EQ(EINVAL, http_curl_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(ctx, &req, &res));
 
   req.url = NULL;
   http_request_free(&req);
@@ -513,7 +514,8 @@ TEST test_curl_send_resolve_error(void) {
   req.method = HTTP_GET;
 
   rc = http_curl_send(ctx, &req, &res);
-  ASSERT(rc == EHOSTUNREACH || rc == ECONNREFUSED || rc == EIO);
+  ASSERT(rc == EHOSTUNREACH || rc == ECONNREFUSED ||
+         rc == C_ABSTRACT_HTTP_ERR_IO);
 
   req.url = NULL;
   http_request_free(&req);
@@ -531,7 +533,7 @@ TEST test_curl_unsupported_methods(void) {
   req.url = "badprotocol://localhost/";
   req.method = HTTP_GET;
 
-  ASSERT_EQ(EINVAL, http_curl_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(ctx, &req, &res));
   if (res) {
     http_response_free(res);
     free(res);

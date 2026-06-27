@@ -21,7 +21,7 @@ TEST test_transport_global(void) {
 TEST test_transport_factory(void) {
   struct HttpClient client = {0};
 
-  ASSERT_EQ(EINVAL, transport_factory_init_client(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, transport_factory_init_client(NULL));
 
   ASSERT_EQ(0, transport_factory_init_client(&client));
   ASSERT(client.send != NULL);
@@ -40,11 +40,11 @@ TEST test_transport_factory(void) {
   {
     int rc = transport_factory_init_client(&client);
 #if defined(_WIN32)
-    if (rc != EIO && rc != ENOTSUP) {
-      ASSERT_EQ(ENOMEM, rc);
+    if (rc != C_ABSTRACT_HTTP_ERR_IO && rc != C_ABSTRACT_HTTP_ERR_NOTSUP) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
     }
 #else
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 #endif
   }
   g_mock_alloc_fail = 0;

@@ -30,24 +30,24 @@ static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
                          size_t *out_len) {
   cfs_size_t written = 0;
   if (cfs_mb_to_wide(s, ws, (cfs_size_t)buf_cap, &written) != 0 || written == 0)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_len = (size_t)(written - 1);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
                          size_t *out_len) {
   cfs_size_t written = 0;
   if (cfs_wide_to_mb(ws, s, (cfs_size_t)buf_cap, &written) != 0 || written == 0)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_len = (size_t)(written - 1);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #define CHECK_EINVAL(x)                                                        \
   do {                                                                         \
     if (!(x))                                                                  \
-      return EINVAL;                                                           \
+      return C_ABSTRACT_HTTP_ERR_INVAL;                                        \
   } while (0)
 
 /** @brief Internal struct HttpTransportContext */
@@ -77,37 +77,37 @@ static int method_to_wide(enum HttpMethod method, const wchar_t **out) {
   switch (method) {
   case HTTP_GET:
     *out = L"GET";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_POST:
     *out = L"POST";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_PUT:
     *out = L"PUT";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_DELETE:
     *out = L"DELETE";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_HEAD:
     *out = L"HEAD";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_PATCH:
     *out = L"PATCH";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_OPTIONS:
     *out = L"OPTIONS";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_TRACE:
     *out = L"TRACE";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_QUERY:
     *out = L"QUERY";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   case HTTP_CONNECT:
     *out = L"CONNECT";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   default:
     *out = L"GET";
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 }
 
@@ -119,7 +119,7 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
 
   *out = NULL;
   if (!headers || headers->count == 0)
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
 
   /* 1. Calculate Size */
   for (i = 0; i < headers->count; ++i) {
@@ -133,7 +133,7 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
 
   buf = (wchar_t *)calloc(total_wchars, sizeof(wchar_t));
   if (!buf)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = buf;
   for (i = 0; i < headers->count; ++i) {
@@ -142,7 +142,7 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
     if (ascii_to_wide(headers->headers[i].key, p, total_wchars - (p - buf),
                       &written) != 0) {
       free(buf);
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
     p += written;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -156,7 +156,7 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
     if (ascii_to_wide(headers->headers[i].value, p, total_wchars - (p - buf),
                       &written) != 0) {
       free(buf);
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
     p += written;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -168,17 +168,20 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
   }
 
   *out = buf;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif /* _WIN32 */
 
 /* --- Public API Implementation --- */
 
-int http_wininet_global_init(void) { return 0; }
+enum c_abstract_http_error http_wininet_global_init(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 void http_wininet_global_cleanup(void) {}
 
-int http_wininet_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_wininet_context_init(struct HttpTransportContext **ctx) {
 #ifdef _WIN32
   HINTERNET hInternet;
   DWORD flags = 0;
@@ -193,7 +196,7 @@ int http_wininet_context_init(struct HttpTransportContext **ctx) {
 
   if (!hInternet) {
     LOG_DEBUG("http_wininet_context_init: Error InternetOpenW failed");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   *ctx = (struct HttpTransportContext *)malloc(
@@ -201,7 +204,7 @@ int http_wininet_context_init(struct HttpTransportContext **ctx) {
   if (!*ctx) {
     LOG_DEBUG("http_wininet_context_init: Error ENOMEM");
     InternetCloseHandle(hInternet);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_config_init(&(*ctx)->config);
@@ -221,9 +224,9 @@ int http_wininet_context_init(struct HttpTransportContext **ctx) {
   (*ctx)->config.cookie_jar = NULL;
 
   LOG_DEBUG("http_wininet_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #else
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #endif
 }
 
@@ -247,8 +250,9 @@ void http_wininet_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wininet_context_free: Exiting");
 }
 
-int http_wininet_config_apply(struct HttpTransportContext *ctx,
-                              const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_wininet_config_apply(struct HttpTransportContext *ctx,
+                          const struct HttpConfig *config) {
 #ifdef _WIN32
   DWORD timeout_connect, timeout_send, timeout_recv;
 #endif
@@ -256,7 +260,7 @@ int http_wininet_config_apply(struct HttpTransportContext *ctx,
 #ifdef _WIN32
   if (!ctx || !ctx->hInternet || !config) {
     LOG_DEBUG("http_wininet_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   /* Timeouts: WinInet uses milliseconds */
@@ -274,17 +278,17 @@ int http_wininet_config_apply(struct HttpTransportContext *ctx,
                          &timeout_connect, sizeof(timeout_connect))) {
     LOG_DEBUG(
         "http_wininet_config_apply: Error InternetSetOption connect failed");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   if (!InternetSetOption(ctx->hInternet, INTERNET_OPTION_SEND_TIMEOUT,
                          &timeout_send, sizeof(timeout_send))) {
     LOG_DEBUG("http_wininet_config_apply: Error InternetSetOption send failed");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   if (!InternetSetOption(ctx->hInternet, INTERNET_OPTION_RECEIVE_TIMEOUT,
                          &timeout_recv, sizeof(timeout_recv))) {
     LOG_DEBUG("http_wininet_config_apply: Error InternetSetOption recv failed");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   /* Cache Security Flags for HttpOpenRequest */
@@ -332,13 +336,13 @@ int http_wininet_config_apply(struct HttpTransportContext *ctx,
   }
 
   LOG_DEBUG("http_wininet_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #endif
 }
 
-int http_wininet_send(struct HttpTransportContext *ctx,
-                      const struct HttpRequest *req,
-                      struct HttpResponse **res) {
+enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
+                                             const struct HttpRequest *req,
+                                             struct HttpResponse **res) {
 #ifdef _WIN32
   HINTERNET hConnect = NULL;
   HINTERNET hRequest = NULL;
@@ -366,7 +370,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
 #ifdef _WIN32
   if (!ctx || !ctx->hInternet || !req || !res) {
     LOG_DEBUG("http_wininet_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (req->parts.count > 0 && !req->body) {
@@ -374,7 +378,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
        as we cannot modify const struct here. */
     /* See http_curl.c implementation comment for architectural reasoning */
     LOG_DEBUG("http_wininet_send: Error EINVAL (multipart not flattened)");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   /* 1. Convert URL to Wide */
@@ -383,12 +387,12 @@ int http_wininet_send(struct HttpTransportContext *ctx,
     wUrl = (wchar_t *)malloc(cap * sizeof(wchar_t));
     if (!wUrl) {
       LOG_DEBUG("http_wininet_send: Error ENOMEM for wUrl");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     if (ascii_to_wide(req->url, wUrl, cap, &wLen) != 0) {
       LOG_DEBUG("http_wininet_send: Error ascii_to_wide wUrl failed");
       free(wUrl);
-      return EINVAL;
+      return C_ABSTRACT_HTTP_ERR_INVAL;
     }
   }
 
@@ -401,7 +405,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   wPath = (wchar_t *)calloc(wLen + 1, sizeof(wchar_t));
   if (!wHost || !wPath) {
     LOG_DEBUG("http_wininet_send: Error ENOMEM allocating host/path buffers");
-    rc = ENOMEM;
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     goto cleanup;
   }
 
@@ -412,7 +416,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
 
   if (!InternetCrackUrlW(wUrl, (DWORD)wcslen(wUrl), 0, &urlComp)) {
     LOG_DEBUG("http_wininet_send: Error InternetCrackUrlW failed");
-    rc = EINVAL;
+    rc = C_ABSTRACT_HTTP_ERR_INVAL;
     goto cleanup;
   }
 
@@ -422,7 +426,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
                               INTERNET_SERVICE_HTTP, 0, 0);
   if (!hConnect) {
     LOG_DEBUG("http_wininet_send: Error InternetConnectW failed");
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
 
@@ -433,7 +437,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
                             (DWORD)strlen(ctx->config.proxy_username))) {
       LOG_DEBUG(
           "http_wininet_send: Error InternetSetOptionA proxy username failed");
-      rc = EIO;
+      rc = C_ABSTRACT_HTTP_ERR_IO;
       goto cleanup;
     }
     if (!InternetSetOptionA(hConnect, INTERNET_OPTION_PROXY_PASSWORD,
@@ -441,7 +445,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
                             (DWORD)strlen(ctx->config.proxy_password))) {
       LOG_DEBUG(
           "http_wininet_send: Error InternetSetOptionA proxy password failed");
-      rc = EIO;
+      rc = C_ABSTRACT_HTTP_ERR_IO;
       goto cleanup;
     }
   }
@@ -457,7 +461,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
                               NULL, NULL, dwFlags, 0);
   if (!hRequest) {
     LOG_DEBUG("http_wininet_send: Error HttpOpenRequestW failed");
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
 
@@ -493,7 +497,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   if (req->headers.count > 0) {
     if (headers_to_wide_block(&req->headers, &wHeaders) != 0) {
       LOG_DEBUG("http_wininet_send: Error ENOMEM in headers_to_wide_block");
-      rc = ENOMEM;
+      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       goto cleanup;
     }
     /* Add headers (replacing existing if needed or adding) */
@@ -501,7 +505,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
                                 HTTP_ADDREQ_FLAG_ADD |
                                     HTTP_ADDREQ_FLAG_REPLACE)) {
       LOG_DEBUG("http_wininet_send: Error HttpAddRequestHeadersW failed");
-      rc = EIO;
+      rc = C_ABSTRACT_HTTP_ERR_IO;
       goto cleanup;
     }
   }
@@ -515,7 +519,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
 
     if (!HttpSendRequestExW(hRequest, &ib, NULL, 0, 0)) {
       LOG_DEBUG("http_wininet_send: Error HttpSendRequestExW failed");
-      rc = EIO;
+      rc = C_ABSTRACT_HTTP_ERR_IO;
       goto cleanup;
     }
 
@@ -535,21 +539,21 @@ int http_wininet_send(struct HttpTransportContext *ctx,
 
       if (!InternetWriteFile(hRequest, chunkBuf, (DWORD)out_read, &dwWritten)) {
         LOG_DEBUG("http_wininet_send: Error InternetWriteFile failed");
-        rc = EIO;
+        rc = C_ABSTRACT_HTTP_ERR_IO;
         goto cleanup;
       }
     }
 
     if (!HttpEndRequestW(hRequest, NULL, 0, 0)) {
       LOG_DEBUG("http_wininet_send: Error HttpEndRequestW failed");
-      rc = EIO;
+      rc = C_ABSTRACT_HTTP_ERR_IO;
       goto cleanup;
     }
   } else {
     /* body is binary safe void*, no string conversion */
     if (!HttpSendRequestW(hRequest, NULL, 0, req->body, (DWORD)req->body_len)) {
       LOG_DEBUG("http_wininet_send: Error HttpSendRequestW failed");
-      rc = EIO;
+      rc = C_ABSTRACT_HTTP_ERR_IO;
       goto cleanup;
     }
   }
@@ -558,7 +562,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   if (!HttpQueryInfoW(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
                       &dwStatusCode, &dwSize, NULL)) {
     LOG_DEBUG("http_wininet_send: Error HttpQueryInfoW (status_code) failed");
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
 
@@ -612,14 +616,14 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   readChunk = (char *)malloc(4096);
   if (!readChunk) {
     LOG_DEBUG("http_wininet_send: Error ENOMEM allocating readChunk");
-    rc = ENOMEM;
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     goto cleanup;
   }
 
   while (1) {
     if (!InternetReadFile(hRequest, readChunk, 4096, &bytesRead)) {
       LOG_DEBUG("http_wininet_send: Error InternetReadFile failed");
-      rc = EIO;
+      rc = C_ABSTRACT_HTTP_ERR_IO;
       goto cleanup;
     }
     if (bytesRead == 0)
@@ -637,7 +641,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
       char *new_buf = (char *)realloc(bodyBuf, bodySize + bytesRead + 1);
       if (!new_buf) {
         LOG_DEBUG("http_wininet_send: Error ENOMEM reallocating body");
-        rc = ENOMEM;
+        rc = C_ABSTRACT_HTTP_ERR_NOMEM;
         goto cleanup;
       }
       bodyBuf = new_buf;
@@ -651,7 +655,7 @@ int http_wininet_send(struct HttpTransportContext *ctx,
   *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
   if (!*res) {
     LOG_DEBUG("http_wininet_send: Error ENOMEM allocating new_res");
-    rc = ENOMEM;
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     goto cleanup;
   }
 

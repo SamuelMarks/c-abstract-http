@@ -12,7 +12,7 @@
 
 
 
-int ws_generate_key(char out_key[25]) {
+enum c_abstract_http_error ws_generate_key(char out_key[25]) {
   unsigned char random_bytes[16];
   char *base64_str = NULL;
   size_t base64_len = 0;
@@ -38,10 +38,10 @@ int ws_generate_key(char out_key[25]) {
   C_ABSTRACT_HTTP_STRCPY_S(out_key, 25, base64_str);
   free(base64_str);
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int ws_sign_key(const char *client_key, char out_accept[29]) {
+enum c_abstract_http_error ws_sign_key(const char *client_key, char out_accept[29]) {
   const char *magic_guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
   char concatenated[100];
   struct sha1_ctx ctx;
@@ -53,7 +53,7 @@ int ws_sign_key(const char *client_key, char out_accept[29]) {
   size_t len2 = strlen(magic_guid);
 
   if (len1 + len2 >= sizeof(concatenated))
-    return -1;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   C_ABSTRACT_HTTP_STRCPY_S(concatenated, sizeof(concatenated), client_key);
   C_ABSTRACT_HTTP_STRCPY_S(concatenated + len1, sizeof(concatenated) - len1,
@@ -72,28 +72,28 @@ int ws_sign_key(const char *client_key, char out_accept[29]) {
   C_ABSTRACT_HTTP_STRCPY_S(out_accept, 29, base64_str);
   free(base64_str);
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int ws_verify_accept(const char *client_key, const char *server_accept) {
+enum c_abstract_http_error ws_verify_accept(const char *client_key, const char *server_accept) {
   char expected_accept[29];
   int res = ws_sign_key(client_key, expected_accept);
   if (res != 0)
     return res;
 
   if (const_time_streq(expected_accept, server_accept)) {
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   return -1002; /* C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE */
 }
 
-int c_abstract_http_ws_init(struct HttpRequest *req,
+enum c_abstract_http_error c_abstract_http_ws_init(struct HttpRequest *req,
                             const struct c_abstract_http_ws_config *config) {
   char key[25] = {0};
   int res;
 
   if (!req)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   res = ws_generate_key(key);
   if (res != 0)
@@ -133,7 +133,7 @@ int c_abstract_http_ws_init(struct HttpRequest *req,
     }
   }
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 uint16_t ws_htons(uint16_t hostshort) {
@@ -171,7 +171,7 @@ uint64_t ws_ntohll(uint64_t netqword) {
          ((uint64_t)p[6] << 8) | (uint64_t)p[7];
 }
 
-int ws_generate_mask_key(unsigned char out_key[4]) {
+enum c_abstract_http_error ws_generate_mask_key(unsigned char out_key[4]) {
   int i;
   static int rand_initialized = 0;
   if (!rand_initialized) {
@@ -181,68 +181,72 @@ int ws_generate_mask_key(unsigned char out_key[4]) {
   for (i = 0; i < 4; ++i) {
     out_key[i] = (unsigned char)(rand() % 256);
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int ws_apply_mask(unsigned char *payload, size_t len,
+enum c_abstract_http_error ws_apply_mask(unsigned char *payload, size_t len,
                   const unsigned char mask_key[4]) {
   size_t i;
   if (!payload || len == 0)
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   for (i = 0; i < len; i++) {
     payload[i] ^= mask_key[i % 4];
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int ws_pack_header_small(unsigned char *buf, int fin, int opcode, int mask,
-                         size_t len) {
+enum c_abstract_http_error ws_pack_header_small(unsigned char *buf, int fin, int opcode, int mask,
+                         size_t len, size_t *out_len) {
   if (!buf || len > 125)
-    return -1;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   buf[0] = (unsigned char)((fin ? 0x80 : 0x00) | (opcode & 0x0F));
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | (len & 0x7F));
-  return 2;
+  if (out_len) *out_len = 2;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int ws_pack_header_medium(unsigned char *buf, int fin, int opcode, int mask,
-                          size_t len) {
+enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin, int opcode, int mask,
+                          size_t len, size_t *out_len) {
   uint16_t net_len;
   if (!buf || len <= 125 || len > 65535)
-    return -1;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   buf[0] = (unsigned char)((fin ? 0x80 : 0x00) | (opcode & 0x0F));
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | 126);
   net_len = ws_htons((uint16_t)len);
   memcpy(buf + 2, &net_len, 2);
-  return 4;
+  if (out_len) *out_len = 4;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int ws_pack_header_large(unsigned char *buf, int fin, int opcode, int mask,
-                         size_t len) {
+enum c_abstract_http_error ws_pack_header_large(unsigned char *buf, int fin, int opcode, int mask,
+                         size_t len, size_t *out_len) {
   uint64_t net_len;
   if (!buf || len <= 65535)
-    return -1;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   buf[0] = (unsigned char)((fin ? 0x80 : 0x00) | (opcode & 0x0F));
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | 127);
   net_len = ws_htonll((uint64_t)len);
   memcpy(buf + 2, &net_len, 8);
-  return 10;
+  if (out_len) *out_len = 10;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #include "ws_config.h"
 /* clang-format on */
 
-int ws_parser_init(struct ws_parser_ctx *ctx,
-                   c_abstract_http_ws_on_message on_msg,
-                   c_abstract_http_ws_on_error on_err,
-                   c_abstract_http_ws_on_close on_cls, void *user_data) {
+enum c_abstract_http_error ws_parser_init(struct ws_parser_ctx *ctx,
+                                          c_abstract_http_ws_on_message on_msg,
+                                          c_abstract_http_ws_on_error on_err,
+                                          c_abstract_http_ws_on_close on_cls,
+                                          void *user_data) {
   if (!ctx)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   memset(ctx, 0, sizeof(*ctx));
 
   ctx->payload_capacity = 4096;
   ctx->payload_buffer = (unsigned char *)malloc(ctx->payload_capacity);
   if (!ctx->payload_buffer)
-    return ENOMEM; /* ENOMEM fallback */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* ENOMEM fallback */
 
   ctx->on_message = on_msg;
   ctx->on_error = on_err;
@@ -250,7 +254,7 @@ int ws_parser_init(struct ws_parser_ctx *ctx,
   ctx->user_data = user_data;
 
   ctx->state = WS_PARSER_READ_OPCODE;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void ws_parser_destroy(struct ws_parser_ctx *ctx) {
@@ -261,12 +265,13 @@ void ws_parser_destroy(struct ws_parser_ctx *ctx) {
   memset(ctx, 0, sizeof(*ctx));
 }
 
-int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
-                   size_t len) {
+enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
+                                          const unsigned char *chunk,
+                                          size_t len) {
   size_t i = 0;
   if (!ctx || (!chunk && len > 0)) {
     LOG_DEBUG("ws_parser_feed: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   while (i < len) {
     switch (ctx->state) {
@@ -365,7 +370,7 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
         if (!new_buf) {
           if (ctx->on_error)
             ctx->on_error(ENOMEM, ctx->user_data); /* ENOMEM */
-          return ENOMEM;
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
         ctx->payload_buffer = new_buf;
         ctx->payload_capacity = (size_t)ctx->current_frame.payload_len;
@@ -456,7 +461,7 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
                 if (!new_buf) {
                   if (ctx->on_error)
                     ctx->on_error(ENOMEM, ctx->user_data);
-                  return ENOMEM;
+                  return C_ABSTRACT_HTTP_ERR_NOMEM;
                 }
                 ctx->reassembly_buffer = new_buf;
                 ctx->reassembly_capacity = new_cap;
@@ -484,7 +489,7 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
                 if (!new_buf) {
                   if (ctx->on_error)
                     ctx->on_error(ENOMEM, ctx->user_data);
-                  return ENOMEM;
+                  return C_ABSTRACT_HTTP_ERR_NOMEM;
                 }
                 ctx->reassembly_buffer = new_buf;
                 ctx->reassembly_capacity = new_cap;
@@ -520,16 +525,14 @@ int ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
     }
     }
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
-                                      struct HttpRequest *req,
-                                      c_abstract_http_ws_on_message on_msg,
-                                      c_abstract_http_ws_on_error on_err,
-                                      c_abstract_http_ws_on_close on_close,
-                                      void *user_data,
-                                      volatile int *exit_flag) {
+enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
+    struct HttpClient *client, struct HttpRequest *req,
+    c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
+    c_abstract_http_ws_on_close on_close, void *user_data,
+    volatile int *exit_flag) {
   int rc;
   struct HttpResponse *res = NULL;
   struct ws_parser_ctx parser;
@@ -537,11 +540,11 @@ int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
 
   if (!client || !req) {
     LOG_DEBUG("c_abstract_http_ws_sync_read_loop: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (exit_flag && *exit_flag)
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
 
   rc = c_abstract_http_ws_init(req, NULL);
   if (rc != 0) {
@@ -579,5 +582,5 @@ int c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
   if (on_close)
     on_close(200, user_data);
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }

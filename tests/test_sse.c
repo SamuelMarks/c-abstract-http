@@ -216,8 +216,9 @@ TEST test_sse_sync_loop_exit_flag(void) {
 }
 
 TEST test_sse_sync_loop_null(void) {
-  ASSERT_EQ(EINVAL, c_abstract_http_sse_sync_read_loop(NULL, NULL, NULL, NULL,
-                                                       NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_sse_sync_read_loop(NULL, NULL, NULL, NULL, NULL,
+                                               NULL, NULL));
   PASS();
 }
 
@@ -244,7 +245,7 @@ static int mock_send_fail(struct HttpTransportContext *ctx,
   (void)ctx;
   (void)req;
   (void)res_out;
-  return EIO;
+  return C_ABSTRACT_HTTP_ERR_IO;
 }
 
 static int mock_on_event_called = 0;
@@ -274,13 +275,15 @@ TEST test_sse_sync_loop_fail(void) {
   struct HttpRequest req = {0};
   http_request_init(&req);
   client.send = mock_send_fail;
-  ASSERT_EQ(EINVAL, c_abstract_http_sse_sync_read_loop(&client, NULL, NULL,
-                                                       NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_sse_sync_read_loop(&client, NULL, NULL, NULL, NULL,
+                                               NULL, NULL));
 
   /* Mock send failure with no error callback */
   client.send = mock_send_fail;
-  ASSERT_EQ(EIO, c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL,
-                                                    NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL, NULL,
+                                               NULL, NULL));
 
   http_request_free(&req);
   PASS();
@@ -301,12 +304,12 @@ TEST test_sse_max_line_size(void) {
 
   /* Feed huge line */
   rc = sse_parser_feed(&parser, huge_line, huge_len);
-  ASSERT_EQ(ENOMEM, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   sse_parser_destroy(&parser);
 
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, NULL, NULL, NULL, &ctx));
   rc = sse_parser_feed(&parser, huge_line, huge_len);
-  ASSERT_EQ(ENOMEM, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   sse_parser_destroy(&parser);
 
   free(huge_line);
@@ -316,14 +319,16 @@ TEST test_sse_max_line_size(void) {
 TEST test_sse_async_register(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
-  ASSERT_EQ(EINVAL, c_abstract_http_sse_async_register(NULL, NULL, NULL, NULL,
-                                                       NULL, NULL));
-  ASSERT_EQ(EINVAL, c_abstract_http_sse_async_register(&client, NULL, NULL,
-                                                       NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, c_abstract_http_sse_async_register(NULL, &req, NULL, NULL,
-                                                       NULL, NULL));
-  ASSERT_EQ(ENOTSUP, c_abstract_http_sse_async_register(&client, &req, NULL,
-                                                        NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_sse_async_register(
+                                           NULL, NULL, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_sse_async_register(&client, NULL, NULL, NULL, NULL,
+                                               NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_sse_async_register(
+                                           NULL, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            c_abstract_http_sse_async_register(&client, &req, NULL, NULL, NULL,
+                                               NULL));
   http_request_free(&req);
   PASS();
 }
@@ -332,7 +337,7 @@ TEST test_sse_init_headers_null(void) {
   struct HttpRequest req = {0};
   struct c_abstract_http_sse_config config = {0};
 
-  ASSERT_EQ(EINVAL, c_abstract_http_sse_init(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_sse_init(NULL, NULL));
 
   ASSERT_EQ(0, http_request_init(&req));
   ASSERT_EQ(0, c_abstract_http_sse_init(&req, NULL));
@@ -346,7 +351,8 @@ TEST test_sse_parser_init_null(void) {
   struct test_sse_ctx ctx = {0};
   struct c_abstract_http_sse_config config = {0};
 
-  ASSERT_EQ(EINVAL, sse_parser_init(NULL, NULL, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            sse_parser_init(NULL, NULL, NULL, NULL, NULL, NULL));
   ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
                                test_sse_on_error, test_sse_on_close, &ctx));
   sse_parser_destroy(&parser);
@@ -385,7 +391,7 @@ TEST test_sse_async_register_thread_pool(void) {
     int rc_test_tmp = c_abstract_http_sse_async_register(&client, &req, NULL,
                                                          NULL, NULL, NULL);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 #endif
 
@@ -418,7 +424,7 @@ TEST test_sse_oom_branches(void) {
       break;
     }
     http_request_free(&req);
-    ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   }
 
   for (i = 0; i < 15; i++) {
@@ -433,7 +439,7 @@ TEST test_sse_oom_branches(void) {
       sse_parser_destroy(&parser);
       break;
     }
-    ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   }
 
   http_request_free(&req);
@@ -458,7 +464,7 @@ TEST test_sse_parser_feed_oom(void) {
   g_mock_alloc_fail = 0;
 
   sse_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -479,7 +485,7 @@ TEST test_sse_parser_feed_id_oom(void) {
   g_mock_alloc_fail = 0;
 
   sse_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -500,7 +506,7 @@ TEST test_sse_parser_feed_event_oom(void) {
   g_mock_alloc_fail = 0;
 
   sse_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -572,7 +578,7 @@ TEST test_sse_parser_feed_data_capacity_oom(void) {
   g_mock_alloc_fail = 0;
 
   sse_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -677,7 +683,7 @@ TEST test_sse_parser_dispatch_oom(void) {
   g_mock_alloc_fail = 0;
 
   sse_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -688,7 +694,7 @@ static int test_sse_mock_send_err(struct HttpTransportContext *ctx,
   (void)ctx;
   (void)req;
   (void)res_out;
-  return ENOMEM;
+  return C_ABSTRACT_HTTP_ERR_NOMEM;
 }
 
 static int test_sse_mock_send_empty(struct HttpTransportContext *ctx,
@@ -765,8 +771,8 @@ TEST test_sse_sync_loop_errors(void) {
     int rc_test2 = c_abstract_http_sse_sync_read_loop(
         &client, &req, test_sse_on_event, test_sse_on_error, test_sse_on_close,
         &ctx, NULL);
-    ASSERT_EQ_FMT(ENOMEM, rc_test2, "%d");
-    ASSERT_EQ_FMT(ENOMEM, ctx.error_code, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test2, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, ctx.error_code, "%d");
   }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -779,7 +785,7 @@ TEST test_sse_sync_loop_errors(void) {
         &client, &req, test_sse_on_event, test_sse_on_error, test_sse_on_close,
         &ctx, NULL);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 #endif
 
@@ -848,7 +854,7 @@ TEST test_sse_parser_feed_realloc_oom(void) {
   g_mock_alloc_fail = 0;
 
   sse_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -871,7 +877,7 @@ TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
   g_mock_alloc_fail = 0;
 
   sse_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -900,7 +906,7 @@ TEST test_sse_parser_feed_current_data_oom(void) {
   g_mock_alloc_fail = 0;
 
   sse_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -1052,7 +1058,7 @@ TEST test_sse_parser_feed_data_capacity_limit_real(void) {
   if (rc != 90)
     printf("test_sse_parser_feed_data_capacity_limit_real rc=%d\n", rc);
   sse_parser_destroy(&parser);
-  ASSERT_EQ_FMT(ENOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 
@@ -1095,7 +1101,7 @@ static int mock_send_err_for_task(struct HttpTransportContext *ctx,
   (void)ctx;
   (void)req;
   (void)res_out;
-  return EIO;
+  return C_ABSTRACT_HTTP_ERR_IO;
 }
 
 TEST test_sse_async_task_error(void) {
@@ -1117,7 +1123,7 @@ TEST test_sse_async_task_error(void) {
 
   c_abstract_http_sse_async_task(ctx); /* will free ctx */
 
-  ASSERT_EQ(EIO, t_ctx.error_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, t_ctx.error_code);
   http_request_free(&req);
 
   /* Async task error with NULL error callback */

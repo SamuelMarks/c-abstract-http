@@ -22,9 +22,9 @@ struct HttpTransportContext {
 
 static int wasm_global_init_count = 0;
 
-int http_wasm_global_init(void) {
+enum c_abstract_http_error http_wasm_global_init(void) {
   wasm_global_init_count++;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_wasm_global_cleanup(void) {
@@ -33,18 +33,19 @@ void http_wasm_global_cleanup(void) {
   }
 }
 
-int http_wasm_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_wasm_context_init(struct HttpTransportContext **ctx) {
   int rc;
   LOG_DEBUG("http_wasm_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_wasm_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   *ctx = (struct HttpTransportContext *)malloc(
       sizeof(struct HttpTransportContext));
   if (!*ctx) {
     LOG_DEBUG("http_wasm_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   memset(*ctx, 0, sizeof(struct HttpTransportContext));
 
@@ -57,7 +58,7 @@ int http_wasm_context_init(struct HttpTransportContext **ctx) {
     return rc;
   }
   LOG_DEBUG("http_wasm_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_wasm_context_free(struct HttpTransportContext *ctx) {
@@ -69,16 +70,17 @@ void http_wasm_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wasm_context_free: Exiting");
 }
 
-int http_wasm_config_apply(struct HttpTransportContext *ctx,
-                           const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_wasm_config_apply(struct HttpTransportContext *ctx,
+                       const struct HttpConfig *config) {
   LOG_DEBUG("http_wasm_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_wasm_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   ctx->config = *config;
   LOG_DEBUG("http_wasm_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int get_method_str(enum HttpMethod method, const char **out_str) {
@@ -117,11 +119,12 @@ static int get_method_str(enum HttpMethod method, const char **out_str) {
     *out_str = "GET";
     break;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_wasm_send(struct HttpTransportContext *ctx,
-                   const struct HttpRequest *req, struct HttpResponse **res) {
+enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
+                                          const struct HttpRequest *req,
+                                          struct HttpResponse **res) {
 #ifdef __EMSCRIPTEN__
   emscripten_fetch_attr_t attr;
   emscripten_fetch_t *fetch;
@@ -135,7 +138,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_wasm_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_wasm_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   *res = NULL;
@@ -143,7 +146,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
   /* Check if parts are flattened properly before attempting to send them */
   if (req->parts.count > 0 && !req->body) {
     LOG_DEBUG("http_wasm_send: Error EINVAL (multipart not flattened)");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   emscripten_fetch_attr_init(&attr);
@@ -164,7 +167,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
                                     sizeof(const char *));
     if (!headers) {
       LOG_DEBUG("http_wasm_send: Error ENOMEM (headers)");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     for (i = 0; i < req->headers.count; i++) {
       headers[headers_count++] = req->headers.headers[i].key;
@@ -181,7 +184,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
     body_buffer = (char *)malloc(cap);
     if (!body_buffer) {
       LOG_DEBUG("http_wasm_send: Error ENOMEM (body_buffer)");
-      rc = ENOMEM;
+      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       goto cleanup;
     }
 
@@ -193,7 +196,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
         new_buf = (char *)realloc(body_buffer, cap);
         if (!new_buf) {
           LOG_DEBUG("http_wasm_send: Error ENOMEM (body_buffer realloc)");
-          rc = ENOMEM;
+          rc = C_ABSTRACT_HTTP_ERR_NOMEM;
           goto cleanup;
         }
         body_buffer = new_buf;
@@ -224,14 +227,14 @@ int http_wasm_send(struct HttpTransportContext *ctx,
 
   if (!fetch) {
     LOG_DEBUG("http_wasm_send: Error EIO (emscripten_fetch failed)");
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
 
   if (fetch->status == 0 && fetch->numBytes == 0 && fetch->readyState != 4) {
     LOG_DEBUG("http_wasm_send: Error ETIMEDOUT");
     emscripten_fetch_close(fetch);
-    rc = ETIMEDOUT;
+    rc = C_ABSTRACT_HTTP_ERR_TIMEOUT;
     goto cleanup;
   }
 
@@ -239,7 +242,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
   if (!*res) {
     LOG_DEBUG("http_wasm_send: Error ENOMEM (*res)");
     emscripten_fetch_close(fetch);
-    rc = ENOMEM;
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     goto cleanup;
   }
 
@@ -262,7 +265,7 @@ int http_wasm_send(struct HttpTransportContext *ctx,
       http_response_free(*res);
       free(*res);
       *res = NULL;
-      rc = ENOMEM;
+      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       goto cleanup;
     }
     memcpy((*res)->body, fetch->data, fetch->numBytes);
@@ -354,6 +357,6 @@ cleanup:
   }
   return rc;
 #else
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #endif
 }

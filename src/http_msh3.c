@@ -36,7 +36,7 @@ struct HttpTransportContext {
   struct HttpConfig base_config;
 };
 
-int http_msh3_global_init(void) {
+enum c_abstract_http_error http_msh3_global_init(void) {
   if (!g_msh3_mutex) {
     rc = cdd_mutex_init(&g_msh3_mutex);
     if (rc != 0)
@@ -53,7 +53,7 @@ int http_msh3_global_init(void) {
     g_msh3_api = MsH3ApiOpen();
     if (!g_msh3_api) {
       g_msh3_init_count--;
-      rc = ENOMEM;
+      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
   cdd_mutex_unlock(g_msh3_mutex);
@@ -77,18 +77,19 @@ void http_msh3_global_cleanup(void) {
   cdd_mutex_unlock(g_msh3_mutex);
 }
 
-int http_msh3_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_msh3_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
   LOG_DEBUG("http_msh3_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_msh3_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   c = (struct HttpTransportContext *)calloc(1, sizeof(*c));
   if (!c) {
     LOG_DEBUG("http_msh3_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_config_init(&c->base_config);
@@ -103,7 +104,7 @@ int http_msh3_context_init(struct HttpTransportContext **ctx) {
 
   *ctx = c;
   LOG_DEBUG("http_msh3_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_msh3_context_free(struct HttpTransportContext *ctx) {
@@ -121,13 +122,14 @@ void http_msh3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_msh3_context_free: Exiting");
 }
 
-int http_msh3_config_apply(struct HttpTransportContext *ctx,
-                           const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_msh3_config_apply(struct HttpTransportContext *ctx,
+                       const struct HttpConfig *config) {
   MSH3_SETTINGS settings;
   LOG_DEBUG("http_msh3_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_msh3_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (ctx->config) {
@@ -140,7 +142,7 @@ int http_msh3_config_apply(struct HttpTransportContext *ctx,
   if (!ctx->config) {
     LOG_DEBUG(
         "http_msh3_config_apply: Error ENOMEM (MsH3ConfigurationOpen failed)");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   if (config->verify_peer == 0 || config->verify_host == 0) {
@@ -160,7 +162,7 @@ int http_msh3_config_apply(struct HttpTransportContext *ctx,
 
   ctx->base_config.cookie_jar = config->cookie_jar;
   LOG_DEBUG("http_msh3_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /* Internal context for MSH3 callbacks */
@@ -273,11 +275,11 @@ static int parse_url(const char *url, char **host, char **port, char **path,
   const char *h, *slash, *colon, *port_start;
   size_t host_len;
   if (!p)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   *scheme = (char *)malloc(p - url + 1);
   if (!*scheme)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   memcpy(*scheme, url, p - url);
   (*scheme)[p - url] = '\0';
 
@@ -301,7 +303,7 @@ static int parse_url(const char *url, char **host, char **port, char **path,
   *host = (char *)malloc(host_len + 1);
   if (!*host) {
     free(*scheme);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   memcpy(*host, h, host_len);
   (*host)[host_len] = '\0';
@@ -312,7 +314,7 @@ static int parse_url(const char *url, char **host, char **port, char **path,
     if (!*port) {
       free(*scheme);
       free(*host);
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     memcpy(*port, port_start, port_len);
     (*port)[port_len] = '\0';
@@ -350,11 +352,12 @@ static int parse_url(const char *url, char **host, char **port, char **path,
     strcpy(*path, "/");
 #endif
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_msh3_send(const struct HttpTransportContext *ctx,
-                   const struct HttpRequest *req, struct HttpResponse **res) {
+enum c_abstract_http_error
+http_msh3_send(const struct HttpTransportContext *ctx,
+               const struct HttpRequest *req, struct HttpResponse **res) {
   struct msh3_req_ctx rctx;
   MSH3_CONNECTION *conn;
   MSH3_ADDR addr;
@@ -369,13 +372,13 @@ int http_msh3_send(const struct HttpTransportContext *ctx,
   LOG_DEBUG("http_msh3_send: Entering");
   if (!ctx || !req || !res || !req->url) {
     LOG_DEBUG("http_msh3_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   rc = parse_url(req->url, &host, &port_str, &path, &scheme);
   if (rc != 0) {
     LOG_DEBUG("http_msh3_send: Error parse_url failed with %d", rc);
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -391,7 +394,7 @@ int http_msh3_send(const struct HttpTransportContext *ctx,
     free(port_str);
     free(path);
     free(scheme);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_response_init(*res);
@@ -442,7 +445,7 @@ int http_msh3_send(const struct HttpTransportContext *ctx,
     http_response_free(*res);
     free(*res);
     *res = NULL;
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   MsH3ConnectionStart(conn, ctx->config, host, &addr);
@@ -559,19 +562,18 @@ int http_msh3_send(const struct HttpTransportContext *ctx,
   }
 
   LOG_DEBUG("http_msh3_send: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_msh3_send_multi(struct HttpTransportContext *ctx,
-                         struct ModalityEventLoop *loop,
-                         const struct HttpMultiRequest *multi,
-                         struct HttpFuture **futures) {
+enum c_abstract_http_error http_msh3_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
   (void)loop;
 
   if (!ctx || !multi || !futures) {
     LOG_DEBUG("http_msh3_send_multi: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   for (i = 0; i < multi->count; i++) {
@@ -581,7 +583,7 @@ int http_msh3_send_multi(struct HttpTransportContext *ctx,
     futures[i]->error_code = rc;
     futures[i]->is_ready = 1;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #endif

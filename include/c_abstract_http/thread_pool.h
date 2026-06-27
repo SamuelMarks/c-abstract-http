@@ -17,6 +17,7 @@ extern "C" {
 
 /* clang-format off */
 #include <stddef.h>
+#include <c_abstract_http/http_types.h>
 /* clang-format on */
 
 /**
@@ -39,21 +40,21 @@ struct CddThreadPool;
  * @param[out] mutex Pointer to receive the allocated mutex.
  * @return 0 on success, error code on failure.
  */
-extern int cdd_mutex_init(struct CddMutex **mutex);
+extern enum c_abstract_http_error cdd_mutex_init(struct CddMutex **mutex);
 
 /**
  * @brief Lock a mutex.
  * @param[in] mutex The mutex.
  * @return 0 on success.
  */
-extern int cdd_mutex_lock(struct CddMutex *mutex);
+extern enum c_abstract_http_error cdd_mutex_lock(struct CddMutex *mutex);
 
 /**
  * @brief Unlock a mutex.
  * @param[in] mutex The mutex.
  * @return 0 on success.
  */
-extern int cdd_mutex_unlock(struct CddMutex *mutex);
+extern enum c_abstract_http_error cdd_mutex_unlock(struct CddMutex *mutex);
 
 /**
  * @brief Free a mutex.
@@ -66,7 +67,7 @@ extern void cdd_mutex_free(struct CddMutex *mutex);
  * @param[out] cond Pointer to receive the allocated condition variable.
  * @return 0 on success.
  */
-extern int cdd_cond_init(struct CddCond **cond);
+extern enum c_abstract_http_error cdd_cond_init(struct CddCond **cond);
 
 /**
  * @brief Wait on a condition variable.
@@ -74,21 +75,22 @@ extern int cdd_cond_init(struct CddCond **cond);
  * @param[in] mutex The associated mutex.
  * @return 0 on success.
  */
-extern int cdd_cond_wait(struct CddCond *cond, struct CddMutex *mutex);
+extern enum c_abstract_http_error cdd_cond_wait(struct CddCond *cond,
+                                                struct CddMutex *mutex);
 
 /**
  * @brief Signal a condition variable (wake one).
  * @param[in] cond The condition variable.
  * @return 0 on success.
  */
-extern int cdd_cond_signal(struct CddCond *cond);
+extern enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond);
 
 /**
  * @brief Broadcast a condition variable (wake all).
  * @param[in] cond The condition variable.
  * @return 0 on success.
  */
-extern int cdd_cond_broadcast(struct CddCond *cond);
+extern enum c_abstract_http_error cdd_cond_broadcast(struct CddCond *cond);
 
 /**
  * @brief Free a condition variable.
@@ -117,8 +119,8 @@ struct CddThreadPoolHooks {
  * @param[in] num_threads Number of worker threads to spawn.
  * @return 0 on success, ENOMEM or other error on failure.
  */
-extern int cdd_thread_pool_init(struct CddThreadPool **pool,
-                                size_t num_threads);
+extern enum c_abstract_http_error
+cdd_thread_pool_init(struct CddThreadPool **pool, size_t num_threads);
 
 /**
  * @brief Initialize a thread pool that delegates tasks to an external worker
@@ -127,7 +129,7 @@ extern int cdd_thread_pool_init(struct CddThreadPool **pool,
  * @param[in] hooks External thread pool hooks.
  * @return 0 on success, error code on failure.
  */
-extern int
+extern enum c_abstract_http_error
 cdd_thread_pool_init_external(struct CddThreadPool **pool,
                               const struct CddThreadPoolHooks *hooks);
 
@@ -138,8 +140,9 @@ cdd_thread_pool_init_external(struct CddThreadPool **pool,
  * @param[in] arg The argument to pass to the function.
  * @return 0 on success, error code on failure.
  */
-extern int cdd_thread_pool_push(struct CddThreadPool *pool,
-                                cdd_thread_task_cb cb, void *arg);
+extern enum c_abstract_http_error
+cdd_thread_pool_push(struct CddThreadPool *pool, cdd_thread_task_cb cb,
+                     void *arg);
 
 /**
  * @brief Destroy the thread pool, waiting for tasks to complete.

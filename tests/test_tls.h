@@ -91,12 +91,12 @@ TEST test_tls_oom(void) {
   {
     int rc_test_tmp = rc;
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
 #if !defined(_WIN32)
   g_mock_pthread_fail = 1;
-  ASSERT_EQ(EIO, cdd_tls_key_create(&key, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, cdd_tls_key_create(&key, NULL));
   g_mock_pthread_fail = 0;
 #endif
 
@@ -104,7 +104,7 @@ TEST test_tls_oom(void) {
 
 #if !defined(_WIN32)
   g_mock_pthread_fail = 1;
-  ASSERT_EQ(EIO, cdd_tls_set(key, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, cdd_tls_set(key, NULL));
 
   g_mock_pthread_fail = 0;
 #endif
@@ -116,10 +116,11 @@ TEST test_tls_oom(void) {
 #endif
 
 TEST test_tls_errors(void) {
-  ASSERT_EQ(EINVAL, cdd_tls_key_create(NULL, NULL));
-  ASSERT_EQ(EINVAL, cdd_tls_set(NULL, NULL));
-  ASSERT_EQ(EINVAL, cdd_tls_get(NULL, NULL));
-  ASSERT_EQ(EINVAL, cdd_tls_get((struct CddTlsKey *)1, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_tls_key_create(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_tls_set(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_tls_get(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            cdd_tls_get((struct CddTlsKey *)1, NULL));
   cdd_tls_key_delete(NULL);
   PASS();
 }

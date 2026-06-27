@@ -23,25 +23,26 @@ struct HttpTransportContext {
   int verify_host;
 };
 
-int http_android_global_init(void) {
+enum c_abstract_http_error http_android_global_init(void) {
   /* Typically JVM is retrieved via JNI_OnLoad, assuming it's done elsewhere */
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_android_global_cleanup(void) { /* No-op */ }
 
-int http_android_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_android_context_init(struct HttpTransportContext **ctx) {
   LOG_DEBUG("http_android_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_android_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   *ctx = (struct HttpTransportContext *)malloc(
       sizeof(struct HttpTransportContext));
   if (!*ctx) {
     LOG_DEBUG("http_android_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = http_config_init(&(*ctx)->config);
@@ -58,7 +59,7 @@ int http_android_context_init(struct HttpTransportContext **ctx) {
   (*ctx)->http_conn_class = NULL;
 
   LOG_DEBUG("http_android_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_android_context_free(struct HttpTransportContext *ctx) {
@@ -70,12 +71,13 @@ void http_android_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_android_context_free: Exiting");
 }
 
-int http_android_config_apply(struct HttpTransportContext *ctx,
-                              const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_android_config_apply(struct HttpTransportContext *ctx,
+                          const struct HttpConfig *config) {
   LOG_DEBUG("http_android_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_android_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   /* Configuration (like timeouts) can be applied per-request in
    * HttpURLConnection */
@@ -83,12 +85,12 @@ int http_android_config_apply(struct HttpTransportContext *ctx,
   ctx->verify_host = config->verify_host;
   ctx->config = *config;
   LOG_DEBUG("http_android_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_android_send(struct HttpTransportContext *ctx,
-                      const struct HttpRequest *req,
-                      struct HttpResponse **res) {
+enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
+                                             const struct HttpRequest *req,
+                                             struct HttpResponse **res) {
   JNIEnv *env;
   jclass url_cls, conn_cls;
   jmethodID url_init, url_open_conn;
@@ -101,36 +103,36 @@ int http_android_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_android_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_android_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (!ctx->jvm) {
     LOG_DEBUG("http_android_send: Error ENOTSUP (JVM not set)");
-    return ENOTSUP;
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
 
   rc = (*ctx->jvm)->GetEnv(ctx->jvm, (void **)&env, JNI_VERSION_1_6);
   if (rc == JNI_EDETACHED) {
     if ((*ctx->jvm)->AttachCurrentThread(ctx->jvm, &env, NULL) != 0) {
       LOG_DEBUG("http_android_send: Error AttachCurrentThread failed");
-      return ENOTSUP;
+      return C_ABSTRACT_HTTP_ERR_NOTSUP;
     }
     attached = 1;
   } else if (rc != JNI_OK) {
     LOG_DEBUG("http_android_send: Error GetEnv failed");
-    return ENOTSUP;
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
 
   url_str = (*env)->NewStringUTF(env, req->url ? req->url : "");
   if (!url_str) {
     LOG_DEBUG("http_android_send: Error OOM (url_str)");
-    rc = ENOMEM;
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     goto cleanup;
   }
 
   url_cls = (*env)->FindClass(env, "java/net/URL");
   if (!url_cls) {
-    rc = ENOTSUP;
+    rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
     goto cleanup;
   }
   url_init =
@@ -139,19 +141,19 @@ int http_android_send(struct HttpTransportContext *ctx,
                                       "()Ljava/net/URLConnection;");
 
   if (!url_init || !url_open_conn) {
-    rc = ENOTSUP;
+    rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
     goto cleanup;
   }
 
   url_obj = (*env)->NewObject(env, url_cls, url_init, url_str);
   if (!url_obj) {
-    rc = ENOTSUP;
+    rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
     goto cleanup;
   }
 
   conn_obj = (*env)->CallObjectMethod(env, url_obj, url_open_conn);
   if (!conn_obj) {
-    rc = ENOTSUP;
+    rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
     goto cleanup;
   }
 
@@ -207,10 +209,10 @@ int http_android_send(struct HttpTransportContext *ctx,
       } else {
         free(*res);
         *res = NULL;
-        rc = ENOMEM;
+        rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       }
     } else {
-      rc = ENOMEM;
+      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
 
@@ -223,7 +225,7 @@ cleanup:
     (*env)->DeleteLocalRef(env, conn_obj);
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionClear(env);
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
   }
   if (attached) {
     (*ctx->jvm)->DetachCurrentThread(ctx->jvm);

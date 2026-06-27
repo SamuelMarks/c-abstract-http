@@ -15,14 +15,15 @@
 #define SPRINTF_S snprintf
 #endif
 
-int c_abstract_http_sse_init(struct HttpRequest *req,
-                             const struct c_abstract_http_sse_config *config) {
+enum c_abstract_http_error
+c_abstract_http_sse_init(struct HttpRequest *req,
+                         const struct c_abstract_http_sse_config *config) {
   int res;
 
   LOG_DEBUG("c_abstract_http_sse_init: Entering");
   if (!req) {
     LOG_DEBUG("c_abstract_http_sse_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   res = http_headers_add(&req->headers, "Accept", "text/event-stream");
@@ -61,7 +62,7 @@ int c_abstract_http_sse_init(struct HttpRequest *req,
   }
 
   LOG_DEBUG("c_abstract_http_sse_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int sse_strdup(const char *s, char **out) {
@@ -72,22 +73,21 @@ static int sse_strdup(const char *s, char **out) {
   if (copy) {
     memcpy(copy, s, len + 1);
     *out = copy;
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   LOG_DEBUG("sse_strdup: Error ENOMEM");
-  return ENOMEM;
+  return C_ABSTRACT_HTTP_ERR_NOMEM;
 }
 
-int sse_parser_init(struct sse_parser_ctx *ctx,
-                    const struct c_abstract_http_sse_config *config,
-                    c_abstract_http_sse_on_event on_evt,
-                    c_abstract_http_sse_on_error on_err,
-                    c_abstract_http_sse_on_close on_cls, void *user_data) {
+enum c_abstract_http_error sse_parser_init(
+    struct sse_parser_ctx *ctx, const struct c_abstract_http_sse_config *config,
+    c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
+    c_abstract_http_sse_on_close on_cls, void *user_data) {
   int rc;
   LOG_DEBUG("sse_parser_init: Entering");
   if (!ctx) {
     LOG_DEBUG("sse_parser_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   memset(ctx, 0, sizeof(*ctx));
 
@@ -95,7 +95,7 @@ int sse_parser_init(struct sse_parser_ctx *ctx,
   ctx->line_buffer = (char *)malloc(ctx->line_capacity);
   if (!ctx->line_buffer) {
     LOG_DEBUG("sse_parser_init: Error ENOMEM (line_buffer)");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   ctx->data_capacity = 4096;
@@ -103,7 +103,7 @@ int sse_parser_init(struct sse_parser_ctx *ctx,
   if (!ctx->current_data) {
     LOG_DEBUG("sse_parser_init: Error ENOMEM (current_data)");
     free(ctx->line_buffer);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   rc = sse_strdup("message", &ctx->current_event);
@@ -136,7 +136,7 @@ int sse_parser_init(struct sse_parser_ctx *ctx,
   ctx->user_data = user_data;
 
   LOG_DEBUG("sse_parser_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void sse_parser_destroy(struct sse_parser_ctx *ctx) {
@@ -187,12 +187,12 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
     }
     ctx->data_offset = 0;
     ctx->current_data[0] = '\0';
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   /* Comment */
   if (line[0] == ':')
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
 
   colon = memchr(line, ':', len);
   if (!colon) {
@@ -217,7 +217,7 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
       ctx->current_event[value_len] = '\0';
     } else {
       LOG_DEBUG("sse_process_line: Error ENOMEM for current_event");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   } else if (field_len == 4 && memcmp(line, "data", 4) == 0) {
     if (ctx->data_offset + value_len + 1 > ctx->data_capacity) {
@@ -233,7 +233,7 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
         char *new_buf = (char *)realloc(ctx->current_data, new_cap);
         if (!new_buf) {
           LOG_DEBUG("sse_process_line: Error ENOMEM reallocating current_data");
-          return ENOMEM;
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
         ctx->current_data = new_buf;
         ctx->data_capacity = new_cap;
@@ -252,7 +252,7 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
       ctx->last_event_id[value_len] = '\0';
     } else {
       LOG_DEBUG("sse_process_line: Error ENOMEM for last_event_id");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   } else if (field_len == 5 && memcmp(line, "retry", 5) == 0) {
     char num_buf[32];
@@ -262,10 +262,11 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
     ctx->retry_ms = atoi(num_buf);
   }
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int sse_parser_feed(struct sse_parser_ctx *ctx, const char *chunk, size_t len) {
+enum c_abstract_http_error sse_parser_feed(struct sse_parser_ctx *ctx,
+                                           const char *chunk, size_t len) {
   size_t i;
   for (i = 0; i < len; ++i) {
     char c = chunk[i];
@@ -315,13 +316,13 @@ int sse_parser_feed(struct sse_parser_ctx *ctx, const char *chunk, size_t len) {
         if (new_cap > C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE) {
           if (ctx->on_error)
             ctx->on_error(ENOMEM, ctx->user_data); /* ENOMEM equivalent */
-          return ENOMEM;
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
         {
           char *new_buf = (char *)realloc(ctx->line_buffer, new_cap);
           if (!new_buf) {
             LOG_DEBUG("sse_parser_feed: Error ENOMEM reallocating line_buffer");
-            return ENOMEM;
+            return C_ABSTRACT_HTTP_ERR_NOMEM;
           }
           ctx->line_buffer = new_buf;
           ctx->line_capacity = new_cap;
@@ -330,15 +331,13 @@ int sse_parser_feed(struct sse_parser_ctx *ctx, const char *chunk, size_t len) {
       ctx->line_buffer[ctx->line_offset++] = c;
     }
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
-int c_abstract_http_sse_sync_read_loop(struct HttpClient *client,
-                                       struct HttpRequest *req,
-                                       c_abstract_http_sse_on_event on_evt,
-                                       c_abstract_http_sse_on_error on_err,
-                                       c_abstract_http_sse_on_close on_close,
-                                       void *user_data,
-                                       volatile int *exit_flag) {
+enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
+    struct HttpClient *client, struct HttpRequest *req,
+    c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
+    c_abstract_http_sse_on_close on_close, void *user_data,
+    volatile int *exit_flag) {
   int rc;
   struct HttpResponse *res = NULL;
   struct sse_parser_ctx parser;
@@ -346,11 +345,11 @@ int c_abstract_http_sse_sync_read_loop(struct HttpClient *client,
 
   if (!client || !req) {
     LOG_DEBUG("c_abstract_http_sse_sync_read_loop: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (exit_flag && *exit_flag)
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
 
   rc = c_abstract_http_sse_init(req, NULL);
   if (rc != 0) {
@@ -388,7 +387,7 @@ int c_abstract_http_sse_sync_read_loop(struct HttpClient *client,
   if (on_close)
     on_close(user_data);
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void c_abstract_http_sse_async_task(void *arg) {
@@ -407,25 +406,23 @@ void c_abstract_http_sse_async_task(void *arg) {
   free(ctx);
 }
 
-int c_abstract_http_sse_async_register(struct HttpClient *client,
-                                       struct HttpRequest *req,
-                                       c_abstract_http_sse_on_event on_evt,
-                                       c_abstract_http_sse_on_error on_err,
-                                       c_abstract_http_sse_on_close on_close,
-                                       void *user_data) {
+enum c_abstract_http_error c_abstract_http_sse_async_register(
+    struct HttpClient *client, struct HttpRequest *req,
+    c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
+    c_abstract_http_sse_on_close on_close, void *user_data) {
   int rc;
   struct c_abstract_http_sse_async_ctx *ctx;
 
   if (!client || !req) {
     LOG_DEBUG("c_abstract_http_sse_async_register: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (client->thread_pool) {
     ctx = (struct c_abstract_http_sse_async_ctx *)malloc(sizeof(*ctx));
     if (!ctx) {
       LOG_DEBUG("c_abstract_http_sse_async_register: Error ENOMEM");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     ctx->client = client;
     ctx->req = req;
@@ -442,10 +439,10 @@ int c_abstract_http_sse_async_register(struct HttpClient *client,
       free(ctx);
       return rc;
     }
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   LOG_DEBUG("c_abstract_http_sse_async_register: Error ENOTSUP (No thread pool "
             "available)");
-  return ENOTSUP;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }

@@ -5,7 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
+
+#include <c_abstract_http/http_types.h>
+extern enum c_abstract_http_error c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 
 #include <time.h>
 
@@ -43,13 +45,13 @@ static     int
     int diff = tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
     if (diff != 0) {
       *out_diff = diff;
-      return 0;
+      return C_ABSTRACT_HTTP_SUCCESS;
     }
     s1++;
     s2++;
   }
   *out_diff = tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -70,13 +72,13 @@ static int sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fm
   return written;
 }
 
-int http_headers_init(struct HttpHeaders *headers) {
+enum c_abstract_http_error http_headers_init(struct HttpHeaders *headers) {
   if (!headers)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   headers->headers = NULL;
   headers->count = 0;
   headers->capacity = 0;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_headers_free(struct HttpHeaders *headers) {
@@ -98,19 +100,19 @@ void http_headers_free(struct HttpHeaders *headers) {
   headers->capacity = 0;
 }
 
-int http_headers_add(struct HttpHeaders *headers, const char *key,
+enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers, const char *key,
                      const char *value) {
   char *_ast_strdup_0 = NULL;
   char *_ast_strdup_1 = NULL;
   if (!headers || !key || !value)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   if (headers->count >= headers->capacity) {
     const size_t new_cap = (headers->capacity == 0) ? 8 : headers->capacity * 2;
     struct HttpHeader *new_arr = (struct HttpHeader *)realloc(
         headers->headers, new_cap * sizeof(struct HttpHeader));
     if (!new_arr)
-      return ENOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
     headers->headers = new_arr;
     headers->capacity = new_cap;
   }
@@ -118,24 +120,24 @@ int http_headers_add(struct HttpHeaders *headers, const char *key,
   headers->headers[headers->count].key =
       (CDD_STRDUP(key, &_ast_strdup_0), _ast_strdup_0);
   if (!headers->headers[headers->count].key)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   headers->headers[headers->count].value =
       (CDD_STRDUP(value, &_ast_strdup_1), _ast_strdup_1);
   if (!headers->headers[headers->count].value) {
     free(headers->headers[headers->count].key);
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
   }
 
   headers->count++;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_headers_get(const struct HttpHeaders *headers, const char *key,
+enum c_abstract_http_error http_headers_get(const struct HttpHeaders *headers, const char *key,
                      const char **out) {
   size_t i;
   if (!headers || !key || !out)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   for (i = 0; i < headers->count; ++i) {
     int diff = -1;
@@ -143,17 +145,17 @@ int http_headers_get(const struct HttpHeaders *headers, const char *key,
     if (
         diff == 0) {
       *out = headers->headers[i].value;
-      return 0;
+      return C_ABSTRACT_HTTP_SUCCESS;
     }
   }
   return ENOENT;
 }
-int http_headers_remove(struct HttpHeaders *headers, const char *key) {
+enum c_abstract_http_error http_headers_remove(struct HttpHeaders *headers, const char *key) {
   size_t i, j;
   int found = 0;
 
   if (!headers || !key)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   for (i = 0; i < headers->count;) {
     int diff = -1;
@@ -182,13 +184,13 @@ int http_headers_remove(struct HttpHeaders *headers, const char *key) {
 
 /* --- Multipart Implementation --- */
 
-int http_parts_init(struct HttpParts *parts) {
+enum c_abstract_http_error http_parts_init(struct HttpParts *parts) {
   if (!parts)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   parts->parts = NULL;
   parts->count = 0;
   parts->capacity = 0;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_parts_free(struct HttpParts *parts) {
@@ -216,7 +218,7 @@ void http_parts_free(struct HttpParts *parts) {
   parts->capacity = 0;
 }
 
-int http_request_add_part(struct HttpRequest *req, const char *name,
+enum c_abstract_http_error http_request_add_part(struct HttpRequest *req, const char *name,
                           const char *filename, const char *content_type,
                           const void *data, size_t data_len) {
   char *_ast_strdup_2 = NULL;
@@ -224,7 +226,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
   char *_ast_strdup_4 = NULL;
   struct HttpParts *p;
   if (!req || !name || (!data && data_len > 0))
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   p = &req->parts;
   if (p->count >= p->capacity) {
@@ -232,7 +234,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
     struct HttpPart *new_arr =
         (struct HttpPart *)realloc(p->parts, new_cap * sizeof(struct HttpPart));
     if (!new_arr)
-      return ENOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
     p->parts = new_arr;
     p->capacity = new_cap;
   }
@@ -244,7 +246,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
   p->parts[p->count].name = (CDD_STRDUP(name, &_ast_strdup_2), _ast_strdup_2);
   if (!p->parts[p->count].name) {
     http_headers_free(&p->parts[p->count].headers);
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
   }
 
   if (filename) {
@@ -253,7 +255,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
     if (!p->parts[p->count].filename) {
       free(p->parts[p->count].name);
       http_headers_free(&p->parts[p->count].headers);
-      return ENOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
     }
   }
 
@@ -265,7 +267,7 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
         free(p->parts[p->count].filename);
       free(p->parts[p->count].name);
       http_headers_free(&p->parts[p->count].headers);
-      return ENOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
     }
   }
 
@@ -274,21 +276,21 @@ int http_request_add_part(struct HttpRequest *req, const char *name,
   p->parts[p->count].data_len = data_len;
 
   p->count++;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_add_part_header_last(struct HttpRequest *req, const char *key,
+enum c_abstract_http_error http_request_add_part_header_last(struct HttpRequest *req, const char *key,
                                       const char *value) {
   struct HttpPart *part;
   if (!req || !key || !value)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   if (req->parts.count == 0)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   part = &req->parts.parts[req->parts.count - 1];
   return http_headers_add(&part->headers, key, value);
 }
 
-int http_request_flatten_parts(struct HttpRequest *req) {
+enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
   char boundary[64];
   size_t i;
   size_t estimated_size = 0;
@@ -296,12 +298,12 @@ int http_request_flatten_parts(struct HttpRequest *req) {
   size_t pos = 0;
 
   if (!req || req->parts.count == 0)
-    return 0; /* Nothing to flatten */
+    return C_ABSTRACT_HTTP_SUCCESS; /* Nothing to flatten */
 
   /* 1. Generate Boundary */
   if (req->body) {
     /* Already have a body, parts would conflict. Fail or warn? */
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   srand((unsigned int)time(NULL));
@@ -350,7 +352,7 @@ int http_request_flatten_parts(struct HttpRequest *req) {
   /* 3. Build Buffer */
   buffer = (char *)malloc(estimated_size);
   if (!buffer)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   for (i = 0; i < req->parts.count; ++i) {
     struct HttpPart *part = &req->parts.parts[i];
@@ -449,16 +451,16 @@ int http_request_flatten_parts(struct HttpRequest *req) {
   /* We don't free the parts struct itself as caller might own data, but we
    * effectively consumed it into body */
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_cookie_jar_init(struct HttpCookieJar *jar) {
+enum c_abstract_http_error http_cookie_jar_init(struct HttpCookieJar *jar) {
   if (!jar)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   jar->cookies = NULL;
   jar->count = 0;
   jar->capacity = 0;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_cookie_jar_free(struct HttpCookieJar *jar) {
@@ -482,14 +484,14 @@ void http_cookie_jar_free(struct HttpCookieJar *jar) {
   jar->capacity = 0;
 }
 
-int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
+enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
                         const char *value) {
   char *_ast_strdup_cname = NULL;
   char *_ast_strdup_cval = NULL;
   size_t i;
 
   if (!jar || !name || !value)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   /* Check for existing */
   for (i = 0; i < jar->count; ++i) {
@@ -497,10 +499,10 @@ int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
       char *new_val =
           (CDD_STRDUP(value, &_ast_strdup_cval), _ast_strdup_cval);
       if (!new_val)
-        return ENOMEM; /* LCOV_EXCL_LINE */
+        return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
       free(jar->cookies[i].value);
       jar->cookies[i].value = new_val;
-      return 0;
+      return C_ABSTRACT_HTTP_SUCCESS;
     }
   }
 
@@ -510,7 +512,7 @@ int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
     struct HttpCookie *new_arr = (struct HttpCookie *)realloc(
         jar->cookies, new_cap * sizeof(struct HttpCookie));
     if (!new_arr)
-      return ENOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
     jar->cookies = new_arr;
     jar->capacity = new_cap;
   }
@@ -520,37 +522,37 @@ int http_cookie_jar_set(struct HttpCookieJar *jar, const char *name,
   jar->cookies[jar->count].name =
       (CDD_STRDUP(name, &_ast_strdup_cname), _ast_strdup_cname);
   if (!jar->cookies[jar->count].name)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   jar->cookies[jar->count].value =
       (CDD_STRDUP(value, &_ast_strdup_cval), _ast_strdup_cval);
   if (!jar->cookies[jar->count].value) {
     free(jar->cookies[jar->count].name);
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
   }
 
   jar->count++;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_cookie_jar_get(const struct HttpCookieJar *jar, const char *name,
+enum c_abstract_http_error http_cookie_jar_get(const struct HttpCookieJar *jar, const char *name,
                         const char **out) {
   size_t i;
   if (!jar || !name || !out)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   for (i = 0; i < jar->count; ++i) {
     if (strcmp(jar->cookies[i].name, name) == 0) {
       *out = jar->cookies[i].value;
-      return 0;
+      return C_ABSTRACT_HTTP_SUCCESS;
     }
   }
   return ENOENT;
 }
 
-int http_config_init(struct HttpConfig *config) {
+enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   char *_ast_strdup_5 = NULL;
   if (!config)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   config->timeout_ms = 30000;
   config->connect_timeout_ms = 0;
@@ -578,9 +580,9 @@ int http_config_init(struct HttpConfig *config) {
   config->http3_fallback = 1;
 
   if (!config->user_agent)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_config_free(struct HttpConfig *config) {
@@ -604,9 +606,9 @@ void http_config_free(struct HttpConfig *config) {
   }
 }
 
-int http_client_init(struct HttpClient *client) {
+enum c_abstract_http_error http_client_init(struct HttpClient *client) {
   if (!client)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   memset(client, 0, sizeof(struct HttpClient));
   return http_config_init(&client->config);
@@ -624,9 +626,9 @@ void http_client_free(struct HttpClient *client) {
   }
 }
 
-int http_request_init(struct HttpRequest *req) {
+enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
   if (!req)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   req->url = NULL;
   req->method = HTTP_GET;
   req->body = NULL;
@@ -638,7 +640,7 @@ int http_request_init(struct HttpRequest *req) {
   req->expected_body_len = 0;
   (void)http_headers_init(&req->headers);
   (void)http_parts_init(&req->parts);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_request_free(struct HttpRequest *req) {
@@ -656,12 +658,12 @@ void http_request_free(struct HttpRequest *req) {
   http_parts_free(&req->parts);
 }
 
-int http_modality_context_init(struct ModalityContext *ctx) {
+enum c_abstract_http_error http_modality_context_init(struct ModalityContext *ctx) {
   if (!ctx)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   ctx->modality = MODALITY_SYNC;
   ctx->internal_ctx = NULL;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_modality_context_free(struct ModalityContext *ctx) {
@@ -671,14 +673,14 @@ void http_modality_context_free(struct ModalityContext *ctx) {
   ctx->internal_ctx = NULL;
 }
 
-int http_future_init(struct HttpFuture *future) {
+enum c_abstract_http_error http_future_init(struct HttpFuture *future) {
   if (!future)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   future->is_ready = 0;
   future->error_code = 0;
   future->response = NULL;
   future->internal_state = NULL;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_future_free(struct HttpFuture *future) {
@@ -690,13 +692,13 @@ void http_future_free(struct HttpFuture *future) {
   future->internal_state = NULL;
 }
 
-int http_multi_request_init(struct HttpMultiRequest *multi) {
+enum c_abstract_http_error http_multi_request_init(struct HttpMultiRequest *multi) {
   if (!multi)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   multi->requests = NULL;
   multi->count = 0;
   multi->capacity = 0;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_multi_request_free(struct HttpMultiRequest *multi) {
@@ -711,37 +713,37 @@ void http_multi_request_free(struct HttpMultiRequest *multi) {
   multi->capacity = 0;
 }
 
-int http_multi_request_add(struct HttpMultiRequest *multi,
+enum c_abstract_http_error http_multi_request_add(struct HttpMultiRequest *multi,
                            struct HttpRequest *req) {
   if (!multi || !req)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   if (multi->count >= multi->capacity) {
     size_t new_cap = (multi->capacity == 0) ? 4 : multi->capacity * 2;
     struct HttpRequest **new_arr = (struct HttpRequest **)realloc(
         multi->requests, new_cap * sizeof(struct HttpRequest *));
     if (!new_arr)
-      return ENOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
     multi->requests = new_arr;
     multi->capacity = new_cap;
   }
 
   multi->requests[multi->count++] = req;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
+enum c_abstract_http_error http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
   char *val = NULL;
   size_t len;
   int rc;
 
   if (!req || !token)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   len = strlen(token) + 8;
   val = (char *)malloc(len);
   if (!val)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(val, len, "Bearer %s", token);
@@ -755,18 +757,18 @@ int http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
   return rc;
 }
 
-int http_request_set_auth_basic(struct HttpRequest *req, const char *token) {
+enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req, const char *token) {
   char *val = NULL;
   size_t len;
   int rc;
 
   if (!req || !token)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   len = strlen(token) + 7;
   val = (char *)malloc(len);
   if (!val)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(val, len, "Basic %s", token);
@@ -789,7 +791,7 @@ static int base64_encode(const unsigned char *src, size_t len, char **out) {
 
   res = (char *)malloc(olen + 1);
   if (!res)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   for (i = 0, j = 0; i < len;) {
     unsigned long octet_a = i < len ? src[i++] : 0;
@@ -811,10 +813,10 @@ static int base64_encode(const unsigned char *src, size_t len, char **out) {
   }
   res[olen] = '\0';
   *out = res;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_set_auth_basic_userpwd(struct HttpRequest *req,
+enum c_abstract_http_error http_request_set_auth_basic_userpwd(struct HttpRequest *req,
                                         const char *username,
                                         const char *password) {
   int rc;
@@ -822,12 +824,12 @@ int http_request_set_auth_basic_userpwd(struct HttpRequest *req,
   char *encoded = NULL;
   size_t len;
   if (!req || !username || !password)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   len = strlen(username) + strlen(password) + 2;
   raw = (char *)malloc(len);
   if (!raw)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(raw, len, "%s:%s", username, password);
@@ -887,7 +889,7 @@ static void urlencode_append(char **dest, const char *src) {
   *dest = q;
 }
 
-int http_request_init_oauth2_password_grant(
+enum c_abstract_http_error http_request_init_oauth2_password_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *username, const char *password, const char *client_id,
     const char *client_secret, const char *scope) {
@@ -898,7 +900,7 @@ int http_request_init_oauth2_password_grant(
   const char *grant_type = "password";
 
   if (!req || !token_endpoint_url || !username || !password)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
@@ -926,7 +928,7 @@ int http_request_init_oauth2_password_grant(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   /* grant_type=password */
@@ -966,10 +968,10 @@ int http_request_init_oauth2_password_grant(
   req->body = body;
   req->body_len = body_len;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
+enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
                                                  const char *token_endpoint_url,
                                                  const char *refresh_token,
                                                  const char *client_id,
@@ -982,7 +984,7 @@ int http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
   const char *grant_type = "refresh_token";
 
   if (!req || !token_endpoint_url || !refresh_token)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
@@ -1009,7 +1011,7 @@ int http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   /* grant_type=refresh_token */
@@ -1044,10 +1046,10 @@ int http_request_init_oauth2_refresh_token_grant(struct HttpRequest *req,
   req->body = body;
   req->body_len = body_len;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_init_oauth2_authorization_code_grant(
+enum c_abstract_http_error http_request_init_oauth2_authorization_code_grant(
     struct HttpRequest *req, const char *token_endpoint_url, const char *code,
     const char *redirect_uri, const char *client_id, const char *client_secret,
     const char *code_verifier) {
@@ -1058,7 +1060,7 @@ int http_request_init_oauth2_authorization_code_grant(
   const char *grant_type = "authorization_code";
 
   if (!req || !token_endpoint_url || !code)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
@@ -1087,7 +1089,7 @@ int http_request_init_oauth2_authorization_code_grant(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   /* grant_type=authorization_code */
@@ -1128,10 +1130,10 @@ int http_request_init_oauth2_authorization_code_grant(
   req->body = body;
   req->body_len = body_len;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_init_oauth2_client_credentials_grant(
+enum c_abstract_http_error http_request_init_oauth2_client_credentials_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *client_secret, const char *scope) {
   int rc;
@@ -1141,7 +1143,7 @@ int http_request_init_oauth2_client_credentials_grant(
   const char *grant_type = "client_credentials";
 
   if (!req || !token_endpoint_url)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
@@ -1167,7 +1169,7 @@ int http_request_init_oauth2_client_credentials_grant(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   /* grant_type=client_credentials */
@@ -1197,10 +1199,10 @@ int http_request_init_oauth2_client_credentials_grant(
   req->body = body;
   req->body_len = body_len;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
+enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
                                               const char *token_endpoint_url,
                                               const char *assertion,
                                               const char *scope) {
@@ -1211,7 +1213,7 @@ int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
   const char *grant_type = "urn:ietf:params:oauth:grant-type:jwt-bearer";
 
   if (!req || !token_endpoint_url || !assertion)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
@@ -1234,7 +1236,7 @@ int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   /* grant_type=... */
@@ -1257,10 +1259,10 @@ int http_request_init_oauth2_jwt_bearer_grant(struct HttpRequest *req,
   req->body = body;
   req->body_len = body_len;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_init_oauth2_device_authorization_request(
+enum c_abstract_http_error http_request_init_oauth2_device_authorization_request(
     struct HttpRequest *req, const char *device_endpoint_url,
     const char *client_id, const char *scope) {
   int rc;
@@ -1269,7 +1271,7 @@ int http_request_init_oauth2_device_authorization_request(
   char *p = NULL;
 
   if (!req || !device_endpoint_url || !client_id)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
   rc = CDD_STRDUP(device_endpoint_url, &req->url);
@@ -1289,7 +1291,7 @@ int http_request_init_oauth2_device_authorization_request(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   memcpy(p, "client_id=", 10);
@@ -1306,10 +1308,10 @@ int http_request_init_oauth2_device_authorization_request(
   req->body = body;
   req->body_len = body_len;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_init_oauth2_device_access_token_request(
+enum c_abstract_http_error http_request_init_oauth2_device_access_token_request(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *device_code) {
   int rc;
@@ -1319,7 +1321,7 @@ int http_request_init_oauth2_device_access_token_request(
   const char *grant_type = "urn:ietf:params:oauth:grant-type:device_code";
 
   if (!req || !token_endpoint_url || !client_id || !device_code)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
@@ -1339,7 +1341,7 @@ int http_request_init_oauth2_device_access_token_request(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   memcpy(p, "grant_type=", 11);
@@ -1358,10 +1360,10 @@ int http_request_init_oauth2_device_access_token_request(
   req->body = body;
   req->body_len = body_len;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_init_oauth2_token_revocation(
+enum c_abstract_http_error http_request_init_oauth2_token_revocation(
     struct HttpRequest *req, const char *revocation_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
     const char *client_secret) {
@@ -1371,7 +1373,7 @@ int http_request_init_oauth2_token_revocation(
   char *p = NULL;
 
   if (!req || !revocation_endpoint_url || !token)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
   rc = CDD_STRDUP(revocation_endpoint_url, &req->url);
@@ -1396,7 +1398,7 @@ int http_request_init_oauth2_token_revocation(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   memcpy(p, "token=", 6);
@@ -1425,10 +1427,10 @@ int http_request_init_oauth2_token_revocation(
   req->body = body;
   req->body_len = body_len;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_request_init_oauth2_token_introspection(
+enum c_abstract_http_error http_request_init_oauth2_token_introspection(
     struct HttpRequest *req, const char *introspection_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
     const char *client_secret) {
@@ -1438,7 +1440,7 @@ int http_request_init_oauth2_token_introspection(
   char *p = NULL;
 
   if (!req || !introspection_endpoint_url || !token)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
   rc = CDD_STRDUP(introspection_endpoint_url, &req->url);
@@ -1463,7 +1465,7 @@ int http_request_init_oauth2_token_introspection(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   p = body;
   memcpy(p, "token=", 6);
@@ -1492,10 +1494,10 @@ int http_request_init_oauth2_token_introspection(
   req->body = body;
   req->body_len = body_len;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_oauth2_build_authorization_url(
+enum c_abstract_http_error http_oauth2_build_authorization_url(
     const char *auth_endpoint, const char *client_id, const char *response_type,
     const char *redirect_uri, const char *scope, const char *state,
     const char *code_challenge, const char *code_challenge_method,
@@ -1506,7 +1508,7 @@ int http_oauth2_build_authorization_url(
   int has_query = 0;
 
   if (!auth_endpoint || !client_id || !response_type || !out_url)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   has_query = (strchr(auth_endpoint, '?') != NULL) ? 1 : 0;
 
@@ -1528,7 +1530,7 @@ int http_oauth2_build_authorization_url(
 
   url = (char *)malloc(len + 1);
   if (!url)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   p = url;
   memcpy(p, auth_endpoint, strlen(auth_endpoint));
@@ -1576,7 +1578,7 @@ int http_oauth2_build_authorization_url(
   *p = '\0';
   *out_url = url;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #if defined(_WIN32)
@@ -1597,7 +1599,7 @@ static int urldecode_alloc(const char *src, size_t src_len, char **out) {
   size_t i, j = 0;
 
   if (!dst)
-    return ENOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
 
   for (i = 0; i < src_len; i++) {
     if (src[i] == '%') {
@@ -1617,11 +1619,11 @@ static int urldecode_alloc(const char *src, size_t src_len, char **out) {
   }
   dst[j] = '\0';
   *out = dst;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif
 
-int http_oauth2_localhost_intercept(unsigned short port,
+enum c_abstract_http_error http_oauth2_localhost_intercept(unsigned short port,
                                     const char *html_response, char **out_code,
                                     char **out_state, char **out_error,
                                     char **out_error_desc) {
@@ -1636,7 +1638,7 @@ int http_oauth2_localhost_intercept(unsigned short port,
     *out_error = NULL;
   if (out_error_desc)
     *out_error_desc = NULL;
-  return ENOTSUP;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
 #else
   cdd_socket_t srv_sock = CDD_INVALID_SOCKET_VAL,
                cli_sock = CDD_INVALID_SOCKET_VAL;
@@ -1659,13 +1661,13 @@ int http_oauth2_localhost_intercept(unsigned short port,
   {
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
   }
 #endif
 
   srv_sock = socket(AF_INET, SOCK_STREAM, 0);
   if (srv_sock == CDD_INVALID_SOCKET_VAL) {
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
 
@@ -1679,24 +1681,24 @@ int http_oauth2_localhost_intercept(unsigned short port,
 
   if (bind(srv_sock, (struct sockaddr *)&saddr, sizeof(saddr)) ==
       CDD_SOCKET_ERROR_VAL) {
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
 
   if (listen(srv_sock, 1) == CDD_SOCKET_ERROR_VAL) {
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
 
   cli_sock = accept(srv_sock, NULL, NULL);
   if (cli_sock == CDD_INVALID_SOCKET_VAL) {
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
 
   n = recv(cli_sock, buf, sizeof(buf) - 1, 0);
   if (n <= 0) {
-    rc = EIO;
+    rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
   buf[n] = '\0';
@@ -1706,7 +1708,7 @@ int http_oauth2_localhost_intercept(unsigned short port,
   }
 
   if (strncmp(buf, "GET ", 4) != 0) {
-    rc = EINVAL;
+    rc = C_ABSTRACT_HTTP_ERR_INVAL;
     goto cleanup;
   }
 
@@ -1763,9 +1765,9 @@ cleanup:
 #endif
 }
 
-int http_response_init(struct HttpResponse *res) {
+enum c_abstract_http_error http_response_init(struct HttpResponse *res) {
   if (!res)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   res->status_code = 0;
   res->body = NULL;
   res->body_len = 0;
@@ -1782,16 +1784,16 @@ void http_response_free(struct HttpResponse *res) {
   http_headers_free(&res->headers);
 }
 
-int http_response_save_to_file(const struct HttpResponse *res,
+enum c_abstract_http_error http_response_save_to_file(const struct HttpResponse *res,
                                const char *path) {
   FILE *f = NULL;
   size_t written;
 
   if (!res || !path)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   if (!res->body && res->body_len > 0)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   {
@@ -1809,17 +1811,17 @@ int http_response_save_to_file(const struct HttpResponse *res,
     written = fwrite(res->body, 1, res->body_len, f);
     if (written != res->body_len) {
       fclose(f);
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
   }
 
   if (fclose(f) != 0)
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_client_send_multi(struct HttpClient *client,
+enum c_abstract_http_error http_client_send_multi(struct HttpClient *client,
                            struct HttpRequest *const *requests,
                            size_t num_requests, struct HttpFuture **futures,
                            http_multi_progress_cb progress_cb, void *user_data,
@@ -1829,7 +1831,7 @@ int http_client_send_multi(struct HttpClient *client,
   struct HttpMultiRequest multi;
 
   if (!client || !requests || num_requests == 0 || !futures) {
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   (void)progress_cb;
@@ -1841,7 +1843,7 @@ int http_client_send_multi(struct HttpClient *client,
   for (i = 0; i < num_requests; ++i) {
     if (http_multi_request_add(&multi, requests[i]) != 0) {
       http_multi_request_free(&multi);
-      return ENOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
     }
   }
 
@@ -1851,7 +1853,7 @@ int http_client_send_multi(struct HttpClient *client,
     if (client->send_multi && client->loop) {
       rc = client->send_multi(client->transport, client->loop, &multi, futures);
     } else {
-      rc = ENOTSUP;
+      rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
     }
     break;
 
@@ -1867,7 +1869,7 @@ int http_client_send_multi(struct HttpClient *client,
       if (client->send) {
         req_rc = client->send(client->transport, requests[i], &res);
       } else {
-        req_rc = ENOTSUP;
+        req_rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
       }
       futures[i]->response = res;
       futures[i]->error_code = req_rc;

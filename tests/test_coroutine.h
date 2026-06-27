@@ -52,7 +52,7 @@ TEST test_coroutine_execution(void) {
   ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
 
   /* Calling resume on a finished coroutine should return an error */
-  ASSERT_EQ(EINVAL, cdd_coroutine_resume(co));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_coroutine_resume(co));
 
   cdd_coroutine_free(co);
   PASS();
@@ -63,8 +63,9 @@ static void dummy_coroutine_cb(void *arg) { (void)arg; }
 TEST test_coroutine_errors(void) {
   struct CddCoroutine *co = NULL;
   int rc = cdd_coroutine_init(&co, 0, NULL, NULL);
-  ASSERT_EQ(EINVAL, rc);
-  ASSERT_EQ(EINVAL, cdd_coroutine_init(NULL, 1024, dummy_coroutine_cb, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            cdd_coroutine_init(NULL, 1024, dummy_coroutine_cb, NULL));
 
   /* Test stack_size == 0 (use 65536 to avoid Wine CreateFiber(0) bug) */
   rc = cdd_coroutine_init(&co, 65536, dummy_coroutine_cb, NULL);
@@ -78,8 +79,8 @@ TEST test_coroutine_errors(void) {
   cdd_coroutine_free(co);
   co = NULL;
 
-  ASSERT_EQ(EINVAL, cdd_coroutine_resume(co));
-  ASSERT_EQ(EINVAL, cdd_coroutine_yield());
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_coroutine_resume(co));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_coroutine_yield());
   ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
   cdd_coroutine_free(co);
 
@@ -142,7 +143,7 @@ TEST test_coroutine_fallback_paths(void) {
   struct CoroutineTestState state;
   state.counter = 0;
 
-  /* coverage for ENOMEM */
+  /* coverage for C_ABSTRACT_HTTP_ERR_NOMEM */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
@@ -150,7 +151,7 @@ TEST test_coroutine_fallback_paths(void) {
   {
     int rc_test_tmp = rc;
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   /* coverage for free while running */
@@ -171,16 +172,18 @@ TEST test_coroutine_edge_cases(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  /* Need a valid callback so we don't hit EINVAL at line 267 */
+  /* Need a valid callback so we don't hit C_ABSTRACT_HTTP_ERR_INVAL at line 267
+   */
 #if !defined(_WIN32)
-  ASSERT_EQ(ENOMEM, cdd_coroutine_init(&co, 0, (cdd_coroutine_cb)1, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+            cdd_coroutine_init(&co, 0, (cdd_coroutine_cb)1, NULL));
 #else
   ASSERT_EQ(0, cdd_coroutine_init(&co, 65536, (cdd_coroutine_cb)1, NULL));
   cdd_coroutine_free(co);
 #endif
   g_mock_alloc_fail = 0;
 
-  ASSERT_EQ(EINVAL, cdd_coroutine_yield());
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_coroutine_yield());
 
   PASS();
 }

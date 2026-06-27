@@ -48,14 +48,14 @@ struct CddProcess {
   HANDLE hThread;
 };
 
-int cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
+enum c_abstract_http_error cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
   SECURITY_ATTRIBUTES saAttr;
   HANDLE hRead, hWrite;
 
   LOG_DEBUG("cdd_ipc_pipe_init: Entering");
   if (!pipe) {
     LOG_DEBUG("cdd_ipc_pipe_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -64,13 +64,13 @@ int cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
 
   if (!CreatePipe(&hRead, &hWrite, &saAttr, 0)) {
     LOG_DEBUG("cdd_ipc_pipe_init: Error CreatePipe failed");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   pipe->read_handle = hRead;
   pipe->write_handle = hWrite;
   LOG_DEBUG("cdd_ipc_pipe_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
@@ -88,9 +88,9 @@ void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
   LOG_DEBUG("cdd_ipc_pipe_free: Exiting");
 }
 
-int cdd_process_spawn(struct CddProcess **proc,
-                      struct CddIpcPipe *parent_to_child,
-                      struct CddIpcPipe *child_to_parent) {
+enum c_abstract_http_error
+cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
+                  struct CddIpcPipe *child_to_parent) {
   PROCESS_INFORMATION piProcInfo;
   STARTUPINFOA siStartInfo;
   BOOL bSuccess = FALSE;
@@ -105,13 +105,13 @@ int cdd_process_spawn(struct CddProcess **proc,
 
   if (!proc || !parent_to_child || !child_to_parent) {
     LOG_DEBUG("cdd_process_spawn: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
   if (!p) {
     LOG_DEBUG("cdd_process_spawn: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
@@ -141,7 +141,7 @@ int cdd_process_spawn(struct CddProcess **proc,
   if (!bSuccess) {
     LOG_DEBUG("cdd_process_spawn: Error EIO (CreateProcessA failed)");
     free(p);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   p->hProcess = piProcInfo.hProcess;
@@ -149,10 +149,11 @@ int cdd_process_spawn(struct CddProcess **proc,
   *proc = p;
 
   LOG_DEBUG("cdd_process_spawn: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
+enum c_abstract_http_error cdd_process_wait_and_free(struct CddProcess *proc,
+                                                     int *exit_code) {
   DWORD dwExitCode = 0;
 
   LOG_DEBUG("cdd_process_wait_and_free: Entering");
@@ -163,7 +164,7 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
 
   if (!proc) {
     LOG_DEBUG("cdd_process_wait_and_free: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) || 1
@@ -172,7 +173,7 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
       *exit_code = (g_mock_waitpid_fail == 2) ? -1 : 0;
     }
     free(proc);
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 #endif
 
@@ -188,10 +189,11 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
     CloseHandle(proc->hThread);
   free(proc);
   LOG_DEBUG("cdd_process_wait_and_free: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_ipc_write(void *handle, const void *data, size_t len) {
+enum c_abstract_http_error cdd_ipc_write(void *handle, const void *data,
+                                         size_t len) {
   DWORD dwWritten;
   BOOL bSuccess;
 
@@ -203,19 +205,19 @@ int cdd_ipc_write(void *handle, const void *data, size_t len) {
 
   if (!handle || !data) {
     LOG_DEBUG("cdd_ipc_write: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   bSuccess = WriteFile((HANDLE)handle, data, (DWORD)len, &dwWritten, NULL);
   if (!bSuccess || dwWritten != len) {
     LOG_DEBUG("cdd_ipc_write: Error EIO (WriteFile failed)");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   LOG_DEBUG("cdd_ipc_write: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_ipc_read(void *handle, void *data, size_t len) {
+enum c_abstract_http_error cdd_ipc_read(void *handle, void *data, size_t len) {
   DWORD dwRead;
   BOOL bSuccess;
 
@@ -227,16 +229,16 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
 
   if (!handle || !data) {
     LOG_DEBUG("cdd_ipc_read: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   bSuccess = ReadFile((HANDLE)handle, data, (DWORD)len, &dwRead, NULL);
   if (!bSuccess || dwRead != len) {
     LOG_DEBUG("cdd_ipc_read: Error EIO (ReadFile failed)");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   LOG_DEBUG("cdd_ipc_read: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #else /* POSIX */
@@ -247,21 +249,21 @@ struct CddProcess {
   pid_t pid;
 };
 
-int cdd_ipc_pipe_init(struct CddIpcPipe *p) {
+enum c_abstract_http_error cdd_ipc_pipe_init(struct CddIpcPipe *p) {
   int fd[2];
   LOG_DEBUG("cdd_ipc_pipe_init: Entering");
   if (!p) {
     LOG_DEBUG("cdd_ipc_pipe_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   if (pipe(fd) == -1) {
     LOG_DEBUG("cdd_ipc_pipe_init: Error EIO (pipe failed)");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   p->read_handle = (void *)(size_t)fd[0];
   p->write_handle = (void *)(size_t)fd[1];
   LOG_DEBUG("cdd_ipc_pipe_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
@@ -277,9 +279,9 @@ void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
   LOG_DEBUG("cdd_ipc_pipe_free: Exiting");
 }
 
-int cdd_process_spawn(struct CddProcess **proc,
-                      struct CddIpcPipe *parent_to_child,
-                      struct CddIpcPipe *child_to_parent) {
+enum c_abstract_http_error
+cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
+                  struct CddIpcPipe *child_to_parent) {
   pid_t pid;
   struct CddProcess *p;
 
@@ -291,20 +293,20 @@ int cdd_process_spawn(struct CddProcess **proc,
 
   if (!proc || !parent_to_child || !child_to_parent) {
     LOG_DEBUG("cdd_process_spawn: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
   if (!p) {
     LOG_DEBUG("cdd_process_spawn: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   pid = fork();
   if (pid == -1) {
     LOG_DEBUG("cdd_process_spawn: Error EIO (fork failed)");
     free(p);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   } else if (pid == 0) {
     char *argv[] = {"cdd-worker", "--cdd-worker", NULL};
 
@@ -327,11 +329,12 @@ int cdd_process_spawn(struct CddProcess **proc,
     p->pid = pid;
     *proc = p;
     LOG_DEBUG("cdd_process_spawn: Success");
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 }
 
-int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
+enum c_abstract_http_error cdd_process_wait_and_free(struct CddProcess *proc,
+                                                     int *exit_code) {
   int status;
 
   LOG_DEBUG("cdd_process_wait_and_free: Entering");
@@ -342,7 +345,7 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
 
   if (!proc) {
     LOG_DEBUG("cdd_process_wait_and_free: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) || 1
@@ -351,7 +354,7 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
       *exit_code = (g_mock_waitpid_fail == 2) ? -1 : 0;
     }
     free(proc);
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 #endif
 
@@ -366,10 +369,11 @@ int cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code) {
 
   free(proc);
   LOG_DEBUG("cdd_process_wait_and_free: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_ipc_write(void *handle, const void *data, size_t len) {
+enum c_abstract_http_error cdd_ipc_write(void *handle, const void *data,
+                                         size_t len) {
   ssize_t written;
 
   LOG_DEBUG("cdd_ipc_write: Entering");
@@ -381,13 +385,13 @@ int cdd_ipc_write(void *handle, const void *data, size_t len) {
   written = write((int)(size_t)handle, data, len);
   if (written < 0 || (size_t)written != len) {
     LOG_DEBUG("cdd_ipc_write: Error EIO (write failed)");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   LOG_DEBUG("cdd_ipc_write: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_ipc_read(void *handle, void *data, size_t len) {
+enum c_abstract_http_error cdd_ipc_read(void *handle, void *data, size_t len) {
   ssize_t r;
 
   LOG_DEBUG("cdd_ipc_read: Entering");
@@ -399,10 +403,10 @@ int cdd_ipc_read(void *handle, void *data, size_t len) {
   r = read((int)(size_t)handle, data, len);
   if (r < 0 || (size_t)r != len) {
     LOG_DEBUG("cdd_ipc_read: Error EIO (read failed)");
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
   LOG_DEBUG("cdd_ipc_read: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #endif /* POSIX vs WIN32 */
@@ -430,48 +434,49 @@ static void write_str(char **p, const char *str) {
 
 static int read_int(const char **p, const char *end, int *val) {
   if (*p + sizeof(int) > end)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   memcpy(val, *p, sizeof(int));
   *p += sizeof(int);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int read_size(const char **p, const char *end, size_t *val) {
   if (*p + sizeof(size_t) > end)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   memcpy(val, *p, sizeof(size_t));
   *p += sizeof(size_t);
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int read_str(const char **p, const char *end, char **str) {
   size_t len;
   if (read_size(p, end, &len) != 0)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   if (len == 0) {
     *str = NULL;
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   if (*p + len > end)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   *str = (char *)malloc(len + 1);
   if (!*str)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   memcpy(*str, *p, len);
   (*str)[len] = '\0';
   *p += len;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
-                              size_t *out_len) {
+enum c_abstract_http_error
+cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
+                          size_t *out_len) {
   size_t i;
   size_t est_size = sizeof(int) + sizeof(size_t);
   char *buf, *p;
 
   if (!req || !out_buf || !out_len)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   est_size += sizeof(size_t) + (req->url ? strlen(req->url) : 0);
   est_size += sizeof(size_t);
@@ -487,7 +492,7 @@ int cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
 
   buf = (char *)malloc(est_size);
   if (!buf)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = buf;
   write_int(&p, (int)req->method);
@@ -505,11 +510,12 @@ int cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
 
   *out_buf = buf;
   *out_len = p - buf;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_ipc_deserialize_request(const char *buf, size_t len,
-                                struct HttpRequest *req) {
+enum c_abstract_http_error
+cdd_ipc_deserialize_request(const char *buf, size_t len,
+                            struct HttpRequest *req) {
   size_t hcount, body_len;
   int method;
   size_t i;
@@ -518,7 +524,7 @@ int cdd_ipc_deserialize_request(const char *buf, size_t len,
   const char *end;
 
   if (!buf || !req)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   p = buf;
   end = buf + len;
@@ -552,27 +558,28 @@ int cdd_ipc_deserialize_request(const char *buf, size_t len,
   req->body_len = body_len;
   if (body_len > 0) {
     if (p + body_len > end)
-      return EINVAL;
+      return C_ABSTRACT_HTTP_ERR_INVAL;
     req->body = malloc(body_len);
     if (!req->body)
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     memcpy(req->body, p, body_len);
     p += body_len;
   } else {
     req->body = NULL;
   }
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
-                               size_t *out_len) {
+enum c_abstract_http_error
+cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
+                           size_t *out_len) {
   size_t i;
   size_t est_size = sizeof(int) + sizeof(size_t);
   char *buf, *p;
 
   if (!res || !out_buf || !out_len)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   est_size += sizeof(size_t);
   for (i = 0; i < res->headers.count; ++i) {
@@ -587,7 +594,7 @@ int cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
 
   buf = (char *)malloc(est_size);
   if (!buf)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = buf;
   write_int(&p, res->status_code);
@@ -604,11 +611,12 @@ int cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
 
   *out_buf = buf;
   *out_len = p - buf;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_ipc_deserialize_response(const char *buf, size_t len,
-                                 struct HttpResponse *res) {
+enum c_abstract_http_error
+cdd_ipc_deserialize_response(const char *buf, size_t len,
+                             struct HttpResponse *res) {
   size_t hcount, body_len;
   size_t i;
   int rc;
@@ -616,7 +624,7 @@ int cdd_ipc_deserialize_response(const char *buf, size_t len,
   const char *end;
 
   if (!buf || !res)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   p = buf;
   end = buf + len;
@@ -646,17 +654,17 @@ int cdd_ipc_deserialize_response(const char *buf, size_t len,
   res->body_len = body_len;
   if (body_len > 0) {
     if (p + body_len > end)
-      return EINVAL;
+      return C_ABSTRACT_HTTP_ERR_INVAL;
     res->body = malloc(body_len);
     if (!res->body)
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     memcpy(res->body, p, body_len);
     p += body_len;
   } else {
     res->body = NULL;
   }
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #if 1

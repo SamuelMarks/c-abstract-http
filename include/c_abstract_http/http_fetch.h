@@ -36,7 +36,7 @@ extern "C" {
  *
  * @return 0 on success, EIO on failure.
  */
-int http_fetch_global_init(void);
+enum c_abstract_http_error http_fetch_global_init(void);
 
 /**
  * @brief Decrement the global initialization reference count.
@@ -53,7 +53,8 @@ void http_fetch_global_cleanup(void);
  * @return 0 on success, ENOMEM on allocation failure, EIO on Fetch init
  * failure.
  */
-int http_fetch_context_init(struct HttpTransportContext **ctx);
+enum c_abstract_http_error
+http_fetch_context_init(struct HttpTransportContext **ctx);
 
 /**
  * @brief Free the transport context.
@@ -74,8 +75,9 @@ void http_fetch_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration structure to apply.
  * @return 0 on success, EINVAL if inputs invalid, or EIO if setopt fails.
  */
-int http_fetch_config_apply(struct HttpTransportContext *ctx,
-                            const struct HttpConfig *config);
+enum c_abstract_http_error
+http_fetch_config_apply(struct HttpTransportContext *ctx,
+                        const struct HttpConfig *config);
 
 /**
  * @brief The send implementation for libfetch.
@@ -96,8 +98,9 @@ int http_fetch_config_apply(struct HttpTransportContext *ctx,
  * @return 0 on success, or a mapped error code (e.g. ETIMEDOUT, ECONNREFUSED)
  * on failure.
  */
-int http_fetch_send(struct HttpTransportContext *ctx,
-                    const struct HttpRequest *req, struct HttpResponse **res);
+enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
+                                           const struct HttpRequest *req,
+                                           struct HttpResponse **res);
 
 /**
  * @brief Dispatch multiple HTTP requests using libfetch asynchronous modes.
@@ -112,10 +115,9 @@ int http_fetch_send(struct HttpTransportContext *ctx,
  * @return 0 on success (all requests initiated), negative mapped cdd-error
  * otherwise.
  */
-extern int http_fetch_send_multi(struct HttpTransportContext *ctx,
-                                 struct ModalityEventLoop *loop,
-                                 const struct HttpMultiRequest *multi,
-                                 struct HttpFuture **futures);
+extern enum c_abstract_http_error http_fetch_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

@@ -1,3 +1,4 @@
+#include <c_abstract_http/http_types.h>
 #ifndef C_ABSTRACT_HTTP_CRYPTO_UTILS_H
 #define C_ABSTRACT_HTTP_CRYPTO_UTILS_H
 
@@ -54,7 +55,7 @@ struct sha1_ctx {
  * @param ctx The context to initialize.
  * @return 0 on success.
  */
-int sha1_init(struct sha1_ctx *ctx);
+enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx);
 
 /**
  * @brief Update a SHA-1 context with data.
@@ -63,7 +64,8 @@ int sha1_init(struct sha1_ctx *ctx);
  * @param len The length of the data.
  * @return 0 on success.
  */
-int sha1_update(struct sha1_ctx *ctx, const unsigned char *data, size_t len);
+enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
+                                       const unsigned char *data, size_t len);
 
 /**
  * @brief Finalize a SHA-1 hash.
@@ -71,7 +73,8 @@ int sha1_update(struct sha1_ctx *ctx, const unsigned char *data, size_t len);
  * @param out_hash The 20-byte array to store the resulting hash.
  * @return 0 on success.
  */
-int sha1_final(struct sha1_ctx *ctx, unsigned char out_hash[20]);
+enum c_abstract_http_error sha1_final(struct sha1_ctx *ctx,
+                                      unsigned char out_hash[20]);
 
 /**
  * @brief Base64 encode data.
@@ -81,8 +84,8 @@ int sha1_final(struct sha1_ctx *ctx, unsigned char out_hash[20]);
  * @param out_len Pointer to store the length of the string.
  * @return 0 on success, ENOMEM on allocation failure.
  */
-int base64_encode(const unsigned char *in, size_t in_len, char **out_str,
-                  size_t *out_len);
+enum c_abstract_http_error base64_encode(const unsigned char *in, size_t in_len,
+                                         char **out_str, size_t *out_len);
 
 /**
  * @brief Base64 decode a string.
@@ -92,8 +95,9 @@ int base64_encode(const unsigned char *in, size_t in_len, char **out_str,
  * @param out_len Pointer to store the length of the data.
  * @return 0 on success, ENOMEM on allocation failure, EINVAL on invalid input.
  */
-int base64_decode(const char *in, size_t in_len, unsigned char **out_data,
-                  size_t *out_len);
+enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
+                                         unsigned char **out_data,
+                                         size_t *out_len);
 
 /**
  * @brief Compare two strings in constant time.

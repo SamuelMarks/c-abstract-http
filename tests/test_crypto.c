@@ -100,7 +100,7 @@ TEST test_base64_decode_invalid(void) {
   unsigned char *output = NULL;
   size_t out_len = 0;
 
-  ASSERT_EQ(22, base64_decode(input, strlen(input), &output, &out_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, base64_decode(input, strlen(input), &output, &out_len));
   PASS();
 }
 
@@ -147,21 +147,26 @@ TEST test_crypto_errors(void) {
   unsigned char *dec_data;
   size_t dec_len;
 
-  ASSERT_EQ(EINVAL, sha1_init(NULL));
-  ASSERT_EQ(EINVAL, sha1_update(NULL, (const unsigned char *)"a", 1));
-  ASSERT_EQ(EINVAL, sha1_update(&ctx, NULL, 1));
-  ASSERT_EQ(EINVAL, sha1_final(NULL, out));
-  ASSERT_EQ(EINVAL, sha1_final(&ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, sha1_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            sha1_update(NULL, (const unsigned char *)"a", 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, sha1_update(&ctx, NULL, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, sha1_final(NULL, out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, sha1_final(&ctx, NULL));
 
-  ASSERT_EQ(EINVAL, base64_encode(NULL, 1, &b64_str, &b64_len));
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            base64_encode(NULL, 1, &b64_str, &b64_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             base64_encode((const unsigned char *)"a", 1, NULL, &b64_len));
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             base64_encode((const unsigned char *)"a", 1, &b64_str, NULL));
 
-  ASSERT_EQ(EINVAL, base64_decode(NULL, 4, &dec_data, &dec_len));
-  ASSERT_EQ(EINVAL, base64_decode("abcd", 4, NULL, &dec_len));
-  ASSERT_EQ(EINVAL, base64_decode("abcd", 4, &dec_data, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            base64_decode(NULL, 4, &dec_data, &dec_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            base64_decode("abcd", 4, NULL, &dec_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            base64_decode("abcd", 4, &dec_data, NULL));
 
   /* Test length 0 */
   ASSERT_EQ(0,
@@ -173,7 +178,8 @@ TEST test_crypto_errors(void) {
     free(dec_data);
 
   /* Invalid length (not multiple of 4) */
-  ASSERT_EQ(EINVAL, base64_decode("abc", 3, &dec_data, &dec_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            base64_decode("abc", 3, &dec_data, &dec_len));
 
   PASS();
 }
@@ -210,8 +216,8 @@ TEST test_crypto_oom(void) {
       int rc2 = base64_decode("abcd", 4, &dec_data, &dec_len);
 
       g_mock_alloc_fail = 0;
-      ASSERT_EQ_FMT(ENOMEM, rc1, "%d");
-      ASSERT_EQ_FMT(ENOMEM, rc2, "%d");
+      ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc1, "%d");
+      ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc2, "%d");
     }
   }
   PASS();

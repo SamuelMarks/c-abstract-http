@@ -20,28 +20,31 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
-int http_apple_global_init(void) { return 0; }
+enum c_abstract_http_error http_apple_global_init(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 void http_apple_global_cleanup(void) {}
 
-int http_apple_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_apple_context_init(struct HttpTransportContext **ctx) {
   LOG_DEBUG("http_apple_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_apple_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   *ctx = (struct HttpTransportContext *)malloc(
       sizeof(struct HttpTransportContext));
   if (!*ctx) {
     LOG_DEBUG("http_apple_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   http_config_init(&(*ctx)->config);
 
   LOG_DEBUG("http_apple_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_apple_context_free(struct HttpTransportContext *ctx) {
@@ -51,12 +54,13 @@ void http_apple_context_free(struct HttpTransportContext *ctx) {
   }
 }
 
-int http_apple_config_apply(struct HttpTransportContext *ctx,
-                            const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_apple_config_apply(struct HttpTransportContext *ctx,
+                        const struct HttpConfig *config) {
   LOG_DEBUG("http_apple_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_apple_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   /* Copy relevant config or store a reference. Here we just copy. */
   /* In a real implementation, we'd deep copy or map to Apple settings. */
@@ -67,11 +71,12 @@ int http_apple_config_apply(struct HttpTransportContext *ctx,
   }
   ctx->config.cookie_jar = config->cookie_jar;
   LOG_DEBUG("http_apple_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int http_apple_send(struct HttpTransportContext *ctx,
-                    const struct HttpRequest *req, struct HttpResponse **res) {
+enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
+                                           const struct HttpRequest *req,
+                                           struct HttpResponse **res) {
   CFURLRef url;
   CFStringRef urlStr;
   CFStringRef method;
@@ -86,13 +91,13 @@ int http_apple_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_apple_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_apple_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   *res = (struct HttpResponse *)malloc(sizeof(struct HttpResponse));
   if (!*res) {
     LOG_DEBUG("http_apple_send: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   http_response_init(*res);
@@ -105,7 +110,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
     LOG_DEBUG("http_apple_send: Error urlStr is NULL");
     free(*res);
     *res = NULL;
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   url = CFURLCreateWithString(kCFAllocatorDefault, urlStr, NULL);
@@ -116,7 +121,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
     LOG_DEBUG("http_apple_send: Error url is NULL");
     free(*res);
     *res = NULL;
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   method = CFSTR("GET");
@@ -148,7 +153,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
   if (!requestRef) {
     free(*res);
     *res = NULL;
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   for (i = 0; i < req->headers.count; ++i) {
@@ -179,7 +184,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
       CFRelease(requestRef);
       free(*res);
       *res = NULL;
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
 
     while (1) {
@@ -212,7 +217,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
       CFRelease(requestRef);
       free(*res);
       *res = NULL;
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     {
       CFHTTPMessageSetBody(requestRef, body);
@@ -229,7 +234,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
     readStream = NULL;
   }
   if (!readStream)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   if (!ctx->config.verify_peer) {
     CFMutableDictionaryRef sslSettings = CFDictionaryCreateMutable(
@@ -249,7 +254,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
   if (!CFReadStreamOpen(readStream) ||
       (req->url && strcmp(req->url, "http://fail_read_stream_open") == 0)) {
     CFRelease(readStream);
-    return EIO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   bodyData = CFDataCreateMutable(kCFAllocatorDefault, 0);
@@ -263,7 +268,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
       CFRelease(readStream);
       if (bodyData)
         CFRelease(bodyData);
-      return EIO;
+      return C_ABSTRACT_HTTP_ERR_IO;
     } else if (bytesRead == 0) {
       break; /* EOF */
     }
@@ -272,7 +277,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
       int cb_rc =
           req->on_chunk(req->on_chunk_user_data, buf, (size_t)bytesRead);
       if (req->url && strcmp(req->url, "http://fail_cb_rc") == 0) {
-        cb_rc = ENOMEM;
+        cb_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       }
       if (cb_rc != 0) {
         CFRelease(readStream);
@@ -313,7 +318,7 @@ int http_apple_send(struct HttpTransportContext *ctx,
   CFReadStreamClose(readStream);
   CFRelease(readStream);
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #pragma clang diagnostic pop

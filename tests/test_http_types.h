@@ -160,7 +160,7 @@ TEST test_oauth2_localhost_intercept(void) {
   if (args.err_desc)
     free(args.err_desc);
 
-  /* Test POST to trigger EINVAL */
+  /* Test POST to trigger C_ABSTRACT_HTTP_ERR_INVAL */
   memset(&args, 0, sizeof(args));
   args.port = 18081;
   ASSERT_EQ(0, cdd_thread_pool_init(&pool, 1));
@@ -185,9 +185,9 @@ TEST test_oauth2_localhost_intercept(void) {
   }
   ASSERT_EQ(1, connected);
   cdd_thread_pool_free(pool);
-  ASSERT_EQ(EINVAL, args.rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, args.rc);
 
-  /* Test connect and close to trigger EIO on recv */
+  /* Test connect and close to trigger C_ABSTRACT_HTTP_ERR_IO on recv */
   memset(&args, 0, sizeof(args));
   args.port = 18082;
   ASSERT_EQ(0, cdd_thread_pool_init(&pool, 1));
@@ -211,7 +211,7 @@ TEST test_oauth2_localhost_intercept(void) {
   }
   ASSERT_EQ(1, connected);
   cdd_thread_pool_free(pool);
-  ASSERT_EQ(EIO, args.rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, args.rc);
 
 #endif
 
@@ -491,14 +491,18 @@ TEST test_oauth2_password_grant(void) {
   http_request_init(&req);
 
   /* Test invalid inputs */
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_password_grant(
-                        NULL, "http://auth", "usr", "pwd", NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_password_grant(
-                        &req, NULL, "usr", "pwd", NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_password_grant(
-                        &req, "http://auth", NULL, "pwd", NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_password_grant(
-                        &req, "http://auth", "usr", NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_password_grant(NULL, "http://auth", "usr",
+                                                    "pwd", NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_password_grant(&req, NULL, "usr", "pwd",
+                                                    NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_password_grant(&req, "http://auth", NULL,
+                                                    "pwd", NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_password_grant(&req, "http://auth", "usr",
+                                                    NULL, NULL, NULL, NULL));
 
   /* Test basic password grant without optional params */
   rc = http_request_init_oauth2_password_grant(
@@ -535,12 +539,15 @@ TEST test_oauth2_refresh_token_grant(void) {
   http_request_init(&req);
 
   /* Test invalid inputs */
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_refresh_token_grant(
-                        NULL, "http://auth/token", "ref123", NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_refresh_token_grant(
-                        &req, NULL, "ref123", NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_refresh_token_grant(
-                        &req, "http://auth/token", NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_refresh_token_grant(
+                NULL, "http://auth/token", "ref123", NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_refresh_token_grant(&req, NULL, "ref123",
+                                                         NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_refresh_token_grant(
+                &req, "http://auth/token", NULL, NULL, NULL, NULL));
 
   /* Test basic refresh token grant without optional params */
   rc = http_request_init_oauth2_refresh_token_grant(&req, "http://auth/token",
@@ -574,12 +581,13 @@ TEST test_oauth2_authorization_code_grant(void) {
   http_request_init(&req);
 
   /* Test invalid inputs */
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_request_init_oauth2_authorization_code_grant(
                 NULL, "http://auth/token", "code123", NULL, NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_authorization_code_grant(
-                        &req, NULL, "code123", NULL, NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_authorization_code_grant(
+                &req, NULL, "code123", NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_request_init_oauth2_authorization_code_grant(
                 &req, "http://auth/token", NULL, NULL, NULL, NULL, NULL));
 
@@ -614,12 +622,15 @@ TEST test_oauth2_device_authorization_request(void) {
 
   http_request_init(&req);
 
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_device_authorization_request(
-                        NULL, "http://auth/device", "client_id", NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_device_authorization_request(
-                        &req, NULL, "client_id", NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_device_authorization_request(
-                        &req, "http://auth/device", NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_device_authorization_request(
+                NULL, "http://auth/device", "client_id", NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_device_authorization_request(
+                &req, NULL, "client_id", NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_device_authorization_request(
+                &req, "http://auth/device", NULL, NULL));
 
   rc = http_request_init_oauth2_device_authorization_request(
       &req, "http://auth/device", "client_id", "scope1");
@@ -637,14 +648,18 @@ TEST test_oauth2_device_access_token_request(void) {
 
   http_request_init(&req);
 
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_device_access_token_request(
-                        NULL, "http://auth/token", "client_id", "dev_code"));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_device_access_token_request(
-                        &req, NULL, "client_id", "dev_code"));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_device_access_token_request(
-                        &req, "http://auth/token", NULL, "dev_code"));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_device_access_token_request(
-                        &req, "http://auth/token", "client_id", NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_device_access_token_request(
+                NULL, "http://auth/token", "client_id", "dev_code"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_device_access_token_request(
+                &req, NULL, "client_id", "dev_code"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_device_access_token_request(
+                &req, "http://auth/token", NULL, "dev_code"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_device_access_token_request(
+                &req, "http://auth/token", "client_id", NULL));
 
   rc = http_request_init_oauth2_device_access_token_request(
       &req, "http://auth/token", "client_id", "dev_code");
@@ -664,13 +679,15 @@ TEST test_oauth2_token_revocation(void) {
 
   http_request_init(&req);
 
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_request_init_oauth2_token_revocation(
                 NULL, "http://auth/revoke", "token123", NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_token_revocation(
-                        &req, NULL, "token123", NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_token_revocation(
-                        &req, "http://auth/revoke", NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_token_revocation(&req, NULL, "token123",
+                                                      NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_token_revocation(
+                &req, "http://auth/revoke", NULL, NULL, NULL, NULL));
 
   rc = http_request_init_oauth2_token_revocation(
       &req, "http://auth/revoke", "token123", "access_token", "client1", "sec");
@@ -690,12 +707,13 @@ TEST test_oauth2_token_introspection(void) {
 
   http_request_init(&req);
 
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_request_init_oauth2_token_introspection(
                 NULL, "http://auth/introspect", "token123", NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_token_introspection(
-                        &req, NULL, "token123", NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_token_introspection(&req, NULL, "token123",
+                                                         NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_request_init_oauth2_token_introspection(
                 &req, "http://auth/introspect", NULL, NULL, NULL, NULL));
 
@@ -719,10 +737,12 @@ TEST test_oauth2_client_credentials_grant(void) {
   http_request_init(&req);
 
   /* Test invalid inputs */
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_client_credentials_grant(
-                        NULL, "http://auth/token", NULL, NULL, NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_client_credentials_grant(
-                        &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_client_credentials_grant(
+                NULL, "http://auth/token", NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_client_credentials_grant(&req, NULL, NULL,
+                                                              NULL, NULL));
 
   /* Test basic client credentials grant */
   rc = http_request_init_oauth2_client_credentials_grant(
@@ -754,12 +774,15 @@ TEST test_oauth2_jwt_bearer_grant(void) {
   http_request_init(&req);
 
   /* Test invalid inputs */
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_jwt_bearer_grant(
-                        NULL, "http://auth/token", "eyJhbGciOi...", NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_jwt_bearer_grant(
-                        &req, NULL, "eyJhbGciOi...", NULL));
-  ASSERT_EQ(EINVAL, http_request_init_oauth2_jwt_bearer_grant(
-                        &req, "http://auth/token", NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_jwt_bearer_grant(NULL, "http://auth/token",
+                                                      "eyJhbGciOi...", NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_jwt_bearer_grant(&req, NULL,
+                                                      "eyJhbGciOi...", NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_init_oauth2_jwt_bearer_grant(&req, "http://auth/token",
+                                                      NULL, NULL));
 
   /* Test basic JWT bearer grant */
   rc = http_request_init_oauth2_jwt_bearer_grant(&req, "http://auth/token",
@@ -791,18 +814,18 @@ TEST test_oauth2_build_authorization_url(void) {
   char *url = NULL;
 
   /* Test invalid inputs */
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_oauth2_build_authorization_url(NULL, "client_id", "code", NULL,
                                                 NULL, NULL, NULL, NULL, &url));
-  ASSERT_EQ(EINVAL, http_oauth2_build_authorization_url(
-                        "http://auth", NULL, "code", NULL, NULL, NULL, NULL,
-                        NULL, &url));
-  ASSERT_EQ(EINVAL, http_oauth2_build_authorization_url(
-                        "http://auth", "client_id", NULL, NULL, NULL, NULL,
-                        NULL, NULL, &url));
-  ASSERT_EQ(EINVAL, http_oauth2_build_authorization_url(
-                        "http://auth", "client_id", "code", NULL, NULL, NULL,
-                        NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_oauth2_build_authorization_url(
+                                           "http://auth", NULL, "code", NULL,
+                                           NULL, NULL, NULL, NULL, &url));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_oauth2_build_authorization_url(
+                                           "http://auth", "client_id", NULL,
+                                           NULL, NULL, NULL, NULL, NULL, &url));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_oauth2_build_authorization_url(
+                                           "http://auth", "client_id", "code",
+                                           NULL, NULL, NULL, NULL, NULL, NULL));
 
   /* Test basic URL (no question mark in endpoint) */
   rc = http_oauth2_build_authorization_url("http://auth", "client_id", "code",
@@ -841,41 +864,46 @@ TEST test_http_types_errors(void) {
   memset(&res, 0, sizeof(res));
   (void)res;
   (void)res;
-  ASSERT_EQ(EINVAL, http_request_add_part(NULL, "n", "f", "ct", NULL, 0));
-  ASSERT_EQ(EINVAL, http_request_add_part(&req, NULL, "f", "ct", NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_add_part(NULL, "n", "f", "ct", NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_add_part(&req, NULL, "f", "ct", NULL, 0));
 
-  ASSERT_EQ(EINVAL, http_request_add_part_header_last(NULL, "k", "v"));
-  ASSERT_EQ(EINVAL, http_request_add_part_header_last(&req, NULL, "v"));
-  ASSERT_EQ(EINVAL, http_request_add_part_header_last(&req, "k", NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_add_part_header_last(NULL, "k", "v"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_add_part_header_last(&req, NULL, "v"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_add_part_header_last(&req, "k", NULL));
 
   ASSERT_EQ(0, http_request_flatten_parts(NULL));
 
-  ASSERT_EQ(EINVAL, http_headers_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_init(NULL));
   http_headers_free(NULL);
 
-  ASSERT_EQ(EINVAL, http_headers_add(NULL, "k", "v"));
-  ASSERT_EQ(EINVAL, http_headers_add(&h, NULL, "v"));
-  ASSERT_EQ(EINVAL, http_headers_add(&h, "k", NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_add(NULL, "k", "v"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_add(&h, NULL, "v"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_add(&h, "k", NULL));
 
-  ASSERT_EQ(EINVAL, http_headers_get(NULL, "k", NULL));
-  ASSERT_EQ(EINVAL, http_headers_get(&h, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_get(NULL, "k", NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_get(&h, NULL, NULL));
 
-  ASSERT_EQ(EINVAL, http_headers_remove(NULL, "k"));
-  ASSERT_EQ(EINVAL, http_headers_remove(&h, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_remove(NULL, "k"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_remove(&h, NULL));
 
-  ASSERT_EQ(EINVAL, http_request_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_request_init(NULL));
   http_request_free(NULL);
 
-  ASSERT_EQ(EINVAL, http_response_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_response_init(NULL));
   http_response_free(NULL);
 
-  ASSERT_EQ(EINVAL, http_cookie_jar_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_cookie_jar_init(NULL));
   http_cookie_jar_free(NULL);
-  ASSERT_EQ(EINVAL, http_cookie_jar_set(NULL, "k", "v"));
-  ASSERT_EQ(EINVAL, http_cookie_jar_set(NULL, NULL, "v"));
-  ASSERT_EQ(EINVAL, http_cookie_jar_get(NULL, "k", NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_cookie_jar_set(NULL, "k", "v"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_cookie_jar_set(NULL, NULL, "v"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_cookie_jar_get(NULL, "k", NULL));
 
-  ASSERT_EQ(EINVAL, http_multi_request_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_multi_request_init(NULL));
   http_multi_request_free(NULL);
 
   PASS();
@@ -947,7 +975,8 @@ TEST test_http_response_save_to_file(void) {
   ASSERT_EQ(0, http_response_save_to_file(&res, "test_out.txt"));
 
   /* invalid */
-  ASSERT_EQ(EINVAL, http_response_save_to_file(NULL, "test_out.txt"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_response_save_to_file(NULL, "test_out.txt"));
 
   res.body = NULL;
   res.body_len = 0;
@@ -986,7 +1015,7 @@ TEST test_http_types_leftover_errs(void) {
   {
     int rc_test_tmp = rc;
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
   http_request_free(&req);
   memset(&req, 0, sizeof(req));
@@ -998,7 +1027,7 @@ TEST test_http_types_leftover_errs(void) {
   {
     int rc_test_tmp = http_cookie_jar_set(&jar, "n", "v");
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   ASSERT_EQ(0, http_cookie_jar_set(&jar, "n", "v"));
@@ -1008,21 +1037,21 @@ TEST test_http_types_leftover_errs(void) {
   {
     int rc_test_tmp = http_cookie_jar_to_header(&jar, &out);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   } */
 
   http_cookie_jar_free(&jar);
 
   /* multi request */
   http_multi_request_init(&multi);
-  ASSERT_EQ(EINVAL, http_multi_request_add(NULL, NULL));
-  ASSERT_EQ(EINVAL, http_multi_request_add(&multi, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_multi_request_add(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_multi_request_add(&multi, NULL));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   {
     int rc_test_tmp = http_multi_request_add(&multi, &req);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
   http_multi_request_free(&multi);
   /* auth basic userpwd base64 padding coverage */
@@ -1046,12 +1075,13 @@ TEST test_http_types_leftover_errs(void) {
       i = 9999;
       continue;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
 
   /* auth bearer */
-  ASSERT_EQ(EINVAL, http_request_set_auth_bearer(NULL, "a"));
-  ASSERT_EQ(EINVAL, http_request_set_auth_bearer(&req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_request_set_auth_bearer(NULL, "a"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_set_auth_bearer(&req, NULL));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   {
@@ -1059,7 +1089,7 @@ TEST test_http_types_leftover_errs(void) {
     http_request_init(&req);
     rc_test_tmp = http_request_set_auth_bearer(&req, "tok");
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   /* OAuth2 ooms */
@@ -1077,7 +1107,7 @@ TEST test_http_types_leftover_errs(void) {
       i = 9999;
       continue;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
   printf("6\n");
   for (i = 0; i < 4; i++) {
@@ -1093,7 +1123,7 @@ TEST test_http_types_leftover_errs(void) {
       i = 9999;
       continue;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
   printf("6\n");
   for (i = 0; i < 4; i++) {
@@ -1109,7 +1139,7 @@ TEST test_http_types_leftover_errs(void) {
       i = 9999;
       continue;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
   for (i = 0; i < 5; i++) {
     g_mock_alloc_fail = 1;
@@ -1123,7 +1153,7 @@ TEST test_http_types_leftover_errs(void) {
       i = 9999;
       continue;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
   for (i = 0; i < 5; i++) {
     g_mock_alloc_fail = 1;
@@ -1137,7 +1167,7 @@ TEST test_http_types_leftover_errs(void) {
       i = 9999;
       continue;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
   for (i = 0; i < 5; i++) {
     g_mock_alloc_fail = 1;
@@ -1151,49 +1181,52 @@ TEST test_http_types_leftover_errs(void) {
       i = 9999;
       continue;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
 
   /* NULL params coverage */
   ASSERT_EQ(0, http_request_init_oauth2_password_grant(&req, "u", "u", "p",
                                                        "client", NULL, NULL));
   http_request_free(&req);
-  /* http_request_add_part_header_last, http_request_flatten_parts EINVAL */
+  /* http_request_add_part_header_last, http_request_flatten_parts
+   * C_ABSTRACT_HTTP_ERR_INVAL */
   http_request_init(&req);
-  /* ASSERT_EQ(EINVAL, http_request_add_part_header_last(&req, "a", "b")); */
-  ASSERT_EQ(0, http_request_flatten_parts(&req)); /* returns 0, not EINVAL */
+  /* ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+   * http_request_add_part_header_last(&req, "a", "b")); */
+  ASSERT_EQ(0, http_request_flatten_parts(
+                   &req)); /* returns 0, not C_ABSTRACT_HTTP_ERR_INVAL */
   http_request_free(&req);
-  /* http_config_init EINVAL, ENOMEM */
-  ASSERT_EQ(EINVAL, http_config_init(NULL));
+  /* http_config_init C_ABSTRACT_HTTP_ERR_INVAL, C_ABSTRACT_HTTP_ERR_NOMEM */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_config_init(NULL));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   {
     int rc_test_tmp = http_config_init(&config);
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   /* http_headers_init, free */
-  ASSERT_EQ(EINVAL, http_headers_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_init(NULL));
   http_headers_free(NULL);
 
-  /* http_headers_add EINVAL, ENOMEM */
+  /* http_headers_add C_ABSTRACT_HTTP_ERR_INVAL, C_ABSTRACT_HTTP_ERR_NOMEM */
   http_headers_init(&h);
-  ASSERT_EQ(EINVAL, http_headers_add(NULL, "a", "b"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_add(NULL, "a", "b"));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   {
     int rc_test_tmp = http_headers_add(&h, "a", "b");
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   /* http_headers_get */
-  ASSERT_EQ(EINVAL, http_headers_get(NULL, "a", &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_get(NULL, "a", &out));
   http_headers_free(&h);
 
   /* http_response_init, free */
-  ASSERT_EQ(EINVAL, http_response_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_response_init(NULL));
   http_response_free(NULL);
 
   PASS();
@@ -1211,7 +1244,7 @@ TEST test_http_cookie_jar_set_val_oom(void) {
   {
     int rc_test_tmp = http_cookie_jar_set(&jar, "name", "val");
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   http_cookie_jar_free(&jar);
@@ -1222,7 +1255,7 @@ TEST test_http_cookie_jar_set_val_oom(void) {
 TEST test_http_client_errs(void) {
   struct HttpClient client = {0};
 
-  ASSERT_EQ(EINVAL, http_client_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_client_init(NULL));
 
   http_client_free(NULL);
 
@@ -1235,7 +1268,7 @@ TEST test_http_client_errs(void) {
 TEST test_http_modality_errs(void) {
   struct ModalityContext ctx = {0};
   (void)ctx;
-  ASSERT_EQ(EINVAL, http_modality_context_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_modality_context_init(NULL));
   http_modality_context_free(NULL);
   PASS();
 }
@@ -1256,19 +1289,23 @@ TEST test_http_types_more_errs_2(void) {
   ASSERT_EQ(0, http_request_add_part(&req, "f", NULL, NULL, "d", 1));
   req.body = (unsigned char *)strdup("body");
   req.body_len = 4;
-  ASSERT_EQ(EINVAL, http_request_flatten_parts(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_request_flatten_parts(&req));
   http_request_free(&req);
   /* 742, 753: future */
-  ASSERT_EQ(EINVAL, http_future_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_future_init(NULL));
   http_future_free(NULL);
 
   /* 908: basic_userpwd NULL */
-  ASSERT_EQ(EINVAL, http_request_set_auth_basic_userpwd(NULL, "a", "b"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_set_auth_basic_userpwd(NULL, "a", "b"));
 
-  ASSERT_EQ(EINVAL, http_request_set_auth_basic(NULL, "token"));
-  ASSERT_EQ(EINVAL, http_request_set_auth_basic(&req, NULL));
-  ASSERT_EQ(EINVAL, http_request_set_auth_bearer(NULL, "token"));
-  ASSERT_EQ(EINVAL, http_request_set_auth_bearer(&req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_set_auth_basic(NULL, "token"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_request_set_auth_basic(&req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_set_auth_bearer(NULL, "token"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_set_auth_bearer(&req, NULL));
 
   http_parts_init(NULL);
   http_parts_free(NULL);
@@ -1295,7 +1332,7 @@ TEST test_http_types_more_errs_2(void) {
       i = 9999;
       continue;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
   printf("6\n");
   for (i = 0; i < 4; i++) {
@@ -1311,7 +1348,7 @@ TEST test_http_types_more_errs_2(void) {
       i = 9999;
       continue;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
 
   /* oauth2 url builders */
@@ -1322,13 +1359,13 @@ TEST test_http_types_more_errs_2(void) {
         "url", "c", "r", "r", "s", "c", "code", "m", &url);
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   /* localhost intercept */
   /* We can mock the socket/bind/listen/accept using test macros?
      Actually, if we pass port=0, it might bind randomly.
-     If we want to hit EIO, we can fail socket().
+     If we want to hit C_ABSTRACT_HTTP_ERR_IO, we can fail socket().
      Since I didn't mock socket() in c-abstract-http, I can't easily fail it.
      But I can pass an invalid port like 99999 or -1, but it's unsigned short.
      What if I mock pipe or socket?
@@ -1358,16 +1395,17 @@ TEST test_http_types_end_errs(void) {
   (void)ed;
 
   /* 1931, 1943, 1949, 1955: save_to_file */
-  ASSERT_EQ(EINVAL, http_response_save_to_file(NULL, "a"));
-  ASSERT_EQ(EINVAL, http_response_save_to_file(&res, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_response_save_to_file(NULL, "a"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_response_save_to_file(&res, NULL));
 
-  /* try to write to an invalid directory to trigger EIO */
+  /* try to write to an invalid directory to trigger C_ABSTRACT_HTTP_ERR_IO */
   rc = http_response_save_to_file(
       &res, "/invalid_dir_that_does_not_exist_123/out.txt");
   ASSERT_EQ(ENOENT, rc);
 
   /* 1971, 1979: send_multi */
-  ASSERT_EQ(EINVAL, http_client_send_multi(NULL, NULL, 0, NULL, NULL, NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_client_send_multi(NULL, NULL, 0, NULL, NULL, NULL, 0));
 
   http_multi_request_init(&multi);
   http_request_init(&req);
@@ -1379,7 +1417,7 @@ TEST test_http_types_end_errs(void) {
         http_client_send_multi(&client, &req_ptr, 1, &future, NULL, NULL, 0);
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
   http_multi_request_free(&multi);
   http_request_free(&req);
@@ -1398,7 +1436,7 @@ TEST test_http_types_end_errs(void) {
       i = 9999;
       continue;
     }
-    ASSERT_EQ(ENOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
 
   PASS();
@@ -1452,7 +1490,8 @@ TEST test_http_types_final_errs(void) {
   memset(&f1, 0, sizeof(f1));
 
   ASSERT_EQ(0, http_request_init(&req));
-  ASSERT_EQ(EINVAL, http_request_set_auth_basic_userpwd(&req, NULL, "b"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_set_auth_basic_userpwd(&req, NULL, "b"));
   http_request_free(&req);
 
   for (i = 0; i < 4; i++) {
@@ -1478,7 +1517,7 @@ TEST test_http_types_final_errs(void) {
         "url", "c", "r", "r", "s", "c", "code", "m", &url);
     g_mock_alloc_fail = 0;
     http_request_free(&req);
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   http_request_init(&req);
@@ -1756,7 +1795,8 @@ TEST test_http_types_oom_bruteforce_all(void) {
 
   /* 320: add_part_header_last with 0 parts */
   http_request_init(&req);
-  ASSERT_EQ(EINVAL, http_request_add_part_header_last(&req, "k", "v"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_add_part_header_last(&req, "k", "v"));
   http_request_free(&req);
 
   /* 637, 643-653: config_free NULL and proxy fields */
@@ -1771,7 +1811,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
   }
 
   /* 954: http_response_init(NULL) */
-  ASSERT_EQ(EINVAL, http_response_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_response_init(NULL));
 
   /* 1943-1944: fwrite fail */
   {
@@ -1785,7 +1825,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     res2.body = NULL;
     http_response_free(&res2);
     g_mock_fwrite_fail = 0;
-    ASSERT_EQ(EIO, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   }
   /* 1949: fclose fail */
   {
@@ -1799,7 +1839,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     res2.body = NULL;
     http_response_free(&res2);
     g_mock_fclose_fail = 0;
-    ASSERT_EQ(EIO, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   }
 
   /* 1786-1868: localhost_intercept mock failures */
@@ -1812,23 +1852,23 @@ TEST test_http_types_oom_bruteforce_all(void) {
     char *c = NULL, *s = NULL;
 
     g_mock_socket_fail = 1;
-    ASSERT_EQ(EIO,
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_oauth2_localhost_intercept(12345, "p", &c, &s, NULL, NULL));
     g_mock_socket_fail = 0;
 
     g_mock_bind_fail = 1;
-    ASSERT_EQ(EIO,
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_oauth2_localhost_intercept(12345, "p", &c, &s, NULL, NULL));
     g_mock_bind_fail = 0;
 
     g_mock_listen_fail = 1;
-    ASSERT_EQ(EIO,
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_oauth2_localhost_intercept(12345, "p", &c, &s, NULL, NULL));
     g_mock_listen_fail = 0;
 
     /* accept blocks, but if it returns -1 it won't block */
     g_mock_accept_fail = 1;
-    ASSERT_EQ(EIO,
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_oauth2_localhost_intercept(12345, "p", &c, &s, NULL, NULL));
     g_mock_accept_fail = 0;
 
@@ -1848,10 +1888,11 @@ TEST test_http_types_oom_bruteforce_all(void) {
   }
 
   /* 1928: save_to_file NULL */
-  ASSERT_EQ(EINVAL, http_response_save_to_file(NULL, "a"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_response_save_to_file(NULL, "a"));
 
   /* 1976: send_multi NULL */
-  ASSERT_EQ(EINVAL, http_client_send_multi(NULL, NULL, 0, NULL, NULL, NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_client_send_multi(NULL, NULL, 0, NULL, NULL, NULL, 0));
 
   /* 1800: bind fail on invalid port or already bound port */
   /* Actually, we just need to bind to a restricted port to fail bind, e.g. 80
@@ -1859,7 +1900,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
 #if !defined(_WIN32) && !defined(__CYGWIN__)
   {
     char *c = NULL, *s = NULL;
-    ASSERT_EQ(EIO,
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_oauth2_localhost_intercept(80, "p", &c, &s, NULL, NULL));
   }
 #endif
@@ -1870,7 +1911,8 @@ TEST test_http_types_oom_bruteforce_all(void) {
     http_response_init(&res2);
     res2.body = NULL;
     res2.body_len = 10;
-    ASSERT_EQ(EINVAL, http_response_save_to_file(&res2, "out.txt"));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_response_save_to_file(&res2, "out.txt"));
   }
 
   /* send_multi with fail_fast */
@@ -1903,13 +1945,13 @@ TEST test_http_types_oom_bruteforce_all(void) {
 
     c.send_multi = NULL;
     rc = http_client_send_multi(&c, reqs, 2, futures, NULL, NULL, 1);
-    ASSERT_EQ(ENOTSUP, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
 
     http_request_free(&req1);
     http_request_free(&req2);
   }
 
-  /* trigger ENOMEM in multi_request_add during send_multi */
+  /* trigger C_ABSTRACT_HTTP_ERR_NOMEM in multi_request_add during send_multi */
   {
     struct HttpFuture f1, f2, f3, f4, f5;
     struct HttpFuture *futures[5];
@@ -1948,7 +1990,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
       rc = http_client_send_multi(&c, reqs, 5, futures, NULL, NULL, 0);
       g_mock_alloc_fail = 0;
       http_request_free(&req);
-      if (rc == ENOMEM)
+      if (rc == C_ABSTRACT_HTTP_ERR_NOMEM)
         continue;
     }
     for (j = 0; j < 5; j++)
@@ -1984,7 +2026,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
 
     c.send_multi = NULL;
     rc = http_client_send_multi(&c, reqs, 2, futures, NULL, NULL, 1);
-    ASSERT_EQ(ENOTSUP, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
 
     http_request_free(&req1);
     http_request_free(&req2);
@@ -2000,13 +2042,14 @@ TEST test_http_types_extra_coverage(void) {
   http_request_init(&req);
   http_request_add_part(&req, "name", "filename", "text/plain", "value", 5);
 
-  /* Mock ENOMEM for http_headers_add inside http_request_flatten_parts */
+  /* Mock C_ABSTRACT_HTTP_ERR_NOMEM for http_headers_add inside
+   * http_request_flatten_parts */
   /* http_request_flatten_parts allocates buffer, then adds boundary string to
    * headers. */
   /* We can set g_mock_alloc_fail = 1, g_mock_alloc_count = 1 */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1; /* 0 is the buffer, 1 is the header */
-  ASSERT_EQ(ENOMEM, http_request_flatten_parts(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_request_flatten_parts(&req));
   g_mock_alloc_fail = 0;
 
   http_request_free(&req);

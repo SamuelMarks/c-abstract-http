@@ -216,6 +216,9 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../${PkgName}")
             set(FETCHCONTENT_SOURCE_DIR_${PkgNameUpper} "${CMAKE_CURRENT_SOURCE_DIR}/../${PkgName}" CACHE PATH "" FORCE)
             message(STATUS "Using local ${PkgName} from ${CMAKE_CURRENT_SOURCE_DIR}/../${PkgName}")
+        elseif("${PkgName}" STREQUAL "cdd_c" AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../cdd-c")
+            set(FETCHCONTENT_SOURCE_DIR_${PkgNameUpper} "${CMAKE_CURRENT_SOURCE_DIR}/../cdd-c" CACHE PATH "" FORCE)
+            message(STATUS "Using local cdd-c from ${CMAKE_CURRENT_SOURCE_DIR}/../cdd-c")
         endif()
         FetchContent_Declare(${PkgName}
             GIT_REPOSITORY ${FetchRepo}

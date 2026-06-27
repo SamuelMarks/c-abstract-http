@@ -11,6 +11,7 @@ extern "C" {
 
 #ifdef _WIN32
 #include <windef.h>
+#include <c_abstract_http/http_types.h>
 #endif
 /* clang-format on */
 
@@ -84,8 +85,9 @@ typedef int (*c_abstract_http_sse_on_close)(void *user_data);
  * @param config Optional SSE configuration.
  * @return 0 on success, or a negative error code.
  */
-int c_abstract_http_sse_init(struct HttpRequest *req,
-                             const struct c_abstract_http_sse_config *config);
+enum c_abstract_http_error
+c_abstract_http_sse_init(struct HttpRequest *req,
+                         const struct c_abstract_http_sse_config *config);
 
 /**
  * @brief Run a blocking loop to read SSE events for the given connection.
@@ -99,13 +101,11 @@ int c_abstract_http_sse_init(struct HttpRequest *req,
  * *exit_flag != 0.
  * @return 0 on clean exit, negative error code on failure.
  */
-int c_abstract_http_sse_sync_read_loop(struct HttpClient *client,
-                                       struct HttpRequest *req,
-                                       c_abstract_http_sse_on_event on_evt,
-                                       c_abstract_http_sse_on_error on_err,
-                                       c_abstract_http_sse_on_close on_close,
-                                       void *user_data,
-                                       volatile int *exit_flag);
+enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
+    struct HttpClient *client, struct HttpRequest *req,
+    c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
+    c_abstract_http_sse_on_close on_close, void *user_data,
+    volatile int *exit_flag);
 
 /**
  * @brief Register an SSE connection with the underlying transport's
@@ -118,12 +118,10 @@ int c_abstract_http_sse_sync_read_loop(struct HttpClient *client,
  * @param user_data Opaque pointer to pass to the callbacks.
  * @return 0 on success, negative error code on failure.
  */
-int c_abstract_http_sse_async_register(struct HttpClient *client,
-                                       struct HttpRequest *req,
-                                       c_abstract_http_sse_on_event on_evt,
-                                       c_abstract_http_sse_on_error on_err,
-                                       c_abstract_http_sse_on_close on_close,
-                                       void *user_data);
+enum c_abstract_http_error c_abstract_http_sse_async_register(
+    struct HttpClient *client, struct HttpRequest *req,
+    c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
+    c_abstract_http_sse_on_close on_close, void *user_data);
 
 #ifdef __cplusplus
 }

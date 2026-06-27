@@ -1,5 +1,7 @@
 
-extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
+#include <c_abstract_http/http_types.h>
+extern enum c_abstract_http_error c_abstract_http_mock_cdd_strdup(const char *s,
+                                                                  char **out);
 /* clang-format off */
 #include <errno.h>
 #include <stdlib.h>
@@ -73,7 +75,7 @@ struct CddMessageBus {
   struct MessageNode *tail;
 };
 
-int cdd_message_bus_init(struct CddMessageBus **bus) {
+enum c_abstract_http_error cdd_message_bus_init(struct CddMessageBus **bus) {
   struct CddMessageBus *b;
   LOG_DEBUG("cdd_message_bus_init: Entering");
 
@@ -84,13 +86,13 @@ int cdd_message_bus_init(struct CddMessageBus **bus) {
 
   if (!bus) {
     LOG_DEBUG("cdd_message_bus_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   b = (struct CddMessageBus *)CDD_CALLOC(1, sizeof(struct CddMessageBus));
   if (!b) {
     LOG_DEBUG("cdd_message_bus_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   b->actor_capacity = 16;
@@ -99,12 +101,12 @@ int cdd_message_bus_init(struct CddMessageBus **bus) {
   if (!b->actors) {
     LOG_DEBUG("cdd_message_bus_init: Error ENOMEM (actors array)");
     CDD_FREE(b);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   *bus = b;
   LOG_DEBUG("cdd_message_bus_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void cdd_message_bus_free(struct CddMessageBus *bus) {
@@ -141,7 +143,7 @@ void cdd_message_bus_free(struct CddMessageBus *bus) {
   LOG_DEBUG("cdd_message_bus_free: Exiting");
 }
 
-int cdd_message_bus_process(struct CddMessageBus *bus) {
+enum c_abstract_http_error cdd_message_bus_process(struct CddMessageBus *bus) {
   int count = 0;
   struct MessageNode *node;
 
@@ -153,7 +155,7 @@ int cdd_message_bus_process(struct CddMessageBus *bus) {
 
   if (!bus) {
     LOG_DEBUG("cdd_message_bus_process: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   while (bus->head) {
@@ -173,9 +175,11 @@ int cdd_message_bus_process(struct CddMessageBus *bus) {
   return count;
 }
 
-int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
-                    cdd_actor_handler_cb handler, void *state,
-                    struct CddActor **actor) {
+enum c_abstract_http_error cdd_actor_spawn(struct CddMessageBus *bus,
+                                           const char *name,
+                                           cdd_actor_handler_cb handler,
+                                           void *state,
+                                           struct CddActor **actor) {
   struct CddActor *a;
   char *_ast_strdup_0 = NULL;
 
@@ -187,7 +191,7 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
 
   if (!bus || !name || !handler || !actor) {
     LOG_DEBUG("cdd_actor_spawn: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (bus->actor_count >= bus->actor_capacity) {
@@ -196,7 +200,7 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
         bus->actors, new_cap * sizeof(struct CddActor *));
     if (!new_arr) {
       LOG_DEBUG("cdd_actor_spawn: Error ENOMEM reallocating actors array");
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     bus->actors = new_arr;
     bus->actor_capacity = new_cap;
@@ -205,7 +209,7 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
   a = (struct CddActor *)CDD_CALLOC(1, sizeof(struct CddActor));
   if (!a) {
     printf("cdd_actor_spawn: Error ENOMEM a is null\n");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   {
@@ -213,7 +217,7 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
     a->name = _ast_strdup_0;
     if (!a->name) {
       CDD_FREE(a);
-      return ENOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
 
@@ -225,10 +229,11 @@ int cdd_actor_spawn(struct CddMessageBus *bus, const char *name,
   *actor = a;
 
   LOG_DEBUG("cdd_actor_spawn: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
+enum c_abstract_http_error cdd_actor_send(struct CddMessageBus *bus,
+                                          const struct CddMessage *msg) {
   struct MessageNode *node;
 
   LOG_DEBUG("cdd_actor_send: Entering");
@@ -239,13 +244,13 @@ int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
 
   if (!bus || !msg || !msg->receiver) {
     LOG_DEBUG("cdd_actor_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   node = (struct MessageNode *)CDD_MALLOC(sizeof(struct MessageNode));
   if (!node) {
     LOG_DEBUG("cdd_actor_send: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   node->msg = *msg; /* shallow copy */
@@ -260,10 +265,11 @@ int cdd_actor_send(struct CddMessageBus *bus, const struct CddMessage *msg) {
   }
 
   LOG_DEBUG("cdd_actor_send: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_actor_get_state(struct CddActor *actor, void **state) {
+enum c_abstract_http_error cdd_actor_get_state(struct CddActor *actor,
+                                               void **state) {
   LOG_DEBUG("cdd_actor_get_state: Entering");
   if (g_actor_hooks.actor_get_state) {
     LOG_DEBUG("cdd_actor_get_state: Hooking");
@@ -271,14 +277,15 @@ int cdd_actor_get_state(struct CddActor *actor, void **state) {
   }
   if (!actor || !state) {
     LOG_DEBUG("cdd_actor_get_state: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   *state = actor->state;
   LOG_DEBUG("cdd_actor_get_state: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int cdd_actor_get_name(const struct CddActor *actor, const char **name) {
+enum c_abstract_http_error cdd_actor_get_name(const struct CddActor *actor,
+                                              const char **name) {
   LOG_DEBUG("cdd_actor_get_name: Entering");
   if (g_actor_hooks.actor_get_name) {
     LOG_DEBUG("cdd_actor_get_name: Hooking");
@@ -286,9 +293,9 @@ int cdd_actor_get_name(const struct CddActor *actor, const char **name) {
   }
   if (!actor || !name) {
     LOG_DEBUG("cdd_actor_get_name: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   *name = actor->name;
   LOG_DEBUG("cdd_actor_get_name: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }

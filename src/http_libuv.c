@@ -22,9 +22,9 @@ struct HttpTransportContext {
 
 static int libuv_global_init_count = 0;
 
-int http_libuv_global_init(void) {
+enum c_abstract_http_error http_libuv_global_init(void) {
   libuv_global_init_count++;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_libuv_global_cleanup(void) {
@@ -33,18 +33,19 @@ void http_libuv_global_cleanup(void) {
   }
 }
 
-int http_libuv_context_init(struct HttpTransportContext **ctx) {
+enum c_abstract_http_error
+http_libuv_context_init(struct HttpTransportContext **ctx) {
   int rc;
   LOG_DEBUG("http_libuv_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_libuv_context_init: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   *ctx = (struct HttpTransportContext *)malloc(
       sizeof(struct HttpTransportContext));
   if (!*ctx) {
     LOG_DEBUG("http_libuv_context_init: Error ENOMEM");
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   memset(*ctx, 0, sizeof(struct HttpTransportContext));
 
@@ -58,7 +59,7 @@ int http_libuv_context_init(struct HttpTransportContext **ctx) {
   }
 
   LOG_DEBUG("http_libuv_context_init: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 void http_libuv_context_free(struct HttpTransportContext *ctx) {
@@ -70,16 +71,17 @@ void http_libuv_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libuv_context_free: Exiting");
 }
 
-int http_libuv_config_apply(struct HttpTransportContext *ctx,
-                            const struct HttpConfig *config) {
+enum c_abstract_http_error
+http_libuv_config_apply(struct HttpTransportContext *ctx,
+                        const struct HttpConfig *config) {
   LOG_DEBUG("http_libuv_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_libuv_config_apply: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   ctx->config = *config;
   LOG_DEBUG("http_libuv_config_apply: Success");
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int get_method_str(enum HttpMethod method, const char **out_str) {
@@ -118,7 +120,7 @@ static int get_method_str(enum HttpMethod method, const char **out_str) {
     *out_str = "GET";
     break;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #ifdef C_ABSTRACT_HTTP_USE_LIBUV
@@ -424,7 +426,7 @@ static int parse_url(const char *url, char **host, int *port, char **path) {
   char *_ast_strdup = NULL;
 
   if (!url)
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   if (strncmp(url, "http://", 7) == 0) {
     p = url + 7;
@@ -456,7 +458,7 @@ static int parse_url(const char *url, char **host, int *port, char **path) {
 
   *host = (char *)malloc(host_len + 1);
   if (!*host)
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strncpy_s(*host, host_len + 1, host_start, host_len);
 #else
@@ -472,13 +474,14 @@ static int parse_url(const char *url, char **host, int *port, char **path) {
     *path = _ast_strdup;
   }
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #endif /* C_ABSTRACT_HTTP_USE_LIBUV */
 
-int http_libuv_send(struct HttpTransportContext *ctx,
-                    const struct HttpRequest *req, struct HttpResponse **res) {
+enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
+                                           const struct HttpRequest *req,
+                                           struct HttpResponse **res) {
 #ifdef C_ABSTRACT_HTTP_USE_LIBUV
   struct libuv_state state;
   char *host = NULL;
@@ -493,14 +496,14 @@ int http_libuv_send(struct HttpTransportContext *ctx,
   LOG_DEBUG("http_libuv_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_libuv_send: Error EINVAL");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   /* Check if parts are flattened properly before attempting to send them */
   if (req->parts.count > 0 && !req->body) {
     LOG_DEBUG(
         "http_libuv_send: Error EINVAL (multipart missing flattened body)");
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   memset(&state, 0, sizeof(state));
@@ -516,7 +519,7 @@ int http_libuv_send(struct HttpTransportContext *ctx,
       free(host);
     if (path)
       free(path);
-    return EINVAL;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -532,7 +535,7 @@ int http_libuv_send(struct HttpTransportContext *ctx,
   if (!state.req_buf) {
     free(host);
     free(path);
-    return ENOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -559,7 +562,7 @@ int http_libuv_send(struct HttpTransportContext *ctx,
       if (!new_buf) {
         LOG_DEBUG("http_libuv_send: Error ENOMEM reallocating headers");
         free(state.req_buf);
-        return ENOMEM;
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
       }
       state.req_buf = new_buf;
     }
@@ -617,7 +620,7 @@ int http_libuv_send(struct HttpTransportContext *ctx,
       if (!new_buf) {
         LOG_DEBUG("http_libuv_send: Error ENOMEM reallocating for body");
         free(state.req_buf);
-        return ENOMEM;
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
       }
       state.req_buf = new_buf;
     }
@@ -638,7 +641,7 @@ int http_libuv_send(struct HttpTransportContext *ctx,
         if (!new_buf) {
           LOG_DEBUG("http_libuv_send: Error ENOMEM chunk accumulation");
           free(state.req_buf);
-          return ENOMEM;
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
         state.req_buf = new_buf;
       }
@@ -698,6 +701,6 @@ int http_libuv_send(struct HttpTransportContext *ctx,
   (void)req;
   (void)res;
   LOG_DEBUG("http_libuv_send: Error ENOTSUP");
-  return ENOTSUP;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
 #endif
 }

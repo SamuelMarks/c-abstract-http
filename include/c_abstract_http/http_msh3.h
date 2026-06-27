@@ -30,7 +30,7 @@ struct HttpTransportContext;
  * Reference-counted; safe to call multiple times.
  * @return 0 on success, ENOMEM or native error code on failure.
  */
-extern int http_msh3_global_init(void);
+extern enum c_abstract_http_error http_msh3_global_init(void);
 
 /**
  * @brief Clean up the global MsH3 API state.
@@ -44,7 +44,8 @@ extern void http_msh3_global_cleanup(void);
  * @param[out] ctx Double pointer to receive the newly allocated context.
  * @return 0 on success, ENOMEM on failure.
  */
-extern int http_msh3_context_init(struct HttpTransportContext **ctx);
+extern enum c_abstract_http_error
+http_msh3_context_init(struct HttpTransportContext **ctx);
 
 /**
  * @brief Free a MsH3 transport context and its associated resources.
@@ -63,8 +64,9 @@ extern void http_msh3_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration settings.
  * @return 0 on success, or a mapped error code on failure.
  */
-extern int http_msh3_config_apply(struct HttpTransportContext *ctx,
-                                  const struct HttpConfig *config);
+extern enum c_abstract_http_error
+http_msh3_config_apply(struct HttpTransportContext *ctx,
+                       const struct HttpConfig *config);
 
 /**
  * @brief Synchronous single request dispatcher for MsH3.
@@ -75,9 +77,9 @@ extern int http_msh3_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Double pointer to receive the newly allocated response.
  * @return 0 on success, or a mapped error code on failure.
  */
-extern int http_msh3_send(struct HttpTransportContext *ctx,
-                          const struct HttpRequest *req,
-                          struct HttpResponse **res);
+extern enum c_abstract_http_error
+http_msh3_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+               struct HttpResponse **res);
 
 /**
  * @brief Asynchronous multi-send implementation for MsH3.
@@ -89,10 +91,9 @@ extern int http_msh3_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures.
  * @return 0 on success.
  */
-extern int http_msh3_send_multi(struct HttpTransportContext *ctx,
-                                struct ModalityEventLoop *loop,
-                                const struct HttpMultiRequest *multi,
-                                struct HttpFuture **futures);
+extern enum c_abstract_http_error http_msh3_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

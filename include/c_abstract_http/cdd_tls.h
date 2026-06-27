@@ -16,6 +16,7 @@ extern "C" {
 
 /* clang-format off */
 #include <stddef.h>
+#include <c_abstract_http/http_types.h>
 /* clang-format on */
 
 /**
@@ -31,8 +32,8 @@ struct CddTlsKey;
  * exits.
  * @return 0 on success, or an error code on failure.
  */
-extern int cdd_tls_key_create(struct CddTlsKey **key,
-                              void (*destructor)(void *));
+extern enum c_abstract_http_error
+cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *));
 
 /**
  * @brief Sets a thread-local value for the given key.
@@ -41,7 +42,8 @@ extern int cdd_tls_key_create(struct CddTlsKey **key,
  * @param[in] value The value to store.
  * @return 0 on success, or an error code on failure.
  */
-extern int cdd_tls_set(struct CddTlsKey *key, void *value);
+extern enum c_abstract_http_error cdd_tls_set(struct CddTlsKey *key,
+                                              void *value);
 
 /**
  * @brief Gets the thread-local value for the given key.
@@ -50,7 +52,8 @@ extern int cdd_tls_set(struct CddTlsKey *key, void *value);
  * @param[out] out_value Pointer to a void pointer to store the retrieved value.
  * @return 0 on success, or an error code on failure.
  */
-extern int cdd_tls_get(struct CddTlsKey *key, void **out_value);
+extern enum c_abstract_http_error cdd_tls_get(struct CddTlsKey *key,
+                                              void **out_value);
 
 /**
  * @brief Deletes a TLS key.

@@ -107,19 +107,19 @@ TEST test_thread_pool_errors(void) {
 
   memset(&hooks, 0, sizeof(hooks));
 
-  ASSERT_EQ(EINVAL, cdd_mutex_init(NULL));
-  ASSERT_EQ(EINVAL, cdd_mutex_lock(NULL));
-  ASSERT_EQ(EINVAL, cdd_mutex_unlock(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_mutex_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_mutex_lock(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_mutex_unlock(NULL));
   cdd_mutex_free(NULL);
 
-  ASSERT_EQ(EINVAL, cdd_cond_init(NULL));
-  ASSERT_EQ(EINVAL, cdd_cond_wait(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_wait(NULL, NULL));
   ASSERT_EQ(0, cdd_mutex_init(&lock));
   ASSERT_EQ(0, cdd_cond_init(&cond));
-  ASSERT_EQ(EINVAL, cdd_cond_wait(NULL, lock));
-  ASSERT_EQ(EINVAL, cdd_cond_wait(cond, NULL));
-  ASSERT_EQ(EINVAL, cdd_cond_signal(NULL));
-  ASSERT_EQ(EINVAL, cdd_cond_broadcast(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_wait(NULL, lock));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_wait(cond, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_signal(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_broadcast(NULL));
   cdd_cond_free(NULL);
 
   ASSERT_EQ(0, cdd_cond_signal(cond));
@@ -128,15 +128,18 @@ TEST test_thread_pool_errors(void) {
   cdd_cond_free(cond);
   cdd_mutex_free(lock);
 
-  ASSERT_EQ(EINVAL, cdd_thread_pool_init(NULL, 1));
-  ASSERT_EQ(EINVAL, cdd_thread_pool_init(&pool, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_thread_pool_init(NULL, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_thread_pool_init(&pool, 0));
 
-  ASSERT_EQ(EINVAL, cdd_thread_pool_push(NULL, dummy_cb_thread, NULL));
-  ASSERT_EQ(EINVAL,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            cdd_thread_pool_push(NULL, dummy_cb_thread, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             cdd_thread_pool_push((struct CddThreadPool *)1, NULL, NULL));
 
-  ASSERT_EQ(EINVAL, cdd_thread_pool_init_external(NULL, &hooks));
-  ASSERT_EQ(EINVAL, cdd_thread_pool_init_external(&pool, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            cdd_thread_pool_init_external(NULL, &hooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            cdd_thread_pool_init_external(&pool, NULL));
 
   cdd_thread_pool_free(NULL);
 
@@ -145,8 +148,9 @@ TEST test_thread_pool_errors(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  cdd_thread_pool_init(
-      &pool, 1); /* this will fail due to ENOMEM or we just use a valid pool */
+  cdd_thread_pool_init(&pool,
+                       1); /* this will fail due to C_ABSTRACT_HTTP_ERR_NOMEM or
+                              we just use a valid pool */
   g_mock_alloc_fail = 0;
 
   cdd_thread_pool_init(&pool, 1);
@@ -166,7 +170,8 @@ TEST test_thread_pool_external(void) {
   struct CddThreadPoolHooks hooks;
   memset(&hooks, 0, sizeof(hooks));
   ASSERT_EQ(0, cdd_thread_pool_init_external(&pool, &hooks));
-  ASSERT_EQ(ENOTSUP, cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
   cdd_thread_pool_free(pool);
   PASS();
 }
@@ -185,7 +190,8 @@ TEST test_thread_pool_edge_cases(void) {
   memset(&hooks, 0, sizeof(hooks));
 
   /* 470: pool == NULL */
-  ASSERT_EQ(EINVAL, cdd_thread_pool_init_external(NULL, &hooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            cdd_thread_pool_init_external(NULL, &hooks));
 
   /* 498: test hook push */
   memset(&hooks, 0, sizeof(hooks));
@@ -198,7 +204,8 @@ TEST test_thread_pool_edge_cases(void) {
   /* and 563-565: tasks left in queue */
   ASSERT_EQ(0, cdd_thread_pool_init(&pool, 1));
   cdd_thread_pool_test_set_stop(pool);
-  ASSERT_EQ(EINVAL, cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
 
   /* Stop the pool first, let it join threads, THEN inject task to test cleanup
    */
@@ -221,13 +228,13 @@ TEST test_thread_pool_pthread_create_failures(void) {
   g_mock_pthread_fail = 2;
   g_mock_alloc_count = 0;
   rc = cdd_thread_pool_init(&pool, 2);
-  ASSERT_EQ(EIO, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
 
   /* Fail on second thread */
   g_mock_pthread_fail = 2;
   g_mock_alloc_count = 1;
   rc = cdd_thread_pool_init(&pool, 2);
-  ASSERT_EQ(EIO, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
 
   g_mock_pthread_fail = 0;
 #endif
@@ -243,7 +250,7 @@ TEST test_thread_pool_pthread_create_failures(void) {
   {
     int rc_test_tmp = rc;
     g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(ENOMEM, rc_test_tmp, "%d");
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   PASS();
@@ -259,10 +266,10 @@ TEST test_thread_pool_pthread_failures(void) {
 
   g_mock_pthread_fail = 1;
   rc = cdd_mutex_init(&lock);
-  ASSERT_EQ(EIO, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
 
   rc = cdd_cond_init(&cond);
-  ASSERT_EQ(EIO, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
 
   g_mock_pthread_fail = 0;
 #endif
@@ -281,32 +288,32 @@ TEST test_thread_pool_fallback_paths(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_mutex_init(&lock);
-  ASSERT_EQ(ENOMEM, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_cond_init(&cond);
-  ASSERT_EQ(ENOMEM, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_thread_pool_init(&pool, 1);
-  ASSERT_EQ(ENOMEM, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
   rc = cdd_thread_pool_init(&pool, 1);
-  ASSERT_EQ(ENOMEM, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2;
   rc = cdd_thread_pool_init(&pool, 1);
-  ASSERT_EQ(EIO, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 3;
   rc = cdd_thread_pool_init(&pool, 1);
-  ASSERT_EQ(EIO, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
 
   g_mock_alloc_fail = 0;
   rc = cdd_thread_pool_init(&pool, 1);
@@ -314,7 +321,7 @@ TEST test_thread_pool_fallback_paths(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_thread_pool_push(pool, test_task_cb, NULL);
-  ASSERT_EQ(ENOMEM, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   cdd_thread_pool_free(pool);
 
   PASS();
