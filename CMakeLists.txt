@@ -220,11 +220,10 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
             set(FETCHCONTENT_SOURCE_DIR_${PkgNameUpper} "${CMAKE_CURRENT_SOURCE_DIR}/../cdd-c" CACHE PATH "" FORCE)
             message(STATUS "Using local cdd-c from ${CMAKE_CURRENT_SOURCE_DIR}/../cdd-c")
         endif()
+                string(REGEX REPLACE "\\.git$" "" FetchURL "${FetchRepo}")
+        set(FetchURL "${FetchURL}/archive/${FetchTag}.zip")
         FetchContent_Declare(${PkgName}
-            GIT_REPOSITORY ${FetchRepo}
-            GIT_TAG ${FetchTag}
-            GIT_CONFIG "core.autocrlf=false"
-            UPDATE_COMMAND ""
+            URL ${FetchURL}
         )
         FetchContent_MakeAvailable(${PkgName})
 #If fetchcontent fails, CMake usually aborts or the target is not created
