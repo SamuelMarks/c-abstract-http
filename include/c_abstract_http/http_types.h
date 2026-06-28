@@ -431,18 +431,17 @@ struct ModalityEventLoop;
 /**
  * @brief Function pointer signature for the transport send method.
  */
-typedef int (*http_send_fn)(struct HttpTransportContext *ctx,
-                            const struct HttpRequest *req,
-                            struct HttpResponse **res);
+typedef enum c_abstract_http_error (*http_send_fn)(
+    struct HttpTransportContext *ctx, const struct HttpRequest *req,
+    struct HttpResponse **res);
 
 /**
  * @brief Function pointer signature for the transport asynchronous multi-send
  * method.
  */
-typedef int (*http_send_multi_fn)(struct HttpTransportContext *ctx,
-                                  struct ModalityEventLoop *loop,
-                                  const struct HttpMultiRequest *multi,
-                                  struct HttpFuture **futures);
+typedef enum c_abstract_http_error (*http_send_multi_fn)(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
 /**
  * @brief High-level client context.

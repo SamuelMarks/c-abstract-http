@@ -222,9 +222,10 @@ TEST test_sse_sync_loop_null(void) {
   PASS();
 }
 
-static int mock_send_success(struct HttpTransportContext *ctx,
-                             const struct HttpRequest *req,
-                             struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+mock_send_success(struct HttpTransportContext *ctx,
+                  const struct HttpRequest *req,
+                  struct HttpResponse **res_out) {
   struct HttpResponse *res;
   (void)ctx;
   (void)req;
@@ -239,9 +240,9 @@ static int mock_send_success(struct HttpTransportContext *ctx,
   return 0;
 }
 
-static int mock_send_fail(struct HttpTransportContext *ctx,
-                          const struct HttpRequest *req,
-                          struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+mock_send_fail(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+               struct HttpResponse **res_out) {
   (void)ctx;
   (void)req;
   (void)res_out;
@@ -688,18 +689,20 @@ TEST test_sse_parser_dispatch_oom(void) {
 }
 #endif
 
-static int test_sse_mock_send_err(struct HttpTransportContext *ctx,
-                                  const struct HttpRequest *req,
-                                  struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+test_sse_mock_send_err(struct HttpTransportContext *ctx,
+                       const struct HttpRequest *req,
+                       struct HttpResponse **res_out) {
   (void)ctx;
   (void)req;
   (void)res_out;
   return C_ABSTRACT_HTTP_ERR_NOMEM;
 }
 
-static int test_sse_mock_send_empty(struct HttpTransportContext *ctx,
-                                    const struct HttpRequest *req,
-                                    struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+test_sse_mock_send_empty(struct HttpTransportContext *ctx,
+                         const struct HttpRequest *req,
+                         struct HttpResponse **res_out) {
   struct HttpResponse *res = calloc(1, sizeof(*res));
   (void)ctx;
   (void)req;
@@ -712,18 +715,20 @@ static int test_sse_mock_send_empty(struct HttpTransportContext *ctx,
   return 0;
 }
 
-static int test_sse_mock_send_null_res(struct HttpTransportContext *ctx,
-                                       const struct HttpRequest *req,
-                                       struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+test_sse_mock_send_null_res(struct HttpTransportContext *ctx,
+                            const struct HttpRequest *req,
+                            struct HttpResponse **res_out) {
   (void)ctx;
   (void)req;
   *res_out = NULL;
   return 0;
 }
 
-static int test_sse_mock_send_null_body(struct HttpTransportContext *ctx,
-                                        const struct HttpRequest *req,
-                                        struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+test_sse_mock_send_null_body(struct HttpTransportContext *ctx,
+                             const struct HttpRequest *req,
+                             struct HttpResponse **res_out) {
   struct HttpResponse *res = calloc(1, sizeof(*res));
   (void)ctx;
   (void)req;
@@ -930,9 +935,10 @@ TEST test_sse_parser_feed_current_data_capacity_limit(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-static int mock_send_success_huge_body(struct HttpTransportContext *ctx,
-                                       const struct HttpRequest *req,
-                                       struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+mock_send_success_huge_body(struct HttpTransportContext *ctx,
+                            const struct HttpRequest *req,
+                            struct HttpResponse **res_out) {
   struct HttpResponse *res;
   char *body;
   int old_fail = g_mock_alloc_fail;
@@ -1095,9 +1101,10 @@ TEST test_sse_async_task_null(void) {
   PASS();
 }
 
-static int mock_send_err_for_task(struct HttpTransportContext *ctx,
-                                  const struct HttpRequest *req,
-                                  struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+mock_send_err_for_task(struct HttpTransportContext *ctx,
+                       const struct HttpRequest *req,
+                       struct HttpResponse **res_out) {
   (void)ctx;
   (void)req;
   (void)res_out;

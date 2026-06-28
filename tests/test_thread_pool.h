@@ -20,15 +20,7 @@ extern "C" {
 #include <dos.h>
 #else
 #if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
 #include <unistd.h>
-#endif
-#endif
-#endif
-#endif
 #endif
 #endif
 

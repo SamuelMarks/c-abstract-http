@@ -26,9 +26,7 @@
 #ifndef _WIN32
 #if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 #if !defined(_MSC_VER)
-#ifndef _MSC_VER
 #include <unistd.h>
-#endif
 #endif
 #include <sys/types.h>
 #include <sys/socket.h>

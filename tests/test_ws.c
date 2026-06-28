@@ -299,9 +299,10 @@ TEST test_ws_sync_loop_null(void) {
   PASS();
 }
 
-static int mock_send_success_ws(struct HttpTransportContext *ctx,
-                                const struct HttpRequest *req,
-                                struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+mock_send_success_ws(struct HttpTransportContext *ctx,
+                     const struct HttpRequest *req,
+                     struct HttpResponse **res_out) {
   struct HttpResponse *res;
   int old_fail = g_mock_alloc_fail;
   (void)ctx;
@@ -319,9 +320,10 @@ static int mock_send_success_ws(struct HttpTransportContext *ctx,
   return 0;
 }
 
-static int mock_send_fail_ws(struct HttpTransportContext *ctx,
-                             const struct HttpRequest *req,
-                             struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+mock_send_fail_ws(struct HttpTransportContext *ctx,
+                  const struct HttpRequest *req,
+                  struct HttpResponse **res_out) {
   (void)ctx;
   (void)req;
   (void)res_out;
@@ -889,9 +891,10 @@ TEST test_ws_sync_loop_parser_oom(void) {
 }
 #endif
 
-static int mock_send_bad_payload(struct HttpTransportContext *tctx,
-                                 const struct HttpRequest *req,
-                                 struct HttpResponse **res_out) {
+static enum c_abstract_http_error
+mock_send_bad_payload(struct HttpTransportContext *tctx,
+                      const struct HttpRequest *req,
+                      struct HttpResponse **res_out) {
   struct HttpResponse *res = calloc(1, sizeof(*res));
   (void)tctx;
   (void)req;

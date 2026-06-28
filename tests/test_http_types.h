@@ -48,15 +48,7 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #include <sys/socket.h>
 #include <sys/types.h>
 #if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
-#if !defined(_MSC_VER)
 #include <unistd.h>
-#endif
-#endif
-#endif
-#endif
 #endif
 #endif
 
@@ -1444,19 +1436,18 @@ TEST test_http_types_end_errs(void) {
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-static int dummy_send_fail(struct HttpTransportContext *transport,
-                           const struct HttpRequest *req,
-                           struct HttpResponse **res) {
+static enum c_abstract_http_error
+dummy_send_fail(struct HttpTransportContext *transport,
+                const struct HttpRequest *req, struct HttpResponse **res) {
   (void)transport;
   (void)req;
   (void)res;
   return 1;
 }
 
-static int dummy_send_multi_ok(struct HttpTransportContext *transport,
-                               struct ModalityEventLoop *loop,
-                               const struct HttpMultiRequest *multi,
-                               struct HttpFuture **futures) {
+static enum c_abstract_http_error dummy_send_multi_ok(
+    struct HttpTransportContext *transport, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   (void)transport;
   (void)loop;
   (void)multi;
