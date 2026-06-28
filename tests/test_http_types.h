@@ -26,9 +26,8 @@ static char *c_abstract_http_test_types_strdup(const char *s) {
   if (d) memcpy(d, s, len + 1);
   return d;
 }
-#ifndef strdup
+#undef strdup
 #define strdup(s) c_abstract_http_test_types_strdup(s)
-#endif
 
 #ifdef __cplusplus
 extern "C" {

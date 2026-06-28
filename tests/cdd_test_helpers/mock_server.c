@@ -1,6 +1,11 @@
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE 1
 #endif
+#ifdef __APPLE__
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE 1
+#endif
+#endif
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 500
 #endif

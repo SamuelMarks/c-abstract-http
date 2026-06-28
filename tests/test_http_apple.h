@@ -26,6 +26,7 @@ static char *c_abstract_http_test_apple_strdup(const char *s) {
     memcpy(d, s, len + 1);
   return d;
 }
+#undef strdup
 #define strdup(s) c_abstract_http_test_apple_strdup(s)
 
 #ifdef __cplusplus
@@ -53,6 +54,7 @@ static int mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
 TEST test_apple_oom_branches(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
+  struct HttpResponse *res = NULL;
 
   ASSERT_EQ(0, http_apple_context_init(&ctx));
 
@@ -132,6 +134,7 @@ TEST test_apple_oom_branches(void) {
 TEST test_apple_oom(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
+  struct HttpResponse *res = NULL;
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -165,6 +168,7 @@ TEST test_apple_send_mock_server(void) {
 #if defined(__APPLE__)
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
+  struct HttpResponse *res = NULL;
   MockServerPtr server = NULL;
   int port = 0;
   char url[256];
@@ -266,6 +270,7 @@ TEST test_apple_config(void) {
 TEST test_apple_send_invalid(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
+  struct HttpResponse *res = NULL;
 
   ASSERT_EQ(0, http_apple_context_init(&ctx));
   ASSERT_EQ(0, http_request_init(&req));
@@ -302,6 +307,7 @@ TEST test_apple_send_invalid(void) {
 TEST test_apple_send_all_methods(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
+  struct HttpResponse *res = NULL;
   struct HttpConfig cfg;
   int i;
   const enum HttpMethod methods[] = {
@@ -364,6 +370,7 @@ static int mock_read_chunk_fail(void *user_data, void *buf, size_t buf_len,
 TEST test_apple_read_chunk(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
+  struct HttpResponse *res = NULL;
   struct HttpConfig cfg;
   int calls = 0;
 

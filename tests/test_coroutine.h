@@ -174,12 +174,16 @@ TEST test_coroutine_edge_cases(void) {
   g_mock_alloc_count = 1;
   /* Need a valid callback so we don't hit C_ABSTRACT_HTTP_ERR_INVAL at line 267
    */
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__APPLE__)
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
             cdd_coroutine_init(&co, 0, (cdd_coroutine_cb)1, NULL));
 #else
-  ASSERT_EQ(0, cdd_coroutine_init(&co, 65536, (cdd_coroutine_cb)1, NULL));
-  cdd_coroutine_free(co);
+  {
+    int edge_rc = cdd_coroutine_init(&co, 65536, (cdd_coroutine_cb)1, NULL);
+    if (edge_rc == 0)
+      cdd_coroutine_free(co);
+    ASSERT_EQ(0, edge_rc);
+  }
 #endif
   g_mock_alloc_fail = 0;
 

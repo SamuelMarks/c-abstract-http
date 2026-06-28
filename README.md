@@ -19,6 +19,79 @@ A highly robust, cross-platform abstract HTTP network library for C. It unifies 
 - **Modern CMake Integration**: Powered exclusively by FetchContent_MakeAvailable for clean, warning-free dependency ingestion.
 - **Pluggable Concurrency & Multi-Modality**: First-class abstractions for Event Loops, Thread Pools, Coroutines (Greenthreads), Multiprocessing (IPC), and Actor-model message passing via an Inversion-of-Control (Hooks) architecture.
 
+
+## CLI Usage
+
+The executable provides tools for OpenAPI generation, SDK building, and AST transformations.
+
+### Main Commands
+
+```text
+Usage: cdd-c [OPTIONS] <COMMAND>
+
+Commands:
+  from_openapi to_sdk -i <spec.json> [-o <dir>] [--no-github-actions] [--no-installable-package] [--tests]
+  from_openapi to_sdk --input-dir <specs_dir> [-o <dir>] [--no-github-actions] [--no-installable-package] [--tests]
+  from_openapi to_sdk_cli -i <spec.json> [-o <dir>] [--no-github-actions] [--no-installable-package] [--tests]
+  from_openapi to_sdk_cli --input-dir <specs_dir> [-o <dir>] [--no-github-actions] [--no-installable-package] [--tests]
+  from_openapi to_server -i <spec.json> [-o <dir>] [--no-github-actions] [--no-installable-package] [--tests]
+  from_openapi to_server --input-dir <specs_dir> [-o <dir>] [--no-github-actions] [--no-installable-package] [--tests]
+      Generate code from an OpenAPI specification.
+  to_openapi -i <dir> [-o <out.json>]
+      Generate an OpenAPI specification from source code.
+  to_docs_json [--no-imports] [--no-wrapping] -i|--input <spec.json> [-o <docs.json>]
+      Generate JSON documentation with code snippets for an OpenAPI specification.
+  bind [OPTIONS]
+      Generate SWIG-like FFI bindings for 40 languages.
+  serve_json_rpc [-p|--port <int>] [-l|--listen <address>]
+      Expose CLI interface as a JSON-RPC server.
+  mcp
+      Expose CLI interface as an MCP server via stdio.
+
+Language-Specific Commands:
+  audit <directory>
+      Scan directory for memory safety issues.
+  c2openapi <dir> <out.json>
+      Generate OpenAPI spec from C source code.
+  transformer <toolname> [--audit|--fix] [--dry-run] <files...>
+      Run syntax tree transformations.
+  code2schema <header.h> <schema.json>
+      Convert C header to JSON Schema.
+  generate_build_system <type> <out_dir> <name> [test_file]
+      Generate build system files.
+  schema2code <schema.json> <out_dir>
+      Generate C code from JSON schema.
+```
+
+### `bind` Command
+
+```text
+Usage: cdd-c bind [OPTIONS]
+
+Options:
+  -i, --input <file|dir>    Input C header/source or directory
+  -o, --output-dir <dir>    Output directory for bindings
+  -l, --lang <langs>        Comma-separated list of languages or * (e.g., python,rust)
+  -n, --lib-name <name>     Name of the shared library (e.g., sqlite3)
+  -m, --module-name <name>  Name of the generated namespace/module
+  --skip-static             Skip static inline functions
+  --opaque-pointers         Treat unknown structs as void* (opaque)
+  --generate-tests          Generate basic sanity-check tests
+  -h, --help                Show this help message
+```
+
+### `transformer` Command
+
+```text
+Usage: cdd-c transformer <toolname> [--audit | --fix] [--dry-run] <files...>
+Tools:
+  extern_c
+  msvc_port
+  gnu_standardizer
+  error_percolator
+  safe_crt
+```
+
 ## Target Platforms
 
 - **Windows**: MSVC (2005, 2022, 2026), MinGW, Cygwin
