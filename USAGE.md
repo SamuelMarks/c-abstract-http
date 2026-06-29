@@ -123,8 +123,8 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
     struct HttpFuture *futures[2] = { &f1, &f2 };
     size_t i;
     int rc = 0;
-    cfs_path dir_path;
-    cfs_error_code ec = 0;
+    cfs_path dir_path = {0};
+    cfs_error_code ec = {0};
 
     for (i = 0; i < num_urls; ++i) {
         http_request_init(&reqs[i]);
@@ -134,9 +134,9 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
     /* Ensure destination directory exists using c-fs */
     cfs_path_init_str(&dir_path, (const cfs_char_t*)dest_dir);
     cfs_create_directories(&dir_path, &ec);
-    if (ec != 0) {
+    if (ec.value != 0) {
         fprintf(stderr, "Failed to create destination directories\n");
-        rc = (int)ec;
+        rc = (int)ec.value;
         goto cleanup_dir;
     }
 
@@ -161,7 +161,7 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
     for (i = 0; i < num_urls; ++i) {
         if (futures[i]->is_ready && futures[i]->error_code == 0 && futures[i]->response) {
             struct HttpResponse *res = futures[i]->response;
-            cfs_path file_path;
+            cfs_path file_path = {0};
             const char *filename;
             const cfs_char_t *path_str = NULL;
             FILE *fp;
