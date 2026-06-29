@@ -212,10 +212,18 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
 #c) try fetchcontent
     if(NOT ${PkgName}_RESOLVED)
         message(STATUS "Fetching ${PkgName} via FetchContent")
-        FetchContent_Declare(${PkgName}
-            GIT_REPOSITORY ${FetchRepo}
-            GIT_TAG ${FetchTag}
-        )
+        if(FetchRepo MATCHES "github.com/(SamuelMarks|offscale)")
+            string(REGEX REPLACE "\\.git$" "" FetchURL "${FetchRepo}")
+            set(FetchURL "${FetchURL}/archive/master.zip")
+            FetchContent_Declare(${PkgName}
+                URL ${FetchURL}
+            )
+        else()
+            FetchContent_Declare(${PkgName}
+                GIT_REPOSITORY ${FetchRepo}
+                GIT_TAG ${FetchTag}
+            )
+        endif()
         FetchContent_MakeAvailable(${PkgName})
 #If fetchcontent fails, CMake usually aborts or the target is not created
 #We assume success if it didn't fatal error during MakeAvailable,

@@ -8,8 +8,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../greatest/greatest.h")
 else()
     FetchContent_Declare(
       greatest
-      GIT_REPOSITORY https://github.com/SamuelMarks/greatest.git
-      GIT_TAG master
+      URL https://github.com/SamuelMarks/greatest/archive/master.zip
       SOURCE_SUBDIR "nonexistent_dir_to_prevent_add_subdirectory"
     )
     FetchContent_MakeAvailable(greatest)
