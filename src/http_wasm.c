@@ -134,6 +134,7 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
   char *body_buffer = NULL;
   size_t body_len = 0;
   const char *method_str;
+  int rc = 0;
 
   LOG_DEBUG("http_wasm_send: Entering");
   if (!ctx || !req || !res) {
@@ -314,8 +315,8 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
               char *colon = strchr(p, ':');
               if (colon) {
                 int add_rc;
-                *colon = '\0';
                 char *val = colon + 1;
+                *colon = '\0';
                 while (*val == ' ')
                   val++;
                 add_rc = http_headers_add(&(*res)->headers, p, val);

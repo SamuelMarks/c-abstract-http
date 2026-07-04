@@ -16,10 +16,13 @@
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <dos.h>
 #else
+#if defined(EMSCRIPTEN)
+#define CDD_NO_UCONTEXT 1
+#endif
 #if defined(__APPLE__) && defined(__MACH__)
 /* ucontext is deprecated on macOS but still mostly works for simple cases on x86_64.
    It is broken on arm64 and will cause a Bus Error. */
-#if defined(__aarch64__) || defined(__arm64__) || defined(__arm__) || defined(__aarch64)
+#if defined(__aarch64__) || defined(__arm64__) || defined(__arm__) || defined(__aarch64) || defined(EMSCRIPTEN)
 #define CDD_NO_UCONTEXT 1
 #else
 #define _XOPEN_SOURCE 600
