@@ -16,7 +16,7 @@
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <dos.h>
 #else
-#if defined(EMSCRIPTEN)
+#if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN__)
 #define CDD_NO_UCONTEXT 1
 #endif
 #if defined(__APPLE__) && defined(__MACH__)
