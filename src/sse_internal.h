@@ -1,4 +1,3 @@
-#include <c_abstract_http/http_types.h>
 #ifndef C_ABSTRACT_HTTP_SSE_INTERNAL_H
 #define C_ABSTRACT_HTTP_SSE_INTERNAL_H
 
@@ -12,6 +11,7 @@ extern "C" {
  */
 
 /* clang-format off */
+#include <c_abstract_http/http_types.h>
 #include "c_abstract_http/http_sse.h"
 #include <stddef.h>
 /* clang-format on */

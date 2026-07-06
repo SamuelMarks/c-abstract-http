@@ -81,7 +81,7 @@ enum c_abstract_http_error ws_verify_accept(const char *client_key, const char *
   if (res != 0)
     return res;
 
-  if (is_const_time_streq(expected_accept, server_accept)) {
+  if (math_is_const_time_streq(expected_accept, server_accept)) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
   return -1002; /* C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE */
@@ -136,7 +136,7 @@ enum c_abstract_http_error c_abstract_http_ws_init(struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-uint16_t ws_htons(uint16_t hostshort) {
+uint16_t math_ws_htons(uint16_t hostshort) {
   uint16_t out;
   unsigned char *p = (unsigned char *)&out;
   p[0] = (unsigned char)(hostshort >> 8);
@@ -144,7 +144,7 @@ uint16_t ws_htons(uint16_t hostshort) {
   return out;
 }
 
-uint64_t ws_htonll(uint64_t hostqword) {
+uint64_t math_ws_htonll(uint64_t hostqword) {
   uint64_t out;
   unsigned char *p = (unsigned char *)&out;
   p[0] = (unsigned char)((hostqword >> 56) & 0xFF);
@@ -158,12 +158,12 @@ uint64_t ws_htonll(uint64_t hostqword) {
   return out;
 }
 
-uint16_t ws_ntohs(uint16_t netshort) {
+uint16_t math_ws_ntohs(uint16_t netshort) {
   const unsigned char *p = (const unsigned char *)&netshort;
   return (uint16_t)((p[0] << 8) | p[1]);
 }
 
-uint64_t ws_ntohll(uint64_t netqword) {
+uint64_t math_ws_ntohll(uint64_t netqword) {
   unsigned char p[8]; memcpy(p, &netqword, 8);
   return ((uint64_t)p[0] << 56) | ((uint64_t)p[1] << 48) |
          ((uint64_t)p[2] << 40) | ((uint64_t)p[3] << 32) |
@@ -212,7 +212,7 @@ enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin, in
     return C_ABSTRACT_HTTP_ERR_INVAL;
   buf[0] = (unsigned char)((fin ? 0x80 : 0x00) | (opcode & 0x0F));
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | 126);
-  net_len = ws_htons((uint16_t)len);
+  net_len = math_ws_htons((uint16_t)len);
   memcpy(buf + 2, &net_len, 2);
   if (out_len) *out_len = 4;
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -225,7 +225,7 @@ enum c_abstract_http_error ws_pack_header_large(unsigned char *buf, int fin, int
     return C_ABSTRACT_HTTP_ERR_INVAL;
   buf[0] = (unsigned char)((fin ? 0x80 : 0x00) | (opcode & 0x0F));
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | 127);
-  net_len = ws_htonll((uint64_t)len);
+  net_len = math_ws_htonll((uint64_t)len);
   memcpy(buf + 2, &net_len, 8);
   if (out_len) *out_len = 10;
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -322,7 +322,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
       if (ctx->ext_len_offset == 2) {
         uint16_t net_len;
         memcpy(&net_len, ctx->ext_len_buffer, 2);
-        ctx->current_frame.payload_len = ws_ntohs(net_len);
+        ctx->current_frame.payload_len = math_ws_ntohs(net_len);
         ctx->state = ctx->current_frame.mask ? WS_PARSER_READ_MASK
                                              : WS_PARSER_READ_PAYLOAD;
         ctx->payload_offset = 0;
@@ -334,7 +334,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
       if (ctx->ext_len_offset == 8) {
         uint64_t net_len;
         memcpy(&net_len, ctx->ext_len_buffer, 8);
-        ctx->current_frame.payload_len = ws_ntohll(net_len);
+        ctx->current_frame.payload_len = math_ws_ntohll(net_len);
         ctx->state = ctx->current_frame.mask ? WS_PARSER_READ_MASK
                                              : WS_PARSER_READ_PAYLOAD;
         ctx->payload_offset = 0;
@@ -398,7 +398,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
           if (ctx->current_frame.payload_len >= 2) {
             uint16_t net_status;
             memcpy(&net_status, ctx->payload_buffer, 2);
-            status = ws_ntohs(net_status);
+            status = math_ws_ntohs(net_status);
           }
           if (ctx->on_close)
             ctx->on_close(status, ctx->user_data);

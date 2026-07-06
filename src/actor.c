@@ -1,8 +1,8 @@
 
+/* clang-format off */
 #include <c_abstract_http/http_types.h>
 extern enum c_abstract_http_error c_abstract_http_mock_cdd_strdup(const char *s,
                                                                   char **out);
-/* clang-format off */
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,4 +1,3 @@
-#include <c_abstract_http/http_types.h>
 /**
  * @file str.h
  * @brief Centralized string utilities and platform compatibility safeguards.
@@ -19,6 +18,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include <c_abstract_http/http_types.h>
 #include <stddef.h>
 #include <stdio.h>
 

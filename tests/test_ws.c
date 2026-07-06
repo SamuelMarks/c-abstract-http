@@ -408,10 +408,10 @@ TEST test_ws_apply_mask_invalid(void) {
 }
 
 TEST test_ws_endian(void) {
-  uint16_t s = ws_htons(0x1234);
-  uint16_t r_s = ws_ntohs(s);
-  uint64_t l = ws_htonll((((uint64_t)0x12345678) << 32) | 0x90ABCDEF);
-  uint64_t r_l = ws_ntohll(l);
+  uint16_t s = math_ws_htons(0x1234);
+  uint16_t r_s = math_ws_ntohs(s);
+  uint64_t l = math_ws_htonll((((uint64_t)0x12345678) << 32) | 0x90ABCDEF);
+  uint64_t r_l = math_ws_ntohll(l);
 
   ASSERT_EQ(0x1234, r_s);
   ASSERT(r_l == ((((uint64_t)0x12345678) << 32) | 0x90ABCDEF));

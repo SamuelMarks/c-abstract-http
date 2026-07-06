@@ -1,4 +1,3 @@
-#include <c_abstract_http/http_types.h>
 #ifndef C_ABSTRACT_HTTP_CRYPTO_UTILS_H
 #define C_ABSTRACT_HTTP_CRYPTO_UTILS_H
 
@@ -9,6 +8,7 @@ extern "C" {
 /* Crypto definitions */
 
 /* clang-format off */
+#include <c_abstract_http/http_types.h>
 #include <stddef.h>
 
 #if defined(_MSC_VER) && _MSC_VER < 1600
@@ -105,7 +105,7 @@ enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
  * @param b The second string.
  * @return 1 if equal, 0 if different.
  */
-int is_const_time_streq(const char *a, const char *b);
+int math_is_const_time_streq(const char *a, const char *b);
 
 #ifdef __cplusplus
 }

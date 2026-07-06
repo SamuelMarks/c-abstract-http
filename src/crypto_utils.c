@@ -253,7 +253,7 @@ enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int is_const_time_streq(const char *a, const char *b) {
+int math_is_const_time_streq(const char *a, const char *b) {
   size_t len_a = strlen(a);
   size_t len_b = strlen(b);
   size_t i;

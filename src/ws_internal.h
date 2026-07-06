@@ -1,4 +1,3 @@
-#include <c_abstract_http/http_types.h>
 #ifndef C_ABSTRACT_HTTP_WS_INTERNAL_H
 #define C_ABSTRACT_HTTP_WS_INTERNAL_H
 
@@ -12,6 +11,7 @@ extern "C" {
  */
 
 /* clang-format off */
+#include <c_abstract_http/http_types.h>
 #include "c_abstract_http/http_ws.h"
 #if defined(_MSC_VER) && _MSC_VER < 1600
 typedef __int8 int8_t;
@@ -54,28 +54,28 @@ struct ws_frame_header {
  * @param hostshort The host 16-bit integer.
  * @return The network 16-bit integer.
  */
-uint16_t ws_htons(uint16_t hostshort);
+uint16_t math_ws_htons(uint16_t hostshort);
 
 /**
  * @brief Portable host-to-network long long (64-bit).
  * @param hostqword The host 64-bit integer.
  * @return The network 64-bit integer.
  */
-uint64_t ws_htonll(uint64_t hostqword);
+uint64_t math_ws_htonll(uint64_t hostqword);
 
 /**
  * @brief Portable network-to-host short (16-bit).
  * @param netshort The network 16-bit integer.
  * @return The host 16-bit integer.
  */
-uint16_t ws_ntohs(uint16_t netshort);
+uint16_t math_ws_ntohs(uint16_t netshort);
 
 /**
  * @brief Portable network-to-host long long (64-bit).
  * @param netqword The network 64-bit integer.
  * @return The host 64-bit integer.
  */
-uint64_t ws_ntohll(uint64_t netqword);
+uint64_t math_ws_ntohll(uint64_t netqword);
 
 /**
  * @brief Generate a random 4-byte masking key.
