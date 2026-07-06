@@ -9,6 +9,7 @@ else()
     FetchContent_Declare(
       greatest
       URL https://github.com/SamuelMarks/greatest/archive/master.zip
+      DOWNLOAD_EXTRACT_TIMESTAMP TRUE
       SOURCE_SUBDIR "nonexistent_dir_to_prevent_add_subdirectory"
     )
     FetchContent_MakeAvailable(greatest)

@@ -36,7 +36,7 @@ extern enum c_abstract_http_error http_nghttp3_global_init(void);
  * @brief Clean up the global nghttp3 API state.
  * Automatically cleans up when the reference count drops to 0.
  */
-extern void http_nghttp3_global_cleanup(void);
+extern enum c_abstract_http_error http_nghttp3_global_cleanup(void);
 
 /**
  * @brief Initialize a new nghttp3 transport context.

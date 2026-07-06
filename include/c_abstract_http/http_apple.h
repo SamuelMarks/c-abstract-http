@@ -27,7 +27,7 @@ enum c_abstract_http_error http_apple_global_init(void);
 /**
  * @brief Cleanup global Apple networking environment.
  */
-void http_apple_global_cleanup(void);
+enum c_abstract_http_error http_apple_global_cleanup(void);
 
 /**
  * @brief Create a new Apple-backed transport context.

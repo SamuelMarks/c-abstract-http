@@ -33,7 +33,7 @@ enum c_abstract_http_error http_android_global_init(void);
  *
  * Releases any globally cached Java classes or references.
  */
-void http_android_global_cleanup(void);
+enum c_abstract_http_error http_android_global_cleanup(void);
 
 /**
  * @brief Create a new Android-backed transport context.

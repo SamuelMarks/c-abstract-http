@@ -60,7 +60,7 @@ enum c_abstract_http_error http_msh3_global_init(void) {
   return rc;
 }
 
-void http_msh3_global_cleanup(void) {
+enum c_abstract_http_error http_msh3_global_cleanup(void) {
   if (!g_msh3_mutex)
     return;
   if (cdd_mutex_lock(g_msh3_mutex) != 0)

@@ -24,7 +24,7 @@ extern enum c_abstract_http_error http_raw_global_init(void);
 /**
  * @brief Cleanup the global raw socket environment.
  */
-extern void http_raw_global_cleanup(void);
+extern enum c_abstract_http_error http_raw_global_cleanup(void);
 
 /**
  * @brief Initialize a new raw socket transport context.

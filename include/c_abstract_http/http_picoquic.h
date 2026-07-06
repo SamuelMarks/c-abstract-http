@@ -36,7 +36,7 @@ extern enum c_abstract_http_error http_picoquic_global_init(void);
  * @brief Clean up the global Picoquic API state.
  * Automatically cleans up when the reference count drops to 0.
  */
-extern void http_picoquic_global_cleanup(void);
+extern enum c_abstract_http_error http_picoquic_global_cleanup(void);
 
 /**
  * @brief Initialize a new Picoquic transport context.
