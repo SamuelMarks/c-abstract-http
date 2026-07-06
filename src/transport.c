@@ -77,38 +77,37 @@ enum c_abstract_http_error transport_global_init(void) {
 
 enum c_abstract_http_error transport_global_cleanup(void) {
 #if defined(C_ABSTRACT_HTTP_USE_ARIA2)
-  http_aria2_global_cleanup();
+  return http_aria2_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-  http_lsquic_global_cleanup();
+  return http_lsquic_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
-  http_picoquic_global_cleanup();
+  return http_picoquic_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-  http_nghttp3_global_cleanup();
+  return http_nghttp3_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
-  http_msh3_global_cleanup();
+  return http_msh3_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_WININET)
-  http_wininet_global_cleanup();
+  return http_wininet_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) ||               \
     defined(__WIN32__) || defined(__WINDOWS__)
-  http_winhttp_global_cleanup();
+  return http_winhttp_global_cleanup();
 #elif defined(__APPLE__)
-  http_apple_global_cleanup();
+  return http_apple_global_cleanup();
 #elif defined(__ANDROID__)
-  http_android_global_cleanup();
+  return http_android_global_cleanup();
 #elif defined(__EMSCRIPTEN__)
-  http_wasm_global_cleanup();
+  return http_wasm_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
-  http_libsoup3_global_cleanup();
+  return http_libsoup3_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
-  http_libuv_global_cleanup();
+  return http_libuv_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
-  http_fetch_global_cleanup();
+  return http_fetch_global_cleanup();
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
     defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
-  http_raw_global_cleanup();
+  return http_raw_global_cleanup();
 #else
-  http_curl_global_cleanup();
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return http_curl_global_cleanup();
 #endif
 }
 
