@@ -53,7 +53,8 @@ struct CddProcessHooks {
  * @brief Register external process hooks.
  * @param[in] hooks The hooks structure (copied internally).
  */
-extern void cdd_process_set_hooks(const struct CddProcessHooks *hooks);
+extern enum c_abstract_http_error
+cdd_process_set_hooks(const struct CddProcessHooks *hooks);
 
 /**
  * @brief Initialize an IPC pipe pair.

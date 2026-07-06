@@ -26,6 +26,7 @@ extern "C" {
 #include "functions/parse/str.h"
 /* clang-format on */
 
+/** @brief Documented */
 TEST test_lsquic_global_lifecycle(void) {
   ASSERT_EQ(0, http_lsquic_global_init());
   ASSERT_EQ(0, http_lsquic_global_init()); /* Test ref counting */
@@ -34,6 +35,7 @@ TEST test_lsquic_global_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_lsquic_context_lifecycle(void) {
   ASSERT_EQ(0, http_lsquic_global_init());
 
@@ -48,6 +50,7 @@ TEST test_lsquic_context_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_lsquic_config_application(void) {
   ASSERT_EQ(0, http_lsquic_global_init());
 
@@ -66,6 +69,7 @@ TEST test_lsquic_config_application(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_lsquic_send_invalid_arguments(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpResponse *res = NULL;
@@ -94,6 +98,7 @@ TEST test_lsquic_send_invalid_arguments(void) {
   PASS();
 }
 
+/** @brief Documented */
 SUITE(http_lsquic_suite) {
 #ifdef C_ABSTRACT_HTTP_USE_LSQUIC
   RUN_TEST(test_lsquic_global_lifecycle);

@@ -62,6 +62,7 @@ struct HttpTransportContext {
 };
 #else
 struct HttpTransportContext {
+  /** @brief Documented */
   int dummy;
 };
 #endif
@@ -174,7 +175,9 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
 enum c_abstract_http_error http_winhttp_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-void http_winhttp_global_cleanup(void) {}
+enum c_abstract_http_error http_winhttp_global_cleanup(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 enum c_abstract_http_error
 http_winhttp_context_init(struct HttpTransportContext **ctx) {

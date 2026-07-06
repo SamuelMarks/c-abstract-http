@@ -40,7 +40,7 @@ enum c_abstract_http_error http_libevent_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_libevent_global_cleanup(void) {
+enum c_abstract_http_error http_libevent_global_cleanup(void) {
   if (libevent_global_init_count > 0) {
     libevent_global_init_count--;
 #ifdef _WIN32

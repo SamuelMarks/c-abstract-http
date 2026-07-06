@@ -101,6 +101,7 @@ enum c_abstract_http_error ws_apply_mask(unsigned char *payload, size_t len,
  * @param opcode Frame opcode.
  * @param mask Mask flag.
  * @param len Payload length.
+ * @param out_len Pointer to store the number of bytes written.
  * @return Number of bytes written.
  */
 enum c_abstract_http_error ws_pack_header_small(unsigned char *buf, int fin,
@@ -114,6 +115,7 @@ enum c_abstract_http_error ws_pack_header_small(unsigned char *buf, int fin,
  * @param opcode Frame opcode.
  * @param mask Mask flag.
  * @param len Payload length.
+ * @param out_len Pointer to store the number of bytes written.
  * @return Number of bytes written.
  */
 enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin,
@@ -127,6 +129,7 @@ enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin,
  * @param opcode Frame opcode.
  * @param mask Mask flag.
  * @param len Payload length.
+ * @param out_len Pointer to store the number of bytes written.
  * @return Number of bytes written.
  */
 enum c_abstract_http_error ws_pack_header_large(unsigned char *buf, int fin,

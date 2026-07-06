@@ -43,7 +43,7 @@ enum c_abstract_http_error http_curl_global_init(void);
  *
  * If the count reaches zero, `curl_global_cleanup` is invoked.
  */
-void http_curl_global_cleanup(void);
+enum c_abstract_http_error http_curl_global_cleanup(void);
 
 /**
  * @brief Create a new Curl-backed transport context.

@@ -35,10 +35,12 @@ extern enum c_abstract_http_error c_abstract_http_mock_cdd_strdup(const char *s,
 static struct CddActorHooks g_actor_hooks = {NULL, NULL, NULL, NULL,
                                              NULL, NULL, NULL};
 
-void cdd_actor_set_hooks(const struct CddActorHooks *hooks) {
+enum c_abstract_http_error
+cdd_actor_set_hooks(const struct CddActorHooks *hooks) {
   if (hooks) {
     g_actor_hooks = *hooks;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /** @brief Internal struct CddActor */

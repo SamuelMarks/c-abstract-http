@@ -25,7 +25,7 @@ enum c_abstract_http_error transport_global_init(void);
 /**
  * @brief Clean up the global transport layer.
  */
-void transport_global_cleanup(void);
+enum c_abstract_http_error transport_global_cleanup(void);
 
 /**
  * @brief Initialize a new HTTP client transport.
@@ -39,7 +39,8 @@ transport_factory_init_client(struct HttpClient *client);
  * @brief Clean up an HTTP client transport.
  * @param[in] client The HTTP client to clean up.
  */
-void transport_factory_cleanup_client(struct HttpClient *client);
+enum c_abstract_http_error
+transport_factory_cleanup_client(struct HttpClient *client);
 
 #ifdef __cplusplus
 }

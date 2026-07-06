@@ -75,7 +75,7 @@ enum c_abstract_http_error transport_global_init(void) {
 #endif
 }
 
-void transport_global_cleanup(void) {
+enum c_abstract_http_error transport_global_cleanup(void) {
 #if defined(C_ABSTRACT_HTTP_USE_ARIA2)
   http_aria2_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
@@ -108,6 +108,7 @@ void transport_global_cleanup(void) {
   http_raw_global_cleanup();
 #else
   http_curl_global_cleanup();
+  return C_ABSTRACT_HTTP_SUCCESS;
 #endif
 }
 
@@ -213,9 +214,10 @@ transport_factory_init_client(struct HttpClient *client) {
   return rc;
 }
 
-void transport_factory_cleanup_client(struct HttpClient *client) {
+enum c_abstract_http_error
+transport_factory_cleanup_client(struct HttpClient *client) {
   if (!client || !client->transport) {
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
 #if defined(C_ABSTRACT_HTTP_USE_ARIA2)
@@ -253,4 +255,5 @@ void transport_factory_cleanup_client(struct HttpClient *client) {
 #endif
 
   client->transport = NULL;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }

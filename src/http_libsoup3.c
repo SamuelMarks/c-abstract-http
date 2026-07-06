@@ -39,11 +39,12 @@ enum c_abstract_http_error http_libsoup3_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_libsoup3_global_cleanup(void) {
+enum c_abstract_http_error http_libsoup3_global_cleanup(void) {
   if (g_libsoup3_init_count > 0) {
     g_libsoup3_init_count--;
     if (g_libsoup3_init_count == 0) {
       /* Cleanup if needed */
+      return C_ABSTRACT_HTTP_SUCCESS;
     }
   }
 }

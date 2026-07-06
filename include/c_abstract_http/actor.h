@@ -84,7 +84,8 @@ struct CddActorHooks {
  * @brief Register external actor hooks.
  * @param[in] hooks The hooks structure.
  */
-extern void cdd_actor_set_hooks(const struct CddActorHooks *hooks);
+extern enum c_abstract_http_error
+cdd_actor_set_hooks(const struct CddActorHooks *hooks);
 
 /**
  * @brief Initialize a new global message bus.

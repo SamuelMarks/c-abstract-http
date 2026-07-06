@@ -112,13 +112,16 @@ cdd_int64_t real_math_get_current_time_ms(void) {
 #endif
 }
 
-static void timer_heap_swap(struct TimerNode *a, struct TimerNode *b) {
+static enum c_abstract_http_error timer_heap_swap(struct TimerNode *a,
+                                                  struct TimerNode *b) {
   struct TimerNode temp = *a;
   *a = *b;
   *b = temp;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static void timer_heap_up(struct ModalityEventLoop *loop, size_t idx) {
+static enum c_abstract_http_error timer_heap_up(struct ModalityEventLoop *loop,
+                                                size_t idx) {
   while (idx > 0) {
     size_t parent = (idx - 1) / 2;
     if (loop->timers[idx].expiration >= loop->timers[parent].expiration) {
@@ -127,9 +130,11 @@ static void timer_heap_up(struct ModalityEventLoop *loop, size_t idx) {
     timer_heap_swap(&loop->timers[idx], &loop->timers[parent]);
     idx = parent;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static void timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
+static enum c_abstract_http_error
+timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
   while (1) {
     size_t left = 2 * idx + 1;
     size_t right = 2 * idx + 2;
@@ -151,6 +156,7 @@ static void timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
     timer_heap_swap(&loop->timers[idx], &loop->timers[smallest]);
     idx = smallest;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -489,7 +495,8 @@ http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
   return ENOENT;
 }
 
-static void process_timers(struct ModalityEventLoop *loop) {
+static enum c_abstract_http_error
+process_timers(struct ModalityEventLoop *loop) {
   cdd_int64_t now;
 
   now = math_get_current_time_ms();
@@ -511,6 +518,7 @@ static void process_timers(struct ModalityEventLoop *loop) {
       timer_heap_down(loop, 0);
     }
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
@@ -798,9 +806,12 @@ enum c_abstract_http_error http_loop_stop(struct ModalityEventLoop *loop) {
 }
 
 #if 1
-void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop);
-void cdd_event_loop_test_unstop(struct ModalityEventLoop *loop) {
+enum c_abstract_http_error
+cdd_event_loop_test_unstop(struct ModalityEventLoop *loop);
+enum c_abstract_http_error
+cdd_event_loop_test_unstop(struct ModalityEventLoop *loop) {
   if (loop)
     loop->stop_requested = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif

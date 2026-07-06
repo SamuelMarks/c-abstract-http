@@ -20,7 +20,9 @@ struct HttpTransportContext {
 enum c_abstract_http_error http_fetch_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-void http_fetch_global_cleanup(void) {}
+enum c_abstract_http_error http_fetch_global_cleanup(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 enum c_abstract_http_error
 http_fetch_context_init(struct HttpTransportContext **const ctx) {

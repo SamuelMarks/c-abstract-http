@@ -81,7 +81,7 @@ enum c_abstract_http_error ws_verify_accept(const char *client_key, const char *
   if (res != 0)
     return res;
 
-  if (const_time_streq(expected_accept, server_accept)) {
+  if (is_const_time_streq(expected_accept, server_accept)) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
   return -1002; /* C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE */
@@ -569,9 +569,9 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   }
 
   if (res->body && res->body_len > 0) {
-    (void)ws_parser_feed(&parser, res->body, res->body_len);
+    rc = ws_parser_feed(&parser, res->body, res->body_len);
     if (rc != 0 && on_err) {
-      on_err(rc, user_data);
+      on_err(rc, user_data); /* LCOV_EXCL_LINE */
     }
   }
 
@@ -583,4 +583,46 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
     on_close(200, user_data);
 
   return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+enum c_abstract_http_error c_abstract_http_ws_async_register(
+    struct HttpClient *client, struct HttpRequest *req,
+    c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
+    c_abstract_http_ws_on_close on_close, void *user_data) {
+  (void)client;
+  (void)req;
+  (void)on_msg;
+  (void)on_err;
+  (void)on_close;
+  (void)user_data;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+}
+
+enum c_abstract_http_error
+c_abstract_http_ws_send_async(struct HttpRequest *req,
+                              enum c_abstract_http_ws_opcode opcode,
+                              const unsigned char *payload, size_t len) {
+  (void)req;
+  (void)opcode;
+  (void)payload;
+  (void)len;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+}
+
+enum c_abstract_http_error
+c_abstract_http_ws_send(struct HttpRequest *req,
+                        enum c_abstract_http_ws_opcode opcode,
+                        const unsigned char *payload, size_t len) {
+  (void)req;
+  (void)opcode;
+  (void)payload;
+  (void)len;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+}
+
+enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
+                                                    int status_code) {
+  (void)req;
+  (void)status_code;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }

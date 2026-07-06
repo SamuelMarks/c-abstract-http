@@ -48,7 +48,8 @@ struct CddCoroutineHooks {
  * @brief Register external coroutine hooks.
  * @param[in] hooks The hooks structure.
  */
-extern void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks);
+extern enum c_abstract_http_error
+cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks);
 
 /**
  * @brief Initialize a new coroutine.

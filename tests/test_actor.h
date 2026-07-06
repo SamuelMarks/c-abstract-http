@@ -13,8 +13,11 @@ extern "C" {
 
 #include <c_abstract_http/actor.h>
 
+/** @brief Documented */
 struct TestActorState {
+/** @brief Documented */
   int received_messages;
+/** @brief Documented */
   int shutdown;
 };
 
@@ -266,7 +269,7 @@ TEST test_actor_getters(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_actor_oom(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct CddMessageBus *bus = NULL;
   struct CddActor *actor = NULL;
   struct CddMessage msg;

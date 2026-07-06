@@ -28,7 +28,7 @@ enum c_abstract_http_error http_libsoup3_global_init(void);
 /**
  * @brief Decrement the global initialization reference count.
  */
-void http_libsoup3_global_cleanup(void);
+enum c_abstract_http_error http_libsoup3_global_cleanup(void);
 
 /**
  * @brief Create a new libsoup3-backed transport context.

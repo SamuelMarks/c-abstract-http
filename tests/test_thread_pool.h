@@ -42,8 +42,11 @@ static void sleep_ms(int ms) {
 #endif
 }
 
+/** @brief Documented */
 struct TestTaskData {
+  /** @brief Documented */
   struct CddMutex *lock;
+  /** @brief Documented */
   int *counter;
 };
 
@@ -211,7 +214,7 @@ TEST test_thread_pool_edge_cases(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_pthread_create_failures(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct CddThreadPool *pool = NULL;
 
 #if !defined(_WIN32)
@@ -252,7 +255,7 @@ TEST test_thread_pool_pthread_create_failures(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_pthread_failures(void) {
 #if !defined(_WIN32)
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct CddMutex *lock = NULL;
   struct CddCond *cond = NULL;
 
@@ -272,7 +275,7 @@ TEST test_thread_pool_pthread_failures(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_fallback_paths(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct CddThreadPool *pool = NULL;
   struct CddMutex *lock = NULL;
   struct CddCond *cond = NULL;

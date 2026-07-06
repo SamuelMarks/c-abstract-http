@@ -30,7 +30,7 @@ enum c_abstract_http_error http_wasm_global_init(void);
 /**
  * @brief Cleanup the global wasm environment.
  */
-void http_wasm_global_cleanup(void);
+enum c_abstract_http_error http_wasm_global_cleanup(void);
 
 /**
  * @brief Create a new Wasm-backed transport context.

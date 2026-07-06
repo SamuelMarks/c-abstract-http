@@ -20,9 +20,9 @@ If you are adding another cryptographic library (e.g., `NSS`):
 - Map the choice downward to any HTTP backends that optionally wrap it. For example, if you chose to inject `NSS`, add a matching `set(CURL_USE_NSS ON CACHE BOOL "" FORCE)` inside the `c_abstract_http_configure_curl` macro so the transport natively embraces it.
 - Finally, surface the capability into `vcpkg.json`'s `features` block.
 
-## 3. Navigating the `int` Return Error Code Pattern
+## 3. Navigating the `enum c_abstract_http_error` Return Error Code Pattern
 When implementing string manipulations, getters, or memory reads, standard C patterns often return a pointer or NULL on failure. In this library, you MUST NOT return pointers.
-Instead, return a standardized POSIX error code (defined in `<errno.h>`).
+Instead, return a standardized error code `enum c_abstract_http_error` (defined in `c_abstract_http/http_types.h`).
 
 ### Bad (Do Not Do This)
 ```c
@@ -35,12 +35,12 @@ const char* get_header(struct HttpHeaders* h, const char* k) {
 
 ### Good (Do This)
 ```c
-int get_header(struct HttpHeaders* h, const char* k, const char** out) {
-    if (!h || !k || !out) return EINVAL;
+enum c_abstract_http_error get_header(struct HttpHeaders* h, const char* k, const char** out) {
+    if (!h || !k || !out) return HTTP_ERROR_INVALID_ARGUMENT;
     /* ... logic ... */
-    if (not_found) return ENOENT;
+    if (not_found) return HTTP_ERROR_NOT_FOUND;
     *out = val;
-    return 0; /* SUCCESS */
+    return HTTP_ERROR_NONE; /* SUCCESS */
 }
 ```
 

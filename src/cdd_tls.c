@@ -80,13 +80,14 @@ enum c_abstract_http_error cdd_tls_get(struct CddTlsKey *key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void cdd_tls_key_delete(struct CddTlsKey *key) {
+enum c_abstract_http_error cdd_tls_key_delete(struct CddTlsKey *key) {
   LOG_DEBUG("cdd_tls_key_delete: Entering");
   if (key) {
     TlsFree(key->dwTlsIndex);
     free(key);
   }
   LOG_DEBUG("cdd_tls_key_delete: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #else
@@ -149,13 +150,14 @@ enum c_abstract_http_error cdd_tls_get(struct CddTlsKey *key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void cdd_tls_key_delete(struct CddTlsKey *key) {
+enum c_abstract_http_error cdd_tls_key_delete(struct CddTlsKey *key) {
   LOG_DEBUG("cdd_tls_key_delete: Entering");
   if (key) {
     pthread_key_delete(key->key);
     free(key);
   }
   LOG_DEBUG("cdd_tls_key_delete: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #endif

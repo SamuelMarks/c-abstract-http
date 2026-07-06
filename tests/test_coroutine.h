@@ -14,7 +14,9 @@ extern "C" {
 #include <c_abstract_http/coroutine.h>
 /* clang-format on */
 
+/** @brief Documented */
 struct CoroutineTestState {
+  /** @brief Documented */
   int counter;
 };
 
@@ -28,7 +30,7 @@ static void test_co_cb(void *arg) {
 }
 
 TEST test_coroutine_execution(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct CddCoroutine *co = NULL;
   struct CoroutineTestState state;
   state.counter = 0;
@@ -62,7 +64,7 @@ static void dummy_coroutine_cb(void *arg) { (void)arg; }
 
 TEST test_coroutine_errors(void) {
   struct CddCoroutine *co = NULL;
-  int rc = cdd_coroutine_init(&co, 0, NULL, NULL);
+  enum c_abstract_http_error rc = cdd_coroutine_init(&co, 0, NULL, NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             cdd_coroutine_init(NULL, 1024, dummy_coroutine_cb, NULL));
@@ -137,7 +139,7 @@ TEST test_coroutine_hooks(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_coroutine_fallback_paths(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct CddCoroutine *co = NULL;
 
   struct CoroutineTestState state;

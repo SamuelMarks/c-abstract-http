@@ -43,7 +43,7 @@ enum c_abstract_http_error http_libuv_global_init(void);
  *
  * If the count reaches zero, `libuv_global_cleanup` is invoked.
  */
-void http_libuv_global_cleanup(void);
+enum c_abstract_http_error http_libuv_global_cleanup(void);
 
 /**
  * @brief Create a new libuv-backed transport context.

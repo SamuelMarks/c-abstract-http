@@ -46,6 +46,7 @@ static int setup_request(struct HttpRequest *req, int port) {
   return (enum greatest_test_res)0;
 }
 
+/** @brief Documented */
 TEST test_fetch_global_lifecycle(void) {
   /* Should succeed and track ref count internally */
   ASSERT_EQ(0, http_fetch_global_init());
@@ -56,6 +57,7 @@ TEST test_fetch_global_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_fetch_context_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
 
@@ -73,6 +75,7 @@ TEST test_fetch_context_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_fetch_config_application(void) {
   char *_ast_strdup_proxy = NULL;
   char *_ast_strdup_user = NULL;
@@ -105,6 +108,7 @@ TEST test_fetch_config_application(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_fetch_send_connection_failure(void) {
   /* Expect mapped error (ECONNREFUSED or C_ABSTRACT_HTTP_ERR_TIMEOUT or
    * EHOSTUNREACH) */
@@ -145,6 +149,7 @@ TEST test_fetch_send_connection_failure(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_fetch_send_invalid_arguments(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpResponse *res = NULL;
@@ -181,9 +186,13 @@ TEST test_fetch_send_invalid_arguments(void) {
  * The failure cases prove the logic integration.
  */
 
+/** @brief Documented */
 struct fetch_TestChunkState {
+  /** @brief Documented */
   int call_count;
+  /** @brief Documented */
   size_t total_bytes;
+  /** @brief Documented */
   int abort_on_call;
 };
 
@@ -198,6 +207,7 @@ static int fetch_mock_chunk_cb(void *user_data, const void *chunk,
   return 0;
 }
 
+/** @brief Documented */
 TEST test_fetch_send_chunked(void) {
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
@@ -247,6 +257,7 @@ TEST test_fetch_send_chunked(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_fetch_send_chunked_abort(void) {
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
@@ -285,9 +296,13 @@ TEST test_fetch_send_chunked_abort(void) {
   PASS();
 }
 
+/** @brief Documented */
 struct fetch_TestUploadState {
+  /** @brief Documented */
   const char *data;
+  /** @brief Documented */
   size_t len;
+  /** @brief Documented */
   size_t pos;
 };
 
@@ -306,6 +321,7 @@ static int fetch_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
   return 0;
 }
 
+/** @brief Documented */
 TEST test_fetch_send_upload_chunked(void) {
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
@@ -355,6 +371,7 @@ TEST test_fetch_send_upload_chunked(void) {
   PASS();
 }
 
+/** @brief Documented */
 SUITE(http_fetch_suite) {
   RUN_TEST(test_fetch_global_lifecycle);
   RUN_TEST(test_fetch_context_lifecycle);

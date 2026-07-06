@@ -105,7 +105,7 @@ enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
  * @param b The second string.
  * @return 1 if equal, 0 if different.
  */
-int const_time_streq(const char *a, const char *b);
+int is_const_time_streq(const char *a, const char *b);
 
 #ifdef __cplusplus
 }

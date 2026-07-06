@@ -24,6 +24,7 @@ extern "C" {
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
 
+/** @brief Documented */
 TEST test_android_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
 
@@ -43,6 +44,7 @@ TEST test_android_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_android_config(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
@@ -61,6 +63,7 @@ TEST test_android_config(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_android_send_invalid(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -81,6 +84,7 @@ TEST test_android_send_invalid(void) {
   PASS();
 }
 
+/** @brief Documented */
 SUITE(http_android_suite) {
   RUN_TEST(test_android_lifecycle);
   RUN_TEST(test_android_config);

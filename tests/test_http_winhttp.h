@@ -29,9 +29,10 @@ extern "C" {
 #include "cdd_test_helpers/mock_server.h"
 /* clang-format on */
 
+/** @brief Documented */
 TEST test_winhttp_lifecycle(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpTransportContext *ctx = NULL;
 
   /* Global init */
@@ -58,9 +59,10 @@ TEST test_winhttp_lifecycle(void) {
 #endif
 }
 
+/** @brief Documented */
 TEST test_winhttp_config_usage(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   char *_ast_strdup_0 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
@@ -113,9 +115,10 @@ TEST test_winhttp_config_usage(void) {
 #endif
 }
 
+/** @brief Documented */
 TEST test_winhttp_send_fail(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   char *_ast_strdup_1 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -147,9 +150,10 @@ TEST test_winhttp_send_fail(void) {
 #endif
 }
 
+/** @brief Documented */
 TEST test_winhttp_send_null_checks(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
@@ -180,9 +184,13 @@ TEST test_winhttp_send_null_checks(void) {
 #endif
 }
 
+/** @brief Documented */
 struct winhttp_TestChunkState {
+  /** @brief Documented */
   int call_count;
+  /** @brief Documented */
   size_t total_bytes;
+  /** @brief Documented */
   int abort_on_call;
 };
 
@@ -199,9 +207,10 @@ static int winhttp_mock_chunk_cb(void *user_data, const void *chunk,
   return 0;
 }
 
+/** @brief Documented */
 TEST test_winhttp_send_chunked(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -263,9 +272,10 @@ TEST test_winhttp_send_chunked(void) {
 #endif
 }
 
+/** @brief Documented */
 TEST test_winhttp_send_chunked_abort(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -316,9 +326,13 @@ TEST test_winhttp_send_chunked_abort(void) {
 #endif
 }
 
+/** @brief Documented */
 struct winhttp_TestUploadState {
+  /** @brief Documented */
   const char *data;
+  /** @brief Documented */
   size_t len;
+  /** @brief Documented */
   size_t pos;
 };
 
@@ -337,9 +351,10 @@ static int winhttp_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
   return 0;
 }
 
+/** @brief Documented */
 TEST test_winhttp_send_upload_chunked(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -406,7 +421,7 @@ static void dummy_timeout_cb(struct ModalityEventLoop *loop, int timer_id,
 }
 
 static int setup_request(struct HttpRequest *req, int port) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   char *_ast_strdup_0 = NULL;
   char url[64];
 
@@ -429,9 +444,10 @@ static int setup_request(struct HttpRequest *req, int port) {
   return 0;
 }
 
+/** @brief Documented */
 TEST test_winhttp_send_multi(void) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req1, req2;
   struct HttpConfig config;
@@ -518,6 +534,7 @@ TEST test_winhttp_send_multi(void) {
 #endif
 }
 
+/** @brief Documented */
 SUITE(http_winhttp_suite) {
   RUN_TEST(test_winhttp_lifecycle);
   RUN_TEST(test_winhttp_config_usage);

@@ -48,10 +48,12 @@
 static struct CddCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL, NULL,
                                                      NULL};
 
-void cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
+enum c_abstract_http_error
+cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
   if (hooks) {
     g_coroutine_hooks = *hooks;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 } /* LCOV_EXCL_LINE */
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
@@ -237,20 +239,22 @@ struct CddCoroutine {
 static pthread_key_t co_tls_key;
 static int co_tls_initialized = 0;
 
-static void init_tls_key(void) {
+static enum c_abstract_http_error init_tls_key(void) {
   if (!co_tls_initialized) {
     pthread_key_create(&co_tls_key, NULL);
     co_tls_initialized = 1;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 } /* LCOV_EXCL_LINE */
 
-static void ucontext_entry(void) {
+static enum c_abstract_http_error ucontext_entry(void) {
   struct CddCoroutine *co =
       (struct CddCoroutine *)pthread_getspecific(co_tls_key);
   co->cb(co->arg);
   co->is_done = 1;
   /* Swap back to caller */
   swapcontext(&co->ctx, &co->caller_ctx);
+  return C_ABSTRACT_HTTP_SUCCESS;
 } /* LCOV_EXCL_LINE */
 
 enum c_abstract_http_error cdd_coroutine_init(struct CddCoroutine **co,

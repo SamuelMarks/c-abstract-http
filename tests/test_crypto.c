@@ -128,11 +128,11 @@ TEST test_base64_decode_all_pad(void) {
   PASS();
 }
 
-TEST test_const_time_streq(void) {
-  ASSERT_EQ(1, const_time_streq("hello", "hello"));
-  ASSERT_EQ(0, const_time_streq("hello", "world"));
-  ASSERT_EQ(0, const_time_streq("hello", "hell"));
-  ASSERT_EQ(0, const_time_streq("hello", "helloo"));
+TEST test_is_const_time_streq(void) {
+  ASSERT_EQ(1, is_const_time_streq("hello", "hello"));
+  ASSERT_EQ(0, is_const_time_streq("hello", "world"));
+  ASSERT_EQ(0, is_const_time_streq("hello", "hell"));
+  ASSERT_EQ(0, is_const_time_streq("hello", "helloo"));
   PASS();
 }
 
@@ -255,7 +255,7 @@ SUITE(crypto_suite) {
   RUN_TEST(test_base64_decode_invalid);
   RUN_TEST(test_base64_decode_1_pad);
   RUN_TEST(test_base64_decode_all_pad);
-  RUN_TEST(test_const_time_streq);
+  RUN_TEST(test_is_const_time_streq);
 }
 
 GREATEST_MAIN_DEFS();

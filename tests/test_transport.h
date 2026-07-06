@@ -38,7 +38,7 @@ TEST test_transport_factory(void) {
   g_mock_alloc_count = 0;
   g_mock_alloc_fail = 1;
   {
-    int rc = transport_factory_init_client(&client);
+    enum c_abstract_http_error rc = transport_factory_init_client(&client);
 #if defined(_WIN32)
     if (rc != C_ABSTRACT_HTTP_ERR_IO && rc != C_ABSTRACT_HTTP_ERR_NOTSUP) {
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);

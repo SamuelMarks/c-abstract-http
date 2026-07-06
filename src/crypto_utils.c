@@ -8,7 +8,8 @@
 /* SHA-1 implementation based on RFC 3174 */
 #define SHA1_ROTL(bits, word) (((word) << (bits)) | ((word) >> (32 - (bits))))
 
-static void sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
+static enum c_abstract_http_error sha1_transform(uint32_t state[5],
+                                                 const uint8_t buffer[64]) {
   uint32_t a, b, c, d, e;
   uint32_t w[80];
   int i;
@@ -59,6 +60,7 @@ static void sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
   state[2] += c;
   state[3] += d;
   state[4] += e;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx) {
@@ -251,7 +253,7 @@ enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int const_time_streq(const char *a, const char *b) {
+int is_const_time_streq(const char *a, const char *b) {
   size_t len_a = strlen(a);
   size_t len_b = strlen(b);
   size_t i;

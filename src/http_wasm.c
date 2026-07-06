@@ -27,9 +27,10 @@ enum c_abstract_http_error http_wasm_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_wasm_global_cleanup(void) {
+enum c_abstract_http_error http_wasm_global_cleanup(void) {
   if (wasm_global_init_count > 0) {
     wasm_global_init_count--;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 }
 

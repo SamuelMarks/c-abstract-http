@@ -60,13 +60,20 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #include <c_abstract_http/thread_pool.h>
 /* clang-format on */
 
+/** @brief Documented */
 struct ServerArgs {
+  /** @brief Documented */
   unsigned short port;
+  /** @brief Documented */
   char *code;
+  /** @brief Documented */
   char *state;
+  /** @brief Documented */
   char *err;
+  /** @brief Documented */
   char *err_desc;
-  int rc;
+  /** @brief Documented */
+  enum c_abstract_http_error rc;
 };
 
 #if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
@@ -274,7 +281,7 @@ TEST test_multipart_part_headers(void) {
 }
 
 TEST test_auth_basic_header(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
 
   http_request_init(&req);
@@ -288,7 +295,7 @@ TEST test_auth_basic_header(void) {
 }
 
 TEST test_auth_basic_userpwd(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
 
   http_request_init(&req);
@@ -475,7 +482,7 @@ TEST test_http_multi_request(void) {
 }
 
 TEST test_oauth2_password_grant(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
   const char *out_header;
 
@@ -524,7 +531,7 @@ TEST test_oauth2_password_grant(void) {
 }
 
 TEST test_oauth2_refresh_token_grant(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
 
   http_request_init(&req);
@@ -566,7 +573,7 @@ TEST test_oauth2_refresh_token_grant(void) {
 }
 
 TEST test_oauth2_authorization_code_grant(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
 
   http_request_init(&req);
@@ -608,7 +615,7 @@ TEST test_oauth2_authorization_code_grant(void) {
 }
 
 TEST test_oauth2_device_authorization_request(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
 
   http_request_init(&req);
@@ -634,7 +641,7 @@ TEST test_oauth2_device_authorization_request(void) {
 }
 
 TEST test_oauth2_device_access_token_request(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
 
   http_request_init(&req);
@@ -665,7 +672,7 @@ TEST test_oauth2_device_access_token_request(void) {
 }
 
 TEST test_oauth2_token_revocation(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
 
   http_request_init(&req);
@@ -693,7 +700,7 @@ TEST test_oauth2_token_revocation(void) {
 }
 
 TEST test_oauth2_token_introspection(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
 
   http_request_init(&req);
@@ -722,7 +729,7 @@ TEST test_oauth2_token_introspection(void) {
 }
 
 TEST test_oauth2_client_credentials_grant(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
 
   http_request_init(&req);
@@ -759,7 +766,7 @@ TEST test_oauth2_client_credentials_grant(void) {
 }
 
 TEST test_oauth2_jwt_bearer_grant(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
 
   http_request_init(&req);
@@ -801,7 +808,7 @@ TEST test_oauth2_jwt_bearer_grant(void) {
 }
 
 TEST test_oauth2_build_authorization_url(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   char *url = NULL;
 
   /* Test invalid inputs */
@@ -985,7 +992,7 @@ TEST test_http_types_leftover_errs(void) {
   char *boundary = NULL;
   const char *out = NULL;
   struct HttpResponse res;
-  int rc;
+  enum c_abstract_http_error rc;
   int i;
   memset(&multi, 0, sizeof(multi));
   memset(&res, 0, sizeof(res));
@@ -1270,7 +1277,7 @@ TEST test_http_types_more_errs_2(void) {
   struct HttpRequest req;
   struct HttpFuture f;
   char *url = NULL;
-  int rc;
+  enum c_abstract_http_error rc;
   int i;
   memset(&f, 0, sizeof(f));
   (void)f;
@@ -1376,7 +1383,7 @@ TEST test_http_types_end_errs(void) {
   struct HttpResponse res = {0};
   char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
   int i;
-  int rc;
+  enum c_abstract_http_error rc;
   memset(&multi, 0, sizeof(multi));
 
   (void)multi;
@@ -1460,7 +1467,7 @@ TEST test_http_types_final_errs(void) {
   struct HttpRequest req;
   struct HttpMultiRequest multi;
   struct HttpFuture f1;
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpFuture *futures[1];
   struct HttpResponse res = {0};
   char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
@@ -1524,7 +1531,7 @@ TEST test_http_types_final_errs(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_oom_bruteforce_all(void) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpRequest req;
   int i;
 

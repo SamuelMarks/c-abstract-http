@@ -26,6 +26,7 @@ extern "C" {
 #include "functions/parse/str.h"
 /* clang-format on */
 
+/** @brief Documented */
 TEST test_nghttp3_global_lifecycle(void) {
   ASSERT_EQ(0, http_nghttp3_global_init());
   ASSERT_EQ(0, http_nghttp3_global_init()); /* Test ref counting */
@@ -34,6 +35,7 @@ TEST test_nghttp3_global_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_nghttp3_context_lifecycle(void) {
   ASSERT_EQ(0, http_nghttp3_global_init());
 
@@ -48,6 +50,7 @@ TEST test_nghttp3_context_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_nghttp3_config_application(void) {
   ASSERT_EQ(0, http_nghttp3_global_init());
 
@@ -66,6 +69,7 @@ TEST test_nghttp3_config_application(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_nghttp3_send_invalid_arguments(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpResponse *res = NULL;
@@ -94,6 +98,7 @@ TEST test_nghttp3_send_invalid_arguments(void) {
   PASS();
 }
 
+/** @brief Documented */
 SUITE(http_nghttp3_suite) {
 #ifdef C_ABSTRACT_HTTP_USE_NGHTTP3
   RUN_TEST(test_nghttp3_global_lifecycle);

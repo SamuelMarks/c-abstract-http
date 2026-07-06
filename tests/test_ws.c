@@ -157,11 +157,17 @@ TEST test_ws_apply_mask_symmetry(void) {
   PASS();
 }
 
+/** @brief Documented */
 struct test_ws_ctx {
+  /** @brief Documented */
   int error_code;
+  /** @brief Documented */
   int close_status;
+  /** @brief Documented */
   int message_count;
+  /** @brief Documented */
   struct c_abstract_http_ws_event last_message;
+  /** @brief Documented */
   unsigned char last_payload[4096];
 };
 
@@ -419,7 +425,7 @@ TEST test_ws_generate_mask(void) {
 }
 
 TEST test_ws_parser_ext_len(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx ctx;
   unsigned char frame16[4 + 126];
   unsigned char frame64[10 + 65536];
@@ -481,7 +487,7 @@ TEST test_ws_parser_errors(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_oom_branches(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpRequest req = {0};
   struct c_abstract_http_ws_config config = {0};
   const char *headers[] = {"X-Test", "123", NULL};
@@ -511,7 +517,7 @@ TEST test_ws_oom_branches(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_init_oom(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -524,7 +530,7 @@ TEST test_ws_parser_init_oom(void) {
 #endif
 
 TEST test_ws_rsv_bit_set(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   unsigned char chunk[] = {0xC1, 10, '0'}; /* RSV1 bit set */
   memset(&parser, 0, sizeof(parser));
@@ -537,7 +543,7 @@ TEST test_ws_rsv_bit_set(void) {
 }
 
 TEST test_ws_payload_too_large(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   unsigned char chunk[] = {0x81, 0x7f, 0x00, 0x00, 0x00,
                            0x00, 0x02, 0x00, 0x00, 0x00};
@@ -551,7 +557,7 @@ TEST test_ws_payload_too_large(void) {
 }
 
 TEST test_ws_masked_frame(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   struct test_ws_ctx ctx = {0};
   unsigned char chunk[] = {0x81,       0x85,       0x01,       0x02,
@@ -571,7 +577,7 @@ TEST test_ws_masked_frame(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_realloc_oom(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   struct test_ws_ctx ctx = {0};
   unsigned char chunk[] = {0x81, 10,  '1', '2', '3', '4',
@@ -591,7 +597,7 @@ TEST test_ws_realloc_oom(void) {
 #endif
 
 TEST test_ws_parser_close_frame(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   unsigned char chunk[] = {0x88, 0x02, 0x03, 0xE8};
   memset(&parser, 0, sizeof(parser));
@@ -605,7 +611,7 @@ TEST test_ws_parser_close_frame(void) {
 }
 
 TEST test_ws_parser_pong_frame(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   struct test_ws_ctx ctx = {0};
   unsigned char chunk[] = {0x8A, 0x00, 0x00};
@@ -619,7 +625,7 @@ TEST test_ws_parser_pong_frame(void) {
 }
 
 TEST test_ws_parser_invalid_fragmentation(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   unsigned char chunk[] = {0x01, 0x01, 'a', 0x01, 0x00, 0x00};
   memset(&parser, 0, sizeof(parser));
@@ -635,7 +641,7 @@ TEST test_ws_parser_invalid_fragmentation(void) {
 }
 
 TEST test_ws_parser_reassembly_too_large(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   const unsigned char chunk2[] = {0x00};
@@ -666,7 +672,7 @@ TEST test_ws_parser_reassembly_too_large(void) {
 }
 
 TEST test_ws_parser_reassembly_expand_twice(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   unsigned char chunk2[4096 + 4];
@@ -689,7 +695,7 @@ TEST test_ws_parser_reassembly_expand_twice(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_fin_oom(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   unsigned char chunk2[4096 + 4];
@@ -717,7 +723,7 @@ TEST test_ws_parser_reassembly_fin_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_fin_expand_oom(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   unsigned char chunk2[4096 + 4];
@@ -750,7 +756,7 @@ TEST test_ws_parser_reassembly_fin_expand_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_sign_key_oom(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   char out_accept[29];
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -771,7 +777,7 @@ TEST test_ws_sign_key_too_long(void) {
 }
 
 TEST test_ws_parser_reassembly_fin_expand_success(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   unsigned char chunk2[4096 + 4];
@@ -803,7 +809,7 @@ TEST test_ws_parser_reassembly_fin_expand_success(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_parser_reassembly_frag_oom(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct ws_parser_ctx parser;
   const unsigned char chunk1[] = {0x01, 0x01, 'a'};
   unsigned char chunk2[4096 + 4];
@@ -857,7 +863,7 @@ TEST test_ws_sync_loop_init_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_sync_loop_parser_oom(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
   struct test_ws_ctx ctx = {0};
@@ -932,6 +938,18 @@ TEST test_ws_verify_accept_sign_error(void) {
   PASS();
 }
 
+TEST test_ws_stubs(void) {
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOTSUP,
+      c_abstract_http_ws_async_register(NULL, NULL, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            c_abstract_http_ws_send_async(NULL, 0, NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            c_abstract_http_ws_send(NULL, 0, NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, c_abstract_http_ws_close(NULL, 0));
+  PASS();
+}
+
 SUITE(ws_suite) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -986,6 +1004,7 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_apply_mask_symmetry);
   RUN_TEST(test_ws_apply_mask_invalid);
   RUN_TEST(test_ws_parser_single_frame);
+  RUN_TEST(test_ws_stubs);
   RUN_TEST(test_ws_parser_chunked_delivery);
   RUN_TEST(test_ws_parser_fragmented_message);
   RUN_TEST(test_ws_parser_reject_fragmented_control);

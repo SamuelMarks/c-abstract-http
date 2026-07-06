@@ -36,10 +36,10 @@ cmake -B build -S . -DC_ABSTRACT_HTTP_USE_MBEDTLS=ON
 
 int main(void) {
     struct HttpClient client;
-    int rc = http_client_init(&client);
-    if (rc != 0) {
+    enum c_abstract_http_error rc = http_client_init(&client);
+    if (rc != HTTP_ERROR_NONE) {
         fprintf(stderr, "Failed to initialize HTTP client: %d\n", rc);
-        return rc;
+        return (int)rc;
     }
 
     client.config.timeout_ms = 5000;
@@ -111,7 +111,7 @@ cleanup:
 #include <stdlib.h>
 #include <string.h>
 
-int download_files(struct HttpClient *client, const char *dest_dir) {
+enum c_abstract_http_error download_files(struct HttpClient *client, const char *dest_dir) {
     const char *urls[] = {
         "https://example.com/file1.txt",
         "https://example.com/file2.txt"
@@ -122,7 +122,7 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
     struct HttpFuture f1, f2;
     struct HttpFuture *futures[2] = { &f1, &f2 };
     size_t i;
-    int rc = 0;
+    enum c_abstract_http_error rc = HTTP_ERROR_NONE;
     cfs_path dir_path = {0};
     cfs_error_code ec = {0};
 
@@ -136,7 +136,7 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
     cfs_create_directories(&dir_path, &ec);
     if (ec.value != 0) {
         fprintf(stderr, "Failed to create destination directories\n");
-        rc = (int)ec.value;
+        rc = HTTP_ERROR_UNKNOWN; /* Fallback for non-HTTP errors */
         goto cleanup_dir;
     }
 
@@ -144,7 +144,7 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
         reqs[i].url = malloc(strlen(urls[i]) + 1);
         if (!reqs[i].url) {
             fprintf(stderr, "Failed to allocate memory for URL %zu\n", i);
-            rc = -1;
+            rc = HTTP_ERROR_OUT_OF_MEMORY;
             goto cleanup;
         }
         strcpy(reqs[i].url, urls[i]);
@@ -153,13 +153,13 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
 
     /* Send requests concurrently */
     rc = http_client_send_multi(client, req_ptrs, num_urls, futures, NULL, NULL, 0);
-    if (rc != 0) {
+    if (rc != HTTP_ERROR_NONE) {
         fprintf(stderr, "Failed to send concurrent requests: %d\n", rc);
         goto cleanup;
     }
 
     for (i = 0; i < num_urls; ++i) {
-        if (futures[i]->is_ready && futures[i]->error_code == 0 && futures[i]->response) {
+        if (futures[i]->is_ready && futures[i]->error_code == HTTP_ERROR_NONE && futures[i]->response) {
             struct HttpResponse *res = futures[i]->response;
             cfs_path file_path = {0};
             const char *filename;
@@ -202,7 +202,7 @@ int download_files(struct HttpClient *client, const char *dest_dir) {
             futures[i]->response = NULL;
         } else {
             fprintf(stderr, "Request %zu failed with error code %d\n", i, futures[i]->error_code);
-            rc = -1; /* Mark overall function as failed if any request failed */
+            rc = HTTP_ERROR_UNKNOWN; /* Mark overall function as failed if any request failed */
         }
     }
 
@@ -374,29 +374,29 @@ cleanup:
 
 To handle the OAuth 2.0 loopback flow for desktop applications:
 
-```c
-int loopback_login(void) {
-    char *code = NULL;
-    char *state = NULL;
-    char *err = NULL;
-    char *err_desc = NULL;
-    int rc = 0;
+/* ... assuming `client` is already initialized ... */
 
-    /* Block until the user completes the flow in their browser and is redirected to http://127.0.0.1:8080 */
-    rc = http_oauth2_localhost_intercept(
-        8080,
-        "HTTP/1.1 200 OK\r\n\r\n<html><body>Successfully logged in! You can close this tab.</body></html>",
-        &code, &state, &err, &err_desc
-    );
+char *code = NULL;
+char *state = NULL;
+char *err = NULL;
+char *err_desc = NULL;
+enum c_abstract_http_error rc = HTTP_ERROR_NONE;
 
-    if (rc != 0) {
-        fprintf(stderr, "Failed to intercept localhost loopback: %d\n", rc);
-        goto cleanup;
-    }
+/* Block until the user completes the flow in their browser and is redirected to http://127.0.0.1:8080 */
+rc = http_oauth2_localhost_intercept(
+    8080,
+    "HTTP/1.1 200 OK\r\n\r\n<html><body>Successfully logged in! You can close this tab.</body></html>",
+    &code, &state, &err, &err_desc
+);
+
+if (rc != HTTP_ERROR_NONE) {
+    fprintf(stderr, "Failed to intercept localhost loopback: %d\n", rc);
+    goto cleanup;
+}
 
     if (err) {
         fprintf(stderr, "OAuth2 Error: %s - %s\n", err, err_desc ? err_desc : "No description");
-        rc = -1;
+        rc = HTTP_ERROR_UNKNOWN;
         goto cleanup;
     }
 

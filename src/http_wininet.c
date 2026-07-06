@@ -54,10 +54,12 @@ static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
 struct HttpTransportContext {
   /** @brief hInternet (variable) of struct HttpTransportContext */
   HINTERNET hInternet;
+  /** @brief Documented */
   DWORD security_flags;
   /** @brief proxy_username (variable) of struct HttpTransportContext */
   /** @brief proxy_password (variable) of struct HttpTransportContext */
   char *proxy_username;
+  /** @brief Documented */
   char *proxy_password;
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
@@ -178,7 +180,9 @@ enum c_abstract_http_error http_wininet_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_wininet_global_cleanup(void) {}
+enum c_abstract_http_error http_wininet_global_cleanup(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 enum c_abstract_http_error
 http_wininet_context_init(struct HttpTransportContext **ctx) {

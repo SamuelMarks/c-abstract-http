@@ -45,6 +45,7 @@ static int setup_libsoup3_request(struct HttpRequest *req, int port) {
   return (enum greatest_test_res)0;
 }
 
+/** @brief Documented */
 TEST test_libsoup3_global_lifecycle(void) {
   ASSERT_EQ(0, http_libsoup3_global_init());
   ASSERT_EQ(0, http_libsoup3_global_init());
@@ -54,6 +55,7 @@ TEST test_libsoup3_global_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_libsoup3_context_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
 
@@ -70,6 +72,7 @@ TEST test_libsoup3_context_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_libsoup3_config_application(void) {
   char *_ast_strdup_proxy = NULL;
   char *_ast_strdup_user = NULL;
@@ -101,6 +104,7 @@ TEST test_libsoup3_config_application(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_libsoup3_send_connection_failure(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -135,6 +139,7 @@ TEST test_libsoup3_send_connection_failure(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_libsoup3_send_invalid_arguments(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpResponse *res = NULL;
@@ -157,6 +162,7 @@ TEST test_libsoup3_send_invalid_arguments(void) {
   PASS();
 }
 
+/** @brief Documented */
 SUITE(http_libsoup3_suite) {
   RUN_TEST(test_libsoup3_global_lifecycle);
   RUN_TEST(test_libsoup3_context_lifecycle);

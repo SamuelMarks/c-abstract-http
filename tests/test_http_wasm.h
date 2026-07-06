@@ -41,6 +41,7 @@ static int setup_request(struct HttpRequest *req, int port) {
   return (enum greatest_test_res)0;
 }
 
+/** @brief Documented */
 TEST test_wasm_global_lifecycle(void) {
   ASSERT_EQ(0, http_wasm_global_init());
   ASSERT_EQ(0, http_wasm_global_init());
@@ -50,6 +51,7 @@ TEST test_wasm_global_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_wasm_context_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
 
@@ -66,6 +68,7 @@ TEST test_wasm_context_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_wasm_config_application(void) {
   char *_ast_strdup_proxy = NULL;
   char *_ast_strdup_user = NULL;
@@ -97,6 +100,7 @@ TEST test_wasm_config_application(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_wasm_send_connection_failure(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -129,6 +133,7 @@ TEST test_wasm_send_connection_failure(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_wasm_send_invalid_arguments(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpResponse *res = NULL;
@@ -151,6 +156,7 @@ TEST test_wasm_send_invalid_arguments(void) {
   PASS();
 }
 
+/** @brief Documented */
 SUITE(http_wasm_suite) {
   RUN_TEST(test_wasm_global_lifecycle);
   RUN_TEST(test_wasm_context_lifecycle);

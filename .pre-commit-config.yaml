@@ -69,3 +69,8 @@ repos:
         entry: python3 scripts/update_badges.py
         language: python
         pass_filenames: false
+      - id: check-api-signatures
+        name: Check API Signatures
+        entry: python3 scripts/validate_api_signatures.py
+        language: python
+        pass_filenames: false

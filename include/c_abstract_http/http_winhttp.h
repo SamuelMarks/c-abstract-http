@@ -38,7 +38,7 @@ enum c_abstract_http_error http_winhttp_global_init(void);
  * @brief Cleanup global WinHTTP environment.
  * No-op for WinHTTP.
  */
-void http_winhttp_global_cleanup(void);
+enum c_abstract_http_error http_winhttp_global_cleanup(void);
 
 /**
  * @brief Create a new WinHTTP-backed transport context.

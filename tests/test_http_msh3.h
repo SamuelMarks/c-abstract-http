@@ -44,6 +44,7 @@ static int setup_request(struct HttpRequest *req, int port) {
   return (enum greatest_test_res)0;
 }
 
+/** @brief Documented */
 TEST test_msh3_global_lifecycle(void) {
   ASSERT_EQ(0, http_msh3_global_init());
   ASSERT_EQ(0, http_msh3_global_init()); /* Test ref counting */
@@ -52,6 +53,7 @@ TEST test_msh3_global_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_msh3_context_lifecycle(void) {
   ASSERT_EQ(0, http_msh3_global_init());
 
@@ -66,6 +68,7 @@ TEST test_msh3_context_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_msh3_config_application(void) {
   ASSERT_EQ(0, http_msh3_global_init());
 
@@ -84,6 +87,7 @@ TEST test_msh3_config_application(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_msh3_send_invalid_arguments(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpResponse *res = NULL;
@@ -112,6 +116,7 @@ TEST test_msh3_send_invalid_arguments(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_msh3_send_connection_failure(void) {
   /* Expect mapped error (ECONNREFUSED or C_ABSTRACT_HTTP_ERR_TIMEOUT or
    * EHOSTUNREACH) */
@@ -147,6 +152,7 @@ TEST test_msh3_send_connection_failure(void) {
   PASS();
 }
 
+/** @brief Documented */
 SUITE(http_msh3_suite) {
 #ifdef C_ABSTRACT_HTTP_USE_MSH3
   RUN_TEST(test_msh3_global_lifecycle);

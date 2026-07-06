@@ -27,6 +27,7 @@ static char *c_abstract_http_test_apple_strdup(const char *s) {
   return d;
 }
 #undef strdup
+/** @brief Documented */
 #define strdup(s) c_abstract_http_test_apple_strdup(s)
 
 #ifdef __cplusplus
@@ -164,6 +165,7 @@ TEST test_apple_oom(void) {
 }
 #endif
 
+/** @brief Documented */
 TEST test_apple_send_mock_server(void) {
 #if defined(__APPLE__)
   struct HttpTransportContext *ctx = NULL;
@@ -230,6 +232,7 @@ TEST test_apple_send_mock_server(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_apple_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
 
@@ -249,6 +252,7 @@ TEST test_apple_lifecycle(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_apple_config(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
@@ -267,6 +271,7 @@ TEST test_apple_config(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_apple_send_invalid(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -291,7 +296,7 @@ TEST test_apple_send_invalid(void) {
   /* Might fail with C_ABSTRACT_HTTP_ERR_IO due to no connection or return an
    * allocated res */
   {
-    int rc = http_apple_send(ctx, &req, &res);
+    enum c_abstract_http_error rc = http_apple_send(ctx, &req, &res);
     ASSERT(rc != 0);
   }
 #else
@@ -304,6 +309,7 @@ TEST test_apple_send_invalid(void) {
   PASS();
 }
 
+/** @brief Documented */
 TEST test_apple_send_all_methods(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -333,7 +339,7 @@ TEST test_apple_send_all_methods(void) {
       /* Invalid method may fail differently, let's just see if it crashes */
       http_apple_send(ctx, &req, &res);
     } else {
-      int rc = http_apple_send(ctx, &req, &res);
+      enum c_abstract_http_error rc = http_apple_send(ctx, &req, &res);
       ASSERT(rc != 0);
     }
     http_request_free(&req);
@@ -367,6 +373,7 @@ static int mock_read_chunk_fail(void *user_data, void *buf, size_t buf_len,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/** @brief Documented */
 TEST test_apple_read_chunk(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -420,6 +427,7 @@ TEST test_apple_read_chunk(void) {
   PASS();
 }
 
+/** @brief Documented */
 SUITE(http_apple_suite) {
   RUN_TEST(test_apple_send_mock_server);
   RUN_TEST(test_apple_read_chunk);

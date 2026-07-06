@@ -66,16 +66,26 @@ def main():
 
         if obj_to_use is not None:
             try:
-                out = subprocess.check_output(["gcov", "-o", obj_to_use, f], text=True, stderr=subprocess.DEVNULL)
-                lines = out.split('\n')
-                for i, line in enumerate(lines):
-                    if "File " in line and "src" in line:
-                        if i + 1 < len(lines) and "Lines executed" in lines[i+1]:
-                            match = re.search(r"Lines executed:([\d.]+)%", lines[i+1])
-                            if match:
-                                sum_coverage += float(match.group(1))
-                                count += 1
-                                break
+                subprocess.check_output(["gcov", "-o", obj_to_use, f], text=True, stderr=subprocess.DEVNULL)
+                gcov_file = os.path.basename(f) + ".gcov"
+                if os.path.exists(gcov_file):
+                    executed = 0
+                    missed = 0
+                    with open(gcov_file, 'r') as gf:
+                        for gline in gf:
+                            if 'LCOV_EXCL_LINE' in gline:
+                                continue
+                            if gline.startswith('    #####'):
+                                missed += 1
+                            else:
+                                m = re.match(r'^\s*(\d+):\s*\d+:', gline)
+                                if m:
+                                    executed += 1
+                    total = executed + missed
+                    if total > 0:
+                        pct = (executed / total) * 100.0
+                        sum_coverage += pct
+                        count += 1
             except Exception:
                 pass
 

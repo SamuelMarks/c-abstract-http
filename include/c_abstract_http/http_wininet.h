@@ -38,7 +38,7 @@ enum c_abstract_http_error http_wininet_global_init(void);
  * @brief Cleanup global WinInet environment.
  * No-op for WinInet.
  */
-void http_wininet_global_cleanup(void);
+enum c_abstract_http_error http_wininet_global_cleanup(void);
 
 /**
  * @brief Create a new WinInet-backed transport context.

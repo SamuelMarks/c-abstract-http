@@ -20,7 +20,9 @@ struct HttpTransportContext {
 enum c_abstract_http_error http_aria2_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-void http_aria2_global_cleanup(void) {}
+enum c_abstract_http_error http_aria2_global_cleanup(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 enum c_abstract_http_error
 http_aria2_context_init(struct HttpTransportContext **ctx) {

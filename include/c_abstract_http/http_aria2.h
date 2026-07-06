@@ -30,7 +30,7 @@ enum c_abstract_http_error http_aria2_global_init(void);
 /**
  * @brief Decrement the global initialization reference count.
  */
-void http_aria2_global_cleanup(void);
+enum c_abstract_http_error http_aria2_global_cleanup(void);
 
 /**
  * @brief Initialize a new aria2 context.

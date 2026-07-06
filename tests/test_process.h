@@ -294,7 +294,7 @@ TEST test_process_hooks_coverage(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_fallback_paths(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct CddProcess *proc = NULL;
   struct CddIpcPipe pipe = {0};
   struct CddIpcPipe p2c = {0}, c2p = {0};
@@ -559,7 +559,7 @@ TEST test_process_more_edge_cases(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_final_edge_cases(void) {
-  int rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpRequest req;
   struct HttpResponse res;
   char *buf = NULL;

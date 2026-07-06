@@ -60,7 +60,7 @@ extern enum c_abstract_http_error cdd_tls_get(struct CddTlsKey *key,
  *
  * @param[in] key The TLS key to delete.
  */
-extern void cdd_tls_key_delete(struct CddTlsKey *key);
+extern enum c_abstract_http_error cdd_tls_key_delete(struct CddTlsKey *key);
 
 #ifdef __cplusplus
 }
