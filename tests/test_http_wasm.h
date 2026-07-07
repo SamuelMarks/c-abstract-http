@@ -26,6 +26,7 @@ extern "C" {
 static int setup_request(struct HttpRequest *req, int port) {
   char *_ast_strdup_0 = NULL;
   char url[64];
+  enum c_abstract_http_error rc;
 
   rc = http_request_init(req);
   if (rc != 0)
@@ -54,6 +55,7 @@ TEST test_wasm_global_lifecycle(void) {
 /** @brief Documented */
 TEST test_wasm_context_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
+  enum c_abstract_http_error rc;
 
   http_wasm_global_init();
 
@@ -75,6 +77,7 @@ TEST test_wasm_config_application(void) {
   char *_ast_strdup_pass = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig config;
+  enum c_abstract_http_error rc;
 
   http_wasm_global_init();
   http_wasm_context_init(&ctx);
@@ -106,6 +109,7 @@ TEST test_wasm_send_connection_failure(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
+  enum c_abstract_http_error rc;
 
   http_wasm_global_init();
   http_wasm_context_init(&ctx);

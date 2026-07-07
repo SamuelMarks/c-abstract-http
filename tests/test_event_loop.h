@@ -11,7 +11,7 @@ extern "C" {
 #include <greatest.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <time.h>
 #include <c_abstract_http/event_loop.h>
 
 #include "mock_alloc.h"
