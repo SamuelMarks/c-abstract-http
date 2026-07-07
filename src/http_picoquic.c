@@ -57,6 +57,7 @@ enum c_abstract_http_error http_picoquic_global_cleanup(void) {
   if (g_picoquic_init_count > 0 && --g_picoquic_init_count == 0) {
     /* Teardown */
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error

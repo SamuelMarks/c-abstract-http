@@ -44,9 +44,9 @@ enum c_abstract_http_error http_libsoup3_global_cleanup(void) {
     g_libsoup3_init_count--;
     if (g_libsoup3_init_count == 0) {
       /* Cleanup if needed */
-      return C_ABSTRACT_HTTP_SUCCESS;
     }
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error

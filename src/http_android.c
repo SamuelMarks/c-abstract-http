@@ -28,7 +28,9 @@ enum c_abstract_http_error http_android_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error http_android_global_cleanup(void) { /* No-op */ }
+enum c_abstract_http_error http_android_global_cleanup(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 enum c_abstract_http_error
 http_android_context_init(struct HttpTransportContext **ctx) {

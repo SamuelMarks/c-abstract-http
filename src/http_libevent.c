@@ -49,6 +49,7 @@ enum c_abstract_http_error http_libevent_global_cleanup(void) {
     }
 #endif
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error

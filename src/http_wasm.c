@@ -30,8 +30,8 @@ enum c_abstract_http_error http_wasm_global_init(void) {
 enum c_abstract_http_error http_wasm_global_cleanup(void) {
   if (wasm_global_init_count > 0) {
     wasm_global_init_count--;
-    return C_ABSTRACT_HTTP_SUCCESS;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -135,7 +135,7 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
   char *body_buffer = NULL;
   size_t body_len = 0;
   const char *method_str;
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
 
   LOG_DEBUG("http_wasm_send: Entering");
   if (!ctx || !req || !res) {

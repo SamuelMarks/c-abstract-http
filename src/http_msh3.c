@@ -62,9 +62,9 @@ enum c_abstract_http_error http_msh3_global_init(void) {
 
 enum c_abstract_http_error http_msh3_global_cleanup(void) {
   if (!g_msh3_mutex)
-    return;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   if (cdd_mutex_lock(g_msh3_mutex) != 0)
-    return;
+    return C_ABSTRACT_HTTP_ERR_IO;
   if (g_msh3_init_count > 0 && --g_msh3_init_count == 0) {
     if (g_msh3_api) {
       MsH3ApiClose(g_msh3_api);
@@ -75,6 +75,7 @@ enum c_abstract_http_error http_msh3_global_cleanup(void) {
 #endif
   }
   cdd_mutex_unlock(g_msh3_mutex);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error

@@ -109,6 +109,7 @@ enum c_abstract_http_error http_lsquic_global_cleanup(void) {
   if (g_lsquic_init_count > 0 && --g_lsquic_init_count == 0) {
     lsquic_global_cleanup();
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error

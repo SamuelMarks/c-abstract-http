@@ -116,6 +116,7 @@ enum c_abstract_http_error http_nghttp3_global_cleanup(void) {
   if (g_nghttp3_init_count > 0 && --g_nghttp3_init_count == 0) {
     /* Teardown */
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
