@@ -242,8 +242,8 @@ TEST test_cdd_process_spawn_errors(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern void cdd_process_test_waitpid_fail(void);
-extern void cdd_process_test_waitpid_exit(void);
+extern enum c_abstract_http_error cdd_process_test_waitpid_fail(void);
+extern enum c_abstract_http_error cdd_process_test_waitpid_exit(void);
 #endif
 
 static int dummy_process_spawn(struct CddProcess **proc, struct CddIpcPipe *p2c,
@@ -329,8 +329,10 @@ TEST test_process_fallback_paths(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_process_wait_and_free(NULL, NULL));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  cdd_process_test_waitpid_fail();
-  cdd_process_test_waitpid_exit();
+  rc = cdd_process_test_waitpid_fail();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  rc = cdd_process_test_waitpid_exit();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 #endif
 
   cdd_ipc_pipe_free(&pipe);

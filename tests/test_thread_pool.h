@@ -207,7 +207,9 @@ TEST test_thread_pool_edge_cases(void) {
   cdd_thread_pool_free(pool);
 
   /* I can create a fake pool to free! */
-  { cdd_thread_pool_test_free_with_tasks(); }
+  {
+    cdd_thread_pool_test_free_with_tasks();
+  }
 
   PASS();
 }

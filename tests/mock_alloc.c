@@ -316,7 +316,12 @@ pid_t c_abstract_http_mock_fork(void) {
     errno = EAGAIN;
     return -1;
   }
+#if !defined(__EMSCRIPTEN__)
   return fork();
+#else
+  errno = ENOSYS;
+  return -1;
+#endif
 }
 
 pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options) {
