@@ -49,7 +49,7 @@ TEST test_tls_isolation(void) {
   int results[4] = {10, 20, 30, 40};
   int i;
 
-  ASSERT_EQ(0, cdd_tls_key_create(&tls_key, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_tls_key_create(&tls_key, NULL));
   ASSERT_EQ(0, cdd_thread_pool_init(&pool, 4));
 
   for (i = 0; i < 4; ++i) {

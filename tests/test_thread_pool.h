@@ -65,7 +65,7 @@ TEST test_thread_pool_execution(void) {
   int counter = 0;
   int i;
 
-  ASSERT_EQ(0, cdd_mutex_init(&lock));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_mutex_init(&lock));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 4));
 
   for (i = 0; i < 50; ++i) {
@@ -87,9 +87,9 @@ TEST test_thread_pool_execution(void) {
 
 TEST test_mutex_lock_unlock(void) {
   struct CddMutex *lock = NULL;
-  ASSERT_EQ(0, cdd_mutex_init(&lock));
-  ASSERT_EQ(0, cdd_mutex_lock(lock));
-  ASSERT_EQ(0, cdd_mutex_unlock(lock));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_mutex_init(&lock));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_mutex_lock(lock));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_mutex_unlock(lock));
 
   cdd_mutex_free(lock);
   PASS();
@@ -110,16 +110,16 @@ TEST test_thread_pool_errors(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_init(NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_wait(NULL, NULL));
-  ASSERT_EQ(0, cdd_mutex_init(&lock));
-  ASSERT_EQ(0, cdd_cond_init(&cond));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_mutex_init(&lock));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_cond_init(&cond));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_wait(NULL, lock));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_wait(cond, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_signal(NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_cond_broadcast(NULL));
   cdd_cond_free(NULL);
 
-  ASSERT_EQ(0, cdd_cond_signal(cond));
-  ASSERT_EQ(0, cdd_cond_broadcast(cond));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_cond_signal(cond));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_cond_broadcast(cond));
 
   cdd_cond_free(cond);
   cdd_mutex_free(lock);

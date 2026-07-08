@@ -47,8 +47,8 @@ static int setup_libsoup3_request(struct HttpRequest *req, int port) {
 
 /** @brief Documented */
 TEST test_libsoup3_global_lifecycle(void) {
-  ASSERT_EQ(0, http_libsoup3_global_init());
-  ASSERT_EQ(0, http_libsoup3_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_init());
 
   http_libsoup3_global_cleanup();
   http_libsoup3_global_cleanup();
@@ -62,7 +62,7 @@ TEST test_libsoup3_context_lifecycle(void) {
   http_libsoup3_global_init();
 
   rc = http_libsoup3_context_init(&ctx);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(ctx != NULL);
 
   http_libsoup3_context_free(ctx);
@@ -96,7 +96,7 @@ TEST test_libsoup3_config_application(void) {
       (c_cdd_strdup("secret", &_ast_strdup_pass), _ast_strdup_pass);
 
   rc = http_libsoup3_config_apply(ctx, &config);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   http_config_free(&config);
   http_libsoup3_context_free(ctx);

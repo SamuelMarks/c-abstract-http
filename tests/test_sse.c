@@ -76,9 +76,11 @@ TEST test_sse_parse_basic_data(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: hello\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
 
   ASSERT_EQ(1, ctx.event_count);
   ASSERT_STR_EQ("message", ctx.last_event);
@@ -93,9 +95,11 @@ TEST test_sse_parse_multi_line_data(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: first\ndata: second\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
 
   ASSERT_EQ(1, ctx.event_count);
   ASSERT_STR_EQ("first\nsecond", ctx.last_data);
@@ -109,9 +113,11 @@ TEST test_sse_parse_event_type(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "event: custom_event\ndata: payload\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
 
   ASSERT_EQ(1, ctx.event_count);
   ASSERT_STR_EQ("custom_event", ctx.last_event);
@@ -126,9 +132,11 @@ TEST test_sse_parse_ignore_comments(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = ": this is a comment\ndata: ping\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
 
   ASSERT_EQ(1, ctx.event_count);
   ASSERT_STR_EQ("ping", ctx.last_data);
@@ -142,9 +150,11 @@ TEST test_sse_parse_id_and_retry(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "id: 99\nretry: 5000\ndata: test\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
 
   ASSERT_EQ(1, ctx.event_count);
   ASSERT_STR_EQ("99", ctx.last_id);
@@ -163,19 +173,20 @@ TEST test_sse_chunked_delivery(void) {
   const char *p3 = "\n\r";
   const char *p4 = "\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
-  ASSERT_EQ(0, sse_parser_feed(&parser, p1, strlen(p1)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sse_parser_feed(&parser, p1, strlen(p1)));
   ASSERT_EQ(0, ctx.event_count);
 
-  ASSERT_EQ(0, sse_parser_feed(&parser, p2, strlen(p2)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sse_parser_feed(&parser, p2, strlen(p2)));
   ASSERT_EQ(0, ctx.event_count);
 
-  ASSERT_EQ(0, sse_parser_feed(&parser, p3, strlen(p3)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sse_parser_feed(&parser, p3, strlen(p3)));
   ASSERT_EQ(0, ctx.event_count);
 
-  ASSERT_EQ(0, sse_parser_feed(&parser, p4, strlen(p4)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sse_parser_feed(&parser, p4, strlen(p4)));
   ASSERT_EQ(1, ctx.event_count);
   ASSERT_STR_EQ("hello", ctx.last_data);
 
@@ -188,23 +199,27 @@ TEST test_sse_init_headers(void) {
   struct c_abstract_http_sse_config config = {0};
   const char *val = NULL;
 
-  ASSERT_EQ(0, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
 
   config.last_event_id = "12345";
   config.retry_timeout_ms = 2000;
 
-  ASSERT_EQ(0, c_abstract_http_sse_init(&req, &config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_init(&req, &config));
 
-  ASSERT_EQ(0, http_headers_get(&req.headers, "Accept", &val));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&req.headers, "Accept", &val));
   ASSERT_STR_EQ("text/event-stream", val);
 
-  ASSERT_EQ(0, http_headers_get(&req.headers, "Connection", &val));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&req.headers, "Connection", &val));
   ASSERT_STR_EQ("keep-alive", val);
 
-  ASSERT_EQ(0, http_headers_get(&req.headers, "Cache-Control", &val));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&req.headers, "Cache-Control", &val));
   ASSERT_STR_EQ("no-cache", val);
 
-  ASSERT_EQ(0, http_headers_get(&req.headers, "Last-Event-ID", &val));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&req.headers, "Last-Event-ID", &val));
   ASSERT_STR_EQ("12345", val);
 
   http_request_free(&req);
@@ -216,8 +231,9 @@ TEST test_sse_sync_loop_exit_flag(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
   http_request_init(&req);
-  ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL,
-                                                  NULL, NULL, &exit_flag));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL, NULL,
+                                               NULL, &exit_flag));
   http_request_free(&req);
   PASS();
 }
@@ -271,8 +287,9 @@ TEST test_sse_sync_loop_success(void) {
   http_request_init(&req);
   client.send = mock_send_success;
   mock_on_event_called = 0;
-  ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(
-                   &client, &req, mock_on_event_cb, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_sync_read_loop(&client, &req, mock_on_event_cb,
+                                               NULL, NULL, NULL, NULL));
   ASSERT_EQ(1, mock_on_event_called);
   http_request_free(&req);
   PASS();
@@ -315,7 +332,8 @@ TEST test_sse_max_line_size(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   sse_parser_destroy(&parser);
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, NULL, NULL, NULL, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, NULL, NULL, NULL, &ctx));
   rc = sse_parser_feed(&parser, huge_line, huge_len);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   sse_parser_destroy(&parser);
@@ -347,9 +365,9 @@ TEST test_sse_init_headers_null(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_sse_init(NULL, NULL));
 
-  ASSERT_EQ(0, http_request_init(&req));
-  ASSERT_EQ(0, c_abstract_http_sse_init(&req, NULL));
-  ASSERT_EQ(0, c_abstract_http_sse_init(&req, &config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_init(&req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_init(&req, &config));
   http_request_free(&req);
   PASS();
 }
@@ -361,12 +379,14 @@ TEST test_sse_parser_init_null(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             sse_parser_init(NULL, NULL, NULL, NULL, NULL, NULL));
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
   sse_parser_destroy(&parser);
 
-  ASSERT_EQ(0, sse_parser_init(&parser, &config, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, &config, test_sse_on_event,
+                            test_sse_on_error, test_sse_on_close, &ctx));
   sse_parser_destroy(&parser);
   PASS();
 }
@@ -422,7 +442,7 @@ TEST test_sse_oom_branches(void) {
   config.retry_timeout_ms = 2000;
 
   for (i = 0; i < 15; i++) {
-    ASSERT_EQ(0, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
     rc = c_abstract_http_sse_init(&req, &config);
@@ -463,8 +483,9 @@ TEST test_sse_parser_feed_oom(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: hello\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -484,8 +505,9 @@ TEST test_sse_parser_feed_id_oom(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "id: 99\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -505,8 +527,9 @@ TEST test_sse_parser_feed_event_oom(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "event: custom\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -524,10 +547,12 @@ TEST test_sse_parser_feed_no_data(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "event: custom\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
   /* Event is dispatched, but no data. ctx->last_data should be empty. */
   ASSERT_EQ(0, ctx.event_count);
   ASSERT_STR_EQ("", ctx.last_data);
@@ -550,11 +575,13 @@ TEST test_sse_parser_feed_data_capacity(void) {
   chunk[sizeof(chunk) - 2] = '\n';
   chunk[sizeof(chunk) - 1] = '\n';
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   /* Trigger data capacity resize */
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, sizeof(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, sizeof(chunk)));
 
   ASSERT_EQ(1, ctx.event_count);
   sse_parser_destroy(&parser);
@@ -577,8 +604,9 @@ TEST test_sse_parser_feed_data_capacity_oom(void) {
   chunk[sizeof(chunk) - 2] = '\n';
   chunk[sizeof(chunk) - 1] = '\n';
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -596,14 +624,18 @@ TEST test_sse_parser_feed_invalid_utf8(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: \xff\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
   sse_parser_destroy(&parser);
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event, NULL,
-                               test_sse_on_close, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, NULL,
+                            test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
   sse_parser_destroy(&parser);
 
   PASS();
@@ -619,8 +651,10 @@ TEST test_sse_parser_null_callbacks(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: hi\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, NULL, NULL, NULL, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, NULL, NULL, NULL, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
   sse_parser_destroy(&parser);
   PASS();
 }
@@ -629,9 +663,10 @@ TEST test_sse_parser_empty_dispatch(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, "\n\n", 2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sse_parser_feed(&parser, "\n\n", 2));
 
   ASSERT_EQ(0, ctx.event_count);
   sse_parser_destroy(&parser);
@@ -644,9 +679,11 @@ TEST test_sse_parser_no_space(void) {
   const char *chunk = "data:hello\nevent:ping\nid:123\nretry:100\ndata:\nix:"
                       "1\ndaaa:2\nretrx:3\nunknown:4\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
 
   ASSERT_EQ(1, ctx.event_count);
   ASSERT_STR_EQ("hello\n", ctx.last_data);
@@ -663,9 +700,11 @@ TEST test_sse_parser_no_colon(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data\nevent\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
-  ASSERT_EQ(0, sse_parser_feed(&parser, chunk, strlen(chunk)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&parser, chunk, strlen(chunk)));
 
   sse_parser_destroy(&parser);
   PASS();
@@ -678,8 +717,9 @@ TEST test_sse_parser_dispatch_oom(void) {
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: hi\n\n";
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   /* we need to mock failure inside the dispatch when sse_strdup is called.
      sse_process_line calls it after event dispatch.
@@ -752,9 +792,10 @@ TEST test_sse_sync_loop_null_body(void) {
   http_request_init(&req);
   client.send = test_sse_mock_send_null_body;
 
-  ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(
-                   &client, &req, test_sse_on_event, test_sse_on_error,
-                   test_sse_on_close, &ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_sync_read_loop(&client, &req, test_sse_on_event,
+                                               test_sse_on_error,
+                                               test_sse_on_close, &ctx, NULL));
   http_request_free(&req);
   PASS();
 }
@@ -765,9 +806,10 @@ TEST test_sse_sync_loop_null_res(void) {
   http_request_init(&req);
   client.send = test_sse_mock_send_null_res;
 
-  ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(
-                   &client, &req, test_sse_on_event, test_sse_on_error,
-                   test_sse_on_close, &ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_sync_read_loop(&client, &req, test_sse_on_event,
+                                               test_sse_on_error,
+                                               test_sse_on_close, &ctx, NULL));
   http_request_free(&req);
   PASS();
 }
@@ -803,9 +845,10 @@ TEST test_sse_sync_loop_errors(void) {
 
   /* Mock close called after loop ends normally */
   client.send = test_sse_mock_send_empty;
-  ASSERT_EQ(0, c_abstract_http_sse_sync_read_loop(
-                   &client, &req, test_sse_on_event, test_sse_on_error,
-                   test_sse_on_close, &ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_sync_read_loop(&client, &req, test_sse_on_event,
+                                               test_sse_on_error,
+                                               test_sse_on_close, &ctx, NULL));
   ASSERT_EQ(1, ctx.close_called);
   http_request_free(&req);
   PASS();
@@ -828,9 +871,10 @@ TEST test_sse_async_register_success(void) {
   cdd_thread_pool_init_external(&pool, &hooks);
   client.thread_pool = pool;
   client.send = test_sse_mock_send_empty;
-  ASSERT_EQ(0, c_abstract_http_sse_async_register(
-                   &client, &req, test_sse_on_event, test_sse_on_error,
-                   test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_async_register(&client, &req, test_sse_on_event,
+                                               test_sse_on_error,
+                                               test_sse_on_close, &ctx));
   cdd_thread_pool_free(pool);
   http_request_free(&req);
   PASS();
@@ -852,8 +896,9 @@ TEST test_sse_parser_feed_realloc_oom(void) {
   chunk[sizeof(chunk) - 2] = '\n';
   chunk[sizeof(chunk) - 1] = '\n';
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   /* OOM inside the realloc for data_capacity.
      In sse_process_line, there's a while (new_cap < ...) loop and then
@@ -880,8 +925,9 @@ TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
   memset(chunk, 'a', sizeof(chunk));
   /* No newlines, forces line_buffer to grow */
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* realloc in sse_parser_feed */
@@ -902,8 +948,9 @@ TEST test_sse_parser_feed_current_data_oom(void) {
   char chunk[8192] = {0};
   int i;
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   for (i = 0; i < 15; i++) {
     strcat(chunk, "data: ");
@@ -927,8 +974,9 @@ TEST test_sse_parser_feed_current_data_capacity_limit(void) {
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   /* We want to exceed C_ABSTRACT_HTTP_SSE_MAX_DATA_SIZE. Assume it's less than
      64KB for tests, or we just write a lot. Actually, let's just make new_cap
@@ -1065,8 +1113,9 @@ TEST test_sse_parser_feed_data_capacity_limit_real(void) {
   chunk[33000] = '\n';
   chunk[33001] = '\n';
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
   rc = sse_parser_feed(&parser, chunk, 33002);
   if (rc != 90)
     printf("test_sse_parser_feed_data_capacity_limit_real rc=%d\n", rc);
@@ -1088,14 +1137,16 @@ TEST test_sse_parser_feed_current_data_limit_real(void) {
     strcat(chunk, "\n");
   }
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
   rc = sse_parser_feed(&parser, chunk, strlen(chunk));
   ASSERT_EQ(90, rc); /* 90 is EMSGSIZE */
   sse_parser_destroy(&parser);
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event, NULL,
-                               test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, NULL,
+                            test_sse_on_close, &ctx));
   rc = sse_parser_feed(&parser, chunk, strlen(chunk));
   ASSERT_EQ(90, rc);
   sse_parser_destroy(&parser);
@@ -1161,15 +1212,16 @@ TEST test_sse_parser_feed_huge_single_line(void) {
   struct test_sse_ctx ctx = {0};
   char chunk[15000] = {0};
 
-  ASSERT_EQ(0, sse_parser_init(&parser, NULL, test_sse_on_event,
-                               test_sse_on_error, test_sse_on_close, &ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
+                            test_sse_on_close, &ctx));
 
   strcat(chunk, "data: ");
   memset(chunk + strlen(chunk), 'a', 10000);
   strcat(chunk, "\n\n");
 
   rc = sse_parser_feed(&parser, chunk, strlen(chunk));
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   sse_parser_destroy(&parser);
   PASS();
 }

@@ -29,7 +29,7 @@ static int test_ws_mock_on_close(int status_code, void *user_data) {
 
 TEST test_ws_generate_key_length(void) {
   char key[25] = {0};
-  ASSERT_EQ(0, ws_generate_key(key));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_generate_key(key));
   ASSERT_EQ(24, strlen(key));
   PASS();
 }
@@ -41,7 +41,7 @@ TEST test_ws_sign_key_rfc_example(void) {
   const char *client_key = "dGhlIHNhbXBsZSBub25jZQ==";
   char accept_key[29] = {0};
 
-  ASSERT_EQ(0, ws_sign_key(client_key, accept_key));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_sign_key(client_key, accept_key));
   ASSERT_STR_EQ("s3pPLMBiTxaQ9kYGzzhZRbK+xOo=", accept_key);
   PASS();
 }
@@ -50,7 +50,8 @@ TEST test_ws_verify_accept_success(void) {
   const char *client_key = "dGhlIHNhbXBsZSBub25jZQ==";
   const char *server_accept = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=";
 
-  ASSERT_EQ(0, ws_verify_accept(client_key, server_accept));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_verify_accept(client_key, server_accept));
   PASS();
 }
 
@@ -68,29 +69,35 @@ TEST test_ws_init_headers(void) {
   const char *custom_headers[] = {"X-Custom", "value1", NULL};
   const char *val = NULL;
 
-  ASSERT_EQ(0, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
 
   config.subprotocols = "chat, superchat";
   config.custom_headers = custom_headers;
 
-  ASSERT_EQ(0, c_abstract_http_ws_init(&req, &config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, &config));
 
-  ASSERT_EQ(0, http_headers_get(&req.headers, "Upgrade", &val));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&req.headers, "Upgrade", &val));
   ASSERT_STR_EQ("websocket", val);
 
-  ASSERT_EQ(0, http_headers_get(&req.headers, "Connection", &val));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&req.headers, "Connection", &val));
   ASSERT_STR_EQ("Upgrade", val);
 
-  ASSERT_EQ(0, http_headers_get(&req.headers, "Sec-WebSocket-Version", &val));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&req.headers, "Sec-WebSocket-Version", &val));
   ASSERT_STR_EQ("13", val);
 
-  ASSERT_EQ(0, http_headers_get(&req.headers, "Sec-WebSocket-Protocol", &val));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&req.headers, "Sec-WebSocket-Protocol", &val));
   ASSERT_STR_EQ("chat, superchat", val);
 
-  ASSERT_EQ(0, http_headers_get(&req.headers, "X-Custom", &val));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&req.headers, "X-Custom", &val));
   ASSERT_STR_EQ("value1", val);
 
-  ASSERT_EQ(0, http_headers_get(&req.headers, "Sec-WebSocket-Key", &val));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&req.headers, "Sec-WebSocket-Key", &val));
   ASSERT_EQ(24, strlen(val));
 
   http_request_free(&req);
@@ -200,7 +207,8 @@ TEST test_ws_parser_single_frame(void) {
 
   ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
                  test_ws_on_close, &ctx);
-  ASSERT_EQ(0, ws_parser_feed(&parser, frame, sizeof(frame)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, frame, sizeof(frame)));
 
   ASSERT_EQ(1, ctx.message_count);
   ASSERT_EQ(C_ABSTRACT_HTTP_WS_OPCODE_TEXT, ctx.last_message.opcode);
@@ -222,7 +230,7 @@ TEST test_ws_parser_chunked_delivery(void) {
                  test_ws_on_close, &ctx);
 
   for (i = 0; i < sizeof(frame); i++) {
-    ASSERT_EQ(0, ws_parser_feed(&parser, &frame[i], 1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_parser_feed(&parser, &frame[i], 1));
   }
 
   ASSERT_EQ(1, ctx.message_count);
@@ -242,13 +250,16 @@ TEST test_ws_parser_fragmented_message(void) {
   ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
                  test_ws_on_close, &ctx);
 
-  ASSERT_EQ(0, ws_parser_feed(&parser, frame1, sizeof(frame1)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, frame1, sizeof(frame1)));
   ASSERT_EQ(0, ctx.message_count);
 
-  ASSERT_EQ(0, ws_parser_feed(&parser, frame2, sizeof(frame2)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, frame2, sizeof(frame2)));
   ASSERT_EQ(0, ctx.message_count);
 
-  ASSERT_EQ(0, ws_parser_feed(&parser, frame3, sizeof(frame3)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, frame3, sizeof(frame3)));
   ASSERT_EQ(1, ctx.message_count);
   ASSERT_STR_EQ("ABCDEFGHI", (const char *)ctx.last_payload);
 
@@ -278,7 +289,8 @@ TEST test_ws_parser_auto_pong(void) {
 
   ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
                  test_ws_on_close, &ctx);
-  ASSERT_EQ(0, ws_parser_feed(&parser, frame, sizeof(frame)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, frame, sizeof(frame)));
 
   ASSERT_EQ(1, ctx.message_count);
   ASSERT_EQ(C_ABSTRACT_HTTP_WS_OPCODE_PING, ctx.last_message.opcode);
@@ -292,8 +304,9 @@ TEST test_ws_sync_loop_exit_flag(void) {
   volatile int exit_flag = 1;
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
-  ASSERT_EQ(0, c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL,
-                                                 NULL, NULL, &exit_flag));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL,
+                                              NULL, &exit_flag));
   http_request_free(&req);
   PASS();
 }
@@ -341,9 +354,10 @@ TEST test_ws_sync_loop_success(void) {
   struct HttpRequest req = {0};
   struct test_ws_ctx ctx = {0};
   client.send = mock_send_success_ws;
-  ASSERT_EQ(0, c_abstract_http_ws_sync_read_loop(
-                   &client, &req, test_ws_on_message, test_ws_on_error,
-                   test_ws_on_close, &ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_sync_read_loop(&client, &req, test_ws_on_message,
+                                              test_ws_on_error,
+                                              test_ws_on_close, &ctx, NULL));
   http_request_free(&req);
   PASS();
 }
@@ -403,7 +417,7 @@ TEST test_ws_pack_header_invalid(void) {
 
 TEST test_ws_apply_mask_invalid(void) {
   unsigned char mask_key[4] = {0x12, 0x34, 0x56, 0x78};
-  ASSERT_EQ(0, ws_apply_mask(NULL, 12, mask_key));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_apply_mask(NULL, 12, mask_key));
   PASS();
 }
 
@@ -442,7 +456,7 @@ TEST test_ws_parser_ext_len(void) {
   ws_parser_init(&ctx, test_ws_on_message, test_ws_on_error, test_ws_on_close,
                  &my_ctx);
   rc = ws_parser_feed(&ctx, frame16, sizeof(frame16));
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ws_parser_destroy(&ctx);
 
   /* 64-bit length frame */
@@ -455,7 +469,7 @@ TEST test_ws_parser_ext_len(void) {
   ws_parser_init(&ctx, test_ws_on_message, test_ws_on_error, test_ws_on_close,
                  &my_ctx);
   rc = ws_parser_feed(&ctx, frame64, sizeof(frame64));
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ws_parser_destroy(&ctx);
 
   PASS();
@@ -497,7 +511,7 @@ TEST test_ws_oom_branches(void) {
   config.custom_headers = headers;
 
   for (i = 0; i < 25; i++) {
-    ASSERT_EQ(0, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
     rc = c_abstract_http_ws_init(&req, &config);
@@ -567,7 +581,7 @@ TEST test_ws_masked_frame(void) {
   parser.on_message = test_ws_on_message;
   parser.user_data = &ctx;
   rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_EQ(1, ctx.message_count);
   ASSERT_STR_EQ("hello", ctx.last_payload);
   if (parser.payload_buffer)
@@ -604,7 +618,7 @@ TEST test_ws_parser_close_frame(void) {
   parser.on_close = test_ws_mock_on_close;
   test_ws_mock_on_close_called = 0;
   rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_EQ(1000, test_ws_mock_on_close_called);
   ws_parser_destroy(&parser);
   PASS();
@@ -619,7 +633,7 @@ TEST test_ws_parser_pong_frame(void) {
   parser.on_message = test_ws_on_message;
   parser.user_data = &ctx;
   rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ws_parser_destroy(&parser);
   PASS();
 }
@@ -632,7 +646,7 @@ TEST test_ws_parser_invalid_fragmentation(void) {
   parser.on_error = test_ws_mock_on_error;
   test_ws_mock_on_error_called = 0;
   rc = ws_parser_feed(&parser, chunk, 3);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   rc = ws_parser_feed(&parser, chunk + 3, 3);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, test_ws_mock_on_error_called);
@@ -649,7 +663,7 @@ TEST test_ws_parser_reassembly_too_large(void) {
   parser.on_error = test_ws_mock_on_error;
   test_ws_mock_on_error_called = 0;
   rc = ws_parser_feed(&parser, chunk1, 3);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   if (parser.payload_buffer)
     free(parser.payload_buffer);
@@ -678,7 +692,7 @@ TEST test_ws_parser_reassembly_expand_twice(void) {
   unsigned char chunk2[4096 + 4];
   memset(&parser, 0, sizeof(parser));
   rc = ws_parser_feed(&parser, chunk1, 3);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   chunk2[0] = 0x00;
   chunk2[1] = 126;
@@ -686,7 +700,7 @@ TEST test_ws_parser_reassembly_expand_twice(void) {
   chunk2[3] = 4096 & 0xFF;
   memset(chunk2 + 4, 'b', 4096);
   rc = ws_parser_feed(&parser, chunk2, 4 + 4096);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   ASSERT_EQ(8192, parser.reassembly_capacity);
   ws_parser_destroy(&parser);
@@ -799,7 +813,7 @@ TEST test_ws_parser_reassembly_fin_expand_success(void) {
 
   rc = ws_parser_feed(&parser, chunk2, 2 + 10);
 
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (parser.payload_buffer)
     free(parser.payload_buffer);
   if (parser.reassembly_buffer)
@@ -921,9 +935,10 @@ TEST test_ws_sync_loop_feed_error(void) {
   client.send = mock_send_bad_payload;
 
   test_ws_mock_on_error_called = 0;
-  ASSERT_EQ(0, c_abstract_http_ws_sync_read_loop(
-                   &client, &req, test_ws_on_message, test_ws_mock_on_error,
-                   test_ws_on_close, &ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_sync_read_loop(&client, &req, test_ws_on_message,
+                                              test_ws_mock_on_error,
+                                              test_ws_on_close, &ctx, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, test_ws_mock_on_error_called);
 
   http_request_free(&req);

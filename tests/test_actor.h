@@ -52,15 +52,15 @@ TEST test_actor_spawn_and_message(void) {
   const char *name2 = NULL;
   (void)bus;
 
-  ASSERT_EQ(0, cdd_message_bus_init(&bus));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_message_bus_init(&bus));
   ASSERT_EQ(
       0, cdd_actor_spawn(bus, "Actor1", mock_actor_handler, &state1, &actor1));
   ASSERT_EQ(
       0, cdd_actor_spawn(bus, "Actor2", mock_actor_handler, &state2, &actor2));
 
-  ASSERT_EQ(0, cdd_actor_get_name(actor1, &name1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_get_name(actor1, &name1));
   ASSERT_STR_EQ("Actor1", name1);
-  ASSERT_EQ(0, cdd_actor_get_name(actor2, &name2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_get_name(actor2, &name2));
   ASSERT_STR_EQ("Actor2", name2);
 
   msg.type = CDD_MSG_HTTP_SEND;
@@ -68,7 +68,7 @@ TEST test_actor_spawn_and_message(void) {
   msg.sender = actor1;
   msg.receiver = actor2;
 
-  ASSERT_EQ(0, cdd_actor_send(bus, &msg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_send(bus, &msg));
 
   /* Nothing processed yet */
   ASSERT_EQ(0, state2.received_messages);
@@ -82,11 +82,11 @@ TEST test_actor_spawn_and_message(void) {
   /* Send shutdown AND another message */
   msg.type = CDD_MSG_HTTP_SEND;
   msg.receiver = actor1;
-  ASSERT_EQ(0, cdd_actor_send(bus, &msg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_send(bus, &msg));
 
   msg.type = CDD_MSG_SHUTDOWN;
   msg.receiver = actor1;
-  ASSERT_EQ(0, cdd_actor_send(bus, &msg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_send(bus, &msg));
 
   ASSERT_EQ(2, cdd_message_bus_process(bus));
   ASSERT_EQ(1, state1.shutdown);
@@ -164,12 +164,12 @@ TEST test_actor_hooks(void) {
 
   cdd_actor_set_hooks(&hooks);
 
-  ASSERT_EQ(0, cdd_message_bus_init(&bus));
-  ASSERT_EQ(0, cdd_message_bus_process(bus));
-  ASSERT_EQ(0, cdd_actor_spawn(bus, "mock", NULL, NULL, &actor));
-  ASSERT_EQ(0, cdd_actor_send(bus, &msg));
-  ASSERT_EQ(0, cdd_actor_get_state(actor, &state));
-  ASSERT_EQ(0, cdd_actor_get_name(actor, &name));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_message_bus_init(&bus));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_message_bus_process(bus));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_spawn(bus, "mock", NULL, NULL, &actor));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_send(bus, &msg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_get_state(actor, &state));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_get_name(actor, &name));
   cdd_message_bus_free(bus);
   cdd_message_bus_free(NULL);
 
@@ -193,7 +193,7 @@ TEST test_actor_errors(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_actor_spawn(NULL, "test", NULL, NULL, &actor));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_actor_send(NULL, &msg));
 
-  ASSERT_EQ(0, cdd_message_bus_init(&bus));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_message_bus_init(&bus));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_actor_spawn(bus, NULL, dummy_handler, NULL, &actor));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_actor_spawn(bus, "test", NULL, NULL, &actor));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_actor_spawn(bus, "test", dummy_handler, NULL, NULL));
@@ -226,11 +226,11 @@ TEST test_actor_capacity(void) {
   /* manual coverage for dummy_handler */
   dummy_handler(NULL, NULL);
 
-  ASSERT_EQ(0, cdd_message_bus_init(&bus));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_message_bus_init(&bus));
 
   /* Exceed initial capacity of 16 */
   for (i = 0; i < 20; i++) {
-    ASSERT_EQ(0, cdd_actor_spawn(bus, "test", dummy_handler, NULL, &actor));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_spawn(bus, "test", dummy_handler, NULL, &actor));
   }
 
   cdd_message_bus_free(bus);
@@ -248,10 +248,10 @@ TEST test_actor_getters(void) {
   cdd_message_bus_init(&bus);
   cdd_actor_spawn(bus, "myactor", dummy_handler, (void *)0x123, &actor);
 
-  ASSERT_EQ(0, cdd_actor_get_state(actor, &state));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_get_state(actor, &state));
   ASSERT_EQ((void *)0x123, state);
 
-  ASSERT_EQ(0, cdd_actor_get_name(actor, &name));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_actor_get_name(actor, &name));
   ASSERT_STR_EQ("myactor", name);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_actor_get_state(NULL, &state));
@@ -297,7 +297,7 @@ TEST test_actor_oom(void) {
   }
 
   rc = cdd_message_bus_init(&bus);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   str_rc = c_abstract_http_mock_cdd_strdup("dummy", &out_str);
   ASSERT_EQ(0, str_rc);
@@ -305,7 +305,7 @@ TEST test_actor_oom(void) {
     free(out_str);
 
   rc = cdd_actor_spawn(bus, "dummy", dummy_handler, NULL, &actor);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   msg.receiver = actor;
 

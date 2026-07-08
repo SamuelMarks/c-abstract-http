@@ -13,7 +13,7 @@ extern "C" {
 /* clang-format on */
 
 TEST test_transport_global(void) {
-  ASSERT_EQ(0, transport_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, transport_global_init());
   transport_global_cleanup();
   PASS();
 }
@@ -23,7 +23,7 @@ TEST test_transport_factory(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, transport_factory_init_client(NULL));
 
-  ASSERT_EQ(0, transport_factory_init_client(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, transport_factory_init_client(&client));
   ASSERT(client.send != NULL);
 
   transport_factory_cleanup_client(NULL);

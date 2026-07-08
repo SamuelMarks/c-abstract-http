@@ -51,7 +51,7 @@ TEST test_base64_encode_basic(void) {
   char *output = NULL;
   size_t out_len = 0;
 
-  ASSERT_EQ(0, base64_encode((const unsigned char *)input, strlen(input),
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, base64_encode((const unsigned char *)input, strlen(input),
                              &output, &out_len));
   ASSERT_STR_EQ("aGVsbG8gd29ybGQ=", output);
   ASSERT_EQ(16, out_len);
@@ -64,7 +64,7 @@ TEST test_base64_encode_padded(void) {
   char *output = NULL;
   size_t out_len = 0;
 
-  ASSERT_EQ(0, base64_encode((const unsigned char *)input, strlen(input),
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, base64_encode((const unsigned char *)input, strlen(input),
                              &output, &out_len));
   ASSERT_STR_EQ("YQ==", output);
   free(output);
@@ -76,7 +76,7 @@ TEST test_base64_decode_basic(void) {
   unsigned char *output = NULL;
   size_t out_len = 0;
 
-  ASSERT_EQ(0, base64_decode(input, strlen(input), &output, &out_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, base64_decode(input, strlen(input), &output, &out_len));
   ASSERT_EQ(11, out_len);
   ASSERT_MEM_EQ("hello world", output, 11);
   free(output);
@@ -88,7 +88,7 @@ TEST test_base64_decode_padded(void) {
   unsigned char *output = NULL;
   size_t out_len = 0;
 
-  ASSERT_EQ(0, base64_decode(input, strlen(input), &output, &out_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, base64_decode(input, strlen(input), &output, &out_len));
   ASSERT_EQ(1, out_len);
   ASSERT_MEM_EQ("a", output, 1);
   free(output);
@@ -109,7 +109,7 @@ TEST test_base64_decode_1_pad(void) {
   unsigned char *output = NULL;
   size_t out_len = 0;
 
-  ASSERT_EQ(0, base64_decode(input, strlen(input), &output, &out_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, base64_decode(input, strlen(input), &output, &out_len));
   ASSERT_EQ(2, out_len);
   ASSERT_MEM_EQ("ab", output, 2);
   free(output);
@@ -121,7 +121,7 @@ TEST test_base64_decode_all_pad(void) {
   unsigned char *output = NULL;
   size_t out_len = 0;
 
-  ASSERT_EQ(0, base64_decode(input, strlen(input), &output, &out_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, base64_decode(input, strlen(input), &output, &out_len));
   ASSERT_EQ(1, out_len);
   ASSERT_EQ(0, output[0]);
   free(output);
@@ -173,7 +173,8 @@ TEST test_crypto_errors(void) {
             base64_encode((const unsigned char *)"a", 0, &b64_str, &b64_len));
   if (b64_str)
     free(b64_str);
-  ASSERT_EQ(0, base64_decode("abcd", 0, &dec_data, &dec_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            base64_decode("abcd", 0, &dec_data, &dec_len));
   if (dec_data)
     free(dec_data);
 

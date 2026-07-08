@@ -52,8 +52,9 @@ static int setup_request(struct HttpRequest *req, int port) {
 /** @brief Documented */
 TEST test_curl_global_lifecycle(void) {
   /* Should succeed and track ref count internally */
-  ASSERT_EQ(0, http_curl_global_init());
-  ASSERT_EQ(0, http_curl_global_init()); /* Re-entrant check */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_curl_global_init()); /* Re-entrant check */
 
   http_curl_global_cleanup();
   http_curl_global_cleanup();
@@ -68,7 +69,7 @@ TEST test_curl_context_lifecycle(void) {
   http_curl_global_init();
 
   rc = http_curl_context_init(&ctx);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(ctx != NULL);
 
   http_curl_context_free(ctx);
@@ -107,7 +108,7 @@ TEST test_curl_config_application(void) {
        _ast_strdup_pass);
 
   rc = http_curl_config_apply(ctx, &config);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   http_config_free(&config);
   http_curl_context_free(ctx);
@@ -227,8 +228,8 @@ TEST test_curl_send_chunked(void) {
   struct curl_TestChunkState state;
 
   /* Start mock server */
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_curl_global_init();
   http_curl_context_init(&ctx);
@@ -246,7 +247,7 @@ TEST test_curl_send_chunked(void) {
 
   rc = http_curl_send(ctx, &req, &res);
 
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
   /* Body should not be populated when on_chunk is used */
@@ -277,8 +278,8 @@ TEST test_curl_send_chunked_abort(void) {
   struct HttpConfig config;
   struct curl_TestChunkState state;
 
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_curl_global_init();
   http_curl_context_init(&ctx);
@@ -342,8 +343,8 @@ TEST test_curl_send_upload_chunked(void) {
   struct curl_TestUploadState up_state;
   const char *payload = "UPLOAD_TEST_DATA";
 
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_curl_global_init();
   http_curl_context_init(&ctx);
@@ -367,7 +368,7 @@ TEST test_curl_send_upload_chunked(void) {
 
   rc = http_curl_send(ctx, &req, &res);
 
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
 
@@ -392,13 +393,13 @@ TEST test_curl_http3_config(void) {
   struct HttpTransportContext *ctx = NULL;
   int ret;
 
-  ASSERT_EQ(0, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
 
-  ASSERT_EQ(0, http_config_init(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   config.version_mask = HTTP_VERSION_3;
   config.http3_fallback = 0;
 
-  ASSERT_EQ(0, http_curl_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   ret = http_curl_config_apply(ctx, &config);
   ASSERT(ret == 0 || ret == C_ABSTRACT_HTTP_ERR_IO);
@@ -416,7 +417,7 @@ TEST test_curl_edge_cases(void) {
   struct HttpResponse *res = NULL;
   int i;
 
-  ASSERT_EQ(0, http_curl_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   /* Missing parameters */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(NULL, &req, &res));
@@ -461,8 +462,8 @@ TEST test_curl_send_write_oom(void) {
   struct HttpResponse *res = NULL;
   char url_buf[128];
 
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
   sprintf(url_buf, "http://127.0.0.1:%d", math_mock_server_get_port(server));
 
   http_curl_global_init();
@@ -509,7 +510,7 @@ TEST test_curl_send_unsupported_protocol(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
 
-  ASSERT_EQ(0, http_curl_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   http_request_init(&req);
   req.url = "badprotocol://localhost/";
   req.method = HTTP_GET;
@@ -529,7 +530,7 @@ TEST test_curl_send_resolve_error(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
 
-  ASSERT_EQ(0, http_curl_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   http_request_init(&req);
   req.url = "http://this.domain.does.not.exist.at.all.test/";
   req.method = HTTP_GET;
@@ -550,7 +551,7 @@ TEST test_curl_unsupported_methods(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
 
-  ASSERT_EQ(0, http_curl_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   http_request_init(&req);
   req.url = "badprotocol://localhost/";
   req.method = HTTP_GET;
@@ -614,7 +615,7 @@ TEST test_curl_payload_methods(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
 
-  ASSERT_EQ(0, http_curl_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   http_request_init(&req);
   req.url = "http://localhost/";
   req.body = "data";

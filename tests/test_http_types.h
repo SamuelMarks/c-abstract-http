@@ -223,14 +223,16 @@ TEST test_multipart_lifecycle(void) {
   ASSERT_EQ(0, req.parts.count);
 
   /* Add text part */
-  ASSERT_EQ(0, http_request_add_part(&req, "field", NULL, NULL, "value", 5));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_add_part(&req, "field", NULL, NULL, "value", 5));
   ASSERT_EQ(1, req.parts.count);
   ASSERT_STR_EQ("field", req.parts.parts[0].name);
   ASSERT_EQ(NULL, req.parts.parts[0].filename);
 
   /* Add file part */
-  ASSERT_EQ(0, http_request_add_part(&req, "file", "pic.jpg", "image/jpeg",
-                                     "DATA", 4));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      http_request_add_part(&req, "file", "pic.jpg", "image/jpeg", "DATA", 4));
   ASSERT_EQ(2, req.parts.count);
   ASSERT_STR_EQ("pic.jpg", req.parts.parts[1].filename);
   http_request_free(&req);
@@ -245,7 +247,7 @@ TEST test_multipart_flatten(void) {
   http_request_add_part(&req, "f1", NULL, NULL, "v1", 2);
   http_request_add_part(&req, "f2", "a.txt", "text/plain", "v2", 2);
 
-  ASSERT_EQ(0, http_request_flatten_parts(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_flatten_parts(&req));
   ASSERT(req.body != NULL);
   ASSERT(req.body_len > 0);
 
@@ -268,10 +270,12 @@ TEST test_multipart_part_headers(void) {
 
   http_request_init(&req);
   http_request_add_part(&req, "f1", NULL, NULL, "v1", 2);
-  ASSERT_EQ(0, http_request_add_part_header_last(&req, "X-Trace", "abc"));
-  ASSERT_EQ(0, http_request_add_part_header_last(&req, "X-Count", "2"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_add_part_header_last(&req, "X-Trace", "abc"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_add_part_header_last(&req, "X-Count", "2"));
 
-  ASSERT_EQ(0, http_request_flatten_parts(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_flatten_parts(&req));
   content = (char *)req.body;
   ASSERT(content != NULL);
   ASSERT(strstr(content, "X-Trace: abc"));
@@ -286,7 +290,7 @@ TEST test_auth_basic_header(void) {
 
   http_request_init(&req);
   rc = http_request_set_auth_basic(&req, "dXNlcjpwYXNz");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_EQ(1, req.headers.count);
   ASSERT_STR_EQ("Authorization", req.headers.headers[0].key);
   ASSERT_STR_EQ("Basic dXNlcjpwYXNz", req.headers.headers[0].value);
@@ -301,7 +305,7 @@ TEST test_auth_basic_userpwd(void) {
   http_request_init(&req);
   /* "user:pass" base64 encodes to "dXNlcjpwYXNz" */
   rc = http_request_set_auth_basic_userpwd(&req, "user", "pass");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_EQ(1, req.headers.count);
   ASSERT_STR_EQ("Authorization", req.headers.headers[0].key);
   ASSERT_STR_EQ("Basic dXNlcjpwYXNz", req.headers.headers[0].value);
@@ -311,7 +315,7 @@ TEST test_auth_basic_userpwd(void) {
 
 TEST test_http_config_init_redirects(void) {
   struct HttpConfig config;
-  ASSERT_EQ(0, http_config_init(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   ASSERT_EQ(30000, config.timeout_ms);
   ASSERT_EQ(0, config.connect_timeout_ms);
   ASSERT_EQ(0, config.read_timeout_ms);
@@ -330,7 +334,7 @@ TEST test_http_config_init_redirects(void) {
 
 TEST test_http_request_init_defaults(void) {
   struct HttpRequest req;
-  ASSERT_EQ(0, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(NULL, req.url);
   ASSERT_EQ(HTTP_GET, req.method);
   ASSERT_EQ(NULL, req.body);
@@ -347,24 +351,30 @@ TEST test_http_request_init_defaults(void) {
 TEST test_http_headers_get_remove(void) {
   struct HttpHeaders headers;
   const char *out;
-  ASSERT_EQ(0, http_headers_init(&headers));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_init(&headers));
 
   /* Setup */
-  ASSERT_EQ(0, http_headers_add(&headers, "Content-Type", "application/json"));
-  ASSERT_EQ(0, http_headers_add(&headers, "X-Custom", "123"));
-  ASSERT_EQ(0, http_headers_add(&headers, "Set-Cookie", "sid=abc"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&headers, "Content-Type", "application/json"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&headers, "X-Custom", "123"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&headers, "Set-Cookie", "sid=abc"));
 
   /* Test Get (Case-insensitive) */
-  ASSERT_EQ(0, http_headers_get(&headers, "content-type", &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&headers, "content-type", &out));
   ASSERT_STR_EQ("application/json", out);
-  ASSERT_EQ(0, http_headers_get(&headers, "Content-Type", &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&headers, "Content-Type", &out));
   ASSERT_STR_EQ("application/json", out);
-  ASSERT_EQ(0, http_headers_get(&headers, "x-custom", &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&headers, "x-custom", &out));
   ASSERT_STR_EQ("123", out);
   ASSERT_EQ(ENOENT, http_headers_get(&headers, "Not-Found", &out));
 
   /* Test Remove (Middle element) */
-  ASSERT_EQ(0, http_headers_remove(&headers, "x-custom"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_remove(&headers, "x-custom"));
   ASSERT_EQ(ENOENT, http_headers_get(&headers, "x-custom", &out));
   ASSERT_EQ(2, headers.count);
   ASSERT_STR_EQ("Content-Type", headers.headers[0].key);
@@ -375,21 +385,23 @@ TEST test_http_headers_get_remove(void) {
   ASSERT_EQ(2, headers.count);
 
   /* Test Remove (First element) */
-  ASSERT_EQ(0, http_headers_remove(&headers, "content-type"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_remove(&headers, "content-type"));
   ASSERT_EQ(ENOENT, http_headers_get(&headers, "content-type", &out));
   ASSERT_EQ(1, headers.count);
   ASSERT_STR_EQ("Set-Cookie", headers.headers[0].key);
 
   /* Test Remove (Last element) */
-  ASSERT_EQ(0, http_headers_remove(&headers, "set-cookie"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_remove(&headers, "set-cookie"));
   ASSERT_EQ(0, headers.count);
 
   /* Test Multiple Identical Keys (Remove all) */
-  ASSERT_EQ(0, http_headers_add(&headers, "X-Dup", "A"));
-  ASSERT_EQ(0, http_headers_add(&headers, "X-Dup", "B"));
-  ASSERT_EQ(0, http_headers_add(&headers, "Other", "C"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_add(&headers, "X-Dup", "A"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_add(&headers, "X-Dup", "B"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_add(&headers, "Other", "C"));
   ASSERT_EQ(3, headers.count);
-  ASSERT_EQ(0, http_headers_remove(&headers, "x-dup"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_remove(&headers, "x-dup"));
   ASSERT_EQ(1, headers.count);
   ASSERT_STR_EQ("Other", headers.headers[0].key);
 
@@ -401,28 +413,34 @@ TEST test_http_cookie_jar(void) {
   struct HttpCookieJar jar;
   const char *out;
 
-  ASSERT_EQ(0, http_cookie_jar_init(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
   ASSERT_EQ(0, jar.count);
   ASSERT_EQ(NULL, jar.cookies);
 
   /* Set new cookie */
-  ASSERT_EQ(0, http_cookie_jar_set(&jar, "session", "abc"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_set(&jar, "session", "abc"));
   ASSERT_EQ(1, jar.count);
-  ASSERT_EQ(0, http_cookie_jar_get(&jar, "session", &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_get(&jar, "session", &out));
   ASSERT_STR_EQ("abc", out);
 
   /* Update existing cookie */
-  ASSERT_EQ(0, http_cookie_jar_set(&jar, "session", "def"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_set(&jar, "session", "def"));
   ASSERT_EQ(1, jar.count);
-  ASSERT_EQ(0, http_cookie_jar_get(&jar, "session", &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_get(&jar, "session", &out));
   ASSERT_STR_EQ("def", out);
 
   /* Add another cookie */
-  ASSERT_EQ(0, http_cookie_jar_set(&jar, "theme", "dark"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_set(&jar, "theme", "dark"));
   ASSERT_EQ(2, jar.count);
-  ASSERT_EQ(0, http_cookie_jar_get(&jar, "theme", &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_get(&jar, "theme", &out));
   ASSERT_STR_EQ("dark", out);
-  ASSERT_EQ(0, http_cookie_jar_get(&jar, "session", &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_get(&jar, "session", &out));
   ASSERT_STR_EQ("def", out);
 
   /* Unknown cookie */
@@ -437,7 +455,7 @@ TEST test_http_cookie_jar(void) {
 
 TEST test_modality_context(void) {
   struct ModalityContext ctx;
-  ASSERT_EQ(0, http_modality_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_modality_context_init(&ctx));
   ASSERT_EQ(MODALITY_SYNC, ctx.modality);
   ASSERT_EQ(NULL, ctx.internal_ctx);
   http_modality_context_free(&ctx);
@@ -446,7 +464,7 @@ TEST test_modality_context(void) {
 
 TEST test_http_future(void) {
   struct HttpFuture future;
-  ASSERT_EQ(0, http_future_init(&future));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&future));
   ASSERT_EQ(0, future.is_ready);
   ASSERT_EQ(0, future.error_code);
   ASSERT_EQ(NULL, future.response);
@@ -464,15 +482,15 @@ TEST test_http_multi_request(void) {
   http_request_init(&req1);
   http_request_init(&req2);
 
-  ASSERT_EQ(0, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
   ASSERT_EQ(0, multi.count);
   ASSERT_EQ(NULL, multi.requests);
 
-  ASSERT_EQ(0, http_multi_request_add(&multi, &req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req1));
   ASSERT_EQ(1, multi.count);
   ASSERT_EQ(&req1, multi.requests[0]);
 
-  ASSERT_EQ(0, http_multi_request_add(&multi, &req2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req2));
   ASSERT_EQ(2, multi.count);
   ASSERT_EQ(&req2, multi.requests[1]);
   http_multi_request_free(&multi);
@@ -505,12 +523,12 @@ TEST test_oauth2_password_grant(void) {
   /* Test basic password grant without optional params */
   rc = http_request_init_oauth2_password_grant(
       &req, "http://auth/token", "user@name", "p@ssword", NULL, NULL, NULL);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth/token", req.url);
   ASSERT_EQ(HTTP_POST, req.method);
 
   rc = http_headers_get(&req.headers, "Content-Type", &out_header);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("application/x-www-form-urlencoded", out_header);
 
   ASSERT(req.body != NULL);
@@ -522,7 +540,7 @@ TEST test_oauth2_password_grant(void) {
   http_request_init(&req);
   rc = http_request_init_oauth2_password_grant(
       &req, "http://auth", "u", "p", "client1", "sec ret", "read write");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("grant_type=password&username=u&password=p&client_id=client1"
                 "&client_secret=sec+ret&scope=read+write",
                 (char *)req.body);
@@ -550,7 +568,7 @@ TEST test_oauth2_refresh_token_grant(void) {
   /* Test basic refresh token grant without optional params */
   rc = http_request_init_oauth2_refresh_token_grant(&req, "http://auth/token",
                                                     "ref123", NULL, NULL, NULL);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth/token", req.url);
   ASSERT_EQ(HTTP_POST, req.method);
 
@@ -564,7 +582,7 @@ TEST test_oauth2_refresh_token_grant(void) {
   rc = http_request_init_oauth2_refresh_token_grant(
       &req, "http://auth/token", "ref123", "client_id", "client_secret",
       "scope1 scope2");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("grant_type=refresh_token&refresh_token=ref123&client_id="
                 "client_id&client_secret=client_secret&scope=scope1+scope2",
                 (char *)req.body);
@@ -592,7 +610,7 @@ TEST test_oauth2_authorization_code_grant(void) {
   /* Test basic auth code grant */
   rc = http_request_init_oauth2_authorization_code_grant(
       &req, "http://auth/token", "code123", NULL, NULL, NULL, NULL);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth/token", req.url);
   ASSERT_EQ(HTTP_POST, req.method);
 
@@ -605,7 +623,7 @@ TEST test_oauth2_authorization_code_grant(void) {
   rc = http_request_init_oauth2_authorization_code_grant(
       &req, "http://auth/token", "code 456", "http://app/cb", "client_id",
       "client_secret", "ver ifier");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("grant_type=authorization_code&code=code+456&redirect_uri=http%"
                 "3A%2F%2Fapp%2Fcb&client_id="
                 "client_id&client_secret=client_secret&code_verifier=ver+ifier",
@@ -632,7 +650,7 @@ TEST test_oauth2_device_authorization_request(void) {
 
   rc = http_request_init_oauth2_device_authorization_request(
       &req, "http://auth/device", "client_id", "scope1");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth/device", req.url);
   ASSERT_EQ(HTTP_POST, req.method);
   ASSERT_STR_EQ("client_id=client_id&scope=scope1", (char *)req.body);
@@ -661,7 +679,7 @@ TEST test_oauth2_device_access_token_request(void) {
 
   rc = http_request_init_oauth2_device_access_token_request(
       &req, "http://auth/token", "client_id", "dev_code");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth/token", req.url);
   ASSERT_EQ(HTTP_POST, req.method);
   ASSERT_STR_EQ("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_"
@@ -689,7 +707,7 @@ TEST test_oauth2_token_revocation(void) {
 
   rc = http_request_init_oauth2_token_revocation(
       &req, "http://auth/revoke", "token123", "access_token", "client1", "sec");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth/revoke", req.url);
   ASSERT_EQ(HTTP_POST, req.method);
   ASSERT_STR_EQ("token=token123&token_type_hint=access_token&client_id=client1&"
@@ -718,7 +736,7 @@ TEST test_oauth2_token_introspection(void) {
   rc = http_request_init_oauth2_token_introspection(
       &req, "http://auth/introspect", "token123", "access_token", "client1",
       "sec");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth/introspect", req.url);
   ASSERT_EQ(HTTP_POST, req.method);
   ASSERT_STR_EQ("token=token123&token_type_hint=access_token&client_id=client1&"
@@ -745,7 +763,7 @@ TEST test_oauth2_client_credentials_grant(void) {
   /* Test basic client credentials grant */
   rc = http_request_init_oauth2_client_credentials_grant(
       &req, "http://auth/token", NULL, NULL, NULL);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth/token", req.url);
   ASSERT_EQ(HTTP_POST, req.method);
 
@@ -757,7 +775,7 @@ TEST test_oauth2_client_credentials_grant(void) {
   http_request_init(&req);
   rc = http_request_init_oauth2_client_credentials_grant(
       &req, "http://auth/token", "client_id", "client_secret", "scope1 scope2");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("grant_type=client_credentials&client_id="
                 "client_id&client_secret=client_secret&scope=scope1+scope2",
                 (char *)req.body);
@@ -785,7 +803,7 @@ TEST test_oauth2_jwt_bearer_grant(void) {
   /* Test basic JWT bearer grant */
   rc = http_request_init_oauth2_jwt_bearer_grant(&req, "http://auth/token",
                                                  "eyJhbGciOi...", NULL);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth/token", req.url);
   ASSERT_EQ(HTTP_POST, req.method);
 
@@ -799,7 +817,7 @@ TEST test_oauth2_jwt_bearer_grant(void) {
   http_request_init(&req);
   rc = http_request_init_oauth2_jwt_bearer_grant(
       &req, "http://auth/token", "eyJhbGciOi...", "scope1 scope2");
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-"
                 "bearer&assertion=eyJhbGciOi...&scope=scope1+scope2",
                 (char *)req.body);
@@ -828,7 +846,7 @@ TEST test_oauth2_build_authorization_url(void) {
   /* Test basic URL (no question mark in endpoint) */
   rc = http_oauth2_build_authorization_url("http://auth", "client_id", "code",
                                            NULL, NULL, NULL, NULL, NULL, &url);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth?response_type=code&client_id=client_id", url);
   free(url);
 
@@ -836,7 +854,7 @@ TEST test_oauth2_build_authorization_url(void) {
   rc = http_oauth2_build_authorization_url("http://auth?v=1", "client_id",
                                            "token", NULL, NULL, NULL, NULL,
                                            NULL, &url);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://auth?v=1&response_type=token&client_id=client_id", url);
   free(url);
 
@@ -844,7 +862,7 @@ TEST test_oauth2_build_authorization_url(void) {
   rc = http_oauth2_build_authorization_url("http://auth", "client123", "code",
                                            "http://app/cb", "read write",
                                            "state123", "chal123", "S256", &url);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_STR_EQ("http://"
                 "auth?response_type=code&client_id=client123&redirect_uri=http%"
                 "3A%2F%2Fapp%2Fcb&scope=read+write&state=state123&code_"
@@ -874,7 +892,7 @@ TEST test_http_types_errors(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_request_add_part_header_last(&req, "k", NULL));
 
-  ASSERT_EQ(0, http_request_flatten_parts(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_flatten_parts(NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_headers_init(NULL));
   http_headers_free(NULL);
@@ -909,7 +927,7 @@ TEST test_http_types_errors(void) {
 
 TEST test_http_client_init_free(void) {
   struct HttpClient client;
-  ASSERT_EQ(0, http_client_init(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
   http_client_free(&client);
   PASS();
 }
@@ -917,7 +935,8 @@ TEST test_http_client_init_free(void) {
 TEST test_http_request_set_auth_bearer(void) {
   struct HttpRequest req;
   http_request_init(&req);
-  ASSERT_EQ(0, http_request_set_auth_bearer(&req, "token123"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_set_auth_bearer(&req, "token123"));
   ASSERT_STR_EQ("Bearer token123", req.headers.headers[0].value);
   http_request_free(&req);
   PASS();
@@ -970,7 +989,8 @@ TEST test_http_response_save_to_file(void) {
   (void)res;
   http_response_init(&res);
   res.body = "test";
-  ASSERT_EQ(0, http_response_save_to_file(&res, "test_out.txt"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_response_save_to_file(&res, "test_out.txt"));
 
   /* invalid */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
@@ -1002,10 +1022,13 @@ TEST test_http_types_leftover_errs(void) {
   (void)res;
 
   /* flatten missing */
-  ASSERT_EQ(0, http_request_init(&req));
-  ASSERT_EQ(0, http_request_add_part(&req, "f", NULL, NULL, "d", 1));
-  ASSERT_EQ(0, http_request_add_part(&req, "f", "f", "t", "d", 1));
-  ASSERT_EQ(0, http_request_add_part(&req, "f", "f", NULL, "d", 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_add_part(&req, "f", NULL, NULL, "d", 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_add_part(&req, "f", "f", "t", "d", 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_add_part(&req, "f", "f", NULL, "d", 1));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* buffer malloc */
@@ -1028,7 +1051,7 @@ TEST test_http_types_leftover_errs(void) {
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
-  ASSERT_EQ(0, http_cookie_jar_set(&jar, "n", "v"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_set(&jar, "n", "v"));
 
   /* g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -1056,10 +1079,10 @@ TEST test_http_types_leftover_errs(void) {
   http_request_init(&req);
   ASSERT_EQ(
       0, http_request_set_auth_basic_userpwd(&req, "a", "b")); /* len=3, %3=0 */
-  ASSERT_EQ(0, http_request_set_auth_basic_userpwd(&req, "a",
-                                                   "bc")); /* len=4, %3=1 */
-  ASSERT_EQ(0, http_request_set_auth_basic_userpwd(&req, "a",
-                                                   "bcd")); /* len=5, %3=2 */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_set_auth_basic_userpwd(
+                                         &req, "a", "bc")); /* len=4, %3=1 */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_set_auth_basic_userpwd(
+                                         &req, "a", "bcd")); /* len=5, %3=2 */
   http_request_free(&req);
 
   /* OOM loop for userpwd */
@@ -1183,16 +1206,18 @@ TEST test_http_types_leftover_errs(void) {
   }
 
   /* NULL params coverage */
-  ASSERT_EQ(0, http_request_init_oauth2_password_grant(&req, "u", "u", "p",
-                                                       "client", NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_init_oauth2_password_grant(&req, "u", "u", "p",
+                                                    "client", NULL, NULL));
   http_request_free(&req);
   /* http_request_add_part_header_last, http_request_flatten_parts
    * C_ABSTRACT_HTTP_ERR_INVAL */
   http_request_init(&req);
   /* ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
    * http_request_add_part_header_last(&req, "a", "b")); */
-  ASSERT_EQ(0, http_request_flatten_parts(
-                   &req)); /* returns 0, not C_ABSTRACT_HTTP_ERR_INVAL */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_flatten_parts(
+                &req)); /* returns 0, not C_ABSTRACT_HTTP_ERR_INVAL */
   http_request_free(&req);
   /* http_config_init C_ABSTRACT_HTTP_ERR_INVAL, C_ABSTRACT_HTTP_ERR_NOMEM */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_config_init(NULL));
@@ -1257,7 +1282,7 @@ TEST test_http_client_errs(void) {
 
   http_client_free(NULL);
 
-  ASSERT_EQ(0, http_client_init(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
   client.base_url = strdup("url");
   http_client_free(&client);
   PASS();
@@ -1283,8 +1308,9 @@ TEST test_http_types_more_errs_2(void) {
   (void)f;
 
   /* 341: flatten with body */
-  ASSERT_EQ(0, http_request_init(&req));
-  ASSERT_EQ(0, http_request_add_part(&req, "f", NULL, NULL, "d", 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_add_part(&req, "f", NULL, NULL, "d", 1));
   req.body = (unsigned char *)strdup("body");
   req.body_len = 4;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_request_flatten_parts(&req));
@@ -1486,7 +1512,7 @@ TEST test_http_types_final_errs(void) {
   futures[0] = &f1;
   memset(&f1, 0, sizeof(f1));
 
-  ASSERT_EQ(0, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_request_set_auth_basic_userpwd(&req, NULL, "b"));
   http_request_free(&req);
@@ -1938,7 +1964,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     c.loop = (struct ModalityEventLoop *)1;
     c.send_multi = dummy_send_multi_ok;
     rc = http_client_send_multi(&c, reqs, 2, futures, NULL, NULL, 1);
-    ASSERT_EQ(0, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
     c.send_multi = NULL;
     rc = http_client_send_multi(&c, reqs, 2, futures, NULL, NULL, 1);
@@ -2019,7 +2045,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     c.loop = (struct ModalityEventLoop *)1;
     c.send_multi = dummy_send_multi_ok;
     rc = http_client_send_multi(&c, reqs, 2, futures, NULL, NULL, 1);
-    ASSERT_EQ(0, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
     c.send_multi = NULL;
     rc = http_client_send_multi(&c, reqs, 2, futures, NULL, NULL, 1);

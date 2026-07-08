@@ -36,20 +36,20 @@ TEST test_coroutine_execution(void) {
   state.counter = 0;
 
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   ASSERT_EQ(0, state.counter);
   ASSERT_EQ(0, math_cdd_coroutine_is_done(co));
 
-  ASSERT_EQ(0, cdd_coroutine_resume(co));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_coroutine_resume(co));
   ASSERT_EQ(1, state.counter);
   ASSERT_EQ(0, math_cdd_coroutine_is_done(co));
 
-  ASSERT_EQ(0, cdd_coroutine_resume(co));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_coroutine_resume(co));
   ASSERT_EQ(2, state.counter);
   ASSERT_EQ(0, math_cdd_coroutine_is_done(co));
 
-  ASSERT_EQ(0, cdd_coroutine_resume(co));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_coroutine_resume(co));
   ASSERT_EQ(3, state.counter);
   ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
 
@@ -71,13 +71,13 @@ TEST test_coroutine_errors(void) {
 
   /* Test stack_size == 0 (use 65536 to avoid Wine CreateFiber(0) bug) */
   rc = cdd_coroutine_init(&co, 65536, dummy_coroutine_cb, NULL);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   cdd_coroutine_free(co);
   co = NULL;
 
   /* Test stack_size != 0 */
   rc = cdd_coroutine_init(&co, 2048, dummy_coroutine_cb, NULL);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   cdd_coroutine_free(co);
   co = NULL;
 
@@ -122,9 +122,9 @@ TEST test_coroutine_hooks(void) {
 
   cdd_coroutine_set_hooks(&hooks);
 
-  ASSERT_EQ(0, cdd_coroutine_init(&co, 0, NULL, NULL));
-  ASSERT_EQ(0, cdd_coroutine_resume(co));
-  ASSERT_EQ(0, cdd_coroutine_yield());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_coroutine_init(&co, 0, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_coroutine_resume(co));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_coroutine_yield());
   ASSERT_EQ(1, math_cdd_coroutine_is_done(co));
   cdd_coroutine_free(co);
 
@@ -158,10 +158,10 @@ TEST test_coroutine_fallback_paths(void) {
 
   /* coverage for free while running */
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* We start it, let it yield, then free it */
-  ASSERT_EQ(0, cdd_coroutine_resume(co));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_coroutine_resume(co));
   cdd_coroutine_free(co);
 
   PASS();
@@ -184,7 +184,7 @@ TEST test_coroutine_edge_cases(void) {
     int edge_rc = cdd_coroutine_init(&co, 65536, (cdd_coroutine_cb)1, NULL);
     if (edge_rc == 0)
       cdd_coroutine_free(co);
-    ASSERT_EQ(0, edge_rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, edge_rc);
   }
 #endif
   g_mock_alloc_fail = 0;

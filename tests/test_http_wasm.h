@@ -44,8 +44,8 @@ static int setup_request(struct HttpRequest *req, int port) {
 
 /** @brief Documented */
 TEST test_wasm_global_lifecycle(void) {
-  ASSERT_EQ(0, http_wasm_global_init());
-  ASSERT_EQ(0, http_wasm_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_init());
 
   http_wasm_global_cleanup();
   http_wasm_global_cleanup();
@@ -60,7 +60,7 @@ TEST test_wasm_context_lifecycle(void) {
   http_wasm_global_init();
 
   rc = http_wasm_context_init(&ctx);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(ctx != NULL);
 
   http_wasm_context_free(ctx);
@@ -95,7 +95,7 @@ TEST test_wasm_config_application(void) {
       (c_cdd_strdup("secret", &_ast_strdup_pass), _ast_strdup_pass);
 
   rc = http_wasm_config_apply(ctx, &config);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   http_config_free(&config);
   http_wasm_context_free(ctx);

@@ -38,10 +38,10 @@ TEST test_wininet_lifecycle(void) {
 
   /* Init */
   rc = http_wininet_global_init();
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   rc = http_wininet_context_init(&ctx);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(ctx != NULL);
 
   /* Cleanup */
@@ -81,7 +81,7 @@ TEST test_wininet_config_apply(void) {
        _ast_strdup_proxy2);
 
   rc = http_wininet_config_apply(ctx, &config);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* Invalid args */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
@@ -169,8 +169,8 @@ TEST test_wininet_send_chunked(void) {
   char *_ast_strdup_2 = NULL;
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   /* Start mock server */
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_wininet_global_init();
   http_wininet_context_init(&ctx);
@@ -196,7 +196,7 @@ TEST test_wininet_send_chunked(void) {
 
   rc = http_wininet_send(ctx, &req, &res);
 
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
   /* Body should not be populated when on_chunk is used */
@@ -232,8 +232,8 @@ TEST test_wininet_send_chunked_abort(void) {
   char url[128];
   char *_ast_strdup_3 = NULL;
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_wininet_global_init();
   http_wininet_context_init(&ctx);
@@ -311,8 +311,8 @@ TEST test_wininet_send_upload_chunked(void) {
   char *_ast_strdup_4 = NULL;
   const char *payload = "UPLOAD_TEST_DATA";
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_wininet_global_init();
   http_wininet_context_init(&ctx);
@@ -340,7 +340,7 @@ TEST test_wininet_send_upload_chunked(void) {
 
   rc = http_wininet_send(ctx, &req, &res);
 
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
 

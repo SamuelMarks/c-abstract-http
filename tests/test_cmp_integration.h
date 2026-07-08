@@ -13,22 +13,27 @@ extern "C" {
 TEST test_modality_adapter(void) {
   enum ExecutionModality out;
 
-  ASSERT_EQ(0, cmp_http_modality_adapter(CMP_MODALITY_SYNC_SINGLE, &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cmp_http_modality_adapter(CMP_MODALITY_SYNC_SINGLE, &out));
   ASSERT_EQ(MODALITY_SYNC, out);
 
-  ASSERT_EQ(0, cmp_http_modality_adapter(CMP_MODALITY_SYNC_MULTI, &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cmp_http_modality_adapter(CMP_MODALITY_SYNC_MULTI, &out));
   ASSERT_EQ(MODALITY_THREAD_POOL, out);
 
-  ASSERT_EQ(0, cmp_http_modality_adapter(CMP_MODALITY_ASYNC_SINGLE, &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cmp_http_modality_adapter(CMP_MODALITY_ASYNC_SINGLE, &out));
   ASSERT_EQ(MODALITY_ASYNC, out);
 
-  ASSERT_EQ(0, cmp_http_modality_adapter(CMP_MODALITY_ASYNC_MULTI, &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cmp_http_modality_adapter(CMP_MODALITY_ASYNC_MULTI, &out));
   ASSERT_EQ(MODALITY_ASYNC, out);
 
-  ASSERT_EQ(0, cmp_http_modality_adapter(CMP_MODALITY_GREENTHREADS, &out));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cmp_http_modality_adapter(CMP_MODALITY_GREENTHREADS, &out));
   ASSERT_EQ(MODALITY_GREENTHREAD, out);
 
-  ASSERT_EQ(0,
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             cmp_http_modality_adapter(CMP_MODALITY_MULTIPROCESS_ACTOR, &out));
   ASSERT_EQ(MODALITY_MULTIPROCESS, out);
 
@@ -42,14 +47,16 @@ TEST test_inject_config(void) {
   struct HttpConfig http_cfg;
 
   http_config_init(&http_cfg);
-  ASSERT_EQ(0, cmp_http_inject_config(&cmp_cfg, &http_cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cmp_http_inject_config(&cmp_cfg, &http_cfg));
 
   ASSERT_EQ(MODALITY_THREAD_POOL, http_cfg.modality);
   ASSERT_EQ(4, http_cfg.min_threads);
   ASSERT_EQ(16, http_cfg.max_threads);
 
   cmp_cfg.modality = CMP_MODALITY_SYNC_SINGLE;
-  ASSERT_EQ(0, cmp_http_inject_config(&cmp_cfg, &http_cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cmp_http_inject_config(&cmp_cfg, &http_cfg));
   ASSERT_EQ(MODALITY_SYNC, http_cfg.modality);
 
   http_config_free(&http_cfg);
@@ -68,11 +75,12 @@ TEST test_progress_adapter(void) {
                                        NULL};
 
   g_last_pct = 0.0f;
-  ASSERT_EQ(0, cmp_http_progress_adapter(50, 100, &binding));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cmp_http_progress_adapter(50, 100, &binding));
   ASSERT_EQ(0.5f, g_last_pct);
 
   /* Test total_bytes == 0 */
-  ASSERT_EQ(0, cmp_http_progress_adapter(0, 0, &binding));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cmp_http_progress_adapter(0, 0, &binding));
 
   binding.cancel_requested = 1;
   ASSERT_EQ(1, cmp_http_progress_adapter(75, 100, &binding));
@@ -101,7 +109,7 @@ TEST test_cmp_integration_errors(void) {
             cmp_http_inject_config(&cmp_cfg, &http_cfg));
 
   /* Progress adapter without binding returns 0 */
-  ASSERT_EQ(0, cmp_http_progress_adapter(0, 0, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cmp_http_progress_adapter(0, 0, NULL));
 
   binding.cancel_requested = 1;
   ASSERT_EQ(1, cmp_http_progress_adapter(0, 0, &binding));
@@ -115,7 +123,8 @@ TEST test_cmp_progress_adapter_continue(void) {
   binding.cancel_requested = 0;
   binding.update_progress = NULL;
 
-  ASSERT_EQ(0, cmp_http_progress_adapter(10, 100, &binding));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cmp_http_progress_adapter(10, 100, &binding));
   PASS();
 }
 

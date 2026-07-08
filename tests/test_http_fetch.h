@@ -49,8 +49,9 @@ static int setup_request(struct HttpRequest *req, int port) {
 /** @brief Documented */
 TEST test_fetch_global_lifecycle(void) {
   /* Should succeed and track ref count internally */
-  ASSERT_EQ(0, http_fetch_global_init());
-  ASSERT_EQ(0, http_fetch_global_init()); /* Re-entrant check */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_fetch_global_init()); /* Re-entrant check */
 
   http_fetch_global_cleanup();
   http_fetch_global_cleanup();
@@ -64,7 +65,7 @@ TEST test_fetch_context_lifecycle(void) {
   http_fetch_global_init();
 
   rc = http_fetch_context_init(&ctx);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(ctx != NULL);
 
   http_fetch_context_free(ctx);
@@ -100,7 +101,7 @@ TEST test_fetch_config_application(void) {
       (c_cdd_strdup("secret", &_ast_strdup_pass), _ast_strdup_pass);
 
   rc = http_fetch_config_apply(ctx, &config);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   http_config_free(&config);
   http_fetch_context_free(ctx);
@@ -217,8 +218,8 @@ TEST test_fetch_send_chunked(void) {
   struct fetch_TestChunkState state;
 
   /* Start mock server */
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_fetch_global_init();
   http_fetch_context_init(&ctx);
@@ -236,7 +237,7 @@ TEST test_fetch_send_chunked(void) {
 
   rc = http_fetch_send(ctx, &req, &res);
 
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
   /* Body should not be populated when on_chunk is used */
@@ -266,8 +267,8 @@ TEST test_fetch_send_chunked_abort(void) {
   struct HttpConfig config;
   struct fetch_TestChunkState state;
 
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_fetch_global_init();
   http_fetch_context_init(&ctx);
@@ -331,8 +332,8 @@ TEST test_fetch_send_upload_chunked(void) {
   struct fetch_TestUploadState up_state;
   const char *payload = "UPLOAD_TEST_DATA";
 
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_fetch_global_init();
   http_fetch_context_init(&ctx);
@@ -352,7 +353,7 @@ TEST test_fetch_send_upload_chunked(void) {
 
   rc = http_fetch_send(ctx, &req, &res);
 
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
 

@@ -28,8 +28,9 @@ extern "C" {
 
 /** @brief Documented */
 TEST test_lsquic_global_lifecycle(void) {
-  ASSERT_EQ(0, http_lsquic_global_init());
-  ASSERT_EQ(0, http_lsquic_global_init()); /* Test ref counting */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_lsquic_global_init()); /* Test ref counting */
   http_lsquic_global_cleanup();
   http_lsquic_global_cleanup();
   PASS();
@@ -37,10 +38,10 @@ TEST test_lsquic_global_lifecycle(void) {
 
 /** @brief Documented */
 TEST test_lsquic_context_lifecycle(void) {
-  ASSERT_EQ(0, http_lsquic_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_global_init());
 
   struct HttpTransportContext *ctx = NULL;
-  ASSERT_EQ(0, http_lsquic_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_context_init(&ctx));
   ASSERT_NEQ(NULL, ctx);
 
   http_lsquic_context_free(ctx);
@@ -52,16 +53,16 @@ TEST test_lsquic_context_lifecycle(void) {
 
 /** @brief Documented */
 TEST test_lsquic_config_application(void) {
-  ASSERT_EQ(0, http_lsquic_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_global_init());
 
   struct HttpConfig config;
-  ASSERT_EQ(0, http_config_init(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   config.version_mask = HTTP_VERSION_3;
 
   struct HttpTransportContext *ctx = NULL;
-  ASSERT_EQ(0, http_lsquic_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_context_init(&ctx));
 
-  ASSERT_EQ(0, http_lsquic_config_apply(ctx, &config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_config_apply(ctx, &config));
 
   http_config_free(&config);
   http_lsquic_context_free(ctx);

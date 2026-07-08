@@ -508,8 +508,11 @@ enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co) {
 
   pthread_mutex_lock(&co->mutex);
   if (!co->is_started) {
+    if (pthread_create(&co->thread, NULL, co_thread_func, co) != 0) {
+      pthread_mutex_unlock(&co->mutex);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
     co->is_started = 1;
-    pthread_create(&co->thread, NULL, co_thread_func, co);
     while (!co->is_ready) {
       pthread_cond_wait(&co->cond_yield, &co->mutex);
     }

@@ -28,11 +28,11 @@ extern "C" {
 TEST test_android_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
 
-  ASSERT_EQ(0, http_android_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_android_global_init());
 
   /* Init */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_context_init(NULL));
-  ASSERT_EQ(0, http_android_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_android_context_init(&ctx));
   ASSERT(ctx != NULL);
 
   /* Free */
@@ -49,14 +49,14 @@ TEST test_android_config(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
 
-  ASSERT_EQ(0, http_android_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_android_context_init(&ctx));
   ASSERT(ctx != NULL);
 
-  ASSERT_EQ(0, http_config_init(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_config_apply(NULL, &cfg));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_config_apply(ctx, NULL));
-  ASSERT_EQ(0, http_android_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_android_config_apply(ctx, &cfg));
 
   http_config_free(&cfg);
   http_android_context_free(ctx);
@@ -69,8 +69,8 @@ TEST test_android_send_invalid(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
 
-  ASSERT_EQ(0, http_android_context_init(&ctx));
-  ASSERT_EQ(0, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_android_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_send(NULL, &req, &res));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_android_send(ctx, NULL, &res));

@@ -40,14 +40,14 @@ TEST test_winhttp_lifecycle(void) {
   if (rc != 0) {
     printf("FAILING RC: %d\n", rc);
   }
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* Context init */
   rc = http_winhttp_context_init(&ctx);
   if (rc != 0) {
     printf("FAILING RC: %d\n", rc);
   }
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(ctx != NULL);
 
   /* Cleanup */
@@ -81,7 +81,7 @@ TEST test_winhttp_config_usage(void) {
   if (rc != 0) {
     printf("FAILING RC: %d\n", rc);
   }
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* Test proxy configuration */
   if (cfg.proxy_url)
@@ -105,7 +105,7 @@ TEST test_winhttp_config_usage(void) {
   if (rc != 0) {
     printf("FAILING RC: %d\n", rc);
   }
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   http_config_free(&cfg);
   http_winhttp_context_free(ctx);
@@ -128,7 +128,7 @@ TEST test_winhttp_send_fail(void) {
   if (rc != 0) {
     printf("FAILING RC: %d\n", rc);
   }
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* Initialize request */
   http_request_init(&req);
@@ -221,8 +221,8 @@ TEST test_winhttp_send_chunked(void) {
   char *_ast_strdup_2 = NULL;
 
   /* Start mock server */
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_winhttp_global_init();
   http_winhttp_context_init(&ctx);
@@ -248,7 +248,7 @@ TEST test_winhttp_send_chunked(void) {
 
   rc = http_winhttp_send(ctx, &req, &res);
 
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
   /* Body should not be populated when on_chunk is used */
@@ -285,8 +285,8 @@ TEST test_winhttp_send_chunked_abort(void) {
   char url[128];
   char *_ast_strdup_3 = NULL;
 
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_winhttp_global_init();
   http_winhttp_context_init(&ctx);
@@ -365,8 +365,8 @@ TEST test_winhttp_send_upload_chunked(void) {
   char *_ast_strdup_4 = NULL;
   const char *payload = "UPLOAD_TEST_DATA";
 
-  ASSERT_EQ(0, mock_server_init(&server));
-  ASSERT_EQ(0, mock_server_start(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
   http_winhttp_global_init();
   http_winhttp_context_init(&ctx);
@@ -394,7 +394,7 @@ TEST test_winhttp_send_upload_chunked(void) {
 
   rc = http_winhttp_send(ctx, &req, &res);
 
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
 
@@ -461,10 +461,10 @@ TEST test_winhttp_send_multi(void) {
   (void)multi;
   (void)loop;
 
-  ASSERT_EQ(0, mock_server_init(&server1));
-  ASSERT_EQ(0, mock_server_start(server1));
-  ASSERT_EQ(0, mock_server_init(&server2));
-  ASSERT_EQ(0, mock_server_start(server2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server2));
 
   http_winhttp_global_init();
   http_winhttp_context_init(&ctx);
@@ -486,7 +486,7 @@ TEST test_winhttp_send_multi(void) {
   futures[1] = &f2;
 
   rc = http_winhttp_send_multi(ctx, loop, &multi, futures);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   {
     int timeout_ticks = 100;
