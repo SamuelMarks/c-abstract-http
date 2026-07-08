@@ -18,7 +18,7 @@ extern "C" {
 
 TEST test_ipc_pipe_init_free(void) {
   struct CddIpcPipe pipe = {0};
-  ASSERT_EQ(0, cdd_ipc_pipe_init(&pipe));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&pipe));
   ASSERT(pipe.read_handle != NULL);
   ASSERT(pipe.write_handle != NULL);
   cdd_ipc_pipe_free(&pipe);
@@ -107,17 +107,19 @@ TEST test_process_spawn_wait(void) {
   int exit_code = 0;
   printf("I AM EXECUTING\n");
 
-  ASSERT_EQ(0, cdd_ipc_pipe_init(&parent_to_child));
-  ASSERT_EQ(0, cdd_ipc_pipe_init(&child_to_parent));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&parent_to_child));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&child_to_parent));
 
-  ASSERT_EQ(0, cdd_process_spawn(&proc, &parent_to_child, &child_to_parent));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_process_spawn(&proc, &parent_to_child, &child_to_parent));
   ASSERT(proc != NULL);
 
   /* Write something to unblock it if it waits on stdin,
      but our mock binary currently exits with code 1 immediately if not matching
      proper binary. */
 
-  ASSERT_EQ(0, cdd_process_wait_and_free(proc, &exit_code));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_process_wait_and_free(proc, &exit_code));
 
   cdd_ipc_pipe_free(&parent_to_child);
   cdd_ipc_pipe_free(&child_to_parent);
@@ -183,10 +185,10 @@ TEST test_cdd_process_hooks(void) {
 TEST test_cdd_ipc_short_rw(void) {
   struct CddIpcPipe pipe = {0};
   char buf[4] = {0};
-  ASSERT_EQ(0, cdd_ipc_pipe_init(&pipe));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&pipe));
 
   /* Write 2 bytes */
-  ASSERT_EQ(0, cdd_ipc_write(pipe.write_handle, "ab", 2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_write(pipe.write_handle, "ab", 2));
 
   /* Try to read 4 bytes. The pipe only has 2. It will either block or return 2!
      Wait, if it blocks, the test hangs!
@@ -212,10 +214,11 @@ TEST test_cdd_ipc_rw(void) {
 
   memset(buf, 0, sizeof(buf));
 
-  ASSERT_EQ(0, cdd_ipc_pipe_init(&pipe));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&pipe));
 
-  ASSERT_EQ(0, cdd_ipc_write(pipe.write_handle, "test", 4));
-  ASSERT_EQ(0, cdd_ipc_read(pipe.read_handle, buf, 4));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_ipc_write(pipe.write_handle, "test", 4));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_read(pipe.read_handle, buf, 4));
   ASSERT_STR_EQ("test", buf);
 
   /* Error cases */
@@ -282,10 +285,10 @@ TEST test_process_hooks_coverage(void) {
   hooks.ipc_read = dummy_ipc_read;
   cdd_process_set_hooks(&hooks);
 
-  ASSERT_EQ(0, cdd_process_spawn(&proc, &p2c, &c2p));
-  ASSERT_EQ(0, cdd_process_wait_and_free(proc, NULL));
-  ASSERT_EQ(0, cdd_ipc_write(NULL, NULL, 0));
-  ASSERT_EQ(0, cdd_ipc_read(NULL, NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_process_spawn(&proc, &p2c, &c2p));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_process_wait_and_free(proc, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_write(NULL, NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_read(NULL, NULL, 0));
 
   memset(&hooks, 0, sizeof(hooks));
   cdd_process_set_hooks(&hooks);
@@ -300,7 +303,7 @@ TEST test_process_fallback_paths(void) {
   struct CddIpcPipe p2c = {0}, c2p = {0};
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_ipc_pipe_init(NULL));
-  ASSERT_EQ(0, cdd_ipc_pipe_init(&pipe));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&pipe));
 
 #if !defined(_WIN32)
   g_mock_pipe_fail = 1;
@@ -718,13 +721,14 @@ TEST test_process_wait_signal(void) {
   struct CddIpcPipe p2c = {0}, c2p = {0};
   int exit_code = 0;
   printf("I AM EXECUTING\n");
-  ASSERT_EQ(0, cdd_ipc_pipe_init(&p2c));
-  ASSERT_EQ(0, cdd_ipc_pipe_init(&c2p));
-  ASSERT_EQ(0, cdd_process_spawn(&proc, &p2c, &c2p));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&p2c));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&c2p));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_process_spawn(&proc, &p2c, &c2p));
 
   cdd_ipc_pipe_free(&p2c);
   cdd_ipc_pipe_free(&c2p);
-  ASSERT_EQ(0, cdd_process_wait_and_free(proc, &exit_code));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_process_wait_and_free(proc, &exit_code));
 #endif
   PASS();
 }

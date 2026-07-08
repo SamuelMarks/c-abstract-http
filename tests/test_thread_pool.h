@@ -66,14 +66,15 @@ TEST test_thread_pool_execution(void) {
   int i;
 
   ASSERT_EQ(0, cdd_mutex_init(&lock));
-  ASSERT_EQ(0, cdd_thread_pool_init(&pool, 4));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 4));
 
   for (i = 0; i < 50; ++i) {
     struct TestTaskData *data =
         (struct TestTaskData *)malloc(sizeof(struct TestTaskData));
     data->lock = lock;
     data->counter = &counter;
-    ASSERT_EQ(0, cdd_thread_pool_push(pool, test_task_cb, data));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              cdd_thread_pool_push(pool, test_task_cb, data));
   }
 
   cdd_thread_pool_free(pool); /* Blocks until all tasks complete */
@@ -164,7 +165,8 @@ TEST test_thread_pool_external(void) {
   struct CddThreadPool *pool;
   struct CddThreadPoolHooks hooks;
   memset(&hooks, 0, sizeof(hooks));
-  ASSERT_EQ(0, cdd_thread_pool_init_external(&pool, &hooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_thread_pool_init_external(&pool, &hooks));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
             cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
   cdd_thread_pool_free(pool);
@@ -191,13 +193,15 @@ TEST test_thread_pool_edge_cases(void) {
   /* 498: test hook push */
   memset(&hooks, 0, sizeof(hooks));
   hooks.push = dummy_hook_push;
-  ASSERT_EQ(0, cdd_thread_pool_init_external(&pool, &hooks));
-  ASSERT_EQ(0, cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_thread_pool_init_external(&pool, &hooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
   cdd_thread_pool_free(pool);
 
   /* 516-519: push when stopped */
   /* and 563-565: tasks left in queue */
-  ASSERT_EQ(0, cdd_thread_pool_init(&pool, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 1));
   cdd_thread_pool_test_set_stop(pool);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
@@ -207,9 +211,7 @@ TEST test_thread_pool_edge_cases(void) {
   cdd_thread_pool_free(pool);
 
   /* I can create a fake pool to free! */
-  {
-    cdd_thread_pool_test_free_with_tasks();
-  }
+  { cdd_thread_pool_test_free_with_tasks(); }
 
   PASS();
 }
@@ -314,7 +316,7 @@ TEST test_thread_pool_fallback_paths(void) {
 
   g_mock_alloc_fail = 0;
   rc = cdd_thread_pool_init(&pool, 1);
-  ASSERT_EQ(0, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = cdd_thread_pool_push(pool, test_task_cb, NULL);
