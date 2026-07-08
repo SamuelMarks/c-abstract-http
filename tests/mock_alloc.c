@@ -312,6 +312,7 @@ int c_abstract_http_mock_pipe(int fildes[2]) {
 }
 
 #if defined(__EMSCRIPTEN__)
+void __gcov_fork(void);
 void __gcov_fork(void) {}
 #endif
 
