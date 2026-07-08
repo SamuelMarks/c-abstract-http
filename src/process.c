@@ -308,20 +308,20 @@ cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
     free(p);
     return C_ABSTRACT_HTTP_ERR_IO;
   } else if (pid == 0) {
-    char *argv[] = {"cdd-worker", "--cdd-worker", NULL}; /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */
+    char *argv[] = {"cdd-worker", "--cdd-worker", NULL};
 
-    dup2((int)(size_t)parent_to_child->read_handle,
-         STDIN_FILENO); /* LCOV_EXCL_LINE */
-    dup2((int)(size_t)child_to_parent->write_handle,
-         STDOUT_FILENO); /* LCOV_EXCL_LINE */
+    dup2((int)(size_t)parent_to_child->read_handle, STDIN_FILENO);
+    dup2((int)(size_t)child_to_parent->write_handle, STDOUT_FILENO);
 
-    close((int)(size_t)parent_to_child->write_handle); /* LCOV_EXCL_LINE */
-    close((int)(size_t)child_to_parent->read_handle);  /* LCOV_EXCL_LINE */
-    close((int)(size_t)parent_to_child->read_handle);  /* LCOV_EXCL_LINE */
-    close((int)(size_t)child_to_parent->write_handle); /* LCOV_EXCL_LINE */
+    close((int)(size_t)parent_to_child->write_handle);
+    close((int)(size_t)child_to_parent->read_handle);
+    close((int)(size_t)parent_to_child->read_handle);
+    close((int)(size_t)child_to_parent->write_handle);
 
-    execv("/proc/self/exe", argv); /* LCOV_EXCL_LINE */
-    _exit(1);                      /* LCOV_EXCL_LINE */
+    execv("/proc/self/exe", argv);
+    _exit(1);
+    /* LCOV_EXCL_STOP */
   } else {
     close((int)(size_t)parent_to_child->read_handle);
     parent_to_child->read_handle = NULL;

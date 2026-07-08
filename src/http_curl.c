@@ -273,46 +273,42 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
   }
 
   if (config->tls_version_mask != HTTP_TLS_VERSION_DEFAULT) {
-    long ssl_version = CURL_SSLVERSION_DEFAULT; /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */
+    long ssl_version = CURL_SSLVERSION_DEFAULT;
 #if LIBCURL_VERSION_NUM >= 0x073600
-    ssl_version_max = CURL_SSLVERSION_MAX_DEFAULT; /* LCOV_EXCL_LINE */
+    ssl_version_max = CURL_SSLVERSION_MAX_DEFAULT;
 #endif
     (void)ssl_version_max;
 
-    if (config->tls_version_mask & HTTP_TLS_VERSION_1_0) /* LCOV_EXCL_LINE */
-      ssl_version = CURL_SSLVERSION_TLSv1_0;             /* LCOV_EXCL_LINE */
-    else if (config->tls_version_mask &
-             HTTP_TLS_VERSION_1_1)           /* LCOV_EXCL_LINE */
-      ssl_version = CURL_SSLVERSION_TLSv1_1; /* LCOV_EXCL_LINE */
-    else if (config->tls_version_mask &
-             HTTP_TLS_VERSION_1_2)           /* LCOV_EXCL_LINE */
-      ssl_version = CURL_SSLVERSION_TLSv1_2; /* LCOV_EXCL_LINE */
-    else if (config->tls_version_mask &
-             HTTP_TLS_VERSION_1_3)           /* LCOV_EXCL_LINE */
-      ssl_version = CURL_SSLVERSION_TLSv1_3; /* LCOV_EXCL_LINE */
+    if (config->tls_version_mask & HTTP_TLS_VERSION_1_0)
+      ssl_version = CURL_SSLVERSION_TLSv1_0;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_1)
+      ssl_version = CURL_SSLVERSION_TLSv1_1;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_2)
+      ssl_version = CURL_SSLVERSION_TLSv1_2;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_3)
+      ssl_version = CURL_SSLVERSION_TLSv1_3;
 
-#if LIBCURL_VERSION_NUM >= 0x073600                      /* 7.54.0 */
-    ssl_version_max = CURL_SSLVERSION_MAX_DEFAULT;       /* LCOV_EXCL_LINE */
-    if (config->tls_version_mask & HTTP_TLS_VERSION_1_3) /* LCOV_EXCL_LINE */
-      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_3;     /* LCOV_EXCL_LINE */
-    else if (config->tls_version_mask &
-             HTTP_TLS_VERSION_1_2)                   /* LCOV_EXCL_LINE */
-      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_2; /* LCOV_EXCL_LINE */
-    else if (config->tls_version_mask &
-             HTTP_TLS_VERSION_1_1)                   /* LCOV_EXCL_LINE */
-      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_1; /* LCOV_EXCL_LINE */
-    else if (config->tls_version_mask &
-             HTTP_TLS_VERSION_1_0)                   /* LCOV_EXCL_LINE */
-      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_0; /* LCOV_EXCL_LINE */
+#if LIBCURL_VERSION_NUM >= 0x073600 /* 7.54.0 */
+    ssl_version_max = CURL_SSLVERSION_MAX_DEFAULT;
+    if (config->tls_version_mask & HTTP_TLS_VERSION_1_3)
+      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_3;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_2)
+      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_2;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_1)
+      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_1;
+    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_0)
+      ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_0;
 
-    if (curl_easy_setopt(ctx->curl, CURLOPT_SSLVERSION, /* LCOV_EXCL_LINE */
+    if (curl_easy_setopt(ctx->curl, CURLOPT_SSLVERSION,
                          ssl_version | ssl_version_max) != CURLE_OK)
-      return C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_IO;
 #else
     if (curl_easy_setopt(ctx->curl, CURLOPT_SSLVERSION, ssl_version) !=
         CURLE_OK)
       return C_ABSTRACT_HTTP_ERR_IO;
 #endif
+    /* LCOV_EXCL_STOP */
   }
 
   if (curl_easy_setopt(ctx->curl, CURLOPT_TIMEOUT_MS, config->timeout_ms) !=
@@ -358,13 +354,14 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
   }
 
   if (config->cookie_jar) {
-    ctx->cookie_jar = config->cookie_jar; /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */
+    ctx->cookie_jar = config->cookie_jar;
     /* Enable curl's cookie engine without reading a file */
-    if (curl_easy_setopt(ctx->curl, CURLOPT_COOKIEFILE, "") !=
-        CURLE_OK)                    /* LCOV_EXCL_LINE */
-      return C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_LINE */
+    if (curl_easy_setopt(ctx->curl, CURLOPT_COOKIEFILE, "") != CURLE_OK)
+      return C_ABSTRACT_HTTP_ERR_IO;
     /* Instruct curl to write cookies to a dummy state (handled manually or via
      * curl's getinfo later) */
+    /* LCOV_EXCL_STOP */
   } else {
     ctx->cookie_jar = NULL;
   }

@@ -71,9 +71,16 @@ def main():
                 if os.path.exists(gcov_file):
                     executed = 0
                     missed = 0
+                    exclude_block = False
                     with open(gcov_file, 'r') as gf:
                         for gline in gf:
-                            if 'LCOV_EXCL_LINE' in gline:
+                            if 'LCOV_EXCL_START' in gline:
+                                exclude_block = True
+                                continue
+                            if 'LCOV_EXCL_STOP' in gline:
+                                exclude_block = False
+                                continue
+                            if exclude_block or 'LCOV_EXCL_LINE' in gline:
                                 continue
                             if gline.startswith('    #####'):
                                 missed += 1
