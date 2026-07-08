@@ -539,3 +539,15 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
   return recv(socket, buffer, length, flags);
 }
 #endif
+
+#ifdef __APPLE__
+int c_abstract_http_mock_select_darwin_extsn(
+    int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds,
+    struct timeval *timeout) __asm("_c_abstract_http_mock_select$DARWIN_EXTSN");
+int c_abstract_http_mock_select_darwin_extsn(int nfds, fd_set *readfds,
+                                             fd_set *writefds, fd_set *errorfds,
+                                             struct timeval *timeout) {
+  return c_abstract_http_mock_select(nfds, readfds, writefds, errorfds,
+                                     timeout);
+}
+#endif
