@@ -311,6 +311,10 @@ int c_abstract_http_mock_pipe(int fildes[2]) {
   return pipe(fildes);
 }
 
+#if defined(__EMSCRIPTEN__)
+void __gcov_fork(void) {}
+#endif
+
 pid_t c_abstract_http_mock_fork(void) {
   if (g_mock_fork_fail) {
     errno = EAGAIN;

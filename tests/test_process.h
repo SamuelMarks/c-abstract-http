@@ -573,7 +573,7 @@ TEST test_process_final_edge_cases(void) {
 
   /* 349: waitpid WIFEXITED == false */
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  cdd_process_test_waitpid_exit();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_process_test_waitpid_exit());
 #endif
 
   /* 390: C_ABSTRACT_HTTP_ERR_IO from read */
