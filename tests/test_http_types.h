@@ -110,8 +110,9 @@ TEST test_oauth2_localhost_intercept(void) {
   memset(&args, 0, sizeof(args));
   args.port = 18080;
 
-  ASSERT_EQ(0, cdd_thread_pool_init(&pool, 1));
-  ASSERT_EQ(0, cdd_thread_pool_push(pool, server_task, &args));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_thread_pool_push(pool, server_task, &args));
 
   for (i = 0; i < 50; i++) {
 #if defined(_WIN32)
@@ -143,7 +144,7 @@ TEST test_oauth2_localhost_intercept(void) {
 
   cdd_thread_pool_free(pool);
 
-  ASSERT_EQ(0, args.rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, args.rc);
   ASSERT_STR_EQ("a+<<? ", args.code);
   ASSERT_STR_EQ("s 456", args.state);
   ASSERT_STR_EQ("e%", args.err);
@@ -161,8 +162,9 @@ TEST test_oauth2_localhost_intercept(void) {
   /* Test POST to trigger C_ABSTRACT_HTTP_ERR_INVAL */
   memset(&args, 0, sizeof(args));
   args.port = 18081;
-  ASSERT_EQ(0, cdd_thread_pool_init(&pool, 1));
-  ASSERT_EQ(0, cdd_thread_pool_push(pool, server_task, &args));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_thread_pool_push(pool, server_task, &args));
   connected = 0;
   for (i = 0; i < 50; i++) {
 #if defined(_WIN32)
@@ -188,8 +190,9 @@ TEST test_oauth2_localhost_intercept(void) {
   /* Test connect and close to trigger C_ABSTRACT_HTTP_ERR_IO on recv */
   memset(&args, 0, sizeof(args));
   args.port = 18082;
-  ASSERT_EQ(0, cdd_thread_pool_init(&pool, 1));
-  ASSERT_EQ(0, cdd_thread_pool_push(pool, server_task, &args));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_thread_pool_push(pool, server_task, &args));
   connected = 0;
   for (i = 0; i < 50; i++) {
 #if defined(_WIN32)
@@ -466,7 +469,7 @@ TEST test_http_future(void) {
   struct HttpFuture future;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&future));
   ASSERT_EQ(0, future.is_ready);
-  ASSERT_EQ(0, future.error_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, future.error_code);
   ASSERT_EQ(NULL, future.response);
   ASSERT_EQ(NULL, future.internal_state);
   http_future_free(&future);

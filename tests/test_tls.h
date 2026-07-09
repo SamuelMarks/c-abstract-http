@@ -50,10 +50,9 @@ TEST test_tls_isolation(void) {
   int i;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_tls_key_create(&tls_key, NULL));
-  ASSERT_EQ(0, cdd_thread_pool_init(&pool, 4));
-
-  for (i = 0; i < 4; ++i) {
-    ASSERT_EQ(0, cdd_thread_pool_push(pool, test_tls_task_cb, &results[i]));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 4));
+  for (i = 0; i < 4; i++) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_push(pool, test_tls_task_cb, &results[i]));
   }
 
   cdd_thread_pool_free(pool);

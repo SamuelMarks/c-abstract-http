@@ -105,6 +105,7 @@ TEST test_serialize_deserialize_response(void) {
   PASS();
 }
 
+#ifndef __EMSCRIPTEN__
 TEST test_process_spawn_wait(void) {
   struct CddIpcPipe parent_to_child, child_to_parent;
   struct CddProcess *proc = NULL;
@@ -130,6 +131,7 @@ TEST test_process_spawn_wait(void) {
 
   PASS();
 }
+#endif
 
 TEST test_cdd_serialize_errors(void) {
   char *buf = NULL;
@@ -734,6 +736,7 @@ TEST test_process_waitpid_fail_2(void) {
   PASS();
 }
 
+#ifndef __EMSCRIPTEN__
 TEST test_process_wait_signal(void) {
 #if !defined(_WIN32)
   struct CddProcess *proc = NULL;
@@ -751,6 +754,7 @@ TEST test_process_wait_signal(void) {
 #endif
   PASS();
 }
+#endif
 
 TEST test_process_null_header_keys(void) {
   struct HttpRequest req;
@@ -837,7 +841,9 @@ SUITE(process_suite) {
 
   RUN_TEST(test_process_null_header_keys);
 
+#ifndef __EMSCRIPTEN__
   RUN_TEST(test_process_wait_signal);
+#endif
   RUN_TEST(test_process_waitpid_fail_2);
   RUN_TEST(test_process_misc_coverage);
   RUN_TEST(test_cdd_process_hooks);
@@ -848,7 +854,9 @@ SUITE(process_suite) {
   RUN_TEST(test_ipc_pipe_init_free);
   RUN_TEST(test_serialize_deserialize_request);
   RUN_TEST(test_serialize_deserialize_response);
+#ifndef __EMSCRIPTEN__
   RUN_TEST(test_process_spawn_wait);
+#endif
   RUN_TEST(test_process_hooks_coverage);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_fallback_paths);

@@ -23,6 +23,7 @@ extern "C" {
 #include "functions/parse/str.h"
 /* clang-format on */
 
+#ifndef __EMSCRIPTEN__
 static int setup_request(struct HttpRequest *req, int port) {
   char *_ast_strdup_0 = NULL;
   char url[64];
@@ -41,6 +42,7 @@ static int setup_request(struct HttpRequest *req, int port) {
   req->url = (c_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
   return (enum greatest_test_res)0;
 }
+#endif
 
 /** @brief Documented */
 TEST test_wasm_global_lifecycle(void) {
@@ -97,12 +99,12 @@ TEST test_wasm_config_application(void) {
   rc = http_wasm_config_apply(ctx, &config);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
-  http_config_free(&config);
   http_wasm_context_free(ctx);
   http_wasm_global_cleanup();
   PASS();
 }
 
+#ifndef __EMSCRIPTEN__
 /** @brief Documented */
 TEST test_wasm_send_connection_failure(void) {
   struct HttpTransportContext *ctx = NULL;
@@ -130,12 +132,12 @@ TEST test_wasm_send_connection_failure(void) {
 
   ASSERT(res == NULL);
 
-  http_config_free(&config);
   http_request_free(&req);
   http_wasm_context_free(ctx);
   http_wasm_global_cleanup();
   PASS();
 }
+#endif
 
 /** @brief Documented */
 TEST test_wasm_send_invalid_arguments(void) {
@@ -165,7 +167,9 @@ SUITE(http_wasm_suite) {
   RUN_TEST(test_wasm_global_lifecycle);
   RUN_TEST(test_wasm_context_lifecycle);
   RUN_TEST(test_wasm_config_application);
+#ifndef __EMSCRIPTEN__
   RUN_TEST(test_wasm_send_connection_failure);
+#endif
   RUN_TEST(test_wasm_send_invalid_arguments);
 }
 

@@ -502,12 +502,12 @@ TEST test_winhttp_send_multi(void) {
   }
 
   ASSERT_EQ(1, f1.is_ready);
-  ASSERT_EQ(0, f1.error_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, f1.error_code);
   ASSERT(f1.response != NULL);
   ASSERT_EQ(200, f1.response->status_code);
 
   ASSERT_EQ(1, f2.is_ready);
-  ASSERT_EQ(0, f2.error_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, f2.error_code);
   ASSERT(f2.response != NULL);
   ASSERT_EQ(200, f2.response->status_code);
 

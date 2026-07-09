@@ -65,8 +65,14 @@ TEST test_thread_pool_execution(void) {
   int counter = 0;
   int i;
 
+  enum c_abstract_http_error rc;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_mutex_init(&lock));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 4));
+  rc = cdd_thread_pool_init(&pool, 4);
+  if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {
+    cdd_mutex_free(lock);
+    PASS();
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   for (i = 0; i < 50; ++i) {
     struct TestTaskData *data =
@@ -201,7 +207,13 @@ TEST test_thread_pool_edge_cases(void) {
 
   /* 516-519: push when stopped */
   /* and 563-565: tasks left in queue */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 1));
+  {
+    enum c_abstract_http_error rc = cdd_thread_pool_init(&pool, 1);
+    if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {
+      PASS();
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  }
   cdd_thread_pool_test_set_stop(pool);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             cdd_thread_pool_push(pool, dummy_cb_thread, NULL));
@@ -216,7 +228,7 @@ TEST test_thread_pool_edge_cases(void) {
   PASS();
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
 TEST test_thread_pool_pthread_create_failures(void) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct CddThreadPool *pool = NULL;
@@ -256,7 +268,7 @@ TEST test_thread_pool_pthread_create_failures(void) {
 }
 #endif
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
 TEST test_thread_pool_pthread_failures(void) {
 #if !defined(_WIN32)
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
@@ -277,7 +289,7 @@ TEST test_thread_pool_pthread_failures(void) {
 }
 #endif
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
 TEST test_thread_pool_fallback_paths(void) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct CddThreadPool *pool = NULL;
@@ -333,13 +345,14 @@ SUITE(thread_pool_suite) {
   RUN_TEST(test_mutex_lock_unlock);
   RUN_TEST(test_thread_pool_execution);
   RUN_TEST(test_thread_pool_edge_cases);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
   RUN_TEST(test_thread_pool_pthread_create_failures);
 #endif
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
   RUN_TEST(test_thread_pool_pthread_failures);
 #endif
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__) &&           \
+    !defined(__EMSCRIPTEN__)
   RUN_TEST(test_thread_pool_fallback_paths);
 #endif
 }

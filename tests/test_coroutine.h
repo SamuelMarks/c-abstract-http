@@ -36,6 +36,9 @@ TEST test_coroutine_execution(void) {
   state.counter = 0;
 
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
+  if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {
+    PASS();
+  }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   ASSERT_EQ(0, state.counter);
@@ -71,6 +74,9 @@ TEST test_coroutine_errors(void) {
 
   /* Test stack_size == 0 (use 65536 to avoid Wine CreateFiber(0) bug) */
   rc = cdd_coroutine_init(&co, 65536, dummy_coroutine_cb, NULL);
+  if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {
+    PASS();
+  }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   cdd_coroutine_free(co);
   co = NULL;
@@ -158,6 +164,9 @@ TEST test_coroutine_fallback_paths(void) {
 
   /* coverage for free while running */
   rc = cdd_coroutine_init(&co, 0, test_co_cb, &state);
+  if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {
+    PASS();
+  }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* We start it, let it yield, then free it */
@@ -176,7 +185,7 @@ TEST test_coroutine_edge_cases(void) {
   g_mock_alloc_count = 1;
   /* Need a valid callback so we don't hit C_ABSTRACT_HTTP_ERR_INVAL at line 267
    */
-#if !defined(_WIN32) && !defined(__APPLE__)
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__EMSCRIPTEN__)
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
             cdd_coroutine_init(&co, 0, (cdd_coroutine_cb)1, NULL));
 #else
