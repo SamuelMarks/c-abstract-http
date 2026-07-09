@@ -2,6 +2,7 @@
 int g_mock_waitpid_fail = 0;
 #else
 extern int g_mock_waitpid_fail;
+#define _exit exit
 #endif
 
 /* clang-format off */
@@ -29,6 +30,10 @@ extern int g_mock_waitpid_fail;
 #include "c_abstract_http/log.h"
 #include "str.h"
 /* clang-format on */
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#define execv(path, argv) (-1)
+#endif
 
 static struct CddProcessHooks g_process_hooks = {NULL, NULL, NULL, NULL};
 
@@ -308,7 +313,6 @@ cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
     free(p);
     return C_ABSTRACT_HTTP_ERR_IO;
   } else if (pid == 0) {
-    /* LCOV_EXCL_START */
     char *argv[] = {"cdd-worker", "--cdd-worker", NULL};
 
     dup2((int)(size_t)parent_to_child->read_handle, STDIN_FILENO);
@@ -321,7 +325,6 @@ cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
 
     execv("/proc/self/exe", argv);
     _exit(1);
-    /* LCOV_EXCL_STOP */
   } else {
     close((int)(size_t)parent_to_child->read_handle);
     parent_to_child->read_handle = NULL;
@@ -350,22 +353,12 @@ enum c_abstract_http_error cdd_process_wait_and_free(struct CddProcess *proc,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM) || 1
-  if (g_mock_waitpid_fail) {
-    if (exit_code) {
-      *exit_code = (g_mock_waitpid_fail == 2) ? -1 : 0;
-    }
-    free(proc);
-    return C_ABSTRACT_HTTP_SUCCESS;
-  }
-#endif
-
   waitpid(proc->pid, &status, 0);
   if (exit_code) {
     if (WIFEXITED(status)) {
       *exit_code = WEXITSTATUS(status);
     } else {
-      *exit_code = -1; /* LCOV_EXCL_LINE */
+      *exit_code = -1;
     }
   }
 

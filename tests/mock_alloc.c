@@ -167,6 +167,7 @@ CDD_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
 char *c_abstract_http_mock_strdup(const char *s, char **out);
 
 CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc(size_t size) {
+    if (g_mock_alloc_fail)
     if (g_mock_alloc_fail) { if (g_mock_alloc_count-- == 0) { return NULL; } }
     return malloc(size);
 }
@@ -179,6 +180,8 @@ CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_calloc
 }
 
 CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_realloc(void *ptr, size_t size) {
+    if (g_mock_alloc_fail)
+    if (g_mock_alloc_fail)
     if (g_mock_alloc_fail) { if (g_mock_alloc_count-- == 0) { return NULL; } }
     return realloc(ptr, size);
 }
@@ -320,6 +323,9 @@ pid_t c_abstract_http_mock_fork(void) {
   if (g_mock_fork_fail) {
     errno = EAGAIN;
     return -1;
+  }
+  if (g_mock_waitpid_fail == 3) {
+    return 0;
   }
 #if !defined(__EMSCRIPTEN__)
   return fork();

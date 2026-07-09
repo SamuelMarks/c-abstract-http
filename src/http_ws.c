@@ -571,7 +571,7 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   if (res->body && res->body_len > 0) {
     rc = ws_parser_feed(&parser, res->body, res->body_len);
     if (rc != 0 && on_err) {
-      on_err(rc, user_data); /* LCOV_EXCL_LINE */
+      on_err(rc, user_data);
     }
   }
 

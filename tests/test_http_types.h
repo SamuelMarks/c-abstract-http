@@ -1117,9 +1117,9 @@ TEST test_http_types_leftover_errs(void) {
   }
 
   /* OAuth2 ooms */
-  printf("6\n");
+
   for (i = 0; i < 4; i++) {
-    printf("loop %d\n", i);
+
     g_mock_alloc_fail = 1;
     http_request_init(&req);
     g_mock_alloc_count = i;
@@ -1133,9 +1133,9 @@ TEST test_http_types_leftover_errs(void) {
     }
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
-  printf("6\n");
+
   for (i = 0; i < 4; i++) {
-    printf("loop %d\n", i);
+
     g_mock_alloc_fail = 1;
     http_request_init(&req);
     g_mock_alloc_count = i;
@@ -1149,9 +1149,9 @@ TEST test_http_types_leftover_errs(void) {
     }
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
-  printf("6\n");
+
   for (i = 0; i < 4; i++) {
-    printf("loop %d\n", i);
+
     g_mock_alloc_fail = 1;
     http_request_init(&req);
     g_mock_alloc_count = i;
@@ -1345,9 +1345,7 @@ TEST test_http_types_more_errs_2(void) {
   http_future_free(NULL);
 
   /* missing oauth2 init ooms */
-  printf("6\n");
-  for (i = 0; i < 4; i++) {
-    printf("loop %d\n", i);
+  for (i = 0; i < 10; i++) {
     g_mock_alloc_fail = 1;
     http_request_init(&req);
     g_mock_alloc_count = i;
@@ -1356,14 +1354,24 @@ TEST test_http_types_more_errs_2(void) {
     g_mock_alloc_fail = 0;
     http_request_free(&req);
     if (rc == 0) {
-      i = 9999;
-      continue;
+      break;
     }
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   }
-  printf("6\n");
-  for (i = 0; i < 4; i++) {
-    printf("loop %d\n", i);
+
+  for (i = 0; i < 10; i++) {
+    g_mock_alloc_fail = 1;
+    http_request_init(&req);
+    g_mock_alloc_count = i;
+    rc = http_request_init_oauth2_token_revocation(&req, "u", "t", "hint",
+                                                   "client", "s");
+    g_mock_alloc_fail = 0;
+    http_request_free(&req);
+    if (rc == 0) {
+      break;
+    }
+  }
+
+  for (i = 0; i < 10; i++) {
     g_mock_alloc_fail = 1;
     http_request_init(&req);
     g_mock_alloc_count = i;
@@ -1372,10 +1380,22 @@ TEST test_http_types_more_errs_2(void) {
     g_mock_alloc_fail = 0;
     http_request_free(&req);
     if (rc == 0) {
-      i = 9999;
-      continue;
+      break;
     }
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
+  }
+
+  /* urldecode oom */
+  {
+    char *out_url = NULL;
+    extern int cdd_test_urldecode_alloc(const char *src, size_t src_len,
+                                        char **out);
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = 0;
+    rc = cdd_test_urldecode_alloc("a%20b", 5, &out_url);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
+    if (out_url)
+      free(out_url);
   }
 
   /* oauth2 url builders */

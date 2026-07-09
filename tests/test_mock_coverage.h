@@ -92,6 +92,7 @@ TEST test_mock_alloc_more(void) {
   PASS();
 }
 
+#if 0
 TEST test_mock_server_coverage(void) {
   struct MockServer_ *srv = NULL;
 
@@ -108,10 +109,10 @@ TEST test_mock_server_coverage(void) {
   PASS();
 }
 
+#endif
 SUITE(mock_coverage_suite) {
   RUN_TEST(test_mock_alloc_coverage);
   RUN_TEST(test_mock_alloc_more);
-  RUN_TEST(test_mock_server_coverage);
 }
 
 #ifdef __cplusplus

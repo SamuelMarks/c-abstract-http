@@ -607,6 +607,7 @@ TEST test_process_final_edge_cases(void) {
     /* I can just pass an invalid handle like (void*)9999 to avoid valgrind
      * warnings on -1 */
     rc = cdd_ipc_read((void *)(size_t)9999, dummy_buf, 10);
+    g_mock_pipe_fail = 0;
 #if defined(_WIN32)
     ASSERT(rc == C_ABSTRACT_HTTP_ERR_IO || rc == C_ABSTRACT_HTTP_ERR_INVAL);
 #else
@@ -615,6 +616,18 @@ TEST test_process_final_edge_cases(void) {
   }
 
   /* 514: http_request_init failure */
+  {
+    struct CddProcess *my_proc = NULL;
+    struct CddIpcPipe p1, p2;
+    cdd_ipc_pipe_init(&p1);
+    cdd_ipc_pipe_init(&p2);
+    if (cdd_process_spawn(&my_proc, &p1, &p2) == C_ABSTRACT_HTTP_SUCCESS) {
+      if (my_proc)
+        free(my_proc);
+    }
+    cdd_ipc_pipe_free(&p1);
+    cdd_ipc_pipe_free(&p2);
+  }
   {
     /* To fail http_request_init, maybe pass NULL? No, it handles NULL. But we
        already passed valid pointer. Does it allocate? `int

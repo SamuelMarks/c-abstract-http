@@ -945,6 +945,7 @@ TEST test_event_loop_write_error_coverage2(void) {
 }
 
 SUITE(event_loop_suite) {
+  system("ls /proc/self/fd | wc -l");
   RUN_TEST(test_event_loop_write_error_coverage2);
 
   RUN_TEST(test_event_loop_timer_past_coverage);
@@ -979,6 +980,7 @@ SUITE(event_loop_suite) {
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(_WIN32)
   RUN_TEST(test_event_loop_pipe_fail);
+  system("ls /proc/self/fd | wc -l");
 #endif
 }
 

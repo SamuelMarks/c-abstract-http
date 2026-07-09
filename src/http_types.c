@@ -110,7 +110,7 @@ enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers, const c
     struct HttpHeader *new_arr = (struct HttpHeader *)realloc(
         headers->headers, new_cap * sizeof(struct HttpHeader));
     if (!new_arr)
-      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     headers->headers = new_arr;
     headers->capacity = new_cap;
   }
@@ -118,13 +118,13 @@ enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers, const c
   headers->headers[headers->count].key =
       (CDD_STRDUP(key, &_ast_strdup_0), _ast_strdup_0);
   if (!headers->headers[headers->count].key)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   headers->headers[headers->count].value =
       (CDD_STRDUP(value, &_ast_strdup_1), _ast_strdup_1);
   if (!headers->headers[headers->count].value) {
     free(headers->headers[headers->count].key);
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   headers->count++;
@@ -232,7 +232,7 @@ enum c_abstract_http_error http_request_add_part(struct HttpRequest *req, const 
     struct HttpPart *new_arr =
         (struct HttpPart *)realloc(p->parts, new_cap * sizeof(struct HttpPart));
     if (!new_arr)
-      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     p->parts = new_arr;
     p->capacity = new_cap;
   }
@@ -244,7 +244,7 @@ enum c_abstract_http_error http_request_add_part(struct HttpRequest *req, const 
   p->parts[p->count].name = (CDD_STRDUP(name, &_ast_strdup_2), _ast_strdup_2);
   if (!p->parts[p->count].name) {
     http_headers_free(&p->parts[p->count].headers);
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   if (filename) {
@@ -253,7 +253,7 @@ enum c_abstract_http_error http_request_add_part(struct HttpRequest *req, const 
     if (!p->parts[p->count].filename) {
       free(p->parts[p->count].name);
       http_headers_free(&p->parts[p->count].headers);
-      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
 
@@ -265,7 +265,7 @@ enum c_abstract_http_error http_request_add_part(struct HttpRequest *req, const 
         free(p->parts[p->count].filename);
       free(p->parts[p->count].name);
       http_headers_free(&p->parts[p->count].headers);
-      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
 
@@ -350,7 +350,7 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
   /* 3. Build Buffer */
   buffer = (char *)malloc(estimated_size);
   if (!buffer)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   for (i = 0; i < req->parts.count; ++i) {
     struct HttpPart *part = &req->parts.parts[i];
@@ -497,7 +497,7 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar, const 
       char *new_val =
           (CDD_STRDUP(value, &_ast_strdup_cval), _ast_strdup_cval);
       if (!new_val)
-        return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
       free(jar->cookies[i].value);
       jar->cookies[i].value = new_val;
       return C_ABSTRACT_HTTP_SUCCESS;
@@ -510,7 +510,7 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar, const 
     struct HttpCookie *new_arr = (struct HttpCookie *)realloc(
         jar->cookies, new_cap * sizeof(struct HttpCookie));
     if (!new_arr)
-      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     jar->cookies = new_arr;
     jar->capacity = new_cap;
   }
@@ -520,13 +520,13 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar, const 
   jar->cookies[jar->count].name =
       (CDD_STRDUP(name, &_ast_strdup_cname), _ast_strdup_cname);
   if (!jar->cookies[jar->count].name)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   jar->cookies[jar->count].value =
       (CDD_STRDUP(value, &_ast_strdup_cval), _ast_strdup_cval);
   if (!jar->cookies[jar->count].value) {
     free(jar->cookies[jar->count].name);
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   jar->count++;
@@ -578,7 +578,7 @@ enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   config->http3_fallback = 1;
 
   if (!config->user_agent)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -721,7 +721,7 @@ enum c_abstract_http_error http_multi_request_add(struct HttpMultiRequest *multi
     struct HttpRequest **new_arr = (struct HttpRequest **)realloc(
         multi->requests, new_cap * sizeof(struct HttpRequest *));
     if (!new_arr)
-      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     multi->requests = new_arr;
     multi->capacity = new_cap;
   }
@@ -741,7 +741,7 @@ enum c_abstract_http_error http_request_set_auth_bearer(struct HttpRequest *req,
   len = strlen(token) + 8;
   val = (char *)malloc(len);
   if (!val)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(val, len, "Bearer %s", token);
@@ -766,7 +766,7 @@ enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req, 
   len = strlen(token) + 7;
   val = (char *)malloc(len);
   if (!val)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(val, len, "Basic %s", token);
@@ -789,7 +789,7 @@ static int base64_encode(const unsigned char *src, size_t len, char **out) {
 
   res = (char *)malloc(olen + 1);
   if (!res)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   for (i = 0, j = 0; i < len;) {
     unsigned long octet_a = i < len ? src[i++] : 0;
@@ -827,7 +827,7 @@ enum c_abstract_http_error http_request_set_auth_basic_userpwd(struct HttpReques
   len = strlen(username) + strlen(password) + 2;
   raw = (char *)malloc(len);
   if (!raw)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(raw, len, "%s:%s", username, password);
@@ -926,7 +926,7 @@ enum c_abstract_http_error http_request_init_oauth2_password_grant(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = body;
   /* grant_type=password */
@@ -1009,7 +1009,7 @@ enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(struct H
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = body;
   /* grant_type=refresh_token */
@@ -1087,7 +1087,7 @@ enum c_abstract_http_error http_request_init_oauth2_authorization_code_grant(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = body;
   /* grant_type=authorization_code */
@@ -1167,7 +1167,7 @@ enum c_abstract_http_error http_request_init_oauth2_client_credentials_grant(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = body;
   /* grant_type=client_credentials */
@@ -1234,7 +1234,7 @@ enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(struct Http
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = body;
   /* grant_type=... */
@@ -1289,7 +1289,7 @@ enum c_abstract_http_error http_request_init_oauth2_device_authorization_request
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = body;
   memcpy(p, "client_id=", 10);
@@ -1339,7 +1339,7 @@ enum c_abstract_http_error http_request_init_oauth2_device_access_token_request(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = body;
   memcpy(p, "grant_type=", 11);
@@ -1396,7 +1396,7 @@ enum c_abstract_http_error http_request_init_oauth2_token_revocation(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = body;
   memcpy(p, "token=", 6);
@@ -1463,7 +1463,7 @@ enum c_abstract_http_error http_request_init_oauth2_token_introspection(
 
   body = (char *)malloc(body_len + 1);
   if (!body)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = body;
   memcpy(p, "token=", 6);
@@ -1528,7 +1528,7 @@ enum c_abstract_http_error http_oauth2_build_authorization_url(
 
   url = (char *)malloc(len + 1);
   if (!url)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = url;
   memcpy(p, auth_endpoint, strlen(auth_endpoint));
@@ -1592,12 +1592,21 @@ typedef int cdd_socket_t;
 #endif
 
 #if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+static int urldecode_alloc(const char *src, size_t src_len, char **out);
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+int cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out);
+int cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out) {
+  return urldecode_alloc(src, src_len, out);
+}
+#endif
+
 static int urldecode_alloc(const char *src, size_t src_len, char **out) {
   char *dst = (char *)malloc(src_len + 1);
   size_t i, j = 0;
 
   if (!dst)
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   for (i = 0; i < src_len; i++) {
     if (src[i] == '%') {
@@ -1841,7 +1850,7 @@ enum c_abstract_http_error http_client_send_multi(struct HttpClient *client,
   for (i = 0; i < num_requests; ++i) {
     if (http_multi_request_add(&multi, requests[i]) != 0) {
       http_multi_request_free(&multi);
-      return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
 

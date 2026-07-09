@@ -113,7 +113,7 @@ enum c_abstract_http_error http_curl_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error http_curl_send_multi(
+enum c_abstract_http_error http_curl_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
