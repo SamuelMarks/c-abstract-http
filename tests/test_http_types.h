@@ -33,6 +33,8 @@ static char *c_abstract_http_test_types_strdup(const char *s) {
 extern "C" {
 #endif /* __cplusplus */
 
+extern int cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out);
+
 #if defined(_WIN32)
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -1387,8 +1389,6 @@ TEST test_http_types_more_errs_2(void) {
   /* urldecode oom */
   {
     char *out_url = NULL;
-    extern int cdd_test_urldecode_alloc(const char *src, size_t src_len,
-                                        char **out);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
     rc = cdd_test_urldecode_alloc("a%20b", 5, &out_url);
