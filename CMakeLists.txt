@@ -106,6 +106,7 @@ option(BUILD_SHARED_LIBS "Build Shared Library" OFF)
 option(C_ABSTRACT_HTTP_USE_ASAN "Enable AddressSanitizer" OFF)
 option(C_ABSTRACT_HTTP_USE_TSAN "Enable ThreadSanitizer" OFF)
 option(C_ABSTRACT_HTTP_ENABLE_COVERAGE "Enable code coverage (gcov)" OFF)
+option(C_ABSTRACT_HTTP_USE_XQUIC "Use Alibaba xquic HTTP/3 Backend" OFF)
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
 
 endif()
@@ -457,6 +458,11 @@ endif()
         target_link_libraries(c-abstract-http INTERFACE ${FOUNDATION} ${CFNetwork} c89stringutils cfs c_cdd)
     elseif(C_ABSTRACT_HTTP_USE_ARIA2)
         target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_ARIA2)
+    elseif(C_ABSTRACT_HTTP_USE_XQUIC)
+        target_sources(c-abstract-http PRIVATE
+            src/http_xquic.c
+        )
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_XQUIC)
     elseif(C_ABSTRACT_HTTP_USE_LIBSOUP3)
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(LIBSOUP3 REQUIRED libsoup-3.0)
@@ -666,6 +672,11 @@ endif()
         find_library(FOUNDATION Foundation)
         find_library(CFNetwork CFNetwork)
         target_link_libraries(c-abstract-http PUBLIC ${FOUNDATION} ${CFNetwork})
+    elseif(C_ABSTRACT_HTTP_USE_XQUIC)
+        target_sources(c-abstract-http PRIVATE
+            src/http_xquic.c
+        )
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_XQUIC)
     elseif(C_ABSTRACT_HTTP_USE_LIBSOUP3)
         target_sources(c-abstract-http PRIVATE
             src/http_libsoup3.c

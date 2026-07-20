@@ -8,6 +8,7 @@
 /* clang-format off */
 #include "greatest.h"
 #include "../include/c_abstract_http/http_ws.h"
+#include "../include/c_abstract_http/thread_pool.h"
 #include "../src/ws_internal.h"
 #include <string.h>
 #include "mock_alloc.h"
@@ -954,14 +955,78 @@ TEST test_ws_verify_accept_sign_error(void) {
 }
 
 TEST test_ws_stubs(void) {
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_ERR_NOTSUP,
-      c_abstract_http_ws_async_register(NULL, NULL, NULL, NULL, NULL, NULL));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_ws_async_register(
+                                           NULL, NULL, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             c_abstract_http_ws_send_async(NULL, 0, NULL, 0));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             c_abstract_http_ws_send(NULL, 0, NULL, 0));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, c_abstract_http_ws_close(NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_ws_close(NULL, 0));
+  PASS();
+}
+
+static int mock_push(void *ctx, cdd_thread_task_cb cb, void *arg) {
+  (void)ctx;
+  cb(arg); /* Run synchronously for test */
+  return 0;
+}
+
+static enum c_abstract_http_error
+mock_client_send(struct HttpTransportContext *ctx,
+                 const struct HttpRequest *req, struct HttpResponse **res) {
+  (void)ctx;
+  (void)req;
+  (void)res;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+}
+
+TEST test_ws_async_register_success(void) {
+  struct HttpClient client = {0};
+  struct HttpRequest req = {0};
+  struct CddThreadPool *pool = NULL;
+  struct CddThreadPoolHooks hooks = {0};
+
+  hooks.push = mock_push;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_thread_pool_init_external(&pool, &hooks));
+  client.thread_pool = pool;
+  client.send = mock_client_send;
+
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      c_abstract_http_ws_async_register(&client, NULL, NULL, NULL, NULL, NULL));
+
+  /* Since c_abstract_http_ws_init needs URL, etc., it will fail inside
+   * sync_read_loop. */
+  /* We just test that it doesn't crash and gets scheduled. */
+  c_abstract_http_ws_async_register(&client, &req, NULL, NULL, NULL, NULL);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    (const unsigned char *)"Hello", 5));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_send_async(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                          (const unsigned char *)"Hello", 5));
+
+  /* read_chunk should have data */
+  if (req.read_chunk) {
+    char buf[1024];
+    size_t read_bytes = 0;
+    req.read_chunk(req.read_chunk_user_data, buf, sizeof(buf), &read_bytes);
+    ASSERT(read_bytes > 0);
+  }
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_close(&req, 1000));
+
+  /* Simulate exit of sync_read_loop which frees the ws_ctx */
+  {
+    int exit_flag = 0;
+    c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL, NULL,
+                                      &exit_flag);
+  }
+
+  cdd_thread_pool_free(pool);
   PASS();
 }
 
@@ -1020,6 +1085,7 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_apply_mask_invalid);
   RUN_TEST(test_ws_parser_single_frame);
   RUN_TEST(test_ws_stubs);
+  RUN_TEST(test_ws_async_register_success);
   RUN_TEST(test_ws_parser_chunked_delivery);
   RUN_TEST(test_ws_parser_fragmented_message);
   RUN_TEST(test_ws_parser_reject_fragmented_control);

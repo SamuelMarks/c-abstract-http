@@ -23,6 +23,7 @@
 #include <c_abstract_http/http_android.h>
 #elif defined(__EMSCRIPTEN__)
 #include <c_abstract_http/http_wasm.h>
+#include <c_abstract_http/http_xquic.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include <c_abstract_http/http_libsoup3.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
@@ -60,6 +61,8 @@ enum c_abstract_http_error transport_global_init(void) {
 #elif defined(__ANDROID__)
   return http_android_global_init();
 #elif defined(__EMSCRIPTEN__)
+  return http_xquic_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_WASM)
   return http_wasm_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   return http_libsoup3_global_init();
@@ -96,6 +99,8 @@ enum c_abstract_http_error transport_global_cleanup(void) {
 #elif defined(__ANDROID__)
   return http_android_global_cleanup();
 #elif defined(__EMSCRIPTEN__)
+  return http_xquic_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_WASM)
   return http_wasm_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   return http_libsoup3_global_cleanup();
@@ -168,6 +173,7 @@ transport_factory_init_client(struct HttpClient *client) {
   rc = http_apple_context_init(&client->transport);
   if (rc == 0) {
     client->send = http_apple_send;
+    client->send_multi = http_apple_send_multi;
   }
 #elif defined(__ANDROID__)
   rc = http_android_context_init(&client->transport);
@@ -175,6 +181,12 @@ transport_factory_init_client(struct HttpClient *client) {
     client->send = http_android_send;
   }
 #elif defined(__EMSCRIPTEN__)
+  rc = http_xquic_context_init(&client->transport);
+  if (rc == 0) {
+    client->send = http_xquic_send;
+    client->send_multi = http_xquic_send_multi;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_WASM)
   rc = http_wasm_context_init(&client->transport);
   if (rc == 0) {
     client->send = http_wasm_send;
@@ -239,6 +251,8 @@ transport_factory_cleanup_client(struct HttpClient *client) {
 #elif defined(__ANDROID__)
   http_android_context_free(client->transport);
 #elif defined(__EMSCRIPTEN__)
+  http_xquic_context_free(client->transport);
+#elif defined(C_ABSTRACT_HTTP_USE_WASM)
   http_wasm_context_free(client->transport);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   http_libsoup3_context_free(client->transport);

@@ -1,5 +1,6 @@
 /* clang-format off */
 #include "c_abstract_http/http_ws.h"
+#include "c_abstract_http/thread_pool.h"
 #include "c_abstract_http/log.h"
 #include "ws_internal.h"
 #include "crypto_utils.h"
@@ -87,13 +88,77 @@ enum c_abstract_http_error ws_verify_accept(const char *client_key, const char *
   return -1002; /* C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE */
 }
 
-enum c_abstract_http_error c_abstract_http_ws_init(struct HttpRequest *req,
-                            const struct c_abstract_http_ws_config *config) {
+static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
+                            size_t *out_read) {
+  struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)user_data;
+  if (!sctx)
+    return -1;
+
+  cdd_mutex_lock(sctx->mutex);
+  while (sctx->queue_len == 0 && !sctx->close_requested) {
+    /* Wait for data or close */
+    cdd_cond_wait(sctx->cond, sctx->mutex);
+  }
+
+  if (sctx->queue_len > 0) {
+    size_t to_copy = sctx->queue_len;
+    if (to_copy > buf_len)
+      to_copy = buf_len;
+    memcpy(buf, sctx->queue, to_copy);
+
+    memmove(sctx->queue, sctx->queue + to_copy, sctx->queue_len - to_copy);
+    sctx->queue_len -= to_copy;
+    *out_read = to_copy;
+  } else {
+    /* queue_len == 0 and close_requested == 1 */
+    *out_read = 0; /* EOF */
+  }
+
+  cdd_mutex_unlock(sctx->mutex);
+  return 0;
+}
+
+static void ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
+  if (!sctx)
+    return;
+  if (sctx->mutex) cdd_mutex_free(sctx->mutex);
+  if (sctx->cond) cdd_cond_free(sctx->cond);
+  if (sctx->queue) free(sctx->queue);
+  free(sctx);
+}
+
+enum c_abstract_http_error c_abstract_http_ws_init(
+    struct HttpRequest *req, const struct c_abstract_http_ws_config *config) {
   char key[25] = {0};
   int res;
 
   if (!req)
     return C_ABSTRACT_HTTP_ERR_INVAL;
+
+  if (!req->ws_ctx) {
+    struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)calloc(1, sizeof(struct ws_stream_ctx));
+    if (!sctx) return C_ABSTRACT_HTTP_ERR_NOMEM;
+    if (cdd_mutex_init(&sctx->mutex) != 0) {
+      free(sctx);
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    if (cdd_cond_init(&sctx->cond) != 0) {
+      cdd_mutex_free(sctx->mutex);
+      free(sctx);
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    sctx->queue_cap = 4096;
+    sctx->queue = (unsigned char *)malloc(sctx->queue_cap);
+    if (!sctx->queue) {
+      cdd_cond_free(sctx->cond);
+      cdd_mutex_free(sctx->mutex);
+      free(sctx);
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    req->ws_ctx = sctx;
+    req->read_chunk = ws_read_chunk_cb;
+    req->read_chunk_user_data = sctx;
+  }
 
   res = ws_generate_key(key);
   if (res != 0)
@@ -582,19 +647,77 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   if (on_close)
     on_close(200, user_data);
 
+  if (req->ws_ctx) {
+    ws_stream_ctx_free((struct ws_stream_ctx *)req->ws_ctx);
+    req->ws_ctx = NULL;
+  }
+
   return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+struct c_abstract_http_ws_async_ctx {
+  struct HttpClient *client;
+  struct HttpRequest *req;
+  c_abstract_http_ws_on_message on_msg;
+  c_abstract_http_ws_on_error on_err;
+  c_abstract_http_ws_on_close on_close;
+  void *user_data;
+};
+
+static void c_abstract_http_ws_async_task(void *arg) {
+  int rc;
+  struct c_abstract_http_ws_async_ctx *ctx =
+      (struct c_abstract_http_ws_async_ctx *)arg;
+  volatile int exit_flag = 0;
+  if (!ctx)
+    return;
+  rc = c_abstract_http_ws_sync_read_loop(ctx->client, ctx->req, ctx->on_msg,
+                                         ctx->on_err, ctx->on_close,
+                                         ctx->user_data, &exit_flag);
+  if (rc != 0 && ctx->on_err) {
+    ctx->on_err(rc, ctx->user_data);
+  }
+  free(ctx);
 }
 
 enum c_abstract_http_error c_abstract_http_ws_async_register(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
     c_abstract_http_ws_on_close on_close, void *user_data) {
-  (void)client;
-  (void)req;
-  (void)on_msg;
-  (void)on_err;
-  (void)on_close;
-  (void)user_data;
+  int rc;
+  struct c_abstract_http_ws_async_ctx *ctx;
+
+  if (!client || !req) {
+    LOG_DEBUG("c_abstract_http_ws_async_register: Error EINVAL");
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  if (client->thread_pool) {
+    ctx = (struct c_abstract_http_ws_async_ctx *)malloc(sizeof(*ctx));
+    if (!ctx) {
+      LOG_DEBUG("c_abstract_http_ws_async_register: Error ENOMEM");
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    ctx->client = client;
+    ctx->req = req;
+    ctx->on_msg = on_msg;
+    ctx->on_err = on_err;
+    ctx->on_close = on_close;
+    ctx->user_data = user_data;
+
+    rc = cdd_thread_pool_push(client->thread_pool,
+                              c_abstract_http_ws_async_task, ctx);
+    if (rc != 0) {
+      LOG_DEBUG(
+          "c_abstract_http_ws_async_register: Error thread pool push failed");
+      free(ctx);
+      return rc;
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  LOG_DEBUG("c_abstract_http_ws_async_register: Error ENOTSUP (No thread pool "
+            "available)");
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
 
@@ -602,27 +725,108 @@ enum c_abstract_http_error
 c_abstract_http_ws_send_async(struct HttpRequest *req,
                               enum c_abstract_http_ws_opcode opcode,
                               const unsigned char *payload, size_t len) {
-  (void)req;
-  (void)opcode;
-  (void)payload;
-  (void)len;
-  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  return c_abstract_http_ws_send(req, opcode, payload, len);
 }
 
 enum c_abstract_http_error
 c_abstract_http_ws_send(struct HttpRequest *req,
                         enum c_abstract_http_ws_opcode opcode,
                         const unsigned char *payload, size_t len) {
-  (void)req;
-  (void)opcode;
-  (void)payload;
-  (void)len;
-  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  struct ws_stream_ctx *sctx;
+  unsigned char header[10];
+  size_t header_len = 0;
+  int rc;
+  unsigned char mask_key[4] = {0, 0, 0, 0};
+  unsigned char *masked_payload = NULL;
+
+  if (!req || !req->ws_ctx)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+
+  sctx = (struct ws_stream_ctx *)req->ws_ctx;
+
+  /* Standard requires client-to-server frames to be masked */
+  ws_generate_mask_key(mask_key);
+
+  if (len > 0) {
+    masked_payload = (unsigned char *)malloc(len);
+    if (!masked_payload)
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    memcpy(masked_payload, payload, len);
+    ws_apply_mask(masked_payload, len, mask_key);
+  }
+
+  if (len <= 125) {
+    rc = ws_pack_header_small(header, 1, opcode, 1, len, &header_len);
+  } else if (len <= 65535) {
+    rc = ws_pack_header_medium(header, 1, opcode, 1, len, &header_len);
+  } else {
+    rc = ws_pack_header_large(header, 1, opcode, 1, len, &header_len);
+  }
+  if (rc != 0) {
+    free(masked_payload);
+    return rc;
+  }
+
+  cdd_mutex_lock(sctx->mutex);
+  if (sctx->close_requested) {
+    cdd_mutex_unlock(sctx->mutex);
+    free(masked_payload);
+    return C_ABSTRACT_HTTP_ERR_INVAL; /* Cannot send after close */
+  }
+
+  /* Expand queue if necessary */
+  if (sctx->queue_len + header_len + 4 + len > sctx->queue_cap) {
+    size_t new_cap = sctx->queue_cap == 0 ? 4096 : sctx->queue_cap * 2;
+    while (new_cap < sctx->queue_len + header_len + 4 + len)
+      new_cap *= 2;
+    {
+      unsigned char *new_queue = (unsigned char *)realloc(sctx->queue, new_cap);
+      if (!new_queue) {
+        cdd_mutex_unlock(sctx->mutex);
+        free(masked_payload);
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
+      }
+      sctx->queue = new_queue;
+      sctx->queue_cap = new_cap;
+    }
+  }
+
+  memcpy(sctx->queue + sctx->queue_len, header, header_len);
+  sctx->queue_len += header_len;
+
+  memcpy(sctx->queue + sctx->queue_len, mask_key, 4);
+  sctx->queue_len += 4;
+
+  if (len > 0) {
+    memcpy(sctx->queue + sctx->queue_len, masked_payload, len);
+    sctx->queue_len += len;
+  }
+
+  cdd_cond_signal(sctx->cond);
+  cdd_mutex_unlock(sctx->mutex);
+
+  free(masked_payload);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
                                                     int status_code) {
-  (void)req;
-  (void)status_code;
-  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  struct ws_stream_ctx *sctx;
+  unsigned char payload[2];
+  uint16_t net_status = math_ws_htons((uint16_t)status_code);
+  int rc;
+  if (!req || !req->ws_ctx)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  sctx = (struct ws_stream_ctx *)req->ws_ctx;
+
+  memcpy(payload, &net_status, 2);
+  rc =
+      c_abstract_http_ws_send(req, C_ABSTRACT_HTTP_WS_OPCODE_CLOSE, payload, 2);
+
+  cdd_mutex_lock(sctx->mutex);
+  sctx->close_requested = 1;
+  cdd_cond_signal(sctx->cond);
+  cdd_mutex_unlock(sctx->mutex);
+
+  return rc;
 }

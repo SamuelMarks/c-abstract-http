@@ -34,6 +34,7 @@ enum c_abstract_http_error http_android_global_cleanup(void) {
 
 enum c_abstract_http_error
 http_android_context_init(struct HttpTransportContext **ctx) {
+  int rc;
   LOG_DEBUG("http_android_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_android_context_init: Error EINVAL");
@@ -94,13 +95,17 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
                                              const struct HttpRequest *req,
                                              struct HttpResponse **res) {
   JNIEnv *env;
-  jclass url_cls, conn_cls;
+  jclass url_cls, conn_cls, is_cls;
   jmethodID url_init, url_open_conn;
-  jmethodID conn_set_req_method, conn_get_res_code, ;
-  jobject url_obj, conn_obj;
-  jstring url_str, method_str;
+  jmethodID conn_set_req_method, conn_get_res_code, conn_get_input_stream,
+      conn_get_error_stream;
+  jmethodID is_read;
+  jobject url_obj = NULL, conn_obj = NULL, input_stream = NULL;
+  jstring url_str = NULL, method_str = NULL;
+  jbyteArray byte_array = NULL;
   jint res_code;
   int attached = 0;
+  int rc = 0;
 
   LOG_DEBUG("http_android_send: Entering");
   if (!ctx || !req || !res) {
@@ -124,6 +129,7 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
     LOG_DEBUG("http_android_send: Error GetEnv failed");
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
+  rc = 0;
 
   url_str = (*env)->NewStringUTF(env, req->url ? req->url : "");
   if (!url_str) {
@@ -164,6 +170,10 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
                                             "(Ljava/lang/String;)V");
   conn_get_res_code =
       (*env)->GetMethodID(env, conn_cls, "getResponseCode", "()I");
+  conn_get_input_stream = (*env)->GetMethodID(env, conn_cls, "getInputStream",
+                                              "()Ljava/io/InputStream;");
+  conn_get_error_stream = (*env)->GetMethodID(env, conn_cls, "getErrorStream",
+                                              "()Ljava/io/InputStream;");
 
   if (conn_set_req_method && conn_get_res_code) {
     const char *method_c_str = "GET";
@@ -201,13 +211,102 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
 
     /* Connect and get response code */
     res_code = (*env)->CallIntMethod(env, conn_obj, conn_get_res_code);
+    if ((*env)->ExceptionCheck(env)) {
+      (*env)->ExceptionClear(env);
+    }
 
     *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
     if (*res) {
       if (http_response_init(*res) == 0) {
         (*res)->status_code = (int)res_code;
-        /* To keep it simple, we don't fully read input stream yet, as it
-         * involves a lot of JNI boilerplate */
+
+        /* Read input stream */
+        if (conn_get_input_stream) {
+          input_stream =
+              (*env)->CallObjectMethod(env, conn_obj, conn_get_input_stream);
+          if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+            if (conn_get_error_stream) {
+              input_stream = (*env)->CallObjectMethod(env, conn_obj,
+                                                      conn_get_error_stream);
+              if ((*env)->ExceptionCheck(env)) {
+                (*env)->ExceptionClear(env);
+                input_stream = NULL;
+              }
+            }
+          }
+
+          if (input_stream) {
+            is_cls = (*env)->GetObjectClass(env, input_stream);
+            is_read = (*env)->GetMethodID(env, is_cls, "read", "([B)I");
+            byte_array = (*env)->NewByteArray(env, 8192);
+
+            if (is_read && byte_array) {
+              size_t body_cap = 8192;
+              size_t body_len = 0;
+              char *body = (char *)malloc(body_cap);
+
+              if (!body) {
+                rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+              } else {
+                while (1) {
+                  jint read_len = (*env)->CallIntMethod(env, input_stream,
+                                                        is_read, byte_array);
+                  if ((*env)->ExceptionCheck(env)) {
+                    (*env)->ExceptionClear(env);
+                    break;
+                  }
+                  if (read_len == -1)
+                    break; /* EOF */
+
+                  if (read_len > 0) {
+                    if (body_len + (size_t)read_len > body_cap) {
+                      char *new_body;
+                      body_cap = (body_len + (size_t)read_len) * 2;
+                      new_body = (char *)realloc(body, body_cap);
+                      if (!new_body) {
+                        rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+                        break;
+                      }
+                      body = new_body;
+                    }
+
+                    {
+                      jbyte *bytes =
+                          (*env)->GetByteArrayElements(env, byte_array, NULL);
+                      memcpy(body + body_len, bytes, (size_t)read_len);
+                      (*env)->ReleaseByteArrayElements(env, byte_array, bytes,
+                                                       JNI_ABORT);
+                      body_len += (size_t)read_len;
+                    }
+                  }
+                }
+              }
+
+              if (rc == 0 && body_len > 0) {
+                char *final_body = (char *)realloc(body, body_len + 1);
+                if (final_body) {
+                  final_body[body_len] = '\0';
+                  (*res)->body = final_body;
+                  (*res)->body_len = body_len;
+                } else {
+                  (*res)->body = body;
+                  (*res)->body_len = body_len;
+                  if (body)
+                    body[body_len - 1] =
+                        '\0'; /* Fallback, technically bad if no space */
+                }
+              } else if (body) {
+                free(body);
+              }
+
+              if (byte_array)
+                (*env)->DeleteLocalRef(env, byte_array);
+            }
+            if (input_stream)
+              (*env)->DeleteLocalRef(env, input_stream);
+          }
+        }
       } else {
         free(*res);
         *res = NULL;
@@ -233,7 +332,8 @@ cleanup:
     (*ctx->jvm)->DetachCurrentThread(ctx->jvm);
   }
 
-  if (rc != 0 && rc != JNI_OK && rc != EIO && rc != ENOMEM) {
+  if (rc != 0 && rc != C_ABSTRACT_HTTP_ERR_NOMEM &&
+      rc != C_ABSTRACT_HTTP_ERR_IO && rc != C_ABSTRACT_HTTP_ERR_NOTSUP) {
     rc = 0; /* Fallback to success if we got a response object initialized */
   }
 

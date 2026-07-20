@@ -1346,7 +1346,6 @@ TEST test_http_types_more_errs_2(void) {
   http_future_init(NULL);
   http_future_free(NULL);
 
-  /* missing oauth2 init ooms */
   for (i = 0; i < 10; i++) {
     g_mock_alloc_fail = 1;
     http_request_init(&req);

@@ -68,6 +68,14 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
                                            const struct HttpRequest *req,
                                            struct HttpResponse **res);
 
+/**
+ * @brief The send_multi implementation for Apple.
+ * Matches `http_send_multi_fn` signature.
+ */
+extern enum c_abstract_http_error http_apple_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

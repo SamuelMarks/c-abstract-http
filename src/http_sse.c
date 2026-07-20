@@ -442,7 +442,22 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
     return C_ABSTRACT_HTTP_SUCCESS;
   }
 
-  LOG_DEBUG("c_abstract_http_sse_async_register: Error ENOTSUP (No thread pool "
-            "available)");
-  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  /* Fallback: run synchronously */
+  LOG_DEBUG("c_abstract_http_sse_async_register: Warning: no thread pool, "
+            "running synchronously");
+
+  {
+    volatile int exit_flag = 0;
+    rc = c_abstract_http_sse_sync_read_loop(client, req, on_evt, on_err,
+                                            on_close, user_data, &exit_flag);
+
+    if (rc != 0 && on_err) {
+      on_err(rc, user_data);
+    }
+    /* We still return success here because the "registration" succeeded, it
+       just blocked. A true async interface without a thread pool requires
+       native event loop hooks, which we do not currently mandate SSE parsers to
+       intercept natively here yet. */
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
 }

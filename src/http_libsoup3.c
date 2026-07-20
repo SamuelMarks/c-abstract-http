@@ -233,11 +233,26 @@ enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
     soup_message_set_request_body_from_bytes(msg, NULL, body_bytes);
     g_bytes_unref(body_bytes);
   } else if (req->read_chunk) {
-    /* Fallback for chunked upload without input stream: not fully supported in
-     * this simplified binding */
-    LOG_DEBUG("http_libsoup3_send: Error ENOTSUP (chunked upload stream)");
-    rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
-    goto cleanup;
+    char buf[4096];
+    size_t out_read;
+    GByteArray *byte_array = g_byte_array_new();
+
+    while (1) {
+      int chunk_rc = req->read_chunk(req->read_chunk_user_data, buf,
+                                     sizeof(buf), &out_read);
+      if (chunk_rc != 0) {
+        g_byte_array_free(byte_array, TRUE);
+        rc = C_ABSTRACT_HTTP_ERR_IO;
+        goto cleanup;
+      }
+      if (out_read == 0)
+        break; /* EOF */
+      g_byte_array_append(byte_array, (const guint8 *)buf, (guint)out_read);
+    }
+
+    body_bytes = g_byte_array_free_to_bytes(byte_array);
+    soup_message_set_request_body_from_bytes(msg, NULL, body_bytes);
+    g_bytes_unref(body_bytes);
   }
 
   resp_bytes = soup_session_send_and_read(ctx->session, msg, NULL, &error);

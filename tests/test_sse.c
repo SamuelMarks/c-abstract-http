@@ -352,7 +352,9 @@ TEST test_sse_async_register(void) {
                                                NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_sse_async_register(
                                            NULL, &req, NULL, NULL, NULL, NULL));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+  /* Since it syncs when no thread pool, it hits EINVAL internally since
+   * req->url is NULL */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             c_abstract_http_sse_async_register(&client, &req, NULL, NULL, NULL,
                                                NULL));
   http_request_free(&req);

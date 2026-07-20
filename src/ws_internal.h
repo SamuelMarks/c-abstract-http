@@ -12,6 +12,7 @@ extern "C" {
 
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
+#include <c_abstract_http/thread_pool.h>
 #include "c_abstract_http/http_ws.h"
 #if defined(_MSC_VER) && _MSC_VER < 1600
 typedef __int8 int8_t;
@@ -37,6 +38,15 @@ typedef unsigned __int64 uint64_t;
 #endif
 #endif
 /* clang-format on */
+
+struct ws_stream_ctx {
+  struct CddMutex *mutex;
+  struct CddCond *cond;
+  unsigned char *queue;
+  size_t queue_len;
+  size_t queue_cap;
+  int close_requested;
+};
 
 /**
  * @brief Internal structure representing a parsed WebSocket frame header.
