@@ -1592,16 +1592,16 @@ typedef int cdd_socket_t;
 #endif
 
 #if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
-static int urldecode_alloc(const char *src, size_t src_len, char **out);
+static enum c_abstract_http_error urldecode_alloc(const char *src, size_t src_len, char **out);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-int cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out);
-int cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out) {
+enum c_abstract_http_error cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out);
+enum c_abstract_http_error cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out) {
   return urldecode_alloc(src, src_len, out);
 }
 #endif
 
-static int urldecode_alloc(const char *src, size_t src_len, char **out) {
+static enum c_abstract_http_error urldecode_alloc(const char *src, size_t src_len, char **out) {
   char *dst = (char *)malloc(src_len + 1);
   size_t i, j = 0;
 

@@ -492,6 +492,14 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
   free(co);
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_pthread_create_fail;
+#define PTHREAD_CREATE_MOCK(a, b, c, d)                                        \
+  (g_mock_pthread_create_fail ? 1 : pthread_create(a, b, c, d))
+#else
+#define PTHREAD_CREATE_MOCK pthread_create
+#endif
+
 enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co) {
   LOG_DEBUG("cdd_coroutine_resume (fallback): Entering");
   if (g_coroutine_hooks.resume) {

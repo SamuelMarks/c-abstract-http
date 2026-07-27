@@ -204,7 +204,10 @@ TEST test_coroutine_edge_cases(void) {
 }
 #endif
 
+int g_mock_pthread_create_fail = 0;
+
 SUITE(coroutine_suite) {
+
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_coroutine_edge_cases);
 #endif

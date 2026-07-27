@@ -21,6 +21,8 @@ extern "C" {
 
 
 #ifdef _MSC_VER
+#define C_ABSTRACT_HTTP_SPRINTF_S(dest, sz, fmt, ...)                          \
+  sprintf_s(dest, sz, fmt, __VA_ARGS__)
 #define C_ABSTRACT_HTTP_VSPRINTF_S(dest, sz, fmt, args)                        \
   vsprintf_s(dest, sz, fmt, args)
 #define C_ABSTRACT_HTTP_STRCPY_S(dest, sz, src) strcpy_s(dest, sz, src)
@@ -28,6 +30,8 @@ extern "C" {
   strncpy_s(dest, sz, src, count)
 #define C_ABSTRACT_HTTP_STRCAT_S(dest, sz, src) strcat_s(dest, sz, src)
 #else
+#define C_ABSTRACT_HTTP_SPRINTF_S(dest, sz, fmt, ...)                          \
+  snprintf(dest, sz, fmt, __VA_ARGS__)
 #define C_ABSTRACT_HTTP_VSPRINTF_S(dest, sz, fmt, args)                        \
   vsprintf(dest, fmt, args)
 #define C_ABSTRACT_HTTP_STRCPY_S(dest, sz, src) strcpy(dest, src)

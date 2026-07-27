@@ -1,0 +1,5 @@
+if(TARGET c_cdd)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(c_cdd PRIVATE "-Wno-declaration-after-statement" "-Wno-error")
+    endif()
+endif()

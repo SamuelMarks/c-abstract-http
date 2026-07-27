@@ -616,6 +616,15 @@ static void *apple_multi_worker(void *arg) {
   return NULL;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_pthread_create_sync;
+#define PTHREAD_CREATE_APPLE(a, b, c, d)                                       \
+  (g_mock_pthread_create_sync ? ((*(void *(*)(void *))(c))(d), 0)              \
+                              : pthread_create(a, b, c, d))
+#else
+#define PTHREAD_CREATE_APPLE pthread_create
+#endif
+
 enum c_abstract_http_error http_apple_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {

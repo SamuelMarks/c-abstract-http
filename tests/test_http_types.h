@@ -33,7 +33,7 @@ static char *c_abstract_http_test_types_strdup(const char *s) {
 extern "C" {
 #endif /* __cplusplus */
 
-extern int cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out);
+extern enum c_abstract_http_error cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out);
 
 #if defined(_WIN32)
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
