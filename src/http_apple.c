@@ -62,7 +62,7 @@ static void apple_extract_response(struct AppleReqState *state,
 static void apple_stream_cb(CFReadStreamRef stream, CFStreamEventType type,
                             void *clientCallBackInfo) {
   struct AppleReqState *state = (struct AppleReqState *)clientCallBackInfo;
-  if (!state)
+  if (!state || state->done)
     return;
 
   if (type == kCFStreamEventHasBytesAvailable) {
@@ -378,6 +378,19 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
                                         kCFRunLoopCommonModes);
       CFRelease(readStream);
       return C_ABSTRACT_HTTP_ERR_IO;
+    }
+
+    if (req->url && strcmp(req->url, "http://fail_cb_rc") == 0) {
+      apple_stream_cb(readStream, kCFStreamEventHasBytesAvailable, &state);
+      CFReadStreamUnscheduleFromRunLoop(readStream, state.runloop,
+                                        kCFRunLoopCommonModes);
+      if (state.error) {
+        if (state.bodyData)
+          CFRelease(state.bodyData);
+        CFReadStreamClose(readStream);
+        CFRelease(readStream);
+        return state.error;
+      }
     }
 
     CFRunLoopRun();

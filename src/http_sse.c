@@ -351,6 +351,11 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
   if (exit_flag && *exit_flag)
     return C_ABSTRACT_HTTP_SUCCESS;
 
+  if (!client->send) {
+    LOG_DEBUG("c_abstract_http_sse_sync_read_loop: Error client->send is NULL");
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
   rc = c_abstract_http_sse_init(req, NULL);
   if (rc != 0) {
     if (on_err)
@@ -451,8 +456,10 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
     rc = c_abstract_http_sse_sync_read_loop(client, req, on_evt, on_err,
                                             on_close, user_data, &exit_flag);
 
-    if (rc != 0 && on_err) {
-      on_err(rc, user_data);
+    if (rc != 0) {
+      if (on_err)
+        on_err(rc, user_data);
+      return rc;
     }
     /* We still return success here because the "registration" succeeded, it
        just blocked. A true async interface without a thread pool requires
