@@ -1,6 +1,7 @@
 
 /* clang-format off */
 #include <c_abstract_http/http_apple.h>
+#include <c_abstract_http/event_loop.h>
 
 #include <errno.h>
 #include <stdlib.h>
@@ -182,9 +183,9 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
   CFStringRef method;
   CFHTTPMessageRef requestRef;
   CFReadStreamRef readStream;
-  CFDataRef bodyData = NULL;
+  /* CFDataRef bodyData = NULL; */
   size_t i;
-  CFHTTPMessageRef responseRef = NULL;
+  /* CFHTTPMessageRef responseRef = NULL; */
 
   LOG_DEBUG("http_apple_send: Entering");
   if (!ctx || !req || !res) {
