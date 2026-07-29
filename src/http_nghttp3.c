@@ -135,7 +135,7 @@ http_nghttp3_context_init(struct HttpTransportContext **ctx) {
   }
 
   rc = http_config_init(&c->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG(
         "http_nghttp3_context_init: Error http_config_init failed with %d", rc);
     free(c);
@@ -225,7 +225,7 @@ enum c_abstract_http_error http_nghttp3_send(struct HttpTransportContext *ctx,
   }
 
   rc = http_response_init(*res);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_nghttp3_send: Error http_response_init failed with %d", rc);
     free(*res);
     *res = NULL;

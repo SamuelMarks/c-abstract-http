@@ -39,7 +39,7 @@ http_fetch_context_init(struct HttpTransportContext **const ctx) {
   }
 
   rc = http_config_init(&(*ctx)->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_fetch_context_init: Error http_config_init failed with %d",
               rc);
     free(*ctx);
@@ -73,7 +73,7 @@ http_fetch_config_apply(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int map_fetch_error(int err) {
+static enum c_abstract_http_error map_fetch_error(int err) {
   switch (err) {
   case FETCH_OK:
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -167,7 +167,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   }
 
   rc = http_response_init(new_res);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_fetch_send: Error http_response_init failed with %d", rc);
     free(new_res);
     fclose(f);
@@ -181,7 +181,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   while ((bytes_read = fread(buf, 1, sizeof(buf), f)) > 0) {
     if (req->on_chunk) {
       rc = req->on_chunk(req->on_chunk_user_data, buf, bytes_read);
-      if (rc != 0) {
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG("http_fetch_send: Error on_chunk failed with %d", rc);
         break;
       }
@@ -202,7 +202,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
 
   fclose(f);
 
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_fetch_send: Error returning %d", rc);
     http_response_free(new_res);
     free(new_res);
@@ -227,10 +227,18 @@ enum c_abstract_http_error http_fetch_send_multi(
 
   for (i = 0; i < multi->count; i++) {
     struct HttpResponse *res = NULL;
-    int rc = http_fetch_send(ctx, multi->requests[i], &res);
-    futures[i]->response = res;
-    futures[i]->error_code = rc;
-    futures[i]->is_ready = 1;
+    enum c_abstract_http_error rc =
+        http_fetch_send(ctx, multi->requests[i], &res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      futures[i]->response = res;
+      futures[i]->error_code = rc;
+      futures[i]->is_ready = 1;
+      return rc;
+    } else {
+      futures[i]->response = res;
+      futures[i]->error_code = rc;
+      futures[i]->is_ready = 1;
+    }
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }

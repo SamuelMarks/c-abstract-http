@@ -219,6 +219,7 @@ void http_parts_free(struct HttpParts *parts) {
 enum c_abstract_http_error http_request_add_part(struct HttpRequest *req, const char *name,
                           const char *filename, const char *content_type,
                           const void *data, size_t data_len) {
+  enum c_abstract_http_error rc;
   char *_ast_strdup_2 = NULL;
   char *_ast_strdup_3 = NULL;
   char *_ast_strdup_4 = NULL;
@@ -239,7 +240,10 @@ enum c_abstract_http_error http_request_add_part(struct HttpRequest *req, const 
 
   /* Zero new slot */
   memset(&p->parts[p->count], 0, sizeof(struct HttpPart));
-  (void)http_headers_init(&p->parts[p->count].headers);
+  rc = http_headers_init(&p->parts[p->count].headers);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
   p->parts[p->count].name = (CDD_STRDUP(name, &_ast_strdup_2), _ast_strdup_2);
   if (!p->parts[p->count].name) {
@@ -625,6 +629,7 @@ void http_client_free(struct HttpClient *client) {
 }
 
 enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
+  enum c_abstract_http_error rc;
   if (!req)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   req->url = NULL;
@@ -636,8 +641,12 @@ enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
   req->read_chunk = NULL;
   req->read_chunk_user_data = NULL;
   req->expected_body_len = 0;
-  (void)http_headers_init(&req->headers);
-  (void)http_parts_init(&req->parts);
+  rc = http_headers_init(&req->headers);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
+  rc = http_parts_init(&req->parts);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -733,7 +742,7 @@ enum c_abstract_http_error http_multi_request_add(struct HttpMultiRequest *multi
 enum c_abstract_http_error http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
   char *val = NULL;
   size_t len;
-  int rc;
+  enum c_abstract_http_error rc;
 
   if (!req || !token)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -750,15 +759,19 @@ enum c_abstract_http_error http_request_set_auth_bearer(struct HttpRequest *req,
 #endif
 
   rc = http_headers_add(&req->headers, "Authorization", val);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(val);
+    return rc;
+  }
   free(val);
 
-  return rc;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req, const char *token) {
   char *val = NULL;
   size_t len;
-  int rc;
+  enum c_abstract_http_error rc;
 
   if (!req || !token)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -775,9 +788,13 @@ enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req, 
 #endif
 
   rc = http_headers_add(&req->headers, "Authorization", val);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(val);
+    return rc;
+  }
   free(val);
 
-  return rc;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static int base64_encode(const unsigned char *src, size_t len, char **out) {
@@ -817,7 +834,7 @@ static int base64_encode(const unsigned char *src, size_t len, char **out) {
 enum c_abstract_http_error http_request_set_auth_basic_userpwd(struct HttpRequest *req,
                                         const char *username,
                                         const char *password) {
-  int rc;
+  enum c_abstract_http_error rc;
   char *raw;
   char *encoded = NULL;
   size_t len;
@@ -837,13 +854,17 @@ enum c_abstract_http_error http_request_set_auth_basic_userpwd(struct HttpReques
 
   rc = base64_encode((const unsigned char *)raw, len - 1, &encoded);
   free(raw);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   rc = http_request_set_auth_basic(req, encoded);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(encoded);
+    return rc;
+  }
   free(encoded);
 
-  return rc;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static size_t urlencode_len(const char *src) {
@@ -891,7 +912,7 @@ enum c_abstract_http_error http_request_init_oauth2_password_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *username, const char *password, const char *client_id,
     const char *client_secret, const char *scope) {
-  int rc;
+  enum c_abstract_http_error rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -902,14 +923,14 @@ enum c_abstract_http_error http_request_init_oauth2_password_grant(
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   req->method = HTTP_POST;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   /* Calculate length */
@@ -975,7 +996,7 @@ enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(struct H
                                                  const char *client_id,
                                                  const char *client_secret,
                                                  const char *scope) {
-  int rc;
+  enum c_abstract_http_error rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -986,14 +1007,14 @@ enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(struct H
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   req->method = HTTP_POST;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   /* Calculate length */
@@ -1051,7 +1072,7 @@ enum c_abstract_http_error http_request_init_oauth2_authorization_code_grant(
     struct HttpRequest *req, const char *token_endpoint_url, const char *code,
     const char *redirect_uri, const char *client_id, const char *client_secret,
     const char *code_verifier) {
-  int rc;
+  enum c_abstract_http_error rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1062,14 +1083,14 @@ enum c_abstract_http_error http_request_init_oauth2_authorization_code_grant(
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   req->method = HTTP_POST;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   /* Calculate length */
@@ -1134,7 +1155,7 @@ enum c_abstract_http_error http_request_init_oauth2_authorization_code_grant(
 enum c_abstract_http_error http_request_init_oauth2_client_credentials_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *client_secret, const char *scope) {
-  int rc;
+  enum c_abstract_http_error rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1145,14 +1166,14 @@ enum c_abstract_http_error http_request_init_oauth2_client_credentials_grant(
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   req->method = HTTP_POST;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   /* Calculate length */
@@ -1204,7 +1225,7 @@ enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(struct Http
                                               const char *token_endpoint_url,
                                               const char *assertion,
                                               const char *scope) {
-  int rc;
+  enum c_abstract_http_error rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1215,14 +1236,14 @@ enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(struct Http
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   req->method = HTTP_POST;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   /* Calculate length */
@@ -1263,7 +1284,7 @@ enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(struct Http
 enum c_abstract_http_error http_request_init_oauth2_device_authorization_request(
     struct HttpRequest *req, const char *device_endpoint_url,
     const char *client_id, const char *scope) {
-  int rc;
+  enum c_abstract_http_error rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1273,14 +1294,14 @@ enum c_abstract_http_error http_request_init_oauth2_device_authorization_request
 
   req->url = NULL;
   rc = CDD_STRDUP(device_endpoint_url, &req->url);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   req->method = HTTP_POST;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   body_len += 10 + urlencode_len(client_id); /* client_id=... */
@@ -1312,7 +1333,7 @@ enum c_abstract_http_error http_request_init_oauth2_device_authorization_request
 enum c_abstract_http_error http_request_init_oauth2_device_access_token_request(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *device_code) {
-  int rc;
+  enum c_abstract_http_error rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1323,14 +1344,14 @@ enum c_abstract_http_error http_request_init_oauth2_device_access_token_request(
 
   req->url = NULL;
   rc = CDD_STRDUP(token_endpoint_url, &req->url);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   req->method = HTTP_POST;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   body_len += 11 + urlencode_len(grant_type);  /* grant_type=... */
@@ -1365,7 +1386,7 @@ enum c_abstract_http_error http_request_init_oauth2_token_revocation(
     struct HttpRequest *req, const char *revocation_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
     const char *client_secret) {
-  int rc;
+  enum c_abstract_http_error rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1375,14 +1396,14 @@ enum c_abstract_http_error http_request_init_oauth2_token_revocation(
 
   req->url = NULL;
   rc = CDD_STRDUP(revocation_endpoint_url, &req->url);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   req->method = HTTP_POST;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   body_len += 6 + urlencode_len(token); /* token=... */
@@ -1432,7 +1453,7 @@ enum c_abstract_http_error http_request_init_oauth2_token_introspection(
     struct HttpRequest *req, const char *introspection_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
     const char *client_secret) {
-  int rc;
+  enum c_abstract_http_error rc;
   size_t body_len = 0;
   char *body = NULL;
   char *p = NULL;
@@ -1442,14 +1463,14 @@ enum c_abstract_http_error http_request_init_oauth2_token_introspection(
 
   req->url = NULL;
   rc = CDD_STRDUP(introspection_endpoint_url, &req->url);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   req->method = HTTP_POST;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
   body_len += 6 + urlencode_len(token); /* token=... */
@@ -1743,16 +1764,24 @@ enum c_abstract_http_error http_oauth2_localhost_intercept(unsigned short port,
       }
 
       if (key_len == 4 && strncmp(key, "code", 4) == 0 && out_code && val) {
-        urldecode_alloc(val, val_len, out_code);
+        rc = urldecode_alloc(val, val_len, out_code);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+          goto cleanup;
       } else if (key_len == 5 && strncmp(key, "state", 5) == 0 && out_state &&
                  val) {
-        urldecode_alloc(val, val_len, out_state);
+        rc = urldecode_alloc(val, val_len, out_state);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+          goto cleanup;
       } else if (key_len == 5 && strncmp(key, "error", 5) == 0 && out_error &&
                  val) {
-        urldecode_alloc(val, val_len, out_error);
+        rc = urldecode_alloc(val, val_len, out_error);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+          goto cleanup;
       } else if (key_len == 17 && strncmp(key, "error_description", 17) == 0 &&
                  out_error_desc && val) {
-        urldecode_alloc(val, val_len, out_error_desc);
+        rc = urldecode_alloc(val, val_len, out_error_desc);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+          goto cleanup;
       }
 
       if (*p == '&')
@@ -1834,7 +1863,7 @@ enum c_abstract_http_error http_client_send_multi(struct HttpClient *client,
                            http_multi_progress_cb progress_cb, void *user_data,
                            int fail_fast) {
   size_t i;
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpMultiRequest multi;
 
   if (!client || !requests || num_requests == 0 || !futures) {
@@ -1845,12 +1874,16 @@ enum c_abstract_http_error http_client_send_multi(struct HttpClient *client,
   (void)user_data;
   (void)fail_fast;
 
-  http_multi_request_init(&multi);
+  rc = http_multi_request_init(&multi);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
   for (i = 0; i < num_requests; ++i) {
-    if (http_multi_request_add(&multi, requests[i]) != 0) {
+    rc = http_multi_request_add(&multi, requests[i]);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       http_multi_request_free(&multi);
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
+      return rc;
     }
   }
 
@@ -1859,8 +1892,16 @@ enum c_abstract_http_error http_client_send_multi(struct HttpClient *client,
   case MODALITY_ASYNC:
     if (client->send_multi && client->loop) {
       rc = client->send_multi(client->transport, client->loop, &multi, futures);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        http_multi_request_free(&multi);
+        return rc;
+      }
     } else {
       rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        http_multi_request_free(&multi);
+        return rc;
+      }
     }
     break;
 
@@ -1868,23 +1909,25 @@ enum c_abstract_http_error http_client_send_multi(struct HttpClient *client,
   default:
     /* Fallback to simple sequential execution if backend doesn't support multi
      * natively or is sync */
-    rc = 0;
+    rc = C_ABSTRACT_HTTP_SUCCESS;
     for (i = 0; i < num_requests; ++i) {
       struct HttpResponse *res = NULL;
-      int req_rc;
+      enum c_abstract_http_error req_rc;
 
-      if (client->send) {
-        req_rc = client->send(client->transport, requests[i], &res);
+      req_rc = client->send ? client->send(client->transport, requests[i], &res) : C_ABSTRACT_HTTP_ERR_NOTSUP;
+
+      if (req_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        futures[i]->response = res;
+        futures[i]->error_code = req_rc;
+        futures[i]->is_ready = 1;
+        if (fail_fast) {
+          http_multi_request_free(&multi);
+          return req_rc;
+        }
       } else {
-        req_rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
-      }
-      futures[i]->response = res;
-      futures[i]->error_code = req_rc;
-      futures[i]->is_ready = 1;
-
-      if (fail_fast && req_rc != 0) {
-        rc = req_rc;
-        break; /* Stop processing further requests */
+        futures[i]->response = res;
+        futures[i]->error_code = req_rc;
+        futures[i]->is_ready = 1;
       }
     }
     break;

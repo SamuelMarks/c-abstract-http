@@ -51,7 +51,7 @@ http_wasm_context_init(struct HttpTransportContext **ctx) {
   memset(*ctx, 0, sizeof(struct HttpTransportContext));
 
   rc = http_config_init(&(*ctx)->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wasm_context_init: Error http_config_init failed with %d",
               rc);
     free(*ctx);
@@ -84,7 +84,8 @@ http_wasm_config_apply(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int get_method_str(enum HttpMethod method, const char **out_str) {
+static enum c_abstract_http_error get_method_str(enum HttpMethod method,
+                                                 const char **out_str) {
   switch (method) {
   case HTTP_GET:
     *out_str = "GET";
@@ -249,7 +250,7 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
   }
 
   rc = http_response_init(*res);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wasm_send: Error http_response_init failed with %d", rc);
     emscripten_fetch_close(fetch);
     free(*res);
@@ -352,7 +353,7 @@ cleanup:
     free(body_buffer);
   }
 
-  if (rc == 0) {
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wasm_send: Success");
   } else {
     LOG_DEBUG("http_wasm_send: Error returning %d", rc);

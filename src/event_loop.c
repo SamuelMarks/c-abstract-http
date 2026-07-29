@@ -122,12 +122,15 @@ static enum c_abstract_http_error timer_heap_swap(struct TimerNode *a,
 
 static enum c_abstract_http_error timer_heap_up(struct ModalityEventLoop *loop,
                                                 size_t idx) {
+  enum c_abstract_http_error rc;
   while (idx > 0) {
     size_t parent = (idx - 1) / 2;
     if (loop->timers[idx].expiration >= loop->timers[parent].expiration) {
       break;
     }
-    timer_heap_swap(&loop->timers[idx], &loop->timers[parent]);
+    rc = timer_heap_swap(&loop->timers[idx], &loop->timers[parent]);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     idx = parent;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -135,6 +138,7 @@ static enum c_abstract_http_error timer_heap_up(struct ModalityEventLoop *loop,
 
 static enum c_abstract_http_error
 timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
+  enum c_abstract_http_error rc;
   while (1) {
     size_t left = 2 * idx + 1;
     size_t right = 2 * idx + 2;
@@ -153,7 +157,9 @@ timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
       break;
     }
 
-    timer_heap_swap(&loop->timers[idx], &loop->timers[smallest]);
+    rc = timer_heap_swap(&loop->timers[idx], &loop->timers[smallest]);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     idx = smallest;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -418,6 +424,7 @@ enum c_abstract_http_error http_loop_remove_fd(struct ModalityEventLoop *loop,
 enum c_abstract_http_error
 http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
                     http_timer_cb cb, void *user_data, int *out_timer_id) {
+  enum c_abstract_http_error rc;
   int id;
   LOG_DEBUG("http_loop_add_timer: Entering");
   if (!loop || !cb) {
@@ -458,7 +465,9 @@ http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
   loop->timers[loop->timer_count].user_data = user_data;
   loop->timers[loop->timer_count].active = 1;
 
-  timer_heap_up(loop, loop->timer_count);
+  rc = timer_heap_up(loop, loop->timer_count);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
   loop->timer_count++;
 
   LOG_DEBUG("http_loop_add_timer: Success");
@@ -497,6 +506,7 @@ http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
 
 static enum c_abstract_http_error
 process_timers(struct ModalityEventLoop *loop) {
+  enum c_abstract_http_error rc;
   cdd_int64_t now;
 
   now = math_get_current_time_ms();
@@ -515,7 +525,9 @@ process_timers(struct ModalityEventLoop *loop) {
     loop->timers[0] = loop->timers[loop->timer_count - 1];
     loop->timer_count--;
     if (loop->timer_count > 0) {
-      timer_heap_down(loop, 0);
+      rc = timer_heap_down(loop, 0);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+        return rc;
     }
   }
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -529,6 +541,7 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
   struct timeval tv;
   struct timeval *ptv = NULL;
   int ret;
+  enum c_abstract_http_error rc;
 
   LOG_DEBUG("http_loop_tick: Entering");
   if (!loop) {
@@ -544,7 +557,10 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
   }
 
   /* Process expired timers first */
-  process_timers(loop);
+  rc = process_timers(loop);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
   if (loop->stop_requested) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -555,8 +571,11 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
     while (loop->timer_count > 0 && !loop->timers[0].active) {
       loop->timers[0] = loop->timers[loop->timer_count - 1];
       loop->timer_count--;
-      if (loop->timer_count > 0)
-        timer_heap_down(loop, 0);
+      if (loop->timer_count > 0) {
+        rc = timer_heap_down(loop, 0);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+          return rc;
+      }
     }
   }
 
@@ -673,9 +692,13 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
     struct timeval tv;
     struct timeval *ptv = NULL;
     int ret;
+    enum c_abstract_http_error rc;
 
     /* Process expired timers first */
-    process_timers(loop);
+    rc = process_timers(loop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
 
     if (loop->stop_requested)
       break;
@@ -686,8 +709,11 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
       while (loop->timer_count > 0 && !loop->timers[0].active) {
         loop->timers[0] = loop->timers[loop->timer_count - 1];
         loop->timer_count--;
-        if (loop->timer_count > 0)
-          timer_heap_down(loop, 0);
+        if (loop->timer_count > 0) {
+          rc = timer_heap_down(loop, 0);
+          if (rc != C_ABSTRACT_HTTP_SUCCESS)
+            return rc;
+        }
       }
       if (loop->timer_count > 0) {
         cdd_int64_t timer_timeout = loop->timers[0].expiration - now;
@@ -794,13 +820,17 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
 }
 
 enum c_abstract_http_error http_loop_stop(struct ModalityEventLoop *loop) {
+  enum c_abstract_http_error rc;
   LOG_DEBUG("http_loop_stop: Entering");
   if (!loop) {
     LOG_DEBUG("http_loop_stop: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   loop->stop_requested = 1;
-  http_loop_wakeup(loop);
+  rc = http_loop_wakeup(loop);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
   LOG_DEBUG("http_loop_stop: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }

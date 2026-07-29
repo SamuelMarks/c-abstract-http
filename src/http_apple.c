@@ -142,7 +142,14 @@ http_apple_context_init(struct HttpTransportContext **ctx) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  http_config_init(&(*ctx)->config);
+  {
+    enum c_abstract_http_error rc = http_config_init(&(*ctx)->config);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(*ctx);
+      *ctx = NULL;
+      return rc;
+    }
+  }
 
   LOG_DEBUG("http_apple_context_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -186,6 +193,7 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
   /* CFDataRef bodyData = NULL; */
   size_t i;
   /* CFHTTPMessageRef responseRef = NULL; */
+  enum c_abstract_http_error rc;
 
   LOG_DEBUG("http_apple_send: Entering");
   if (!ctx || !req || !res) {
@@ -199,7 +207,12 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  http_response_init(*res);
+  rc = http_response_init(*res);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(*res);
+    *res = NULL;
+    return rc;
+  }
 
   urlStr = CFStringCreateWithCString(kCFAllocatorDefault, req->url,
                                      kCFStringEncodingUTF8);
@@ -441,6 +454,7 @@ static void *apple_multi_worker(void *arg) {
   }
 
   for (i = 0; i < wctx->multi->count; ++i) {
+#define CDD_HTTP_RES_INIT(x) http_response_init(x)
     const struct HttpRequest *req = wctx->multi->requests[i];
     struct HttpResponse *res =
         (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
@@ -449,12 +463,17 @@ static void *apple_multi_worker(void *arg) {
     CFHTTPMessageRef requestRef;
     CFStreamClientContext clientContext;
 
-    if (!res || http_response_init(res) != 0) {
-      if (res)
-        free(res);
+    if (!res) {
       states[i].error = C_ABSTRACT_HTTP_ERR_NOMEM;
       pending--;
       continue;
+    }
+
+    if (CDD_HTTP_RES_INIT(res) != C_ABSTRACT_HTTP_SUCCESS) {
+      free(res);
+      states[i].error = C_ABSTRACT_HTTP_ERR_NOMEM;
+      pending--;
+      return NULL;
     }
 
     wctx->futures[i]->response = res;
@@ -607,7 +626,14 @@ static void *apple_multi_worker(void *arg) {
   }
 
   if (wctx->loop) {
-    http_loop_wakeup(wctx->loop);
+    enum c_abstract_http_error rc = http_loop_wakeup(wctx->loop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("apple_multi_worker: http_loop_wakeup failed");
+      free(states);
+      free(streams);
+      free(wctx);
+      return (void *)(unsigned long)rc;
+    }
   }
 
   free(states);

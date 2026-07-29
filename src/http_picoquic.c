@@ -79,7 +79,7 @@ http_picoquic_context_init(struct HttpTransportContext **ctx) {
   }
 
   rc = http_config_init(&c->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG(
         "http_picoquic_context_init: Error http_config_init failed with %d",
         rc);
@@ -166,7 +166,7 @@ http_picoquic_send(const struct HttpTransportContext *ctx,
   }
 
   rc = http_response_init(*res);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_picoquic_send: Error http_response_init failed with %d",
               rc);
     free(*res);

@@ -118,7 +118,7 @@ enum c_abstract_http_error transport_global_cleanup(void) {
 
 enum c_abstract_http_error
 transport_factory_init_client(struct HttpClient *client) {
-  int rc;
+  int err;
 
   if (!client) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -128,101 +128,117 @@ transport_factory_init_client(struct HttpClient *client) {
   client->loop = NULL;
 
 #if defined(C_ABSTRACT_HTTP_USE_ARIA2)
-  rc = http_aria2_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_aria2_send;
-    client->send_multi = http_aria2_send_multi;
+  err = http_aria2_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_aria2_send;
+  client->send_multi = http_aria2_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-  rc = http_lsquic_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_lsquic_send;
-    client->send_multi = http_lsquic_send_multi;
+  err = http_lsquic_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_lsquic_send;
+  client->send_multi = http_lsquic_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
-  rc = http_picoquic_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_picoquic_send;
-    client->send_multi = http_picoquic_send_multi;
+  err = http_picoquic_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_picoquic_send;
+  client->send_multi = http_picoquic_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-  rc = http_nghttp3_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_nghttp3_send;
-    client->send_multi = http_nghttp3_send_multi;
+  err = http_nghttp3_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_nghttp3_send;
+  client->send_multi = http_nghttp3_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
-  rc = http_msh3_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_msh3_send;
-    client->send_multi = http_msh3_send_multi;
+  err = http_msh3_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_msh3_send;
+  client->send_multi = http_msh3_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_WININET)
-  rc = http_wininet_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_wininet_send;
+  err = http_wininet_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_wininet_send;
 #elif defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) ||               \
     defined(__WIN32__) || defined(__WINDOWS__)
-  rc = http_winhttp_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_winhttp_send;
-    client->send_multi = http_winhttp_send_multi;
+  err = http_winhttp_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_winhttp_send;
+  client->send_multi = http_winhttp_send_multi;
 #elif defined(__APPLE__)
-  rc = http_apple_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_apple_send;
-    client->send_multi = http_apple_send_multi;
+  err = http_apple_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_apple_send;
+  client->send_multi = http_apple_send_multi;
 #elif defined(__ANDROID__)
-  rc = http_android_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_android_send;
+  err = http_android_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_android_send;
 #elif defined(__EMSCRIPTEN__)
-  rc = http_xquic_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_xquic_send;
-    client->send_multi = http_xquic_send_multi;
+  err = http_xquic_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_xquic_send;
+  client->send_multi = http_xquic_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_WASM)
-  rc = http_wasm_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_wasm_send;
+  err = http_wasm_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_wasm_send;
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
-  rc = http_libsoup3_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_libsoup3_send;
+  err = http_libsoup3_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_libsoup3_send;
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
-  rc = http_libuv_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_libuv_send;
-    client->send_multi = http_libuv_send_multi;
+  err = http_libuv_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_libuv_send;
+  client->send_multi = http_libuv_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
-  rc = http_fetch_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_fetch_send;
-    client->send_multi = http_fetch_send_multi;
+  err = http_fetch_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_fetch_send;
+  client->send_multi = http_fetch_send_multi;
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
     defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
-  rc = http_raw_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_raw_send;
-    client->send_multi = http_raw_send_multi;
+  err = http_raw_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_raw_send;
+  client->send_multi = http_raw_send_multi;
 #else
-  rc = http_curl_context_init(&client->transport);
-  if (rc == 0) {
-    client->send = http_curl_send;
-    client->send_multi = http_curl_send_multi;
+  err = http_curl_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
   }
+  client->send = http_curl_send;
+  client->send_multi = http_curl_send_multi;
 #endif
-  return rc;
+  return err;
 }
 
 enum c_abstract_http_error

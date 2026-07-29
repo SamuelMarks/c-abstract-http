@@ -39,11 +39,11 @@ struct HttpTransportContext {
 enum c_abstract_http_error http_msh3_global_init(void) {
   if (!g_msh3_mutex) {
     rc = cdd_mutex_init(&g_msh3_mutex);
-    if (rc != 0)
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
   rc = cdd_mutex_lock(g_msh3_mutex);
-  if (rc != 0)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
   if (g_msh3_init_count++ == 0) {
 #if defined(_WIN32)
@@ -94,7 +94,7 @@ http_msh3_context_init(struct HttpTransportContext **ctx) {
   }
 
   rc = http_config_init(&c->base_config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_context_init: Error http_config_init failed with %d",
               rc);
     free(c);
@@ -206,7 +206,7 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
         memcpy(vstr, val, vallen);
         vstr[vallen] = '\0';
         rc = http_headers_add(&rctx->res->headers, nstr, vstr);
-        if (rc != 0) {
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
           LOG_DEBUG("msh3_request_cb: Error http_headers_add failed with %d",
                     rc);
         }
@@ -238,18 +238,18 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
   }
   case MSH3_REQUEST_EVENT_SHUTDOWN_COMPLETE:
     rc = cdd_mutex_lock(rctx->mutex);
-    if (rc == 0) {
+    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
       rctx->is_complete = 1;
       if (ev->SHUTDOWN_COMPLETE.ConnectionClosedRemotely ||
           ev->SHUTDOWN_COMPLETE.ConnectionErrorCode != 0) {
         rctx->error_code = ECONNREFUSED;
       }
       rc = cdd_cond_signal(rctx->cond);
-      if (rc != 0) {
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG("msh3_request_cb: Error cdd_cond_signal failed with %d", rc);
       }
       rc = cdd_mutex_unlock(rctx->mutex);
-      if (rc != 0) {
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG("msh3_request_cb: Error cdd_mutex_unlock failed with %d", rc);
       }
     } else {
@@ -270,8 +270,9 @@ static MSH3_STATUS MSH3_CALL msh3_conn_cb(MSH3_CONNECTION *conn, void *ctx,
   return MSH3_STATUS_SUCCESS;
 }
 
-static int parse_url(const char *url, char **host, char **port, char **path,
-                     char **scheme) {
+static enum c_abstract_http_error parse_url(const char *url, char **host,
+                                            char **port, char **path,
+                                            char **scheme) {
   const char *p = strstr(url, "://");
   const char *h, *slash, *colon, *port_start;
   size_t host_len;
@@ -377,7 +378,7 @@ http_msh3_send(const struct HttpTransportContext *ctx,
   }
 
   rc = parse_url(req->url, &host, &port_str, &path, &scheme);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_send: Error parse_url failed with %d", rc);
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -399,7 +400,7 @@ http_msh3_send(const struct HttpTransportContext *ctx,
   }
 
   rc = http_response_init(*res);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_send: Error http_response_init failed with %d", rc);
     free(host);
     free(port_str);
@@ -416,7 +417,7 @@ http_msh3_send(const struct HttpTransportContext *ctx,
   hints.ai_socktype = SOCK_DGRAM;
 
   rc = getaddrinfo(host, port_str, &hints, &result);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_send: Error getaddrinfo failed for host '%s'", host);
     free(host);
     free(port_str);
@@ -454,7 +455,7 @@ http_msh3_send(const struct HttpTransportContext *ctx,
   memset(&rctx, 0, sizeof(rctx));
   rctx.res = *res;
   rc = cdd_mutex_init(&rctx.mutex);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_send: Error cdd_mutex_init failed with %d", rc);
     MsH3ConnectionClose(conn);
     free(host);
@@ -467,7 +468,7 @@ http_msh3_send(const struct HttpTransportContext *ctx,
     return rc;
   }
   rc = cdd_cond_init(&rctx.cond);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_send: Error cdd_cond_init failed with %d", rc);
     cdd_mutex_destroy(&rctx.mutex);
     MsH3ConnectionClose(conn);
@@ -519,16 +520,16 @@ http_msh3_send(const struct HttpTransportContext *ctx,
       rctx.is_complete = 1;
     } else {
       rc = cdd_mutex_lock(rctx.mutex);
-      if (rc == 0) {
+      if (rc == C_ABSTRACT_HTTP_SUCCESS) {
         while (!rctx.is_complete) {
           rc = cdd_cond_wait(rctx.cond, rctx.mutex);
-          if (rc != 0) {
+          if (rc != C_ABSTRACT_HTTP_SUCCESS) {
             LOG_DEBUG("http_msh3_send: Error cdd_cond_wait failed with %d", rc);
             break;
           }
         }
         rc = cdd_mutex_unlock(rctx.mutex);
-        if (rc != 0) {
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
           LOG_DEBUG("http_msh3_send: Error cdd_mutex_unlock failed with %d",
                     rc);
         }

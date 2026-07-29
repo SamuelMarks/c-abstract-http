@@ -48,7 +48,7 @@ struct CddCoroutineHooks {
  * @brief Register external coroutine hooks.
  * @param[in] hooks The hooks structure.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks);
 
 /**
@@ -59,10 +59,10 @@ cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks);
  * @param[in] arg Argument to pass to the entry point.
  * @return 0 on success, ENOMEM or EINVAL on failure.
  */
-extern enum c_abstract_http_error cdd_coroutine_init(struct CddCoroutine **co,
-                                                     size_t stack_size,
-                                                     cdd_coroutine_cb cb,
-                                                     void *arg);
+extern c_abstract_http_error_t cdd_coroutine_init(struct CddCoroutine **co,
+                                                  size_t stack_size,
+                                                  cdd_coroutine_cb cb,
+                                                  void *arg);
 
 /**
  * @brief Free resources associated with a coroutine.
@@ -78,14 +78,14 @@ extern void cdd_coroutine_free(struct CddCoroutine *co);
  * @param[in] co The coroutine handle.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co);
+extern c_abstract_http_error_t cdd_coroutine_resume(struct CddCoroutine *co);
 
 /**
  * @brief Yield execution back to the resumer.
  * MUST be called from within the currently active coroutine.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error cdd_coroutine_yield(void);
+extern c_abstract_http_error_t cdd_coroutine_yield(void);
 
 /**
  * @brief Check if the coroutine has finished executing.

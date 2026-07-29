@@ -18,6 +18,7 @@
 #else
 #include <pthread.h>
 #endif
+#define CDD_COND_BROADCAST cdd_cond_broadcast
 
 #include <c_abstract_http/thread_pool.h>
 #include "c_abstract_http/log.h"
@@ -119,7 +120,7 @@ enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_cond_broadcast(struct CddCond *cond) {
+enum c_abstract_http_error CDD_COND_BROADCAST(struct CddCond *cond) {
   if (!cond)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(_MSC_VER) && _MSC_VER < 1600
@@ -204,7 +205,7 @@ enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond) {
   (void)cond;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-enum c_abstract_http_error cdd_cond_broadcast(struct CddCond *cond) {
+enum c_abstract_http_error CDD_COND_BROADCAST(struct CddCond *cond) {
   (void)cond;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -296,7 +297,7 @@ enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond) {
   return pthread_cond_signal(&cond->cond);
 }
 
-enum c_abstract_http_error cdd_cond_broadcast(struct CddCond *cond) {
+enum c_abstract_http_error CDD_COND_BROADCAST(struct CddCond *cond) {
   if (!cond)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_cond_broadcast(&cond->cond);
@@ -364,17 +365,29 @@ static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
 #endif
   struct CddThreadPool *pool = (struct CddThreadPool *)arg;
 
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   while (1) {
     struct TaskNode *task = NULL;
+    int err = 0;
 
-    cdd_mutex_lock(pool->lock);
-
-    while (!pool->stop && !pool->head) {
-      cdd_cond_wait(pool->cond, pool->lock);
+    rc = cdd_mutex_lock(pool->lock);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto worker_end;
     }
 
-    if (pool->stop && !pool->head) {
-      cdd_mutex_unlock(pool->lock);
+    while (!pool->stop && !pool->head) {
+      rc = cdd_cond_wait(pool->cond, pool->lock);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        err = 1;
+        goto worker_end;
+      }
+    }
+
+    if (err || (pool->stop && !pool->head)) {
+      rc = cdd_mutex_unlock(pool->lock);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto worker_end;
+      }
       break;
     }
 
@@ -384,16 +397,21 @@ static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
       pool->tail = NULL;
     }
 
-    cdd_mutex_unlock(pool->lock);
+    rc = cdd_mutex_unlock(pool->lock);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto worker_end;
+    }
 
-    task->cb(task->arg);
-    free(task);
+    if (task) {
+      task->cb(task->arg);
+      free(task);
+    }
   }
-
+worker_end:
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return (CDD_THREAD_FUNC)(unsigned long)rc;
 #else
-  return NULL;
+  return (CDD_THREAD_FUNC)(unsigned long)rc;
 #endif
 }
 
@@ -417,26 +435,34 @@ enum c_abstract_http_error cdd_thread_pool_init(struct CddThreadPool **pool,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  if (cdd_mutex_init(&p->lock) != 0) {
-    free(p->threads);
-    free(p);
-    return C_ABSTRACT_HTTP_ERR_IO;
-  }
+  {
+    enum c_abstract_http_error err;
+    err = cdd_mutex_init(&p->lock);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      free(p->threads);
+      free(p);
+      return err;
+    }
 
-  if (cdd_cond_init(&p->cond) != 0) {
-    cdd_mutex_free(p->lock);
-    free(p->threads);
-    free(p);
-    return C_ABSTRACT_HTTP_ERR_IO;
+    err = cdd_cond_init(&p->cond);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      cdd_mutex_free(p->lock);
+      free(p->threads);
+      free(p);
+      return err;
+    }
   }
 
   p->stop = 0;
 
   for (i = 0; i < num_threads; ++i) {
     if (thread_create(&p->threads[i], worker_thread, p) != 0) {
+      enum c_abstract_http_error rc;
       /* If we fail partway, trigger stop and join what we have */
       p->stop = 1;
-      cdd_cond_broadcast(p->cond);
+      rc = CDD_COND_BROADCAST(p->cond);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      }
       while (i > 0) {
         printf("JOINING THREAD %lu\n", (unsigned long)i);
         i--;
@@ -446,7 +472,10 @@ enum c_abstract_http_error cdd_thread_pool_init(struct CddThreadPool **pool,
       cdd_mutex_free(p->lock);
       free(p->threads);
       free(p);
-      return C_ABSTRACT_HTTP_ERR_IO;
+      if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+        rc = C_ABSTRACT_HTTP_ERR_IO;
+      }
+      return rc;
     }
   }
 
@@ -504,47 +533,74 @@ enum c_abstract_http_error cdd_thread_pool_push(struct CddThreadPool *pool,
   task->arg = arg;
   task->next = NULL;
 
-  cdd_mutex_lock(pool->lock);
-  if (pool->stop) {
-    cdd_mutex_unlock(pool->lock);
-    free(task);
-    LOG_DEBUG("cdd_thread_pool_push: Error EINVAL (pool stopped)");
-    return C_ABSTRACT_HTTP_ERR_INVAL;
-  }
+  {
+    enum c_abstract_http_error err;
+    err = cdd_mutex_lock(pool->lock);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      return err;
+    }
+    if (pool->stop) {
+      err = cdd_mutex_unlock(pool->lock);
+      if (err != C_ABSTRACT_HTTP_SUCCESS) {
+        return err;
+      }
+      free(task);
+      LOG_DEBUG("cdd_thread_pool_push: Error EINVAL (pool stopped)");
+      return C_ABSTRACT_HTTP_ERR_INVAL;
+    }
 
-  if (!pool->head) {
-    pool->head = task;
-    pool->tail = task;
-  } else {
-    pool->tail->next = task;
-    pool->tail = task;
-  }
+    if (!pool->head) {
+      pool->head = task;
+      pool->tail = task;
+    } else {
+      pool->tail->next = task;
+      pool->tail = task;
+    }
 
-  cdd_cond_signal(pool->cond);
-  cdd_mutex_unlock(pool->lock);
+    err = cdd_cond_signal(pool->cond);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      return err;
+    }
+    err = cdd_mutex_unlock(pool->lock);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      return err;
+    }
+  }
 
   LOG_DEBUG("cdd_thread_pool_push: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void cdd_thread_pool_free(struct CddThreadPool *pool) {
+enum c_abstract_http_error cdd_thread_pool_free(struct CddThreadPool *pool) {
   size_t i;
   LOG_DEBUG("cdd_thread_pool_free: Entering");
   if (!pool) {
     LOG_DEBUG("cdd_thread_pool_free: Exiting early (pool NULL)");
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   if (pool->is_external) {
     free(pool);
     LOG_DEBUG("cdd_thread_pool_free: Exiting (external pool freed)");
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
-  cdd_mutex_lock(pool->lock);
-  pool->stop = 1;
-  cdd_cond_broadcast(pool->cond);
-  cdd_mutex_unlock(pool->lock);
+  {
+    enum c_abstract_http_error err;
+    err = cdd_mutex_lock(pool->lock);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      return err;
+    }
+    pool->stop = 1;
+    err = CDD_COND_BROADCAST(pool->cond);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      return err;
+    }
+    err = cdd_mutex_unlock(pool->lock);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      return err;
+    }
+  }
 
   for (i = 0; i < pool->num_threads; ++i) {
     thread_join(pool->threads[i]);
@@ -562,16 +618,27 @@ void cdd_thread_pool_free(struct CddThreadPool *pool) {
   free(pool->threads);
   free(pool);
   LOG_DEBUG("cdd_thread_pool_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #if 1
-void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool);
-void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool) {
+enum c_abstract_http_error
+cdd_thread_pool_test_set_stop(struct CddThreadPool *pool);
+enum c_abstract_http_error
+cdd_thread_pool_test_set_stop(struct CddThreadPool *pool) {
   if (pool) {
-    cdd_mutex_lock(pool->lock);
+    enum c_abstract_http_error err;
+    err = cdd_mutex_lock(pool->lock);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      return err;
+    }
     pool->stop = 1;
-    cdd_mutex_unlock(pool->lock);
+    err = cdd_mutex_unlock(pool->lock);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      return err;
+    }
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #if !defined(C_ABSTRACT_HTTP_TEST_OOM)
 void dummy_cb_thread(void *arg);

@@ -56,7 +56,7 @@ cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
 
   /* Adapter converts the framework modality integer into HTTP enum */
   rc = cmp_http_modality_adapter(cmp_config->modality, &http_mod);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("cmp_http_inject_config: Error cmp_http_modality_adapter failed "
               "with %d",
               rc);

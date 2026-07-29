@@ -319,12 +319,12 @@ TEST test_thread_pool_fallback_paths(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2;
   rc = cdd_thread_pool_init(&pool, 1);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 3;
   rc = cdd_thread_pool_init(&pool, 1);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
   g_mock_alloc_fail = 0;
   rc = cdd_thread_pool_init(&pool, 1);

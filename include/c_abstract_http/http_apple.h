@@ -22,12 +22,12 @@ extern "C" {
  * @brief Initialize global Apple networking environment.
  * @return 0 on success.
  */
-enum c_abstract_http_error http_apple_global_init(void);
+c_abstract_http_error_t http_apple_global_init(void);
 
 /**
  * @brief Cleanup global Apple networking environment.
  */
-enum c_abstract_http_error http_apple_global_cleanup(void);
+c_abstract_http_error_t http_apple_global_cleanup(void);
 
 /**
  * @brief Create a new Apple-backed transport context.
@@ -35,7 +35,7 @@ enum c_abstract_http_error http_apple_global_cleanup(void);
  * @param[out] ctx Double pointer to receive the allocated context.
  * @return 0 on success.
  */
-enum c_abstract_http_error
+c_abstract_http_error_t
 http_apple_context_init(struct HttpTransportContext **ctx);
 
 /**
@@ -52,7 +52,7 @@ void http_apple_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration to apply.
  * @return 0 on success.
  */
-enum c_abstract_http_error
+c_abstract_http_error_t
 http_apple_config_apply(struct HttpTransportContext *ctx,
                         const struct HttpConfig *config);
 
@@ -64,15 +64,15 @@ http_apple_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Double pointer to receive the allocated response object.
  * @return 0 on success.
  */
-enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
-                                           const struct HttpRequest *req,
-                                           struct HttpResponse **res);
+c_abstract_http_error_t http_apple_send(struct HttpTransportContext *ctx,
+                                        const struct HttpRequest *req,
+                                        struct HttpResponse **res);
 
 /**
  * @brief The send_multi implementation for Apple.
  * Matches `http_send_multi_fn` signature.
  */
-extern enum c_abstract_http_error http_apple_send_multi(
+extern c_abstract_http_error_t http_apple_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 

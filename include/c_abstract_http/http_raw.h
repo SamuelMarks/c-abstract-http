@@ -19,19 +19,19 @@ extern "C" {
  * @brief Initialize the global raw socket environment.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error http_raw_global_init(void);
+extern c_abstract_http_error_t http_raw_global_init(void);
 
 /**
  * @brief Cleanup the global raw socket environment.
  */
-extern enum c_abstract_http_error http_raw_global_cleanup(void);
+extern c_abstract_http_error_t http_raw_global_cleanup(void);
 
 /**
  * @brief Initialize a new raw socket transport context.
  * @param ctx Pointer to the newly allocated context.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_raw_context_init(struct HttpTransportContext **ctx);
 
 /**
@@ -47,9 +47,9 @@ extern void http_raw_context_free(struct HttpTransportContext *ctx);
  * @param res Response to return.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error
-http_raw_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
-              struct HttpResponse **res);
+extern c_abstract_http_error_t http_raw_send(struct HttpTransportContext *ctx,
+                                             const struct HttpRequest *req,
+                                             struct HttpResponse **res);
 
 /**
  * @brief Send multiple HTTP requests asynchronously using raw sockets.
@@ -59,7 +59,7 @@ http_raw_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
  * @param future Futures to return.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error http_raw_send_multi(
+extern c_abstract_http_error_t http_raw_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *reqs, struct HttpFuture **future);
 

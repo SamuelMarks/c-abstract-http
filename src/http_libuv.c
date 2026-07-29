@@ -51,7 +51,7 @@ http_libuv_context_init(struct HttpTransportContext **ctx) {
   memset(*ctx, 0, sizeof(struct HttpTransportContext));
 
   rc = http_config_init(&(*ctx)->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_libuv_context_init: Error http_config_init failed with %d",
               rc);
     free(*ctx);
@@ -85,7 +85,8 @@ http_libuv_config_apply(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int get_method_str(enum HttpMethod method, const char **out_str) {
+static enum c_abstract_http_error get_method_str(enum HttpMethod method,
+                                                 const char **out_str) {
   switch (method) {
   case HTTP_GET:
     *out_str = "GET";
@@ -228,7 +229,7 @@ static void parse_headers(struct libuv_state *state) {
 
   {
     int rc = http_response_init(r);
-    if (rc != 0) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("parse_headers: Error http_response_init failed with %d", rc);
       free(*state->res);
       *state->res = NULL;
@@ -418,7 +419,8 @@ static void libuv_on_resolved(uv_getaddrinfo_t *resolver, int status,
   uv_freeaddrinfo(res);
 }
 
-static int parse_url(const char *url, char **host, int *port, char **path) {
+static enum c_abstract_http_error parse_url(const char *url, char **host,
+                                            int *port, char **path) {
   const char *p;
   const char *host_start;
   const char *port_start;
@@ -514,7 +516,7 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   *res = NULL;
 
   rc = parse_url(req->url, &host, &port, &path);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_libuv_send: Error parse_url failed %d", rc);
     if (host)
       free(host);

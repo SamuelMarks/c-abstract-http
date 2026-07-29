@@ -62,7 +62,7 @@ http_xquic_context_init(struct HttpTransportContext **ctx) {
   }
 
   rc = http_config_init(&c->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     free(c);
     LOG_DEBUG("http_xquic_context_init: Error init config failed");
     return rc;

@@ -314,6 +314,7 @@ cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
     return C_ABSTRACT_HTTP_ERR_IO;
   } else if (pid == 0) {
     char *argv[] = {"cdd-worker", "--cdd-worker", NULL};
+    (void)argv;
 
     dup2((int)(size_t)parent_to_child->read_handle, STDIN_FILENO);
     dup2((int)(size_t)child_to_parent->write_handle, STDOUT_FILENO);
@@ -448,8 +449,9 @@ static enum c_abstract_http_error parse_size(const char **p, const char *end,
 static enum c_abstract_http_error parse_str(const char **p, const char *end,
                                             char **str) {
   size_t len;
-  if (parse_size(p, end, &len) != 0)
-    return C_ABSTRACT_HTTP_ERR_INVAL;
+  enum c_abstract_http_error rc = parse_size(p, end, &len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
   if (len == 0) {
     *str = NULL;
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -527,7 +529,9 @@ cdd_ipc_deserialize_request(const char *buf, size_t len,
   p = buf;
   end = buf + len;
 
-  http_request_init(req);
+  if ((rc = http_request_init(req)) != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
   if ((rc = parse_int(&p, end, &method)) != 0)
     return rc;
@@ -546,7 +550,12 @@ cdd_ipc_deserialize_request(const char *buf, size_t len,
       free(value);
       return rc; /* return actual error code */
     }
-    http_headers_add(&req->headers, key, value);
+    rc = http_headers_add(&req->headers, key, value);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(key);
+      free(value);
+      return rc;
+    }
     free(key);
     free(value);
   }
@@ -627,7 +636,9 @@ cdd_ipc_deserialize_response(const char *buf, size_t len,
   p = buf;
   end = buf + len;
 
-  http_response_init(res);
+  if ((rc = http_response_init(res)) != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
   if ((rc = parse_int(&p, end, &res->status_code)) != 0)
     return rc;
@@ -642,7 +653,12 @@ cdd_ipc_deserialize_response(const char *buf, size_t len,
       free(value);
       return rc; /* return actual error code */
     }
-    http_headers_add(&res->headers, key, value);
+    rc = http_headers_add(&res->headers, key, value);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(key);
+      free(value);
+      return rc;
+    }
     free(key);
     free(value);
   }
@@ -670,13 +686,15 @@ enum c_abstract_http_error cdd_process_test_waitpid_fail(void);
 enum c_abstract_http_error cdd_process_test_waitpid_fail(void) {
   struct CddProcess *p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
   if (p) {
+    enum c_abstract_http_error rc;
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
     p->hProcess = (HANDLE)123;
 #else
     p->pid = 123;
 #endif
     g_mock_waitpid_fail = 1;
-    cdd_process_wait_and_free(p, NULL);
+    rc = cdd_process_wait_and_free(p, NULL);
+    (void)rc;
     g_mock_waitpid_fail = 0;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -690,13 +708,15 @@ enum c_abstract_http_error cdd_process_test_waitpid_exit(void) {
   struct CddProcess *p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
   if (p) {
     int exit_code;
+    enum c_abstract_http_error rc;
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
     p->hProcess = (HANDLE)123;
 #else
     p->pid = 123;
 #endif
     g_mock_waitpid_fail = 2;
-    cdd_process_wait_and_free(p, &exit_code);
+    rc = cdd_process_wait_and_free(p, &exit_code);
+    (void)rc;
     g_mock_waitpid_fail = 0;
   }
   return C_ABSTRACT_HTTP_SUCCESS;

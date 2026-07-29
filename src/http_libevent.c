@@ -69,7 +69,7 @@ http_libevent_context_init(struct HttpTransportContext **ctx) {
   memset(*ctx, 0, sizeof(struct HttpTransportContext));
 
   rc = http_config_init(&(*ctx)->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG(
         "http_libevent_context_init: Error http_config_init failed with %d",
         rc);
@@ -102,7 +102,7 @@ http_libevent_config_apply(struct HttpTransportContext *ctx,
 }
 
 #ifdef C_ABSTRACT_HTTP_USE_LIBEVENT
-static int get_method_cmd(enum HttpMethod method) {
+static enum c_abstract_http_error get_method_cmd(enum HttpMethod method) {
   switch (method) {
   case HTTP_GET:
     return EVHTTP_REQ_GET;
@@ -166,7 +166,7 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
 
   {
     int rc = http_response_init(*state->res);
-    if (rc != 0) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("http_request_done: Error http_response_init failed with %d",
                 rc);
       free(*state->res);
@@ -206,7 +206,7 @@ static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
     evbuffer_remove(evb, buf, len);
     {
       int rc = state->req->on_chunk(state->req->on_chunk_user_data, buf, len);
-      if (rc != 0) {
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         state->error_code = rc;
         /* we can't abort nicely in evhttp callback without closing conn,
            but evhttp_connection_free is unsafe here. We just set error. */
@@ -316,11 +316,11 @@ http_libevent_send(const struct HttpTransportContext *ctx,
 
     output_headers = evhttp_request_get_output_headers(req_ev);
     rc = evhttp_add_header(output_headers, "Host", host);
-    if (rc != 0) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("http_libevent_send: Error evhttp_add_header failed");
     }
     rc = evhttp_add_header(output_headers, "Connection", "close");
-    if (rc != 0) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("http_libevent_send: Error evhttp_add_header failed");
     }
 
@@ -329,7 +329,7 @@ http_libevent_send(const struct HttpTransportContext *ctx,
       for (i = 0; i < req->headers.count; i++) {
         rc = evhttp_add_header(output_headers, req->headers.headers[i].key,
                                req->headers.headers[i].value);
-        if (rc != 0) {
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
           LOG_DEBUG("http_libevent_send: Error evhttp_add_header failed for "
                     "custom header");
         }
@@ -339,7 +339,7 @@ http_libevent_send(const struct HttpTransportContext *ctx,
     if (req->body && req->body_len > 0) {
       struct evbuffer *evb = evhttp_request_get_output_buffer(req_ev);
       rc = evbuffer_add(evb, req->body, req->body_len);
-      if (rc != 0) {
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG("http_libevent_send: Error evbuffer_add failed");
       }
     } else if (req->read_chunk) {
@@ -352,7 +352,7 @@ http_libevent_send(const struct HttpTransportContext *ctx,
         if (r != 0 || read_bytes == 0)
           break;
         rc = evbuffer_add(evb, buf, read_bytes);
-        if (rc != 0) {
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
           LOG_DEBUG("http_libevent_send: Error evbuffer_add failed during "
                     "chunk read");
         }
@@ -361,7 +361,7 @@ http_libevent_send(const struct HttpTransportContext *ctx,
 
     rc = evhttp_make_request(state.conn, req_ev, get_method_cmd(req->method),
                              path);
-    if (rc != 0) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("http_libevent_send: Error evhttp_make_request failed");
       evhttp_connection_free(state.conn);
       event_base_free(state.base);
@@ -379,7 +379,7 @@ http_libevent_send(const struct HttpTransportContext *ctx,
     evhttp_connection_free(state.conn);
     event_base_free(state.base);
 
-    if (rc == 0) {
+    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("http_libevent_send: Success");
     } else {
       LOG_DEBUG("http_libevent_send: Error returning %d", rc);

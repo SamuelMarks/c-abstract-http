@@ -443,7 +443,6 @@ TEST test_apple_send_multi(void) {
   struct HttpFuture *future1 = NULL, *future2 = NULL;
   struct HttpFuture *futures[2];
   struct ModalityEventLoop *loop = NULL;
-  struct HttpConfig config;
   int port;
   char url[256];
 
@@ -506,9 +505,9 @@ TEST test_apple_send_multi(void) {
 TEST test_apple_send_multi_branches(void) {
 #if defined(__APPLE__)
   struct HttpTransportContext *ctx = NULL;
-  struct HttpRequest req1, req2;
+  struct HttpRequest req1;
   struct HttpMultiRequest multi;
-  struct HttpFuture *future1 = NULL, *future2 = NULL;
+  struct HttpFuture *future1 = NULL;
   struct HttpFuture *futures[2];
   struct ModalityEventLoop *loop = NULL;
 
@@ -526,6 +525,7 @@ TEST test_apple_send_multi_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_apple_send_multi(ctx, loop, &multi, futures));
   while (!future1->is_ready) {
+    http_loop_tick(loop);
   }
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             future1->response->status_code ? 0 : C_ABSTRACT_HTTP_ERR_INVAL);
@@ -548,6 +548,7 @@ TEST test_apple_send_multi_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_apple_send_multi(ctx, loop, &multi, futures));
   while (!future1->is_ready) {
+    http_loop_tick(loop);
   }
   if (future1->response) {
     http_response_free(future1->response);
@@ -570,6 +571,7 @@ TEST test_apple_send_multi_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_apple_send_multi(ctx, loop, &multi, futures));
   while (!future1->is_ready) {
+    http_loop_tick(loop);
   }
   if (future1->response) {
     http_response_free(future1->response);
@@ -590,6 +592,7 @@ TEST test_apple_send_multi_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_apple_send_multi(ctx, loop, &multi, futures));
   while (!future1->is_ready) {
+    http_loop_tick(loop);
   }
   if (future1->response) {
     http_response_free(future1->response);
@@ -610,6 +613,7 @@ TEST test_apple_send_multi_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_apple_send_multi(ctx, loop, &multi, futures));
   while (!future1->is_ready) {
+    http_loop_tick(loop);
   }
   if (future1->response) {
     http_response_free(future1->response);

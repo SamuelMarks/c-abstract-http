@@ -36,14 +36,14 @@ extern "C" {
  *
  * @return 0 on success, EIO on failure.
  */
-enum c_abstract_http_error http_fetch_global_init(void);
+c_abstract_http_error_t http_fetch_global_init(void);
 
 /**
  * @brief Decrement the global initialization reference count.
  *
  * If the count reaches zero, `fetch_global_cleanup` is invoked.
  */
-enum c_abstract_http_error http_fetch_global_cleanup(void);
+c_abstract_http_error_t http_fetch_global_cleanup(void);
 
 /**
  * @brief Create a new Fetch-backed transport context.
@@ -53,7 +53,7 @@ enum c_abstract_http_error http_fetch_global_cleanup(void);
  * @return 0 on success, ENOMEM on allocation failure, EIO on Fetch init
  * failure.
  */
-enum c_abstract_http_error
+c_abstract_http_error_t
 http_fetch_context_init(struct HttpTransportContext **ctx);
 
 /**
@@ -75,7 +75,7 @@ void http_fetch_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration structure to apply.
  * @return 0 on success, EINVAL if inputs invalid, or EIO if setopt fails.
  */
-enum c_abstract_http_error
+c_abstract_http_error_t
 http_fetch_config_apply(struct HttpTransportContext *ctx,
                         const struct HttpConfig *config);
 
@@ -98,9 +98,9 @@ http_fetch_config_apply(struct HttpTransportContext *ctx,
  * @return 0 on success, or a mapped error code (e.g. ETIMEDOUT, ECONNREFUSED)
  * on failure.
  */
-enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
-                                           const struct HttpRequest *req,
-                                           struct HttpResponse **res);
+c_abstract_http_error_t http_fetch_send(struct HttpTransportContext *ctx,
+                                        const struct HttpRequest *req,
+                                        struct HttpResponse **res);
 
 /**
  * @brief Dispatch multiple HTTP requests using libfetch asynchronous modes.
@@ -115,7 +115,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
  * @return 0 on success (all requests initiated), negative mapped cdd-error
  * otherwise.
  */
-extern enum c_abstract_http_error http_fetch_send_multi(
+extern c_abstract_http_error_t http_fetch_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 

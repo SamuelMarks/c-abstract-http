@@ -36,14 +36,14 @@ extern "C" {
  *
  * @return 0 on success, EIO on failure.
  */
-enum c_abstract_http_error http_libevent_global_init(void);
+c_abstract_http_error_t http_libevent_global_init(void);
 
 /**
  * @brief Decrement the global initialization reference count.
  *
  * If the count reaches zero, `libevent_global_cleanup` is invoked.
  */
-enum c_abstract_http_error http_libevent_global_cleanup(void);
+c_abstract_http_error_t http_libevent_global_cleanup(void);
 
 /**
  * @brief Create a new libevent-backed transport context.
@@ -53,7 +53,7 @@ enum c_abstract_http_error http_libevent_global_cleanup(void);
  * @return 0 on success, ENOMEM on allocation failure, EIO on libevent init
  * failure.
  */
-enum c_abstract_http_error
+c_abstract_http_error_t
 http_libevent_context_init(struct HttpTransportContext **ctx);
 
 /**
@@ -75,7 +75,7 @@ void http_libevent_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration structure to apply.
  * @return 0 on success, EINVAL if inputs invalid, or EIO if setopt fails.
  */
-enum c_abstract_http_error
+c_abstract_http_error_t
 http_libevent_config_apply(struct HttpTransportContext *ctx,
                            const struct HttpConfig *config);
 
@@ -98,9 +98,9 @@ http_libevent_config_apply(struct HttpTransportContext *ctx,
  * @return 0 on success, or a mapped error code (e.g. ETIMEDOUT, ECONNREFUSED)
  * on failure.
  */
-enum c_abstract_http_error http_libevent_send(struct HttpTransportContext *ctx,
-                                              const struct HttpRequest *req,
-                                              struct HttpResponse **res);
+c_abstract_http_error_t http_libevent_send(struct HttpTransportContext *ctx,
+                                           const struct HttpRequest *req,
+                                           struct HttpResponse **res);
 
 #ifdef __cplusplus
 }

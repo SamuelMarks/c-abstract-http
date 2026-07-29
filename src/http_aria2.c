@@ -40,7 +40,7 @@ http_aria2_context_init(struct HttpTransportContext **ctx) {
   }
 
   rc = http_config_init(&(*ctx)->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_aria2_context_init: Error http_config_init failed with %d",
               rc);
     free(*ctx);
@@ -104,7 +104,7 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
 #endif
 
   rc = system(cmd);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_aria2_send: Error system() failed with %d", rc);
     remove(tmp_filename);
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -118,7 +118,7 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
   }
 
   rc = http_response_init(new_res);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_aria2_send: Error http_response_init failed with %d", rc);
     free(new_res);
     remove(tmp_filename);
@@ -159,7 +159,7 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
 
   remove(tmp_filename);
 
-  if (rc == 0) {
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     *res = new_res;
     LOG_DEBUG("http_aria2_send: Success");
   } else {
@@ -185,10 +185,18 @@ enum c_abstract_http_error http_aria2_send_multi(
 
   for (i = 0; i < multi->count; i++) {
     struct HttpResponse *res = NULL;
-    int rc = http_aria2_send(ctx, multi->requests[i], &res);
-    futures[i]->response = res;
-    futures[i]->error_code = rc;
-    futures[i]->is_ready = 1;
+    enum c_abstract_http_error rc =
+        http_aria2_send(ctx, multi->requests[i], &res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      futures[i]->response = res;
+      futures[i]->error_code = rc;
+      futures[i]->is_ready = 1;
+      return rc;
+    } else {
+      futures[i]->response = res;
+      futures[i]->error_code = rc;
+      futures[i]->is_ready = 1;
+    }
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }

@@ -61,7 +61,7 @@ http_raw_context_init(struct HttpTransportContext **ctx) {
   }
 
   rc = http_config_init(&c->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_raw_context_init: Error http_config_init failed with %d",
               rc);
     free(c);
@@ -95,7 +95,7 @@ http_raw_config_apply(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int make_socket_nonblocking(int sock) {
+static enum c_abstract_http_error make_socket_nonblocking(int sock) {
 #if defined(_WIN32)
   u_long mode = 1;
   return ioctlsocket(sock, FIONBIO, &mode);
@@ -107,7 +107,7 @@ static int make_socket_nonblocking(int sock) {
 #endif
 }
 
-static int make_socket_blocking(int sock) {
+static enum c_abstract_http_error make_socket_blocking(int sock) {
 #if defined(_WIN32)
   u_long mode = 0;
   return ioctlsocket(sock, FIONBIO, &mode);
@@ -119,7 +119,8 @@ static int make_socket_blocking(int sock) {
 #endif
 }
 
-static int parse_url(const char *url, char **host, int *port, char **path) {
+static enum c_abstract_http_error parse_url(const char *url, char **host,
+                                            int *port, char **path) {
   const char *p;
   const char *port_start;
   const char *path_start;
@@ -197,6 +198,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   char *p;
   size_t len;
   char recv_buf[8192];
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   int rc_send = C_ABSTRACT_HTTP_SUCCESS;
   size_t body_len = 0;
   char *body = NULL;
@@ -209,8 +211,9 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  if (parse_url(req->url, &host, &port, &path) != 0) {
-    return C_ABSTRACT_HTTP_ERR_INVAL;
+  if ((rc = parse_url(req->url, &host, &port, &path)) !=
+      C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
   }
 
   he = gethostbyname(host);
@@ -232,7 +235,16 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   addr.sin_port = htons(port);
   memcpy(&addr.sin_addr, he->h_addr_list[0], (size_t)he->h_length);
 
-  make_socket_nonblocking(sock);
+  if ((rc = make_socket_nonblocking(sock)) != C_ABSTRACT_HTTP_SUCCESS) {
+    free(host);
+    free(path);
+#if defined(_WIN32)
+    closesocket(sock);
+#else
+    close(sock);
+#endif
+    return rc;
+  }
 
   if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 #if defined(_WIN32)
@@ -276,7 +288,16 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     }
   }
 
-  make_socket_blocking(sock);
+  if ((rc = make_socket_blocking(sock)) != C_ABSTRACT_HTTP_SUCCESS) {
+#if defined(_WIN32)
+    closesocket(sock);
+#else
+    close(sock);
+#endif
+    free(host);
+    free(path);
+    return rc;
+  }
 
   request_buf = (char *)malloc(req_cap);
   if (!request_buf) {
@@ -416,15 +437,18 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  if (http_response_init(*res) != 0) {
-    free(*res);
-    *res = NULL;
+  {
+    enum c_abstract_http_error rc_init = http_response_init(*res);
+    if (rc_init != C_ABSTRACT_HTTP_SUCCESS) {
+      free(*res);
+      *res = NULL;
 #if defined(_WIN32)
-    closesocket(sock);
+      closesocket(sock);
 #else
-    close(sock);
+      close(sock);
 #endif
-    return C_ABSTRACT_HTTP_ERR_NOMEM;
+      return rc_init;
+    }
   }
 
   body_cap = 8192;
@@ -541,7 +565,12 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
             if (colon && colon < next_nl) {
               *colon = '\0';
               *next_nl = '\0';
-              http_headers_add(&(*res)->headers, p_nl, colon + 1);
+              rc = http_headers_add(&(*res)->headers, p_nl, colon + 1);
+              if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+                CDD_CLOSESOCKET(sockfd);
+                free(response_buffer);
+                return rc;
+              }
             }
             p_nl = next_nl + 2;
           } else {
@@ -581,10 +610,17 @@ enum c_abstract_http_error http_raw_send_multi(
 
   for (i = 0; i < reqs->count; i++) {
     struct HttpResponse *res = NULL;
-    int rc = http_raw_send(ctx, reqs->requests[i], &res);
-    future[i]->response = res;
-    future[i]->error_code = rc;
-    future[i]->is_ready = 1;
+    enum c_abstract_http_error rc = http_raw_send(ctx, reqs->requests[i], &res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      future[i]->response = res;
+      future[i]->error_code = rc;
+      future[i]->is_ready = 1;
+      return rc;
+    } else {
+      future[i]->response = res;
+      future[i]->error_code = rc;
+      future[i]->is_ready = 1;
+    }
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }

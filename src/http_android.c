@@ -49,7 +49,7 @@ http_android_context_init(struct HttpTransportContext **ctx) {
   }
 
   rc = http_config_init(&(*ctx)->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG(
         "http_android_context_init: Error http_config_init failed with %d", rc);
     free(*ctx);
@@ -105,7 +105,7 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
   jbyteArray byte_array = NULL;
   jint res_code;
   int attached = 0;
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
 
   LOG_DEBUG("http_android_send: Entering");
   if (!ctx || !req || !res) {
@@ -129,7 +129,7 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
     LOG_DEBUG("http_android_send: Error GetEnv failed");
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
-  rc = 0;
+  rc = C_ABSTRACT_HTTP_SUCCESS;
 
   url_str = (*env)->NewStringUTF(env, req->url ? req->url : "");
   if (!url_str) {
@@ -334,7 +334,8 @@ cleanup:
 
   if (rc != 0 && rc != C_ABSTRACT_HTTP_ERR_NOMEM &&
       rc != C_ABSTRACT_HTTP_ERR_IO && rc != C_ABSTRACT_HTTP_ERR_NOTSUP) {
-    rc = 0; /* Fallback to success if we got a response object initialized */
+    rc = C_ABSTRACT_HTTP_SUCCESS; /* Fallback to success if we got a response
+                                     object initialized */
   }
 
   LOG_DEBUG("http_android_send: Exiting");

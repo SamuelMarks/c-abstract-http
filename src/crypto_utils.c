@@ -92,11 +92,16 @@ enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
   ctx->count[1] += (uint32_t)(len >> 29);
 
   if ((j + len) > 63) {
+    enum c_abstract_http_error rc;
     i = 64 - j;
     memcpy(&ctx->buffer[j], data, i);
-    sha1_transform(ctx->state, ctx->buffer);
+    rc = sha1_transform(ctx->state, ctx->buffer);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     for (; i + 63 < len; i += 64) {
-      sha1_transform(ctx->state, &data[i]);
+      rc = sha1_transform(ctx->state, &data[i]);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+        return rc;
     }
     j = 0;
   } else {
@@ -109,6 +114,7 @@ enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
 
 enum c_abstract_http_error sha1_final(struct sha1_ctx *ctx,
                                       unsigned char out_hash[20]) {
+  enum c_abstract_http_error rc;
   unsigned char finalcount[8];
   unsigned char c;
   int i;
@@ -122,12 +128,18 @@ enum c_abstract_http_error sha1_final(struct sha1_ctx *ctx,
                         255);
   }
   c = 0200;
-  sha1_update(ctx, &c, 1);
+  rc = sha1_update(ctx, &c, 1);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
   while ((ctx->count[0] & 504) != 448) {
     c = 0000;
-    sha1_update(ctx, &c, 1);
+    rc = sha1_update(ctx, &c, 1);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
   }
-  sha1_update(ctx, finalcount, 8);
+  rc = sha1_update(ctx, finalcount, 8);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
   for (i = 0; i < 20; i++) {
     out_hash[i] =
         (unsigned char)((ctx->state[i >> 2] >> ((3 - (i & 3)) * 8)) & 255);

@@ -32,8 +32,8 @@ struct CddTlsKey;
  * exits.
  * @return 0 on success, or an error code on failure.
  */
-extern enum c_abstract_http_error
-cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *));
+extern c_abstract_http_error_t cdd_tls_key_create(struct CddTlsKey **key,
+                                                  void (*destructor)(void *));
 
 /**
  * @brief Sets a thread-local value for the given key.
@@ -42,8 +42,7 @@ cdd_tls_key_create(struct CddTlsKey **key, void (*destructor)(void *));
  * @param[in] value The value to store.
  * @return 0 on success, or an error code on failure.
  */
-extern enum c_abstract_http_error cdd_tls_set(struct CddTlsKey *key,
-                                              void *value);
+extern c_abstract_http_error_t cdd_tls_set(struct CddTlsKey *key, void *value);
 
 /**
  * @brief Gets the thread-local value for the given key.
@@ -52,15 +51,15 @@ extern enum c_abstract_http_error cdd_tls_set(struct CddTlsKey *key,
  * @param[out] out_value Pointer to a void pointer to store the retrieved value.
  * @return 0 on success, or an error code on failure.
  */
-extern enum c_abstract_http_error cdd_tls_get(struct CddTlsKey *key,
-                                              void **out_value);
+extern c_abstract_http_error_t cdd_tls_get(struct CddTlsKey *key,
+                                           void **out_value);
 
 /**
  * @brief Deletes a TLS key.
  *
  * @param[in] key The TLS key to delete.
  */
-extern enum c_abstract_http_error cdd_tls_key_delete(struct CddTlsKey *key);
+extern c_abstract_http_error_t cdd_tls_key_delete(struct CddTlsKey *key);
 
 #ifdef __cplusplus
 }

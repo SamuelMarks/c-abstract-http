@@ -65,7 +65,7 @@ http_libsoup3_context_init(struct HttpTransportContext **const ctx) {
   }
 
   rc = http_config_init(&(*ctx)->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG(
         "http_libsoup3_context_init: Error http_config_init failed with %d",
         rc);
@@ -209,7 +209,7 @@ enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
   }
 
   rc = math_get_method_string(req->method, &method_str);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_libsoup3_send: Error math_get_method_string failed %d", rc);
     return rc;
   }
@@ -278,7 +278,7 @@ enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
   }
 
   rc = http_response_init(new_res);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_libsoup3_send: Error http_response_init failed with %d",
               rc);
     free(new_res);
@@ -334,7 +334,7 @@ cleanup:
   if (msg)
     g_object_unref(msg);
 
-  if (rc == 0) {
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_libsoup3_send: Success");
   } else {
     LOG_DEBUG("http_libsoup3_send: Error returning %d", rc);

@@ -107,7 +107,7 @@ enum c_abstract_http_error sse_parser_init(
   }
 
   rc = sse_strdup("message", &ctx->current_event);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("sse_parser_init: Error sse_strdup failed with %d", rc);
     free(ctx->current_data);
     free(ctx->line_buffer);
@@ -116,7 +116,7 @@ enum c_abstract_http_error sse_parser_init(
 
   if (config && config->last_event_id) {
     rc = sse_strdup(config->last_event_id, &ctx->last_event_id);
-    if (rc != 0) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("sse_parser_init: Error sse_strdup failed with %d", rc);
       free(ctx->current_event);
       free(ctx->current_data);
@@ -357,14 +357,14 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
   }
 
   rc = c_abstract_http_sse_init(req, NULL);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (on_err)
       on_err(rc, user_data);
     return rc;
   }
 
   rc = sse_parser_init(&parser, NULL, on_evt, on_err, on_close, user_data);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (on_err)
       on_err(rc, user_data);
     return rc;
@@ -380,8 +380,14 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
 
   if (res->body && res->body_len > 0) {
     rc = sse_parser_feed(&parser, (const char *)res->body, res->body_len);
-    if (rc != 0 && on_err) {
-      on_err(rc, user_data);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (on_err) {
+        on_err(rc, user_data);
+      }
+      sse_parser_destroy(&parser);
+      http_response_free(res);
+      free(res);
+      return rc;
     }
   }
 
@@ -396,17 +402,19 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
 }
 
 void c_abstract_http_sse_async_task(void *arg) {
-  int rc;
+  enum c_abstract_http_error err;
   struct c_abstract_http_sse_async_ctx *ctx =
       (struct c_abstract_http_sse_async_ctx *)arg;
   volatile int exit_flag = 0;
   if (!ctx)
     return;
-  rc = c_abstract_http_sse_sync_read_loop(ctx->client, ctx->req, ctx->on_evt,
-                                          ctx->on_err, ctx->on_close,
-                                          ctx->user_data, &exit_flag);
-  if (rc != 0 && ctx->on_err) {
-    ctx->on_err(rc, ctx->user_data);
+  err = c_abstract_http_sse_sync_read_loop(ctx->client, ctx->req, ctx->on_evt,
+                                           ctx->on_err, ctx->on_close,
+                                           ctx->user_data, &exit_flag);
+  if (err != C_ABSTRACT_HTTP_SUCCESS && ctx->on_err) {
+    ctx->on_err(err, ctx->user_data);
+    free(ctx);
+    return (void)err;
   }
   free(ctx);
 }
@@ -438,7 +446,7 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
 
     rc = cdd_thread_pool_push(client->thread_pool,
                               c_abstract_http_sse_async_task, ctx);
-    if (rc != 0) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG(
           "c_abstract_http_sse_async_register: Error thread pool push failed");
       free(ctx);
@@ -456,7 +464,7 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
     rc = c_abstract_http_sse_sync_read_loop(client, req, on_evt, on_err,
                                             on_close, user_data, &exit_flag);
 
-    if (rc != 0) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       if (on_err)
         on_err(rc, user_data);
       return rc;

@@ -31,13 +31,13 @@ struct HttpTransportContext;
  * Reference-counted; safe to call multiple times.
  * @return 0 on success, ENOMEM or native error code on failure.
  */
-extern enum c_abstract_http_error http_lsquic_global_init(void);
+extern c_abstract_http_error_t http_lsquic_global_init(void);
 
 /**
  * @brief Clean up the global lsquic API state.
  * Automatically cleans up when the reference count drops to 0.
  */
-extern enum c_abstract_http_error http_lsquic_global_cleanup(void);
+extern c_abstract_http_error_t http_lsquic_global_cleanup(void);
 
 /**
  * @brief Initialize a new lsquic transport context.
@@ -45,7 +45,7 @@ extern enum c_abstract_http_error http_lsquic_global_cleanup(void);
  * @param[out] ctx Double pointer to receive the newly allocated context.
  * @return 0 on success, ENOMEM on failure.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_lsquic_context_init(struct HttpTransportContext **ctx);
 
 /**
@@ -64,7 +64,7 @@ extern void http_lsquic_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration settings.
  * @return 0 on success, or a mapped error code on failure.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_lsquic_config_apply(struct HttpTransportContext *ctx,
                          const struct HttpConfig *config);
 
@@ -77,7 +77,7 @@ http_lsquic_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Double pointer to receive the newly allocated response.
  * @return 0 on success, or a mapped error code on failure.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_lsquic_send(struct HttpTransportContext *ctx,
                  const struct HttpRequest *req, struct HttpResponse **res);
 
@@ -91,7 +91,7 @@ http_lsquic_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error http_lsquic_send_multi(
+extern c_abstract_http_error_t http_lsquic_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 

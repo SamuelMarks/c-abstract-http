@@ -112,7 +112,7 @@ enum c_abstract_http_error cdd_tls_key_create(struct CddTlsKey **key,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   rc = pthread_key_create(&(*key)->key, destructor);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("cdd_tls_key_create: Error pthread_key_create failed with %d",
               rc);
     free(*key);
@@ -130,7 +130,7 @@ enum c_abstract_http_error cdd_tls_set(struct CddTlsKey *key, void *value) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   rc = pthread_setspecific(key->key, value);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("cdd_tls_set: Error pthread_setspecific failed with %d", rc);
     return C_ABSTRACT_HTTP_ERR_IO;
   }

@@ -24,19 +24,21 @@
 #include "str.h"
 /* clang-format on */
 
-static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
-                         size_t *out_len) {
+static enum c_abstract_http_error
+ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out_len) {
   cfs_size_t written = 0;
-  if (cfs_mb_to_wide(s, ws, (cfs_size_t)buf_cap, &written) != 0 || written == 0)
+  enum cfs_error rc = cfs_mb_to_wide(s, ws, (cfs_size_t)buf_cap, &written);
+  if (rc != CFS_SUCCESS || written == 0)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_len = (size_t)(written - 1);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
-                         size_t *out_len) {
+static enum c_abstract_http_error
+wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out_len) {
   cfs_size_t written = 0;
-  if (cfs_wide_to_mb(ws, s, (cfs_size_t)buf_cap, &written) != 0 || written == 0)
+  enum cfs_error rc = cfs_wide_to_mb(ws, s, (cfs_size_t)buf_cap, &written);
+  if (rc != CFS_SUCCESS || written == 0)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_len = (size_t)(written - 1);
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -207,7 +209,7 @@ http_winhttp_context_init(struct HttpTransportContext **ctx) {
   }
 
   rc = http_config_init(&(*ctx)->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG(
         "http_winhttp_context_init: Error http_config_init failed with %d", rc);
     free(*ctx);
@@ -410,7 +412,7 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
   char *totalBody = NULL;
   size_t totalSize = 0;
   DWORD dwDownloaded = 0;
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
 
   LOG_DEBUG("http_winhttp_send: Entering");
   if (!ctx || !ctx->hSession || !req || !res) {

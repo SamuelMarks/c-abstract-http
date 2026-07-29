@@ -84,7 +84,7 @@ struct CddActorHooks {
  * @brief Register external actor hooks.
  * @param[in] hooks The hooks structure.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 cdd_actor_set_hooks(const struct CddActorHooks *hooks);
 
 /**
@@ -92,8 +92,7 @@ cdd_actor_set_hooks(const struct CddActorHooks *hooks);
  * @param[out] bus Pointer to receive the bus handle.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error
-cdd_message_bus_init(struct CddMessageBus **bus);
+extern c_abstract_http_error_t cdd_message_bus_init(struct CddMessageBus **bus);
 
 /**
  * @brief Free a message bus.
@@ -108,7 +107,7 @@ extern void cdd_message_bus_free(struct CddMessageBus *bus);
  * @param[in] bus The bus handle.
  * @return Number of messages processed, or error code.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 cdd_message_bus_process(struct CddMessageBus *bus);
 
 /**
@@ -120,11 +119,11 @@ cdd_message_bus_process(struct CddMessageBus *bus);
  * @param[out] actor Pointer to receive the actor handle.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error cdd_actor_spawn(struct CddMessageBus *bus,
-                                                  const char *name,
-                                                  cdd_actor_handler_cb handler,
-                                                  void *state,
-                                                  struct CddActor **actor);
+extern c_abstract_http_error_t cdd_actor_spawn(struct CddMessageBus *bus,
+                                               const char *name,
+                                               cdd_actor_handler_cb handler,
+                                               void *state,
+                                               struct CddActor **actor);
 
 /**
  * @brief Send a message directly to a target Actor asynchronously.
@@ -132,8 +131,8 @@ extern enum c_abstract_http_error cdd_actor_spawn(struct CddMessageBus *bus,
  * @param[in] msg The message structure (copied internally).
  * @return 0 on success.
  */
-extern enum c_abstract_http_error cdd_actor_send(struct CddMessageBus *bus,
-                                                 const struct CddMessage *msg);
+extern c_abstract_http_error_t cdd_actor_send(struct CddMessageBus *bus,
+                                              const struct CddMessage *msg);
 
 /**
  * @brief Retrieve the state of an actor.
@@ -141,8 +140,8 @@ extern enum c_abstract_http_error cdd_actor_send(struct CddMessageBus *bus,
  * @param[out] state Pointer to receive the state.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error cdd_actor_get_state(struct CddActor *actor,
-                                                      void **state);
+extern c_abstract_http_error_t cdd_actor_get_state(struct CddActor *actor,
+                                                   void **state);
 
 /**
  * @brief Retrieve the name of an actor.
@@ -150,8 +149,8 @@ extern enum c_abstract_http_error cdd_actor_get_state(struct CddActor *actor,
  * @param[out] name Pointer to receive the name.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error
-cdd_actor_get_name(const struct CddActor *actor, const char **name);
+extern c_abstract_http_error_t cdd_actor_get_name(const struct CddActor *actor,
+                                                  const char **name);
 
 #ifdef __cplusplus
 }

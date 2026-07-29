@@ -171,10 +171,12 @@ typedef uint64_t cdd_uint64_t;
 #define CDD_INT64_FMT C_ABSTRACT_HTTP_NUM_FORMAT
 #endif
 
+#include "c_abstract_http/no_discard.h"
+
 /**
  * @brief HTTP Method verbs.
  */
-enum c_abstract_http_error {
+typedef NO_DISCARD enum c_abstract_http_error {
   C_ABSTRACT_HTTP_SUCCESS = 0,
   C_ABSTRACT_HTTP_ERR_INVAL = -1,
   C_ABSTRACT_HTTP_ERR_NOMEM = -2,
@@ -182,7 +184,7 @@ enum c_abstract_http_error {
   C_ABSTRACT_HTTP_ERR_NOTSUP = -4,
   C_ABSTRACT_HTTP_ERR_TIMEOUT = -5,
   C_ABSTRACT_HTTP_ERR_SYSCALL = -6
-};
+} c_abstract_http_error_t;
 
 enum HttpMethod {
   HTTP_GET,     /**< HTTP GET */
@@ -435,7 +437,7 @@ struct ModalityEventLoop;
 /**
  * @brief Function pointer signature for the transport send method.
  */
-typedef enum c_abstract_http_error (*http_send_fn)(
+typedef c_abstract_http_error_t (*http_send_fn)(
     struct HttpTransportContext *ctx, const struct HttpRequest *req,
     struct HttpResponse **res);
 
@@ -443,7 +445,7 @@ typedef enum c_abstract_http_error (*http_send_fn)(
  * @brief Function pointer signature for the transport asynchronous multi-send
  * method.
  */
-typedef enum c_abstract_http_error (*http_send_multi_fn)(
+typedef c_abstract_http_error_t (*http_send_multi_fn)(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
@@ -489,7 +491,7 @@ typedef int (*http_multi_progress_cb)(size_t current_bytes, size_t total_bytes,
  * @return 0 on successful dispatch (futures may still report individual
  * errors), error code otherwise.
  */
-extern enum c_abstract_http_error http_client_send_multi(
+extern c_abstract_http_error_t http_client_send_multi(
     struct HttpClient *client, struct HttpRequest *const *requests,
     size_t num_requests, struct HttpFuture **futures,
     http_multi_progress_cb progress_cb, void *user_data, int fail_fast);
@@ -502,8 +504,7 @@ extern enum c_abstract_http_error http_client_send_multi(
  * @param headers The headers parameter.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error
-http_headers_init(struct HttpHeaders *headers);
+extern c_abstract_http_error_t http_headers_init(struct HttpHeaders *headers);
 /** @brief http_headers_free definition */
 /**
  * @brief Executes the http_headers_free operation.
@@ -518,9 +519,9 @@ extern void http_headers_free(struct HttpHeaders *headers);
  * @param value The value parameter.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers,
-                                                   const char *key,
-                                                   const char *value);
+extern c_abstract_http_error_t http_headers_add(struct HttpHeaders *headers,
+                                                const char *key,
+                                                const char *value);
 
 /**
  * @brief Retrieves the value for a specific header key.
@@ -529,7 +530,7 @@ extern enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers,
  * @param out Pointer to store the found header value.
  * @return 0 on success, ENOENT if not found, EINVAL on bad input.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_headers_get(const struct HttpHeaders *headers, const char *key,
                  const char **out);
 
@@ -539,16 +540,15 @@ http_headers_get(const struct HttpHeaders *headers, const char *key,
  * @param key The header key to remove (case-insensitive).
  * @return 0 on success, ENOENT if not found, EINVAL on bad input.
  */
-extern enum c_abstract_http_error
-http_headers_remove(struct HttpHeaders *headers, const char *key);
+extern c_abstract_http_error_t http_headers_remove(struct HttpHeaders *headers,
+                                                   const char *key);
 
 /**
  * @brief Initialize a cookie jar.
  * @param jar The cookie jar to initialize.
  * @return 0 on success, EINVAL if jar is NULL.
  */
-extern enum c_abstract_http_error
-http_cookie_jar_init(struct HttpCookieJar *jar);
+extern c_abstract_http_error_t http_cookie_jar_init(struct HttpCookieJar *jar);
 
 /**
  * @brief Free resources held by a cookie jar.
@@ -563,9 +563,9 @@ extern void http_cookie_jar_free(struct HttpCookieJar *jar);
  * @param value Cookie value.
  * @return 0 on success, ENOMEM on failure.
  */
-extern enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
-                                                      const char *name,
-                                                      const char *value);
+extern c_abstract_http_error_t http_cookie_jar_set(struct HttpCookieJar *jar,
+                                                   const char *name,
+                                                   const char *value);
 
 /**
  * @brief Get a cookie value from the jar.
@@ -574,7 +574,7 @@ extern enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
  * @param out Pointer to store the found cookie value string.
  * @return 0 on success, ENOENT if not found, EINVAL on bad input.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_cookie_jar_get(const struct HttpCookieJar *jar, const char *name,
                     const char **out);
 
@@ -584,7 +584,7 @@ http_cookie_jar_get(const struct HttpCookieJar *jar, const char *name,
  * @param config The config parameter.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_config_init(struct HttpConfig *config);
+extern c_abstract_http_error_t http_config_init(struct HttpConfig *config);
 /** @brief http_config_free definition */
 /**
  * @brief Executes the http_config_free operation.
@@ -598,7 +598,7 @@ extern void http_config_free(struct HttpConfig *config);
  * @param client The client parameter.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_client_init(struct HttpClient *client);
+extern c_abstract_http_error_t http_client_init(struct HttpClient *client);
 /** @brief http_client_free definition */
 /**
  * @brief Executes the http_client_free operation.
@@ -612,7 +612,7 @@ extern void http_client_free(struct HttpClient *client);
  * @param req The req parameter.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_request_init(struct HttpRequest *req);
+extern c_abstract_http_error_t http_request_init(struct HttpRequest *req);
 /** @brief http_request_free definition */
 /**
  * @brief Executes the http_request_free operation.
@@ -625,7 +625,7 @@ extern void http_request_free(struct HttpRequest *req);
  * @param ctx Context to initialize.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_modality_context_init(struct ModalityContext *ctx);
 
 /**
@@ -639,7 +639,7 @@ extern void http_modality_context_free(struct ModalityContext *ctx);
  * @param future Future to initialize.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error http_future_init(struct HttpFuture *future);
+extern c_abstract_http_error_t http_future_init(struct HttpFuture *future);
 
 /**
  * @brief Free a HttpFuture.
@@ -652,7 +652,7 @@ extern void http_future_free(struct HttpFuture *future);
  * @param multi Multi-request to initialize.
  * @return 0 on success.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_multi_request_init(struct HttpMultiRequest *multi);
 
 /**
@@ -667,7 +667,7 @@ extern void http_multi_request_free(struct HttpMultiRequest *multi);
  * @param req Request to add.
  * @return 0 on success, ENOMEM on allocation failure.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_multi_request_add(struct HttpMultiRequest *multi, struct HttpRequest *req);
 
 /** @brief http_request_set_auth_bearer definition */
@@ -677,7 +677,7 @@ http_multi_request_add(struct HttpMultiRequest *multi, struct HttpRequest *req);
  * @param token The token parameter.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_request_set_auth_bearer(struct HttpRequest *req, const char *token);
 /**
  * @brief Set HTTP Basic Authorization header with a pre-encoded token.
@@ -688,8 +688,8 @@ http_request_set_auth_bearer(struct HttpRequest *req, const char *token);
  * @param[in] token Base64-encoded "username:password".
  * @return 0 on success, error code otherwise.
  */
-enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req,
-                                                       const char *token);
+c_abstract_http_error_t http_request_set_auth_basic(struct HttpRequest *req,
+                                                    const char *token);
 
 /**
  * @brief Set HTTP Basic Authorization header by encoding username and password.
@@ -701,7 +701,7 @@ enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req,
  * @param[in] password The password.
  * @return 0 on success, error code otherwise.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_request_set_auth_basic_userpwd(struct HttpRequest *req,
                                     const char *username, const char *password);
 
@@ -720,7 +720,7 @@ http_request_set_auth_basic_userpwd(struct HttpRequest *req,
  * @param[in] scope Optional scope.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_request_init_oauth2_password_grant(
+extern c_abstract_http_error_t http_request_init_oauth2_password_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *username, const char *password, const char *client_id,
     const char *client_secret, const char *scope);
@@ -739,7 +739,7 @@ extern enum c_abstract_http_error http_request_init_oauth2_password_grant(
  * @param[in] scope Optional scope.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(
+extern c_abstract_http_error_t http_request_init_oauth2_refresh_token_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *refresh_token, const char *client_id, const char *client_secret,
     const char *scope);
@@ -761,7 +761,7 @@ extern enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(
  * @param[in] code_verifier Optional PKCE code verifier (RFC 7636).
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_request_init_oauth2_authorization_code_grant(
     struct HttpRequest *req, const char *token_endpoint_url, const char *code,
     const char *redirect_uri, const char *client_id, const char *client_secret,
@@ -780,7 +780,7 @@ http_request_init_oauth2_authorization_code_grant(
  * @param[in] scope Optional scope.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_request_init_oauth2_client_credentials_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *client_secret, const char *scope);
@@ -797,7 +797,7 @@ http_request_init_oauth2_client_credentials_grant(
  * @param[in] scope Optional scope.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(
+extern c_abstract_http_error_t http_request_init_oauth2_jwt_bearer_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *assertion, const char *scope);
 
@@ -813,7 +813,7 @@ extern enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(
  * @param[in] scope Optional scope.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_request_init_oauth2_device_authorization_request(
     struct HttpRequest *req, const char *device_endpoint_url,
     const char *client_id, const char *scope);
@@ -830,7 +830,7 @@ http_request_init_oauth2_device_authorization_request(
  * @param[in] device_code The device code from the authorization response.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_request_init_oauth2_device_access_token_request(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *device_code);
@@ -850,7 +850,7 @@ http_request_init_oauth2_device_access_token_request(
  * @param[in] client_secret Optional Client Secret.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_request_init_oauth2_token_revocation(
+extern c_abstract_http_error_t http_request_init_oauth2_token_revocation(
     struct HttpRequest *req, const char *revocation_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
     const char *client_secret);
@@ -870,7 +870,7 @@ extern enum c_abstract_http_error http_request_init_oauth2_token_revocation(
  * @param[in] client_secret Optional Client Secret.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_request_init_oauth2_token_introspection(
+extern c_abstract_http_error_t http_request_init_oauth2_token_introspection(
     struct HttpRequest *req, const char *introspection_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
     const char *client_secret);
@@ -891,7 +891,7 @@ extern enum c_abstract_http_error http_request_init_oauth2_token_introspection(
  * @param[out] out_url Pointer to store the newly allocated URL string.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_oauth2_build_authorization_url(
+extern c_abstract_http_error_t http_oauth2_build_authorization_url(
     const char *auth_endpoint, const char *client_id, const char *response_type,
     const char *redirect_uri, const char *scope, const char *state,
     const char *code_challenge, const char *code_challenge_method,
@@ -918,7 +918,7 @@ extern enum c_abstract_http_error http_oauth2_build_authorization_url(
  * (or NULL if not found).
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
                                 char **out_code, char **out_state,
                                 char **out_error, char **out_error_desc);
@@ -929,7 +929,7 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
  * @param res The res parameter.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error http_response_init(struct HttpResponse *res);
+extern c_abstract_http_error_t http_response_init(struct HttpResponse *res);
 /** @brief http_response_free definition */
 /**
  * @brief Executes the http_response_free operation.
@@ -942,7 +942,7 @@ extern void http_response_free(struct HttpResponse *res);
  * @param path The path to the file.
  * @return 0 on success, or an error code.
  */
-extern enum c_abstract_http_error
+extern c_abstract_http_error_t
 http_response_save_to_file(const struct HttpResponse *res, const char *path);
 
 /* --- Multipart Management --- */
@@ -952,7 +952,7 @@ http_response_save_to_file(const struct HttpResponse *res, const char *path);
  * @param[out] parts Container to init.
  * @return 0 on success.
  */
-enum c_abstract_http_error http_parts_init(struct HttpParts *parts);
+c_abstract_http_error_t http_parts_init(struct HttpParts *parts);
 
 /**
  * @brief Free parts container contents.
@@ -971,7 +971,7 @@ void http_parts_free(struct HttpParts *parts);
  * @param[in] data_len Length of payload.
  * @return 0 on success, ENOMEM on failure.
  */
-enum c_abstract_http_error
+c_abstract_http_error_t
 http_request_add_part(struct HttpRequest *req, const char *name,
                       const char *filename, const char *content_type,
                       const void *data, size_t data_len);
@@ -984,7 +984,7 @@ http_request_add_part(struct HttpRequest *req, const char *name,
  * @param[in] value Header value.
  * @return 0 on success, EINVAL if no part exists or inputs are invalid.
  */
-enum c_abstract_http_error
+c_abstract_http_error_t
 http_request_add_part_header_last(struct HttpRequest *req, const char *key,
                                   const char *value);
 
@@ -999,7 +999,7 @@ http_request_add_part_header_last(struct HttpRequest *req, const char *key,
  * @param[in,out] req The request structure.
  * @return 0 on success, ENOMEM on allocation failure.
  */
-enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req);
+c_abstract_http_error_t http_request_flatten_parts(struct HttpRequest *req);
 
 #ifdef __cplusplus
 }

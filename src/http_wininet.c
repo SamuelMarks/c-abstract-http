@@ -26,19 +26,21 @@
 #include "str.h"
 /* clang-format on */
 
-static int ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
-                         size_t *out_len) {
+static enum c_abstract_http_error
+ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out_len) {
   cfs_size_t written = 0;
-  if (cfs_mb_to_wide(s, ws, (cfs_size_t)buf_cap, &written) != 0 || written == 0)
+  enum cfs_error rc = cfs_mb_to_wide(s, ws, (cfs_size_t)buf_cap, &written);
+  if (rc != CFS_SUCCESS || written == 0)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_len = (size_t)(written - 1);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
-                         size_t *out_len) {
+static enum c_abstract_http_error
+wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out_len) {
   cfs_size_t written = 0;
-  if (cfs_wide_to_mb(ws, s, (cfs_size_t)buf_cap, &written) != 0 || written == 0)
+  enum cfs_error rc = cfs_wide_to_mb(ws, s, (cfs_size_t)buf_cap, &written);
+  if (rc != CFS_SUCCESS || written == 0)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_len = (size_t)(written - 1);
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -212,7 +214,7 @@ http_wininet_context_init(struct HttpTransportContext **ctx) {
   }
 
   rc = http_config_init(&(*ctx)->config);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG(
         "http_wininet_context_init: Error http_config_init failed with %d", rc);
     InternetCloseHandle(hInternet);
@@ -366,7 +368,7 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
   char *readChunk = NULL;
   size_t bodySize = 0;
   DWORD bytesRead = 0;
-  int rc = 0;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
 #endif
 
   LOG_DEBUG("http_wininet_send: Entering");
@@ -595,7 +597,7 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
                 *semi = '\0';
 
               rc = http_cookie_jar_set(ctx->config.cookie_jar, name, val);
-              if (rc != 0) {
+              if (rc != C_ABSTRACT_HTTP_SUCCESS) {
                 LOG_DEBUG("http_wininet_send: Error http_cookie_jar_set failed "
                           "with %d",
                           rc);
@@ -664,7 +666,7 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
   }
 
   rc = http_response_init(*res);
-  if (rc != 0) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wininet_send: Error http_response_init failed with %d", rc);
     free(*res);
     *res = NULL;
@@ -691,7 +693,7 @@ cleanup:
   if (wHeaders)
     free(wHeaders);
 
-  if (rc == 0) {
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wininet_send: Success");
   } else {
     LOG_DEBUG("http_wininet_send: Error returning %d", rc);

@@ -85,7 +85,7 @@ typedef int (*c_abstract_http_sse_on_close)(void *user_data);
  * @param config Optional SSE configuration.
  * @return 0 on success, or a negative error code.
  */
-enum c_abstract_http_error
+c_abstract_http_error_t
 c_abstract_http_sse_init(struct HttpRequest *req,
                          const struct c_abstract_http_sse_config *config);
 
@@ -101,7 +101,7 @@ c_abstract_http_sse_init(struct HttpRequest *req,
  * *exit_flag != 0.
  * @return 0 on clean exit, negative error code on failure.
  */
-enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
+c_abstract_http_error_t c_abstract_http_sse_sync_read_loop(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
     c_abstract_http_sse_on_close on_close, void *user_data,
@@ -118,7 +118,7 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
  * @param user_data Opaque pointer to pass to the callbacks.
  * @return 0 on success, negative error code on failure.
  */
-enum c_abstract_http_error c_abstract_http_sse_async_register(
+c_abstract_http_error_t c_abstract_http_sse_async_register(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
     c_abstract_http_sse_on_close on_close, void *user_data);
