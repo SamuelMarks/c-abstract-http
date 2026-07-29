@@ -51,16 +51,18 @@ extern "C" {
  * @return A pointer to the new string, or NULL if allocation failed or input
  * was NULL.
  */
-#ifndef CDD_STRDUP
-#define CDD_STRDUP c_cdd_strdup
+#ifndef c_abstract_http_strdup
+#define c_abstract_http_strdup c_abstract_http_strdup
 #endif
 
-/** @brief c_cdd_strdup(const char *s, char **out_s) (function) of file str.h */
-extern enum c_abstract_http_error c_cdd_strdup(const char *s, char **out_s);
-/** @brief c_abstract_http_mock_cdd_strdup(const char *s, char **out_s)
+/** @brief c_abstract_http_strdup(const char *s, char **out_s) (function) of
+ * file str.h */
+extern enum c_abstract_http_error c_abstract_http_strdup(const char *s,
+                                                         char **out_s);
+/** @brief c_abstract_http_mock_strdup(const char *s, char **out_s)
  * (function) of file str.h */
-extern enum c_abstract_http_error c_abstract_http_mock_cdd_strdup(const char *s,
-                                                                  char **out_s);
+extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
+                                                              char **out_s);
 
 /* --- Inspection Helpers --- */
 

@@ -13,6 +13,7 @@ extern "C" {
 
 #include <c_abstract_http/coroutine.h>
 /* clang-format on */
+int g_mock_pthread_create_fail = 0;
 
 /** @brief Documented */
 struct CoroutineTestState {
@@ -144,6 +145,25 @@ TEST test_coroutine_hooks(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+TEST test_coroutine_pthread_create_fail(void) {
+  struct CddCoroutine *co = NULL;
+  enum c_abstract_http_error rc;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            cdd_coroutine_init(&co, 0, dummy_coroutine_cb, NULL));
+
+  g_mock_pthread_create_fail = 1;
+  rc = cdd_coroutine_resume(co);
+  g_mock_pthread_create_fail = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+
+  cdd_coroutine_free(co);
+  PASS();
+}
+#endif
+
 TEST test_coroutine_fallback_paths(void) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct CddCoroutine *co = NULL;
@@ -204,8 +224,6 @@ TEST test_coroutine_edge_cases(void) {
 }
 #endif
 
-int g_mock_pthread_create_fail = 0;
-
 SUITE(coroutine_suite) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -217,6 +235,8 @@ SUITE(coroutine_suite) {
   RUN_TEST(test_coroutine_hooks);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_coroutine_fallback_paths);
+  RUN_TEST(test_coroutine_pthread_create_fail);
+
 #endif
 }
 

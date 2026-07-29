@@ -8,8 +8,7 @@
 /* SHA-1 implementation based on RFC 3174 */
 #define SHA1_ROTL(bits, word) (((word) << (bits)) | ((word) >> (32 - (bits))))
 
-static enum c_abstract_http_error sha1_transform(uint32_t state[5],
-                                                 const uint8_t buffer[64]) {
+static void math_sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
   uint32_t a, b, c, d, e;
   uint32_t w[80];
   int i;
@@ -60,7 +59,6 @@ static enum c_abstract_http_error sha1_transform(uint32_t state[5],
   state[2] += c;
   state[3] += d;
   state[4] += e;
-  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx) {
@@ -75,10 +73,21 @@ enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_sha1_fail;
+#endif
+
 enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
                                        const unsigned char *data, size_t len) {
   uint32_t i;
   uint32_t j;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_sha1_fail > 0) {
+    if (--g_mock_sha1_fail == 0)
+      return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
 
   if (!ctx)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -92,16 +101,11 @@ enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
   ctx->count[1] += (uint32_t)(len >> 29);
 
   if ((j + len) > 63) {
-    enum c_abstract_http_error rc;
     i = 64 - j;
     memcpy(&ctx->buffer[j], data, i);
-    rc = sha1_transform(ctx->state, ctx->buffer);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
+    math_sha1_transform(ctx->state, ctx->buffer);
     for (; i + 63 < len; i += 64) {
-      rc = sha1_transform(ctx->state, &data[i]);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS)
-        return rc;
+      math_sha1_transform(ctx->state, &data[i]);
     }
     j = 0;
   } else {

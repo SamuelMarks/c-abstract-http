@@ -35,9 +35,9 @@ TEST test_serialize_deserialize_request(void) {
 
   http_request_init(&req_in);
   req_in.method = HTTP_POST;
-  req_in.url = (c_abstract_http_mock_cdd_strdup("http://example.com/api",
-                                                &_ast_strdup_0),
-                _ast_strdup_0);
+  req_in.url =
+      (c_abstract_http_mock_strdup("http://example.com/api", &_ast_strdup_0),
+       _ast_strdup_0);
   http_headers_add(&req_in.headers, "Content-Type", "application/json");
   http_headers_add(&req_in.headers, "X-Custom", "test_val");
 
@@ -846,6 +846,74 @@ TEST test_process_serialize_null_key(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+TEST test_process_deserialize_oom(void) {
+  struct HttpRequest req;
+  struct HttpResponse res;
+  enum c_abstract_http_error rc;
+  char req_buf[100];
+  char res_buf[100];
+  char *p;
+  int method = 0;
+  int status = 200;
+  size_t zero = 0;
+  size_t one = 1;
+
+  p = req_buf;
+  memcpy(p, &method, sizeof(int));
+  p += sizeof(int);
+  memcpy(p, &zero, sizeof(size_t));
+  p += sizeof(size_t);
+  memcpy(p, &one, sizeof(size_t));
+  p += sizeof(size_t);
+  memcpy(p, &one, sizeof(size_t));
+  p += sizeof(size_t);
+  *p++ = 'A';
+  memcpy(p, &zero, sizeof(size_t));
+  p += sizeof(size_t);
+  memcpy(p, &zero, sizeof(size_t));
+  p += sizeof(size_t);
+
+  p = res_buf;
+  memcpy(p, &status, sizeof(int));
+  p += sizeof(int);
+  memcpy(p, &one, sizeof(size_t));
+  p += sizeof(size_t);
+  memcpy(p, &one, sizeof(size_t));
+  p += sizeof(size_t);
+  *p++ = 'A';
+  memcpy(p, &zero, sizeof(size_t));
+  p += sizeof(size_t);
+  memcpy(p, &zero, sizeof(size_t));
+  p += sizeof(size_t);
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0; /* first parse_str alloc (key) fails */
+  rc = cdd_ipc_deserialize_request(req_buf, 45, &req);
+  g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1; /* headers alloc fails */
+  rc = cdd_ipc_deserialize_request(req_buf, 45, &req);
+  g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  rc = cdd_ipc_deserialize_response(res_buf, 41, &res);
+  g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  rc = cdd_ipc_deserialize_response(res_buf, 41, &res);
+  g_mock_alloc_fail = 0;
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
+  PASS();
+}
+#endif
+
 SUITE(process_suite) {
 
   RUN_TEST(test_process_serialize_null_key);
@@ -879,6 +947,10 @@ SUITE(process_suite) {
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_deserialization_edge_cases);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  RUN_TEST(test_process_deserialize_oom);
+#endif
+
 #endif
   RUN_TEST(test_process_more_edge_cases);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

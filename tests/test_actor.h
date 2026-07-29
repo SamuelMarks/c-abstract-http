@@ -299,7 +299,7 @@ TEST test_actor_oom(void) {
   rc = cdd_message_bus_init(&bus);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
-  str_rc = c_abstract_http_mock_cdd_strdup("dummy", &out_str);
+  str_rc = c_abstract_http_mock_strdup("dummy", &out_str);
   ASSERT_EQ(0, str_rc);
   if (out_str)
     free(out_str);

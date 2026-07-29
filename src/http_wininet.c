@@ -21,7 +21,6 @@
 
 #endif
 
-#include <cfs/cfs.h>
 #include <c_abstract_http/http_wininet.h>
 #include "str.h"
 /* clang-format on */
@@ -197,8 +196,8 @@ http_wininet_context_init(struct HttpTransportContext **ctx) {
   CHECK_EINVAL(ctx);
 
   /* INTERNET_OPEN_TYPE_PRECONFIG: Use ID/system settings */
-  hInternet = InternetOpenW(L"c_cdd/WinInet", INTERNET_OPEN_TYPE_PRECONFIG,
-                            NULL, NULL, flags);
+  hInternet = InternetOpenW(L"c_abstract_http/WinInet",
+                            INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, flags);
 
   if (!hInternet) {
     LOG_DEBUG("http_wininet_context_init: Error InternetOpenW failed");
@@ -322,22 +321,22 @@ http_wininet_config_apply(struct HttpTransportContext *ctx,
   ctx->config = *config;
   if (config->proxy_username) {
     char *tmp = NULL;
-    CDD_STRDUP(config->proxy_username, &tmp);
+    c_abstract_http_strdup(config->proxy_username, &tmp);
     ctx->config.proxy_username = tmp;
   }
   if (config->proxy_password) {
     char *tmp = NULL;
-    CDD_STRDUP(config->proxy_password, &tmp);
+    c_abstract_http_strdup(config->proxy_password, &tmp);
     ctx->config.proxy_password = tmp;
   }
   if (config->user_agent) {
     char *tmp = NULL;
-    CDD_STRDUP(config->user_agent, &tmp);
+    c_abstract_http_strdup(config->user_agent, &tmp);
     ctx->config.user_agent = tmp;
   }
   if (config->proxy_url) {
     char *tmp = NULL;
-    CDD_STRDUP(config->proxy_url, &tmp);
+    c_abstract_http_strdup(config->proxy_url, &tmp);
     ctx->config.proxy_url = tmp;
   }
 

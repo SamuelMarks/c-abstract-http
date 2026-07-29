@@ -6,7 +6,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
-#include <c_abstract_http/cdd_tls.h>
+#include <c_abstract_http/c_abstract_http_tls.h>
 #include <c_abstract_http/thread_pool.h>
 #include <errno.h>
 #include <greatest.h>

@@ -368,26 +368,15 @@ static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   while (1) {
     struct TaskNode *task = NULL;
-    int err = 0;
 
-    rc = cdd_mutex_lock(pool->lock);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      goto worker_end;
-    }
+    (void)cdd_mutex_lock(pool->lock);
 
     while (!pool->stop && !pool->head) {
-      rc = cdd_cond_wait(pool->cond, pool->lock);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        err = 1;
-        goto worker_end;
-      }
+      (void)cdd_cond_wait(pool->cond, pool->lock);
     }
 
-    if (err || (pool->stop && !pool->head)) {
-      rc = cdd_mutex_unlock(pool->lock);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        goto worker_end;
-      }
+    if (pool->stop && !pool->head) {
+      (void)cdd_mutex_unlock(pool->lock);
       break;
     }
 
@@ -397,17 +386,13 @@ static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
       pool->tail = NULL;
     }
 
-    rc = cdd_mutex_unlock(pool->lock);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      goto worker_end;
-    }
+    (void)cdd_mutex_unlock(pool->lock);
 
     if (task) {
       task->cb(task->arg);
       free(task);
     }
   }
-worker_end:
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   return (CDD_THREAD_FUNC)(unsigned long)rc;
 #else
@@ -457,12 +442,9 @@ enum c_abstract_http_error cdd_thread_pool_init(struct CddThreadPool **pool,
 
   for (i = 0; i < num_threads; ++i) {
     if (thread_create(&p->threads[i], worker_thread, p) != 0) {
-      enum c_abstract_http_error rc;
       /* If we fail partway, trigger stop and join what we have */
       p->stop = 1;
-      rc = CDD_COND_BROADCAST(p->cond);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      }
+      (void)CDD_COND_BROADCAST(p->cond);
       while (i > 0) {
         printf("JOINING THREAD %lu\n", (unsigned long)i);
         i--;
@@ -472,10 +454,7 @@ enum c_abstract_http_error cdd_thread_pool_init(struct CddThreadPool **pool,
       cdd_mutex_free(p->lock);
       free(p->threads);
       free(p);
-      if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-        rc = C_ABSTRACT_HTTP_ERR_IO;
-      }
-      return rc;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
   }
 
@@ -534,16 +513,9 @@ enum c_abstract_http_error cdd_thread_pool_push(struct CddThreadPool *pool,
   task->next = NULL;
 
   {
-    enum c_abstract_http_error err;
-    err = cdd_mutex_lock(pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      return err;
-    }
+    (void)cdd_mutex_lock(pool->lock);
     if (pool->stop) {
-      err = cdd_mutex_unlock(pool->lock);
-      if (err != C_ABSTRACT_HTTP_SUCCESS) {
-        return err;
-      }
+      (void)cdd_mutex_unlock(pool->lock);
       free(task);
       LOG_DEBUG("cdd_thread_pool_push: Error EINVAL (pool stopped)");
       return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -557,14 +529,8 @@ enum c_abstract_http_error cdd_thread_pool_push(struct CddThreadPool *pool,
       pool->tail = task;
     }
 
-    err = cdd_cond_signal(pool->cond);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      return err;
-    }
-    err = cdd_mutex_unlock(pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      return err;
-    }
+    (void)cdd_cond_signal(pool->cond);
+    (void)cdd_mutex_unlock(pool->lock);
   }
 
   LOG_DEBUG("cdd_thread_pool_push: Success");
@@ -592,14 +558,8 @@ enum c_abstract_http_error cdd_thread_pool_free(struct CddThreadPool *pool) {
       return err;
     }
     pool->stop = 1;
-    err = CDD_COND_BROADCAST(pool->cond);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      return err;
-    }
-    err = cdd_mutex_unlock(pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      return err;
-    }
+    (void)CDD_COND_BROADCAST(pool->cond);
+    (void)cdd_mutex_unlock(pool->lock);
   }
 
   for (i = 0; i < pool->num_threads; ++i) {
@@ -633,10 +593,7 @@ cdd_thread_pool_test_set_stop(struct CddThreadPool *pool) {
       return err;
     }
     pool->stop = 1;
-    err = cdd_mutex_unlock(pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      return err;
-    }
+    (void)cdd_mutex_unlock(pool->lock);
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }

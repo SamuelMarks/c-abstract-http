@@ -141,7 +141,7 @@ typedef unsigned __int64 uint64_t;
 uint64_t c_abstract_http_mock_math_get_current_time_ms(void);
 
 void dummy_cb_thread(void *arg);
-extern int c_abstract_http_mock_cdd_strdup(const char *s, char **out);
+extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s, char **out);
 
 #if defined(_MSC_VER)
 #pragma warning(pop)

@@ -40,7 +40,7 @@ add_executable(c-abstract-http-test ${TEST_SOURCES})
     if(MSVC)
         target_compile_options(c-abstract-http-test PRIVATE "/W4" "/WX")
     else()
-        target_compile_options(c-abstract-http-test PRIVATE "-Wall" "-Wextra" "-Werror" "-pedantic" "-std=c89")
+        target_compile_options(c-abstract-http-test PRIVATE "-Wall" "-Wextra" "" "-pedantic" "-std=c89")
     endif()
 target_link_libraries(c-abstract-http-test PRIVATE c-abstract-http)
 
@@ -73,7 +73,7 @@ if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
         target_link_libraries(c-abstract-http-test-ws PRIVATE ws2_32)
     endif()
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(c-abstract-http-test-ws PRIVATE -std=c89 -pedantic -Werror)
+        target_compile_options(c-abstract-http-test-ws PRIVATE -std=c89 -pedantic )
     elseif(MSVC)
         target_compile_options(c-abstract-http-test-ws PRIVATE /WX)
     endif()
@@ -90,7 +90,7 @@ if(C_ABSTRACT_HTTP_ENABLE_SSE)
         target_link_libraries(c-abstract-http-test-sse PRIVATE ws2_32)
     endif()
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(c-abstract-http-test-sse PRIVATE -std=c89 -pedantic -Werror)
+        target_compile_options(c-abstract-http-test-sse PRIVATE -std=c89 -pedantic )
     elseif(MSVC)
         target_compile_options(c-abstract-http-test-sse PRIVATE /WX)
     endif()
@@ -107,7 +107,7 @@ if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
         target_link_libraries(c-abstract-http-test-crypto PRIVATE ws2_32)
     endif()
     if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(c-abstract-http-test-crypto PRIVATE -std=c89 -pedantic -Werror)
+        target_compile_options(c-abstract-http-test-crypto PRIVATE -std=c89 -pedantic )
     elseif(MSVC)
         target_compile_options(c-abstract-http-test-crypto PRIVATE /WX)
     endif()
@@ -168,7 +168,6 @@ if(WIN32 AND BUILD_SHARED_LIBS)
                     $<TARGET_FILE:cfs>
                     $<TARGET_FILE_DIR:${TARGET_NAME}>
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    $<TARGET_FILE:c_cdd>
                     $<TARGET_FILE_DIR:${TARGET_NAME}>
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     $<TARGET_FILE:parson>

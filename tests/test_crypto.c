@@ -240,11 +240,39 @@ TEST test_sha1_rollover(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_sha1_fail;
+
+TEST test_sha1_mock_failures(void) {
+  struct sha1_ctx ctx;
+  unsigned char out[20];
+
+  /* Fail 1st sha1_update inside sha1_final */
+  sha1_init(&ctx);
+  g_mock_sha1_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, sha1_final(&ctx, out));
+
+  /* Fail 2nd sha1_update inside sha1_final (the while loop) */
+  sha1_init(&ctx);
+  g_mock_sha1_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, sha1_final(&ctx, out));
+
+  /* Fail 3rd sha1_update inside sha1_final */
+  sha1_init(&ctx);
+  g_mock_sha1_fail = 57;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, sha1_final(&ctx, out));
+  g_mock_sha1_fail = 0;
+
+  PASS();
+}
+#endif
+
 SUITE(crypto_suite) {
   RUN_TEST(test_sha1_large_string);
   RUN_TEST(test_crypto_errors);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_crypto_oom);
+  RUN_TEST(test_sha1_mock_failures);
 #endif
   RUN_TEST(test_sha1_rollover);
   RUN_TEST(test_sha1_empty_string);

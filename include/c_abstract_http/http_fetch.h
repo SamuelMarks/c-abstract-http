@@ -112,7 +112,7 @@ c_abstract_http_error_t http_fetch_send(struct HttpTransportContext *ctx,
  * @param loop Event loop to drive the execution.
  * @param multi Multi-request specification.
  * @param futures Array of returned HttpFuture handles, allocated upon success.
- * @return 0 on success (all requests initiated), negative mapped cdd-error
+ * @return 0 on success (all requests initiated), negative mapped error
  * otherwise.
  */
 extern c_abstract_http_error_t http_fetch_send_multi(

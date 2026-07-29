@@ -193,8 +193,9 @@ http_winhttp_context_init(struct HttpTransportContext **ctx) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  hSession = WinHttpOpen(L"c_cdd/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                         WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+  hSession =
+      WinHttpOpen(L"c_abstract_http/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
   if (!hSession) {
     LOG_DEBUG("http_winhttp_context_init: Error EIO");
     return C_ABSTRACT_HTTP_ERR_IO;

@@ -470,10 +470,10 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   (*host)[host_len] = '\0';
 
   if (path_start) {
-    c_cdd_strdup(path_start, &_ast_strdup);
+    c_abstract_http_strdup(path_start, &_ast_strdup);
     *path = _ast_strdup;
   } else {
-    c_cdd_strdup("/", &_ast_strdup);
+    c_abstract_http_strdup("/", &_ast_strdup);
     *path = _ast_strdup;
   }
 

@@ -37,7 +37,7 @@
 #endif
 
 #include <c_abstract_http/coroutine.h>
-#include <c_abstract_http/cdd_tls.h>
+#include <c_abstract_http/c_abstract_http_tls.h>
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
@@ -73,9 +73,7 @@ static VOID WINAPI fiber_entry(LPVOID lpParameter) {
   struct CddCoroutine *co = (struct CddCoroutine *)lpParameter;
   TlsSetValue(dwTlsIndex, co);
 
-  if (co->cb) {
-    co->cb(co->arg);
-  }
+  co->cb(co->arg);
 
   co->is_done = 1;
   SwitchToFiber(co->caller_fiber);
@@ -234,8 +232,8 @@ struct CddCoroutine {
 };
 
 /* We use a simple global thread-local pointer to track the current active
-   coroutine for yield. Using our own cdd_tls.h or native __thread depending on
-   compiler. For C89 strictness, we use pthread_key. */
+   coroutine for yield. Using our own c_abstract_http_tls.h or native __thread
+   depending on compiler. For C89 strictness, we use pthread_key. */
 static pthread_key_t co_tls_key;
 static int co_tls_initialized = 0;
 
@@ -415,9 +413,7 @@ static void *co_thread_func(void *arg) {
   }
   pthread_mutex_unlock(&co->mutex);
 
-  if (co->cb) {
-    co->cb(co->arg);
-  }
+  co->cb(co->arg);
 
   pthread_mutex_lock(&co->mutex);
   co->is_done = 1;
@@ -513,7 +509,7 @@ enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co) {
 
   pthread_mutex_lock(&co->mutex);
   if (!co->is_started) {
-    if (pthread_create(&co->thread, NULL, co_thread_func, co) != 0) {
+    if (PTHREAD_CREATE_MOCK(&co->thread, NULL, co_thread_func, co) != 0) {
       pthread_mutex_unlock(&co->mutex);
       return C_ABSTRACT_HTTP_ERR_IO;
     }

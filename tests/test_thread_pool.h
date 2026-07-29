@@ -29,7 +29,8 @@ extern "C" {
 #include "mock_alloc.h"
 /* clang-format on */
 
-extern void cdd_thread_pool_test_set_stop(struct CddThreadPool *pool);
+extern enum c_abstract_http_error
+cdd_thread_pool_test_set_stop(struct CddThreadPool *pool);
 extern void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool);
 
 static void sleep_ms(int ms) {

@@ -103,6 +103,8 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length, int f
 #undef g_mock_listen_fail
 #undef g_mock_accept_fail
 #undef g_mock_recv_fail
+int g_mock_sha1_fail = 0;
+
 int g_mock_alloc_fail = 0;
 int g_mock_alloc_count = 0;
 int g_mock_pthread_fail = 0;
@@ -120,6 +122,8 @@ int g_mock_bind_fail = 0;
 int g_mock_listen_fail = 0;
 int g_mock_accept_fail = 0;
 int g_mock_recv_fail = 0;
+
+int *cdd_mock_get_g_mock_sha1_fail(void) { return &g_mock_sha1_fail; }
 
 int *cdd_mock_get_g_mock_alloc_fail(void) { return &g_mock_alloc_fail; }
 int *cdd_mock_get_g_mock_alloc_count(void) { return &g_mock_alloc_count; }
@@ -164,7 +168,7 @@ CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc
 CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_calloc(size_t count, size_t size);
 CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_realloc(void *ptr, size_t size);
 CDD_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
-char *c_abstract_http_mock_strdup(const char *s, char **out);
+enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s, char **out);
 
 CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc(size_t size) {
     if (g_mock_alloc_fail)
@@ -190,27 +194,6 @@ CDD_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr) {
     free(ptr);
 }
 
-char *c_abstract_http_mock_strdup(const char *s, char **out) {
-    if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
-        if (out) *out = NULL;
-        return NULL;
-    }
-    if (!s) {
-        if (out) *out = NULL;
-        return NULL;
-    }
-    {
-        size_t len = strlen(s);
-        char *d = (char*)malloc(len + 1);
-        if (!d) {
-            if (out) *out = NULL;
-            return NULL;
-        }
-        memcpy(d, s, len + 1);
-        if (out) *out = d;
-        return d;
-    }
-}
 
 #if !defined(_WIN32)
 #include <pthread.h>
@@ -394,7 +377,7 @@ uint64_t c_abstract_http_mock_math_get_current_time_ms(void) {
 
 void dummy_cb_thread(void *arg) { (void)arg; }
 
-int c_abstract_http_mock_cdd_strdup(const char *s, char **out) {
+enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s, char **out) {
   if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
     if (out)
       *out = NULL;

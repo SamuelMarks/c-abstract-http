@@ -414,7 +414,7 @@ void c_abstract_http_sse_async_task(void *arg) {
   if (err != C_ABSTRACT_HTTP_SUCCESS && ctx->on_err) {
     ctx->on_err(err, ctx->user_data);
     free(ctx);
-    return (void)err;
+    return;
   }
   free(ctx);
 }

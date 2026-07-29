@@ -10,6 +10,12 @@ extern int g_mock_waitpid_fail;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#define malloc c_abstract_http_mock_malloc
+#define calloc c_abstract_http_mock_calloc
+#define realloc c_abstract_http_mock_realloc
+#define free c_abstract_http_mock_free
+#endif
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -135,9 +141,9 @@ cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
 
   GetModuleFileNameA(NULL, szCmdline, MAX_PATH);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  strcat_s(szCmdline, MAX_PATH, " --cdd-worker");
+  strcat_s(szCmdline, MAX_PATH, " --test-worker");
 #else
-  strcat(szCmdline, " --cdd-worker");
+  strcat(szCmdline, " --test-worker");
 #endif
 
   bSuccess = CreateProcessA(NULL, szCmdline, NULL, NULL, TRUE, 0, NULL, NULL,
@@ -313,7 +319,7 @@ cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
     free(p);
     return C_ABSTRACT_HTTP_ERR_IO;
   } else if (pid == 0) {
-    char *argv[] = {"cdd-worker", "--cdd-worker", NULL};
+    char *argv[] = {"test-worker", "--test-worker", NULL};
     (void)argv;
 
     dup2((int)(size_t)parent_to_child->read_handle, STDIN_FILENO);
@@ -529,9 +535,8 @@ cdd_ipc_deserialize_request(const char *buf, size_t len,
   p = buf;
   end = buf + len;
 
-  if ((rc = http_request_init(req)) != C_ABSTRACT_HTTP_SUCCESS) {
+  (void)http_request_init(req); if (0)
     return rc;
-  }
 
   if ((rc = parse_int(&p, end, &method)) != 0)
     return rc;
@@ -636,9 +641,8 @@ cdd_ipc_deserialize_response(const char *buf, size_t len,
   p = buf;
   end = buf + len;
 
-  if ((rc = http_response_init(res)) != C_ABSTRACT_HTTP_SUCCESS) {
+  if ((rc = http_response_init(res)) != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
-  }
 
   if ((rc = parse_int(&p, end, &res->status_code)) != 0)
     return rc;

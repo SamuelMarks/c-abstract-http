@@ -1,5 +1,5 @@
 /**
- * @file cdd_tls.h
+ * @file c_abstract_http_tls.h
  * @brief Thread Local Storage (TLS) API.
  *
  * Provides a minimal, cross-platform abstraction for thread-local storage.

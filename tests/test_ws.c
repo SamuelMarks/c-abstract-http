@@ -936,7 +936,7 @@ TEST test_ws_sync_loop_feed_error(void) {
   client.send = mock_send_bad_payload;
 
   test_ws_mock_on_error_called = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
             c_abstract_http_ws_sync_read_loop(&client, &req, test_ws_on_message,
                                               test_ws_mock_on_error,
                                               test_ws_on_close, &ctx, NULL));

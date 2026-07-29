@@ -8,6 +8,9 @@
 /* clang-format off */
 #include <stdio.h>
 #include <stdlib.h>
+#if !defined(_WIN32)
+#include <unistd.h>
+#endif
 
 #if defined(__WATCOMC__)
 #define strncat_s(dest, destsz, src, count) strncat(dest, src, count)
@@ -91,8 +94,8 @@ GREATEST_MAIN_DEFS();
 int main(int argc, char **argv) {
   int i;
   for (i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "--cdd-worker") == 0) {
-      return 1;
+    if (strcmp(argv[i], "--test-worker") == 0) {
+      _exit(1);
     }
   }
 

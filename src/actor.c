@@ -1,7 +1,7 @@
 
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
-extern enum c_abstract_http_error c_abstract_http_mock_cdd_strdup(const char *s,
+extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
                                                                   char **out);
 #include <errno.h>
 #include <stdlib.h>
@@ -28,8 +28,8 @@ extern enum c_abstract_http_error c_abstract_http_mock_cdd_strdup(const char *s,
 #define CDD_FREE free
 #endif
 
-#ifndef CDD_STRDUP
-#define CDD_STRDUP c_cdd_strdup
+#ifndef c_abstract_http_strdup
+#define c_abstract_http_strdup c_abstract_http_strdup
 #endif
 
 static struct CddActorHooks g_actor_hooks = {NULL, NULL, NULL, NULL,
@@ -215,7 +215,7 @@ enum c_abstract_http_error cdd_actor_spawn(struct CddMessageBus *bus,
   }
 
   {
-    CDD_STRDUP(name, &_ast_strdup_0);
+    c_abstract_http_strdup(name, &_ast_strdup_0);
     a->name = _ast_strdup_0;
     if (!a->name) {
       CDD_FREE(a);

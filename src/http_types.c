@@ -7,10 +7,15 @@
 #include <string.h>
 
 #include <c_abstract_http/http_types.h>
-extern enum c_abstract_http_error c_abstract_http_mock_cdd_strdup(const char *s, char **out);
 
 #include <time.h>
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#define malloc c_abstract_http_mock_malloc
+#define calloc c_abstract_http_mock_calloc
+#define realloc c_abstract_http_mock_realloc
+#define free c_abstract_http_mock_free
+#endif
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -97,6 +102,17 @@ void http_headers_free(struct HttpHeaders *headers) {
   headers->count = 0;
   headers->capacity = 0;
 }
+#undef c_abstract_http_strdup
+enum c_abstract_http_error c_abstract_http_strdup(const char *s, char **out_s) {
+  size_t len;
+  if (!s || !out_s) return C_ABSTRACT_HTTP_ERR_INVAL;
+  len = strlen(s);
+  *out_s = (char *)malloc(len + 1);
+  if (!*out_s) return C_ABSTRACT_HTTP_ERR_NOMEM;
+  memcpy(*out_s, s, len + 1);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 
 enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers, const char *key,
                      const char *value) {
@@ -107,7 +123,7 @@ enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers, const c
 
   if (headers->count >= headers->capacity) {
     const size_t new_cap = (headers->capacity == 0) ? 8 : headers->capacity * 2;
-    struct HttpHeader *new_arr = (struct HttpHeader *)realloc(
+    struct HttpHeader *new_arr = (struct HttpHeader *)c_abstract_http_mock_realloc(
         headers->headers, new_cap * sizeof(struct HttpHeader));
     if (!new_arr)
       return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -116,12 +132,12 @@ enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers, const c
   }
 
   headers->headers[headers->count].key =
-      (CDD_STRDUP(key, &_ast_strdup_0), _ast_strdup_0);
+      (c_abstract_http_strdup(key, &_ast_strdup_0), _ast_strdup_0);
   if (!headers->headers[headers->count].key)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   headers->headers[headers->count].value =
-      (CDD_STRDUP(value, &_ast_strdup_1), _ast_strdup_1);
+      (c_abstract_http_strdup(value, &_ast_strdup_1), _ast_strdup_1);
   if (!headers->headers[headers->count].value) {
     free(headers->headers[headers->count].key);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -245,7 +261,7 @@ enum c_abstract_http_error http_request_add_part(struct HttpRequest *req, const 
     return rc;
   }
 
-  p->parts[p->count].name = (CDD_STRDUP(name, &_ast_strdup_2), _ast_strdup_2);
+  p->parts[p->count].name = (c_abstract_http_strdup(name, &_ast_strdup_2), _ast_strdup_2);
   if (!p->parts[p->count].name) {
     http_headers_free(&p->parts[p->count].headers);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -253,7 +269,7 @@ enum c_abstract_http_error http_request_add_part(struct HttpRequest *req, const 
 
   if (filename) {
     p->parts[p->count].filename =
-        (CDD_STRDUP(filename, &_ast_strdup_3), _ast_strdup_3);
+        (c_abstract_http_strdup(filename, &_ast_strdup_3), _ast_strdup_3);
     if (!p->parts[p->count].filename) {
       free(p->parts[p->count].name);
       http_headers_free(&p->parts[p->count].headers);
@@ -263,7 +279,7 @@ enum c_abstract_http_error http_request_add_part(struct HttpRequest *req, const 
 
   if (content_type) {
     p->parts[p->count].content_type =
-        (CDD_STRDUP(content_type, &_ast_strdup_4), _ast_strdup_4);
+        (c_abstract_http_strdup(content_type, &_ast_strdup_4), _ast_strdup_4);
     if (!p->parts[p->count].content_type) {
       if (p->parts[p->count].filename)
         free(p->parts[p->count].filename);
@@ -499,7 +515,7 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar, const 
   for (i = 0; i < jar->count; ++i) {
     if (strcmp(jar->cookies[i].name, name) == 0) {
       char *new_val =
-          (CDD_STRDUP(value, &_ast_strdup_cval), _ast_strdup_cval);
+          (c_abstract_http_strdup(value, &_ast_strdup_cval), _ast_strdup_cval);
       if (!new_val)
         return C_ABSTRACT_HTTP_ERR_NOMEM;
       free(jar->cookies[i].value);
@@ -522,12 +538,12 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar, const 
   memset(&jar->cookies[jar->count], 0, sizeof(struct HttpCookie));
 
   jar->cookies[jar->count].name =
-      (CDD_STRDUP(name, &_ast_strdup_cname), _ast_strdup_cname);
+      (c_abstract_http_strdup(name, &_ast_strdup_cname), _ast_strdup_cname);
   if (!jar->cookies[jar->count].name)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   jar->cookies[jar->count].value =
-      (CDD_STRDUP(value, &_ast_strdup_cval), _ast_strdup_cval);
+      (c_abstract_http_strdup(value, &_ast_strdup_cval), _ast_strdup_cval);
   if (!jar->cookies[jar->count].value) {
     free(jar->cookies[jar->count].name);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -568,7 +584,7 @@ enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   config->proxy_password = NULL;
   config->cookie_jar = NULL;
   config->user_agent =
-      (CDD_STRDUP("c_cdd/0.1.0", &_ast_strdup_5), _ast_strdup_5);
+      (c_abstract_http_strdup("c_abstract_http/0.1.0", &_ast_strdup_5), _ast_strdup_5);
 
   /* Retry defaults */
   config->retry_count = 0;
@@ -922,7 +938,7 @@ enum c_abstract_http_error http_request_init_oauth2_password_grant(
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
-  rc = CDD_STRDUP(token_endpoint_url, &req->url);
+  rc = c_abstract_http_strdup(token_endpoint_url, &req->url);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
@@ -1006,7 +1022,7 @@ enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(struct H
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
-  rc = CDD_STRDUP(token_endpoint_url, &req->url);
+  rc = c_abstract_http_strdup(token_endpoint_url, &req->url);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
@@ -1082,7 +1098,7 @@ enum c_abstract_http_error http_request_init_oauth2_authorization_code_grant(
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
-  rc = CDD_STRDUP(token_endpoint_url, &req->url);
+  rc = c_abstract_http_strdup(token_endpoint_url, &req->url);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
@@ -1165,7 +1181,7 @@ enum c_abstract_http_error http_request_init_oauth2_client_credentials_grant(
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
-  rc = CDD_STRDUP(token_endpoint_url, &req->url);
+  rc = c_abstract_http_strdup(token_endpoint_url, &req->url);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
@@ -1235,7 +1251,7 @@ enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(struct Http
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
-  rc = CDD_STRDUP(token_endpoint_url, &req->url);
+  rc = c_abstract_http_strdup(token_endpoint_url, &req->url);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
@@ -1293,7 +1309,7 @@ enum c_abstract_http_error http_request_init_oauth2_device_authorization_request
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
-  rc = CDD_STRDUP(device_endpoint_url, &req->url);
+  rc = c_abstract_http_strdup(device_endpoint_url, &req->url);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
@@ -1343,7 +1359,7 @@ enum c_abstract_http_error http_request_init_oauth2_device_access_token_request(
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
-  rc = CDD_STRDUP(token_endpoint_url, &req->url);
+  rc = c_abstract_http_strdup(token_endpoint_url, &req->url);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
@@ -1395,7 +1411,7 @@ enum c_abstract_http_error http_request_init_oauth2_token_revocation(
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
-  rc = CDD_STRDUP(revocation_endpoint_url, &req->url);
+  rc = c_abstract_http_strdup(revocation_endpoint_url, &req->url);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 
@@ -1462,7 +1478,7 @@ enum c_abstract_http_error http_request_init_oauth2_token_introspection(
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   req->url = NULL;
-  rc = CDD_STRDUP(introspection_endpoint_url, &req->url);
+  rc = c_abstract_http_strdup(introspection_endpoint_url, &req->url);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
 

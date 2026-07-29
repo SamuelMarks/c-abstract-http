@@ -48,7 +48,7 @@ static int setup_request(struct HttpRequest *req, int port) {
 #endif
 
   req->url =
-      (c_abstract_http_mock_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
+      (c_abstract_http_mock_strdup(url, &_ast_strdup_0), _ast_strdup_0);
   return (enum greatest_test_res)0;
 }
 
@@ -100,14 +100,14 @@ TEST test_curl_config_application(void) {
   config.timeout_ms = 500;
   config.verify_peer = 0; /* Insecure for testing logic */
   config.follow_redirects = 0;
-  config.proxy_url = (c_abstract_http_mock_cdd_strdup("http://proxy.local:8080",
+  config.proxy_url = (c_abstract_http_mock_strdup("http://proxy.local:8080",
                                                       &_ast_strdup_proxy),
                       _ast_strdup_proxy);
   config.proxy_username =
-      (c_abstract_http_mock_cdd_strdup("admin", &_ast_strdup_user),
+      (c_abstract_http_mock_strdup("admin", &_ast_strdup_user),
        _ast_strdup_user);
   config.proxy_password =
-      (c_abstract_http_mock_cdd_strdup("secret", &_ast_strdup_pass),
+      (c_abstract_http_mock_strdup("secret", &_ast_strdup_pass),
        _ast_strdup_pass);
 
   rc = http_curl_config_apply(ctx, &config);
@@ -649,7 +649,7 @@ TEST test_curl_payload_methods(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   http_request_init(&req);
   req.url = NULL;
-  CDD_STRDUP("http://localhost/", &req.url);
+  c_abstract_http_strdup("http://localhost/", &req.url);
   req.body = (unsigned char *)malloc(4);
   memcpy(req.body, "data", 4);
   req.body_len = 4;
@@ -1165,7 +1165,7 @@ TEST test_curl_send_multi_setopt_fail(void) {
   http_curl_context_init(&ctx);
   http_loop_init(&loop);
   http_request_init(&req);
-  CDD_STRDUP("http://localhost", &req.url);
+  c_abstract_http_strdup("http://localhost", &req.url);
   http_headers_add(&req.headers, "X", "Y");
 
   http_multi_request_init(&multi);
@@ -1244,9 +1244,9 @@ TEST test_curl_send_setopt_fail(void) {
       config.verify_peer = 1;
       config.verify_host = 1;
       config.follow_redirects = 1;
-      CDD_STRDUP("http://proxy", &config.proxy_url);
-      CDD_STRDUP("user", &config.proxy_username);
-      CDD_STRDUP("password", &config.proxy_password);
+      c_abstract_http_strdup("http://proxy", &config.proxy_url);
+      c_abstract_http_strdup("user", &config.proxy_username);
+      c_abstract_http_strdup("password", &config.proxy_password);
       config.cookie_jar =
           (struct HttpCookieJar *)calloc(1, sizeof(struct HttpCookieJar));
     }
@@ -1270,7 +1270,7 @@ TEST test_curl_send_setopt_fail(void) {
     struct HttpRequest req;
     struct HttpResponse *res = NULL;
     http_request_init(&req);
-    CDD_STRDUP("http://localhost", &req.url);
+    c_abstract_http_strdup("http://localhost", &req.url);
     http_headers_add(&req.headers, "A", "B");
     http_headers_add(&req.headers, "C", "D");
     for (i = 0; i < 15; i++) {
@@ -1312,7 +1312,7 @@ TEST test_curl_send_perform_errors(void) {
   http_curl_global_init();
   http_curl_context_init(&ctx);
   http_request_init(&req);
-  CDD_STRDUP("http://localhost", &req.url);
+  c_abstract_http_strdup("http://localhost", &req.url);
 
   for (i = 0; i < 7; i++) {
     g_mock_curl_perform_res = codes[i];
