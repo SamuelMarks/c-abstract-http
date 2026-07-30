@@ -22,7 +22,6 @@ TEST test_mock_alloc_coverage(void) {
   char *out = NULL;
   void *ptr;
 
-
   dummy_cb_thread(NULL);
 
   g_mock_select_fail = 1;

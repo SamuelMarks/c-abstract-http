@@ -184,8 +184,7 @@ TEST test_wininet_send_chunked(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url =
-      (c_abstract_http_mock_strdup(url, &_ast_strdup_2), _ast_strdup_2);
+  req.url = (c_abstract_http_mock_strdup(url, &_ast_strdup_2), _ast_strdup_2);
 
   /* Setup chunk callback */
   state.call_count = 0;
@@ -247,8 +246,7 @@ TEST test_wininet_send_chunked_abort(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url =
-      (c_abstract_http_mock_strdup(url, &_ast_strdup_3), _ast_strdup_3);
+  req.url = (c_abstract_http_mock_strdup(url, &_ast_strdup_3), _ast_strdup_3);
 
   state.call_count = 0;
   state.total_bytes = 0;
@@ -326,8 +324,7 @@ TEST test_wininet_send_upload_chunked(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url =
-      (c_abstract_http_mock_strdup(url, &_ast_strdup_4), _ast_strdup_4);
+  req.url = (c_abstract_http_mock_strdup(url, &_ast_strdup_4), _ast_strdup_4);
   req.method = HTTP_POST;
 
   up_state.data = payload;

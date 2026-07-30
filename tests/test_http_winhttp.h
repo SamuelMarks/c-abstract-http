@@ -98,8 +98,7 @@ TEST test_winhttp_config_usage(void) {
   if (cfg.proxy_password)
     free(cfg.proxy_password);
   cfg.proxy_password =
-      (c_abstract_http_mock_strdup("secret", &_ast_strdup_0),
-       _ast_strdup_0);
+      (c_abstract_http_mock_strdup("secret", &_ast_strdup_0), _ast_strdup_0);
 
   rc = http_winhttp_config_apply(ctx, &cfg);
   if (rc != 0) {
@@ -133,8 +132,8 @@ TEST test_winhttp_send_fail(void) {
   /* Initialize request */
   http_request_init(&req);
   /* Invalid URL syntax to trigger immediate failure in CrackUrl */
-  req.url = (c_abstract_http_mock_strdup("not_a_url", &_ast_strdup_1),
-             _ast_strdup_1);
+  req.url =
+      (c_abstract_http_mock_strdup("not_a_url", &_ast_strdup_1), _ast_strdup_1);
 
   rc = http_winhttp_send(ctx, &req, &res);
 
@@ -236,8 +235,7 @@ TEST test_winhttp_send_chunked(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url =
-      (c_abstract_http_mock_strdup(url, &_ast_strdup_2), _ast_strdup_2);
+  req.url = (c_abstract_http_mock_strdup(url, &_ast_strdup_2), _ast_strdup_2);
 
   /* Setup chunk callback */
   state.call_count = 0;
@@ -300,8 +298,7 @@ TEST test_winhttp_send_chunked_abort(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url =
-      (c_abstract_http_mock_strdup(url, &_ast_strdup_3), _ast_strdup_3);
+  req.url = (c_abstract_http_mock_strdup(url, &_ast_strdup_3), _ast_strdup_3);
 
   state.call_count = 0;
   state.total_bytes = 0;
@@ -380,8 +377,7 @@ TEST test_winhttp_send_upload_chunked(void) {
 #else
   sprintf(url, "http://127.0.0.1:%d/test", math_mock_server_get_port(server));
 #endif
-  req.url =
-      (c_abstract_http_mock_strdup(url, &_ast_strdup_4), _ast_strdup_4);
+  req.url = (c_abstract_http_mock_strdup(url, &_ast_strdup_4), _ast_strdup_4);
   req.method = HTTP_POST;
 
   up_state.data = payload;
@@ -435,8 +431,7 @@ static int setup_request(struct HttpRequest *req, int port) {
   sprintf(url, "http://127.0.0.1:%d/test", port);
 #endif
 
-  req->url =
-      (c_abstract_http_mock_strdup(url, &_ast_strdup_0), _ast_strdup_0);
+  req->url = (c_abstract_http_mock_strdup(url, &_ast_strdup_0), _ast_strdup_0);
   if (!req->url) {
     http_request_free(req);
     return C_ABSTRACT_HTTP_ERR_NOMEM;

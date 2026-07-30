@@ -16,6 +16,12 @@ extern int g_mock_waitpid_fail;
 #define realloc c_abstract_http_mock_realloc
 #define free c_abstract_http_mock_free
 #endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#define malloc c_abstract_http_mock_malloc
+#define calloc c_abstract_http_mock_calloc
+#define realloc c_abstract_http_mock_realloc
+#define free c_abstract_http_mock_free
+#endif
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -535,7 +541,8 @@ cdd_ipc_deserialize_request(const char *buf, size_t len,
   p = buf;
   end = buf + len;
 
-  (void)http_request_init(req); if (0)
+  (void)http_request_init(req);
+  if (0)
     return rc;
 
   if ((rc = parse_int(&p, end, &method)) != 0)

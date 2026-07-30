@@ -8,6 +8,12 @@
 
 #include <c_abstract_http/http_types.h>
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#define malloc c_abstract_http_mock_malloc
+#define calloc c_abstract_http_mock_calloc
+#define realloc c_abstract_http_mock_realloc
+#define free c_abstract_http_mock_free
+#endif
 #include <time.h>
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
