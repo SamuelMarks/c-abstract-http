@@ -9,8 +9,8 @@
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_HTTP_COROUTINE_H
-#define C_CDD_HTTP_COROUTINE_H
+#ifndef C_ABSTRACT_HTTP_HTTP_COROUTINE_H
+#define C_ABSTRACT_HTTP_HTTP_COROUTINE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,32 +24,35 @@ extern "C" {
 /**
  * @brief Opaque Coroutine state.
  */
-struct CddCoroutine;
+struct AbstractHttpCoroutine;
 
 /**
  * @brief Coroutine entry point function signature.
  */
-typedef void (*cdd_coroutine_cb)(void *arg);
+typedef void (*abstract_http_coroutine_cb)(void *arg);
 
 /**
  * @brief External hooks for overriding coroutine management.
  */
-struct CddCoroutineHooks {
-  int (*init)(struct CddCoroutine **co, size_t stack_size, cdd_coroutine_cb cb,
+struct AbstractHttpCoroutineHooks {
+  int (*init)(struct AbstractHttpCoroutine **co, size_t stack_size,
+              abstract_http_coroutine_cb cb,
               void *arg); /**< Hook for coroutine initialization */
-  void (*free)(struct CddCoroutine *co);  /**< Hook for coroutine destruction */
-  int (*resume)(struct CddCoroutine *co); /**< Hook for resuming execution */
-  int (*yield)(void);                     /**< Hook for yielding execution */
+  void (*free)(
+      struct AbstractHttpCoroutine *co); /**< Hook for coroutine destruction */
+  int (*resume)(
+      struct AbstractHttpCoroutine *co); /**< Hook for resuming execution */
+  int (*yield)(void);                    /**< Hook for yielding execution */
   int (*is_done)(
-      const struct CddCoroutine *co); /**< Hook for checking status */
+      const struct AbstractHttpCoroutine *co); /**< Hook for checking status */
 };
 
 /**
  * @brief Register external coroutine hooks.
  * @param[in] hooks The hooks structure.
  */
-extern c_abstract_http_error_t
-cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks);
+extern c_abstract_http_error_t abstract_http_coroutine_set_hooks(
+    const struct AbstractHttpCoroutineHooks *hooks);
 
 /**
  * @brief Initialize a new coroutine.
@@ -59,42 +62,44 @@ cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks);
  * @param[in] arg Argument to pass to the entry point.
  * @return 0 on success, ENOMEM or EINVAL on failure.
  */
-extern c_abstract_http_error_t cdd_coroutine_init(struct CddCoroutine **co,
-                                                  size_t stack_size,
-                                                  cdd_coroutine_cb cb,
-                                                  void *arg);
+extern c_abstract_http_error_t
+abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
+                             size_t stack_size, abstract_http_coroutine_cb cb,
+                             void *arg);
 
 /**
  * @brief Free resources associated with a coroutine.
  * Must be called after the coroutine finishes.
  * @param[in] co The coroutine handle.
  */
-extern void cdd_coroutine_free(struct CddCoroutine *co);
+extern void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co);
 
 /**
  * @brief Transfer execution to the coroutine.
- * The caller will block until the coroutine calls `cdd_coroutine_yield` or
- * finishes.
+ * The caller will block until the coroutine calls
+ * `abstract_http_coroutine_yield` or finishes.
  * @param[in] co The coroutine handle.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t cdd_coroutine_resume(struct CddCoroutine *co);
+extern c_abstract_http_error_t
+abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co);
 
 /**
  * @brief Yield execution back to the resumer.
  * MUST be called from within the currently active coroutine.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t cdd_coroutine_yield(void);
+extern c_abstract_http_error_t abstract_http_coroutine_yield(void);
 
 /**
  * @brief Check if the coroutine has finished executing.
  * @param[in] co The coroutine handle.
  * @return 1 if finished, 0 if still active.
  */
-extern int math_cdd_coroutine_is_done(const struct CddCoroutine *co);
+extern int
+math_abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* C_CDD_HTTP_COROUTINE_H */
+#endif /* C_ABSTRACT_HTTP_HTTP_COROUTINE_H */

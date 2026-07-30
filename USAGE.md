@@ -593,14 +593,14 @@ void worker_task(void *arg) {
 }
 
 int dispatch_work(void) {
-    struct CddThreadPool *pool;
-    int rc = cdd_thread_pool_init(&pool, 4); /* 4 Worker Threads */
+    struct AbstractHttpThreadPool *pool;
+    int rc = abstract_http_thread_pool_init(&pool, 4); /* 4 Worker Threads */
     if (rc != 0) return rc;
 
-    cdd_thread_pool_push(pool, worker_task, "https://example.com/1");
-    cdd_thread_pool_push(pool, worker_task, "https://example.com/2");
+    abstract_http_thread_pool_push(pool, worker_task, "https://example.com/1");
+    abstract_http_thread_pool_push(pool, worker_task, "https://example.com/2");
 
-    cdd_thread_pool_free(pool); /* Blocks until all tasks complete */
+    abstract_http_thread_pool_free(pool); /* Blocks until all tasks complete */
     return 0;
 }
 ```

@@ -9,8 +9,8 @@
  * @author Samuel Marks
  */
 
-#ifndef CDD_TEST_HELPERS_MOCK_SERVER_H
-#define CDD_TEST_HELPERS_MOCK_SERVER_H
+#ifndef ABSTRACT_HTTP_TEST_HELPERS_MOCK_SERVER_H
+#define ABSTRACT_HTTP_TEST_HELPERS_MOCK_SERVER_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,4 +95,4 @@ extern void mock_server_request_cleanup(struct MockServerRequest *req);
 }
 #endif /* __cplusplus */
 
-#endif /* CDD_TEST_HELPERS_MOCK_SERVER_H */
+#endif /* ABSTRACT_HTTP_TEST_HELPERS_MOCK_SERVER_H */

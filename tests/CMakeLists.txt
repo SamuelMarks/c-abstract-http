@@ -19,18 +19,18 @@ include_directories(${greatest_SOURCE_DIR})
 include_directories(../include)
 include_directories(../src)
 
-# Need to build cdd_test_helpers/mock_server.c as part of the test executable
+# Need to build abstract_http_test_helpers/mock_server.c as part of the test executable
 if(C_ABSTRACT_HTTP_HEADER_ONLY OR (WIN32 AND BUILD_SHARED_LIBS))
     set(TEST_SOURCES main.c mock_alloc.c)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
-        list(APPEND TEST_SOURCES cdd_test_helpers/mock_server.c)
+        list(APPEND TEST_SOURCES abstract_http_test_helpers/mock_server.c)
     endif()
     set(EXTRA_TEST_SOURCES mock_alloc.c)
 else()
     set(TEST_SOURCES main.c)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         # mock_server.c is already in the library
-        # list(APPEND TEST_SOURCES cdd_test_helpers/mock_server.c)
+        # list(APPEND TEST_SOURCES abstract_http_test_helpers/mock_server.c)
     endif()
     set(EXTRA_TEST_SOURCES "")
 endif()

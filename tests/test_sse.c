@@ -393,7 +393,8 @@ TEST test_sse_parser_init_null(void) {
   PASS();
 }
 
-static int mock_push_fail(void *ctx, cdd_thread_task_cb cb, void *arg) {
+static int mock_push_fail(void *ctx, abstract_http_thread_task_cb cb,
+                          void *arg) {
   (void)ctx;
   (void)cb;
   (void)arg;
@@ -403,15 +404,15 @@ static int mock_push_fail(void *ctx, cdd_thread_task_cb cb, void *arg) {
 TEST test_sse_async_register_thread_pool(void) {
   struct HttpClient client;
   struct HttpRequest req = {0};
-  struct CddThreadPool *pool = NULL;
-  struct CddThreadPoolHooks hooks;
+  struct AbstractHttpThreadPool *pool = NULL;
+  struct AbstractHttpThreadPoolHooks hooks;
 
   memset(&client, 0, sizeof(client));
   memset(&hooks, 0, sizeof(hooks));
   http_request_init(&req);
   hooks.push = mock_push_fail;
 
-  cdd_thread_pool_init_external(&pool, &hooks);
+  abstract_http_thread_pool_init_external(&pool, &hooks);
   client.thread_pool = pool;
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -428,7 +429,7 @@ TEST test_sse_async_register_thread_pool(void) {
   ASSERT_EQ(123, c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
                                                     NULL, NULL));
 
-  cdd_thread_pool_free(pool);
+  abstract_http_thread_pool_free(pool);
   http_request_free(&req);
   PASS();
 }
@@ -856,7 +857,8 @@ TEST test_sse_sync_loop_errors(void) {
   PASS();
 }
 
-static int mock_push_success(void *ctx, cdd_thread_task_cb cb, void *arg) {
+static int mock_push_success(void *ctx, abstract_http_thread_task_cb cb,
+                             void *arg) {
   (void)ctx;
   cb(arg); /* call it synchronously for the test */
   return 0;
@@ -865,19 +867,19 @@ static int mock_push_success(void *ctx, cdd_thread_task_cb cb, void *arg) {
 TEST test_sse_async_register_success(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
-  struct CddThreadPool *pool = NULL;
-  struct CddThreadPoolHooks hooks = {0};
+  struct AbstractHttpThreadPool *pool = NULL;
+  struct AbstractHttpThreadPoolHooks hooks = {0};
   struct test_sse_ctx ctx = {0};
   http_request_init(&req);
   hooks.push = mock_push_success;
-  cdd_thread_pool_init_external(&pool, &hooks);
+  abstract_http_thread_pool_init_external(&pool, &hooks);
   client.thread_pool = pool;
   client.send = test_sse_mock_send_empty;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_sse_async_register(&client, &req, test_sse_on_event,
                                                test_sse_on_error,
                                                test_sse_on_close, &ctx));
-  cdd_thread_pool_free(pool);
+  abstract_http_thread_pool_free(pool);
   http_request_free(&req);
   PASS();
 }

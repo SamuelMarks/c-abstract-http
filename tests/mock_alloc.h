@@ -1,5 +1,5 @@
-#ifndef CDD_MOCK_ALLOC_H
-#define CDD_MOCK_ALLOC_H
+#ifndef ABSTRACT_HTTP_MOCK_ALLOC_H
+#define ABSTRACT_HTTP_MOCK_ALLOC_H
 
 /* clang-format off */
 #ifdef _WIN32
@@ -35,23 +35,23 @@
 extern "C" {
 #endif
 
-extern int *cdd_mock_get_g_mock_alloc_fail(void);
-extern int *cdd_mock_get_g_mock_alloc_count(void);
-extern int *cdd_mock_get_g_mock_pthread_fail(void);
-extern int *cdd_mock_get_g_mock_pipe_fail(void);
-extern int *cdd_mock_get_g_mock_fork_fail(void);
-extern int *cdd_mock_get_g_mock_waitpid_fail(void);
-extern int *cdd_mock_get_g_mock_select_fail(void);
-extern int *cdd_mock_get_g_mock_select_error_fds(void);
-extern int *cdd_mock_get_g_mock_time_jump(void);
-extern int *cdd_mock_get_g_mock_time_jump_count(void);
-extern int *cdd_mock_get_g_mock_fwrite_fail(void);
-extern int *cdd_mock_get_g_mock_fclose_fail(void);
-extern int *cdd_mock_get_g_mock_socket_fail(void);
-extern int *cdd_mock_get_g_mock_bind_fail(void);
-extern int *cdd_mock_get_g_mock_listen_fail(void);
-extern int *cdd_mock_get_g_mock_accept_fail(void);
-extern int *cdd_mock_get_g_mock_recv_fail(void);
+extern int *abstract_http_mock_get_g_mock_alloc_fail(void);
+extern int *abstract_http_mock_get_g_mock_alloc_count(void);
+extern int *abstract_http_mock_get_g_mock_pthread_fail(void);
+extern int *abstract_http_mock_get_g_mock_pipe_fail(void);
+extern int *abstract_http_mock_get_g_mock_fork_fail(void);
+extern int *abstract_http_mock_get_g_mock_waitpid_fail(void);
+extern int *abstract_http_mock_get_g_mock_select_fail(void);
+extern int *abstract_http_mock_get_g_mock_select_error_fds(void);
+extern int *abstract_http_mock_get_g_mock_time_jump(void);
+extern int *abstract_http_mock_get_g_mock_time_jump_count(void);
+extern int *abstract_http_mock_get_g_mock_fwrite_fail(void);
+extern int *abstract_http_mock_get_g_mock_fclose_fail(void);
+extern int *abstract_http_mock_get_g_mock_socket_fail(void);
+extern int *abstract_http_mock_get_g_mock_bind_fail(void);
+extern int *abstract_http_mock_get_g_mock_listen_fail(void);
+extern int *abstract_http_mock_get_g_mock_accept_fail(void);
+extern int *abstract_http_mock_get_g_mock_recv_fail(void);
 
 #if defined(_MSC_VER)
 #pragma warning(push)
@@ -60,20 +60,20 @@ extern int *cdd_mock_get_g_mock_recv_fail(void);
 #pragma warning(                                                               \
     disable : 4559) /* redefinition; the function gains __declspec(...) */
 #pragma warning(disable : 4273) /* inconsistent dll linkage */
-#define CDD_MOCK_ALLOC_RESTRICT __declspec(restrict)
-#define CDD_MOCK_ALLOC_NOALIAS __declspec(noalias)
+#define ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT __declspec(restrict)
+#define ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS __declspec(noalias)
 #else
-#define CDD_MOCK_ALLOC_RESTRICT
-#define CDD_MOCK_ALLOC_NOALIAS
+#define ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT
+#define ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS
 #endif
 
-CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
 c_abstract_http_mock_malloc(size_t size);
-CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
 c_abstract_http_mock_calloc(size_t count, size_t size);
-CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
 c_abstract_http_mock_realloc(void *ptr, size_t size);
-CDD_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
+ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
 size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nmemb,
                                    FILE *stream);
 int c_abstract_http_mock_fclose(FILE *stream);
@@ -113,23 +113,23 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
                                        struct timeval *timeout);
 #endif
 
-#define g_mock_alloc_fail (*cdd_mock_get_g_mock_alloc_fail())
-#define g_mock_alloc_count (*cdd_mock_get_g_mock_alloc_count())
-#define g_mock_pthread_fail (*cdd_mock_get_g_mock_pthread_fail())
-#define g_mock_pipe_fail (*cdd_mock_get_g_mock_pipe_fail())
-#define g_mock_fork_fail (*cdd_mock_get_g_mock_fork_fail())
-#define g_mock_waitpid_fail (*cdd_mock_get_g_mock_waitpid_fail())
-#define g_mock_select_fail (*cdd_mock_get_g_mock_select_fail())
-#define g_mock_select_error_fds (*cdd_mock_get_g_mock_select_error_fds())
-#define g_mock_time_jump (*cdd_mock_get_g_mock_time_jump())
-#define g_mock_time_jump_count (*cdd_mock_get_g_mock_time_jump_count())
-#define g_mock_fwrite_fail (*cdd_mock_get_g_mock_fwrite_fail())
-#define g_mock_fclose_fail (*cdd_mock_get_g_mock_fclose_fail())
-#define g_mock_socket_fail (*cdd_mock_get_g_mock_socket_fail())
-#define g_mock_bind_fail (*cdd_mock_get_g_mock_bind_fail())
-#define g_mock_listen_fail (*cdd_mock_get_g_mock_listen_fail())
-#define g_mock_accept_fail (*cdd_mock_get_g_mock_accept_fail())
-#define g_mock_recv_fail (*cdd_mock_get_g_mock_recv_fail())
+#define g_mock_alloc_fail (*abstract_http_mock_get_g_mock_alloc_fail())
+#define g_mock_alloc_count (*abstract_http_mock_get_g_mock_alloc_count())
+#define g_mock_pthread_fail (*abstract_http_mock_get_g_mock_pthread_fail())
+#define g_mock_pipe_fail (*abstract_http_mock_get_g_mock_pipe_fail())
+#define g_mock_fork_fail (*abstract_http_mock_get_g_mock_fork_fail())
+#define g_mock_waitpid_fail (*abstract_http_mock_get_g_mock_waitpid_fail())
+#define g_mock_select_fail (*abstract_http_mock_get_g_mock_select_fail())
+#define g_mock_select_error_fds (*abstract_http_mock_get_g_mock_select_error_fds())
+#define g_mock_time_jump (*abstract_http_mock_get_g_mock_time_jump())
+#define g_mock_time_jump_count (*abstract_http_mock_get_g_mock_time_jump_count())
+#define g_mock_fwrite_fail (*abstract_http_mock_get_g_mock_fwrite_fail())
+#define g_mock_fclose_fail (*abstract_http_mock_get_g_mock_fclose_fail())
+#define g_mock_socket_fail (*abstract_http_mock_get_g_mock_socket_fail())
+#define g_mock_bind_fail (*abstract_http_mock_get_g_mock_bind_fail())
+#define g_mock_listen_fail (*abstract_http_mock_get_g_mock_listen_fail())
+#define g_mock_accept_fail (*abstract_http_mock_get_g_mock_accept_fail())
+#define g_mock_recv_fail (*abstract_http_mock_get_g_mock_recv_fail())
 
 #if defined(_MSC_VER) && _MSC_VER < 1600
 typedef unsigned __int64 uint64_t;

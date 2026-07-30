@@ -26,7 +26,7 @@ extern "C" {
 #include "functions/parse/str.h"
 
 /* Helper: Build a request to localhost on a port likely to be closed */
-#include "cdd_test_helpers/mock_server.h"
+#include "abstract_http_test_helpers/mock_server.h"
 /* clang-format on */
 
 static int setup_request(struct HttpRequest *req, int port) {
@@ -43,7 +43,7 @@ static int setup_request(struct HttpRequest *req, int port) {
   sprintf(url, "http://127.0.0.1:%d/test", port);
 #endif
 
-  req->url = (c_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
+  req->url = (c_abstract_http_strdup(url, &_ast_strdup_0), _ast_strdup_0);
   return (enum greatest_test_res)0;
 }
 
@@ -94,12 +94,12 @@ TEST test_libuv_config_application(void) {
   config.verify_peer = 0; /* Insecure for testing logic */
   config.follow_redirects = 0;
   config.proxy_url =
-      (c_cdd_strdup("http://proxy.local:8080", &_ast_strdup_proxy),
+      (c_abstract_http_strdup("http://proxy.local:8080", &_ast_strdup_proxy),
        _ast_strdup_proxy);
   config.proxy_username =
-      (c_cdd_strdup("admin", &_ast_strdup_user), _ast_strdup_user);
+      (c_abstract_http_strdup("admin", &_ast_strdup_user), _ast_strdup_user);
   config.proxy_password =
-      (c_cdd_strdup("secret", &_ast_strdup_pass), _ast_strdup_pass);
+      (c_abstract_http_strdup("secret", &_ast_strdup_pass), _ast_strdup_pass);
 
   rc = http_libuv_config_apply(ctx, &config);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);

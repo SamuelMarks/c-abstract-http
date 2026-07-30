@@ -454,7 +454,7 @@ static void *apple_multi_worker(void *arg) {
   }
 
   for (i = 0; i < wctx->multi->count; ++i) {
-#define CDD_HTTP_RES_INIT(x) http_response_init(x)
+#define ABSTRACT_HTTP_HTTP_RES_INIT(x) http_response_init(x)
     const struct HttpRequest *req = wctx->multi->requests[i];
     struct HttpResponse *res =
         (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
@@ -469,7 +469,7 @@ static void *apple_multi_worker(void *arg) {
       continue;
     }
 
-    if (CDD_HTTP_RES_INIT(res) != C_ABSTRACT_HTTP_SUCCESS) {
+    if (ABSTRACT_HTTP_HTTP_RES_INIT(res) != C_ABSTRACT_HTTP_SUCCESS) {
       free(res);
       states[i].error = C_ABSTRACT_HTTP_ERR_NOMEM;
       pending--;

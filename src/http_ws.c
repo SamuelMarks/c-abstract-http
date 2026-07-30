@@ -99,11 +99,11 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
   if (!sctx)
     return -1;
 
-  rc = cdd_mutex_lock(sctx->mutex);
+  rc = abstract_http_mutex_lock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) { goto ws_read_err; }
   while (sctx->queue_len == 0 && !sctx->close_requested) {
     /* Wait for data or close */
-    rc = cdd_cond_wait(sctx->cond, sctx->mutex);
+    rc = abstract_http_cond_wait(sctx->cond, sctx->mutex);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) { goto ws_read_err; }
   }
 
@@ -121,7 +121,7 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
     *out_read = 0; /* EOF */
   }
 
-  rc = cdd_mutex_unlock(sctx->mutex);
+  rc = abstract_http_mutex_unlock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) { goto ws_read_err; }
   return 0;
 ws_read_err:
@@ -132,8 +132,8 @@ ws_read_err:
 static void ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
   if (!sctx)
     return;
-  if (sctx->mutex) cdd_mutex_free(sctx->mutex);
-  if (sctx->cond) cdd_cond_free(sctx->cond);
+  if (sctx->mutex) abstract_http_mutex_free(sctx->mutex);
+  if (sctx->cond) abstract_http_cond_free(sctx->cond);
   if (sctx->queue) free(sctx->queue);
   free(sctx);
 }
@@ -149,22 +149,22 @@ enum c_abstract_http_error c_abstract_http_ws_init(
   if (!req->ws_ctx) {
     struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)calloc(1, sizeof(struct ws_stream_ctx));
     if (!sctx) return C_ABSTRACT_HTTP_ERR_NOMEM;
-    res = cdd_mutex_init(&sctx->mutex);
+    res = abstract_http_mutex_init(&sctx->mutex);
     if (res != C_ABSTRACT_HTTP_SUCCESS) {
       free(sctx);
       return (enum c_abstract_http_error)res;
     }
-    res = cdd_cond_init(&sctx->cond);
+    res = abstract_http_cond_init(&sctx->cond);
     if (res != C_ABSTRACT_HTTP_SUCCESS) {
-      cdd_mutex_free(sctx->mutex);
+      abstract_http_mutex_free(sctx->mutex);
       free(sctx);
       return (enum c_abstract_http_error)res;
     }
     sctx->queue_cap = 4096;
     sctx->queue = (unsigned char *)malloc(sctx->queue_cap);
     if (!sctx->queue) {
-      cdd_cond_free(sctx->cond);
-      cdd_mutex_free(sctx->mutex);
+      abstract_http_cond_free(sctx->cond);
+      abstract_http_mutex_free(sctx->mutex);
       free(sctx);
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
@@ -728,8 +728,8 @@ enum c_abstract_http_error c_abstract_http_ws_async_register(
     ctx->on_close = on_close;
     ctx->user_data = user_data;
 
-    rc = cdd_thread_pool_push(client->thread_pool,
-                              c_abstract_http_ws_async_task, ctx);
+    rc = abstract_http_thread_pool_push(client->thread_pool,
+                                        c_abstract_http_ws_async_task, ctx);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("c_abstract_http_ws_async_register: Error "
                 "thread pool push failed");
@@ -806,12 +806,12 @@ c_abstract_http_ws_send(struct HttpRequest *req,
     }
   }
 
-  rc = cdd_mutex_lock(sctx->mutex);
+  rc = abstract_http_mutex_lock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
   if (sctx->close_requested) {
-    rc = cdd_mutex_unlock(sctx->mutex);
+    rc = abstract_http_mutex_unlock(sctx->mutex);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
@@ -828,7 +828,7 @@ c_abstract_http_ws_send(struct HttpRequest *req,
     {
       unsigned char *new_queue = (unsigned char *)realloc(sctx->queue, new_cap);
       if (!new_queue) {
-        rc = cdd_mutex_unlock(sctx->mutex);
+        rc = abstract_http_mutex_unlock(sctx->mutex);
         if (rc != C_ABSTRACT_HTTP_SUCCESS) {
           return rc;
         }
@@ -851,11 +851,11 @@ c_abstract_http_ws_send(struct HttpRequest *req,
     sctx->queue_len += len;
   }
 
-  rc = cdd_cond_signal(sctx->cond);
+  rc = abstract_http_cond_signal(sctx->cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
-  rc = cdd_mutex_unlock(sctx->mutex);
+  rc = abstract_http_mutex_unlock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
@@ -881,16 +881,16 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
     return rc;
   }
 
-  rc = cdd_mutex_lock(sctx->mutex);
+  rc = abstract_http_mutex_lock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
   sctx->close_requested = 1;
-  rc = cdd_cond_signal(sctx->cond);
+  rc = abstract_http_cond_signal(sctx->cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
-  rc = cdd_mutex_unlock(sctx->mutex);
+  rc = abstract_http_mutex_unlock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }

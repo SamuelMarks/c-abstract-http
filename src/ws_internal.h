@@ -40,8 +40,8 @@ typedef unsigned __int64 uint64_t;
 /* clang-format on */
 
 struct ws_stream_ctx {
-  struct CddMutex *mutex;
-  struct CddCond *cond;
+  struct AbstractHttpMutex *mutex;
+  struct AbstractHttpCond *cond;
   unsigned char *queue;
   size_t queue_len;
   size_t queue_cap;

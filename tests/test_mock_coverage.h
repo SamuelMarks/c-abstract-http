@@ -1,7 +1,7 @@
 #ifndef TEST_MOCK_COVERAGE_H
 #define TEST_MOCK_COVERAGE_H
 /* clang-format off */
-#include "cdd_test_helpers/mock_server.h"
+#include "abstract_http_test_helpers/mock_server.h"
 #include "greatest.h"
 #include "mock_alloc.h"
 /* clang-format on */
@@ -19,8 +19,6 @@ extern int c_abstract_http_mock_pthread_create(void *thread, const void *attr,
 /* extern int g_mock_recv_fail; */
 
 TEST test_mock_alloc_coverage(void) {
-  char *out = NULL;
-  void *ptr;
 
   dummy_cb_thread(NULL);
 

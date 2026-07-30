@@ -27,7 +27,7 @@ extern "C" {
 #include "mock_alloc.h"
 #include "functions/parse/str.h"
 
-#include "cdd_test_helpers/mock_server.h"
+#include "abstract_http_test_helpers/mock_server.h"
 /* clang-format on */
 
 /** @brief Documented */

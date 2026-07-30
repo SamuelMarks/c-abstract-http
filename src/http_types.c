@@ -9,20 +9,18 @@
 #include <c_abstract_http/http_types.h>
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern void *c_abstract_http_mock_malloc(size_t size);
+extern void *c_abstract_http_mock_calloc(size_t num, size_t size);
+extern void *c_abstract_http_mock_realloc(void *ptr, size_t size);
+extern void c_abstract_http_mock_free(void *ptr);
+
 #define malloc c_abstract_http_mock_malloc
 #define calloc c_abstract_http_mock_calloc
-extern void *c_abstract_http_mock_realloc(void *, size_t);
 #define realloc c_abstract_http_mock_realloc
 #define free c_abstract_http_mock_free
 #endif
 #include <time.h>
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-#define malloc c_abstract_http_mock_malloc
-#define calloc c_abstract_http_mock_calloc
-#define realloc c_abstract_http_mock_realloc
-#define free c_abstract_http_mock_free
-#endif
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -130,7 +128,7 @@ enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers, const c
 
   if (headers->count >= headers->capacity) {
     const size_t new_cap = (headers->capacity == 0) ? 8 : headers->capacity * 2;
-    struct HttpHeader *new_arr = (struct HttpHeader *)c_abstract_http_mock_realloc(
+    struct HttpHeader *new_arr = (struct HttpHeader *)realloc(
         headers->headers, new_cap * sizeof(struct HttpHeader));
     if (!new_arr)
       return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -1624,23 +1622,23 @@ enum c_abstract_http_error http_oauth2_build_authorization_url(
 }
 
 #if defined(_WIN32)
-#define CDD_CLOSESOCKET closesocket
-typedef SOCKET cdd_socket_t;
-#define CDD_INVALID_SOCKET_VAL INVALID_SOCKET
-#define CDD_SOCKET_ERROR_VAL SOCKET_ERROR
+#define ABSTRACT_HTTP_CLOSESOCKET closesocket
+typedef SOCKET abstract_http_socket_t;
+#define ABSTRACT_HTTP_INVALID_SOCKET_VAL INVALID_SOCKET
+#define ABSTRACT_HTTP_SOCKET_ERROR_VAL SOCKET_ERROR
 #else
-#define CDD_CLOSESOCKET close
-typedef int cdd_socket_t;
-#define CDD_INVALID_SOCKET_VAL -1
-#define CDD_SOCKET_ERROR_VAL -1
+#define ABSTRACT_HTTP_CLOSESOCKET close
+typedef int abstract_http_socket_t;
+#define ABSTRACT_HTTP_INVALID_SOCKET_VAL -1
+#define ABSTRACT_HTTP_SOCKET_ERROR_VAL -1
 #endif
 
 #if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 static enum c_abstract_http_error urldecode_alloc(const char *src, size_t src_len, char **out);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-enum c_abstract_http_error cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out);
-enum c_abstract_http_error cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out) {
+enum c_abstract_http_error abstract_http_test_urldecode_alloc(const char *src, size_t src_len, char **out);
+enum c_abstract_http_error abstract_http_test_urldecode_alloc(const char *src, size_t src_len, char **out) {
   return urldecode_alloc(src, src_len, out);
 }
 #endif
@@ -1691,8 +1689,8 @@ enum c_abstract_http_error http_oauth2_localhost_intercept(unsigned short port,
     *out_error_desc = NULL;
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 #else
-  cdd_socket_t srv_sock = CDD_INVALID_SOCKET_VAL,
-               cli_sock = CDD_INVALID_SOCKET_VAL;
+  abstract_http_socket_t srv_sock = ABSTRACT_HTTP_INVALID_SOCKET_VAL,
+               cli_sock = ABSTRACT_HTTP_INVALID_SOCKET_VAL;
   struct sockaddr_in saddr;
   char buf[4096];
   int rc = 0, n;
@@ -1717,7 +1715,7 @@ enum c_abstract_http_error http_oauth2_localhost_intercept(unsigned short port,
 #endif
 
   srv_sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (srv_sock == CDD_INVALID_SOCKET_VAL) {
+  if (srv_sock == ABSTRACT_HTTP_INVALID_SOCKET_VAL) {
     rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
@@ -1731,18 +1729,18 @@ enum c_abstract_http_error http_oauth2_localhost_intercept(unsigned short port,
   saddr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
   if (bind(srv_sock, (struct sockaddr *)&saddr, sizeof(saddr)) ==
-      CDD_SOCKET_ERROR_VAL) {
+      ABSTRACT_HTTP_SOCKET_ERROR_VAL) {
     rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
 
-  if (listen(srv_sock, 1) == CDD_SOCKET_ERROR_VAL) {
+  if (listen(srv_sock, 1) == ABSTRACT_HTTP_SOCKET_ERROR_VAL) {
     rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
 
   cli_sock = accept(srv_sock, NULL, NULL);
-  if (cli_sock == CDD_INVALID_SOCKET_VAL) {
+  if (cli_sock == ABSTRACT_HTTP_INVALID_SOCKET_VAL) {
     rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
@@ -1813,10 +1811,10 @@ enum c_abstract_http_error http_oauth2_localhost_intercept(unsigned short port,
   }
 
 cleanup:
-  if (cli_sock != CDD_INVALID_SOCKET_VAL)
-    CDD_CLOSESOCKET(cli_sock);
-  if (srv_sock != CDD_INVALID_SOCKET_VAL)
-    CDD_CLOSESOCKET(srv_sock);
+  if (cli_sock != ABSTRACT_HTTP_INVALID_SOCKET_VAL)
+    ABSTRACT_HTTP_CLOSESOCKET(cli_sock);
+  if (srv_sock != ABSTRACT_HTTP_INVALID_SOCKET_VAL)
+    ABSTRACT_HTTP_CLOSESOCKET(srv_sock);
 #if defined(_WIN32)
   WSACleanup();
 #endif

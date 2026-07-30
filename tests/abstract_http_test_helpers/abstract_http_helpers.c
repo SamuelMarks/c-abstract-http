@@ -1,5 +1,5 @@
 /**
- * @file cdd_helpers.c
+ * @file abstract_http_helpers.c
  * @brief Implementation of test helpers.
  * @author Samuel Marks
  */
@@ -8,11 +8,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "cdd_helpers.h"
+#include "abstract_http_helpers.h"
 /* clang-format on */
 
-void cdd_precondition_failed(void) {
-  fputs("cdd_precondition_failed\n", stderr);
+void abstract_http_precondition_failed(void) {
+  fputs("abstract_http_precondition_failed\n", stderr);
 }
 
 int write_to_file(const char *const filename, const char *const contents) {

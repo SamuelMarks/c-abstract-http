@@ -17,11 +17,11 @@ extern "C" {
 /* clang-format on */
 
 TEST test_ipc_pipe_init_free(void) {
-  struct CddIpcPipe pipe = {0};
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&pipe));
+  struct AbstractHttpIpcPipe pipe = {0};
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_init(&pipe));
   ASSERT(pipe.read_handle != NULL);
   ASSERT(pipe.write_handle != NULL);
-  cdd_ipc_pipe_free(&pipe);
+  abstract_http_ipc_pipe_free(&pipe);
   ASSERT(pipe.read_handle == NULL);
   ASSERT(pipe.write_handle == NULL);
   PASS();
@@ -46,12 +46,12 @@ TEST test_serialize_deserialize_request(void) {
   memcpy(req_in.body, "Hello, World!", req_in.body_len);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_request(&req_in, &buf, &len));
+            abstract_http_ipc_serialize_request(&req_in, &buf, &len));
   ASSERT(buf != NULL);
   ASSERT(len > 0);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_deserialize_request(buf, len, &req_out));
+            abstract_http_ipc_deserialize_request(buf, len, &req_out));
 
   ASSERT_EQ(req_in.method, req_out.method);
   ASSERT_STR_EQ(req_in.url, req_out.url);
@@ -84,12 +84,12 @@ TEST test_serialize_deserialize_response(void) {
   memcpy(res_in.body, "Not Found", res_in.body_len);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_response(&res_in, &buf, &len));
+            abstract_http_ipc_serialize_response(&res_in, &buf, &len));
   ASSERT(buf != NULL);
   ASSERT(len > 0);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_deserialize_response(buf, len, &res_out));
+            abstract_http_ipc_deserialize_response(buf, len, &res_out));
 
   ASSERT_EQ(res_in.status_code, res_out.status_code);
   ASSERT_EQ(1, res_out.headers.count);
@@ -107,16 +107,19 @@ TEST test_serialize_deserialize_response(void) {
 
 #ifndef __EMSCRIPTEN__
 TEST test_process_spawn_wait(void) {
-  struct CddIpcPipe parent_to_child, child_to_parent;
-  struct CddProcess *proc = NULL;
+  struct AbstractHttpIpcPipe parent_to_child, child_to_parent;
+  struct AbstractHttpProcess *proc = NULL;
   int exit_code = 0;
   printf("I AM EXECUTING\n");
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&parent_to_child));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&child_to_parent));
-
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_process_spawn(&proc, &parent_to_child, &child_to_parent));
+            abstract_http_ipc_pipe_init(&parent_to_child));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_ipc_pipe_init(&child_to_parent));
+
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      abstract_http_process_spawn(&proc, &parent_to_child, &child_to_parent));
   ASSERT(proc != NULL);
 
   /* Write something to unblock it if it waits on stdin,
@@ -124,16 +127,16 @@ TEST test_process_spawn_wait(void) {
      proper binary. */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_process_wait_and_free(proc, &exit_code));
+            abstract_http_process_wait_and_free(proc, &exit_code));
 
-  cdd_ipc_pipe_free(&parent_to_child);
-  cdd_ipc_pipe_free(&child_to_parent);
+  abstract_http_ipc_pipe_free(&parent_to_child);
+  abstract_http_ipc_pipe_free(&child_to_parent);
 
   PASS();
 }
 #endif
 
-TEST test_cdd_serialize_errors(void) {
+TEST test_abstract_http_serialize_errors(void) {
   char *buf = NULL;
   size_t len = 0;
   struct HttpRequest req;
@@ -143,58 +146,59 @@ TEST test_cdd_serialize_errors(void) {
   memset(&res, 0, sizeof(res));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_serialize_request(NULL, &buf, &len));
+            abstract_http_ipc_serialize_request(NULL, &buf, &len));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_serialize_request(&req, NULL, &len));
+            abstract_http_ipc_serialize_request(&req, NULL, &len));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_serialize_request(&req, &buf, NULL));
+            abstract_http_ipc_serialize_request(&req, &buf, NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_serialize_response(NULL, &buf, &len));
+            abstract_http_ipc_serialize_response(NULL, &buf, &len));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_serialize_response(&res, NULL, &len));
+            abstract_http_ipc_serialize_response(&res, NULL, &len));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_serialize_response(&res, &buf, NULL));
+            abstract_http_ipc_serialize_response(&res, &buf, NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_request(NULL, 10, &req));
+            abstract_http_ipc_deserialize_request(NULL, 10, &req));
   http_request_free(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_request("buf", 0, &req));
+            abstract_http_ipc_deserialize_request("buf", 0, &req));
   http_request_free(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_request("buf", 10, NULL));
+            abstract_http_ipc_deserialize_request("buf", 10, NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_response(NULL, 10, &res));
+            abstract_http_ipc_deserialize_response(NULL, 10, &res));
   http_response_free(&res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_response("buf", 0, &res));
+            abstract_http_ipc_deserialize_response("buf", 0, &res));
   http_response_free(&res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_response("buf", 10, NULL));
+            abstract_http_ipc_deserialize_response("buf", 10, NULL));
 
   PASS();
 }
 
-TEST test_cdd_process_hooks(void) {
-  struct CddProcessHooks hooks;
+TEST test_abstract_http_process_hooks(void) {
+  struct AbstractHttpProcessHooks hooks;
   memset(&hooks, 0, sizeof(hooks));
-  cdd_process_set_hooks(&hooks);
-  cdd_process_set_hooks(NULL); /* Should do nothing */
+  abstract_http_process_set_hooks(&hooks);
+  abstract_http_process_set_hooks(NULL); /* Should do nothing */
 
   /* Reset hooks so it doesn't affect other tests */
-  cdd_process_set_hooks(&hooks);
+  abstract_http_process_set_hooks(&hooks);
   PASS();
 }
 
-TEST test_cdd_ipc_short_rw(void) {
-  struct CddIpcPipe pipe = {0};
+TEST test_abstract_http_ipc_short_rw(void) {
+  struct AbstractHttpIpcPipe pipe = {0};
   char buf[4] = {0};
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&pipe));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_init(&pipe));
 
   /* Write 2 bytes */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_write(pipe.write_handle, "ab", 2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_ipc_write(pipe.write_handle, "ab", 2));
 
   /* Try to read 4 bytes. The pipe only has 2. It will either block or return 2!
      Wait, if it blocks, the test hangs!
@@ -208,61 +212,69 @@ TEST test_cdd_ipc_short_rw(void) {
 #endif
   pipe.write_handle = NULL;
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, cdd_ipc_read(pipe.read_handle, buf, 4));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            abstract_http_ipc_read(pipe.read_handle, buf, 4));
 
-  cdd_ipc_pipe_free(&pipe);
+  abstract_http_ipc_pipe_free(&pipe);
   PASS();
 }
 
-TEST test_cdd_ipc_rw(void) {
-  struct CddIpcPipe pipe = {0};
+TEST test_abstract_http_ipc_rw(void) {
+  struct AbstractHttpIpcPipe pipe = {0};
   char buf[5];
 
   memset(buf, 0, sizeof(buf));
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&pipe));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_init(&pipe));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_write(pipe.write_handle, "test", 4));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_read(pipe.read_handle, buf, 4));
+            abstract_http_ipc_write(pipe.write_handle, "test", 4));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_ipc_read(pipe.read_handle, buf, 4));
   ASSERT_STR_EQ("test", buf);
 
   /* Error cases */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, cdd_ipc_write(pipe.read_handle, "fail", 4));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            abstract_http_ipc_write(pipe.read_handle, "fail", 4));
 
-  cdd_ipc_pipe_free(&pipe);
+  abstract_http_ipc_pipe_free(&pipe);
   PASS();
 }
 
-TEST test_cdd_process_spawn_errors(void) {
-  struct CddIpcPipe rw = {0};
-  struct CddProcess *proc = NULL;
+TEST test_abstract_http_process_spawn_errors(void) {
+  struct AbstractHttpIpcPipe rw = {0};
+  struct AbstractHttpProcess *proc = NULL;
 
-  cdd_ipc_pipe_free(NULL);
+  abstract_http_ipc_pipe_free(NULL);
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_process_spawn(NULL, NULL, NULL));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_process_spawn(&proc, NULL, NULL));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_process_spawn(&proc, &rw, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_process_spawn(NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_process_spawn(&proc, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_process_spawn(&proc, &rw, NULL));
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_process_wait_and_free(NULL, NULL));
-  if (cdd_ipc_pipe_init(&rw) == 0)
-    cdd_ipc_pipe_free(&rw);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_process_wait_and_free(NULL, NULL));
+  if (abstract_http_ipc_pipe_init(&rw) == 0)
+    abstract_http_ipc_pipe_free(&rw);
   PASS();
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern enum c_abstract_http_error cdd_process_test_waitpid_fail(void);
-extern enum c_abstract_http_error cdd_process_test_waitpid_exit(void);
+extern enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void);
+extern enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void);
 #endif
 
-static int dummy_process_spawn(struct CddProcess **proc, struct CddIpcPipe *p2c,
-                               struct CddIpcPipe *c2p) {
+static int dummy_process_spawn(struct AbstractHttpProcess **proc,
+                               struct AbstractHttpIpcPipe *p2c,
+                               struct AbstractHttpIpcPipe *c2p) {
   (void)proc;
   (void)p2c;
   (void)c2p;
   return 0;
 }
-static int dummy_process_wait_and_free(struct CddProcess *proc,
+static int dummy_process_wait_and_free(struct AbstractHttpProcess *proc,
                                        int *exit_code) {
   (void)proc;
   (void)exit_code;
@@ -282,46 +294,49 @@ static int dummy_ipc_read(void *handle, void *data, size_t len) {
 }
 
 TEST test_process_hooks_coverage(void) {
-  struct CddProcessHooks hooks;
-  struct CddProcess *proc = NULL;
-  struct CddIpcPipe p2c = {0}, c2p = {0};
+  struct AbstractHttpProcessHooks hooks;
+  struct AbstractHttpProcess *proc = NULL;
+  struct AbstractHttpIpcPipe p2c = {0}, c2p = {0};
   hooks.spawn = dummy_process_spawn;
   hooks.wait_and_free = dummy_process_wait_and_free;
   hooks.ipc_write = dummy_ipc_write;
   hooks.ipc_read = dummy_ipc_read;
-  cdd_process_set_hooks(&hooks);
+  abstract_http_process_set_hooks(&hooks);
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_process_spawn(&proc, &p2c, &c2p));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_process_wait_and_free(proc, NULL));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_write(NULL, NULL, 0));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_read(NULL, NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_process_spawn(&proc, &p2c, &c2p));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_process_wait_and_free(proc, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_write(NULL, NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_read(NULL, NULL, 0));
 
   memset(&hooks, 0, sizeof(hooks));
-  cdd_process_set_hooks(&hooks);
+  abstract_http_process_set_hooks(&hooks);
   PASS();
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_fallback_paths(void) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  struct CddProcess *proc = NULL;
-  struct CddIpcPipe pipe = {0};
-  struct CddIpcPipe p2c = {0}, c2p = {0};
+  struct AbstractHttpProcess *proc = NULL;
+  struct AbstractHttpIpcPipe pipe = {0};
+  struct AbstractHttpIpcPipe p2c = {0}, c2p = {0};
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_ipc_pipe_init(NULL));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&pipe));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_ipc_pipe_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_init(&pipe));
 
 #if !defined(_WIN32)
   g_mock_pipe_fail = 1;
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, cdd_ipc_pipe_init(&pipe));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, abstract_http_ipc_pipe_init(&pipe));
   g_mock_pipe_fail = 0;
 #endif
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_process_spawn(NULL, &p2c, &c2p));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_process_spawn(NULL, &p2c, &c2p));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  rc = cdd_process_spawn(&proc, &p2c, &c2p);
+  rc = abstract_http_process_spawn(&proc, &p2c, &c2p);
   {
     int rc_test_tmp = rc;
     g_mock_alloc_fail = 0;
@@ -330,21 +345,22 @@ TEST test_process_fallback_paths(void) {
 
 #if !defined(_WIN32)
   g_mock_fork_fail = 1;
-  rc = cdd_process_spawn(&proc, &p2c, &c2p);
+  rc = abstract_http_process_spawn(&proc, &p2c, &c2p);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   g_mock_fork_fail = 0;
 #endif
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cdd_process_wait_and_free(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_process_wait_and_free(NULL, NULL));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  rc = cdd_process_test_waitpid_fail();
+  rc = abstract_http_process_test_waitpid_fail();
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  rc = cdd_process_test_waitpid_exit();
+  rc = abstract_http_process_test_waitpid_exit();
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 #endif
 
-  cdd_ipc_pipe_free(&pipe);
+  abstract_http_ipc_pipe_free(&pipe);
   PASS();
 }
 #endif
@@ -364,43 +380,43 @@ TEST test_process_serialize_failures(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
-            cdd_ipc_serialize_request(&req, &buf, &len));
+            abstract_http_ipc_serialize_request(&req, &buf, &len));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   {
-    int rc_test_tmp = cdd_ipc_serialize_response(&res, &buf, &len);
+    int rc_test_tmp = abstract_http_ipc_serialize_response(&res, &buf, &len);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
   /* test deserialize C_ABSTRACT_HTTP_ERR_INVAL */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_request("", 0, &req));
+            abstract_http_ipc_deserialize_request("", 0, &req));
   http_request_free(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_response("", 0, &res));
+            abstract_http_ipc_deserialize_response("", 0, &res));
   http_response_free(&res);
 
   {
     char dummy[10] = {0};
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-              cdd_ipc_deserialize_request(dummy, 1, &req));
+              abstract_http_ipc_deserialize_request(dummy, 1, &req));
     http_request_free(&req);
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-              cdd_ipc_deserialize_response(dummy, 1, &res));
+              abstract_http_ipc_deserialize_response(dummy, 1, &res));
     http_response_free(&res);
   }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_serialize_request(NULL, &buf, &len));
+            abstract_http_ipc_serialize_request(NULL, &buf, &len));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_request(NULL, 0, &req));
+            abstract_http_ipc_deserialize_request(NULL, 0, &req));
   http_request_free(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_serialize_response(NULL, &buf, &len));
+            abstract_http_ipc_serialize_response(NULL, &buf, &len));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_response(NULL, 0, &res));
+            abstract_http_ipc_deserialize_response(NULL, 0, &res));
   http_response_free(&res);
 
   PASS();
@@ -421,9 +437,9 @@ TEST test_process_deserialization_edge_cases(void) {
   req.method = HTTP_GET;
   req.url = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_request(&req, &buf, &len));
+            abstract_http_ipc_serialize_request(&req, &buf, &len));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_deserialize_request(buf, len, &req));
+            abstract_http_ipc_deserialize_request(buf, len, &req));
   http_request_free(&req);
   free(buf);
 
@@ -431,9 +447,9 @@ TEST test_process_deserialization_edge_cases(void) {
   res.body = NULL;
   res.body_len = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_response(&res, &buf, &len));
+            abstract_http_ipc_serialize_response(&res, &buf, &len));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_deserialize_response(buf, len, &res));
+            abstract_http_ipc_deserialize_response(buf, len, &res));
   http_response_free(&res);
   free(buf);
 
@@ -441,7 +457,7 @@ TEST test_process_deserialization_edge_cases(void) {
   req.url = "/";
   http_headers_add(&req.headers, "Key", "Value");
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_request(&req, &buf, &len));
+            abstract_http_ipc_serialize_request(&req, &buf, &len));
   req.url = NULL;
   http_request_free(&req);
   memset(&req, 0, sizeof(req));
@@ -449,7 +465,7 @@ TEST test_process_deserialization_edge_cases(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2;
   {
-    int rc_test_tmp = cdd_ipc_deserialize_request(buf, len, &req);
+    int rc_test_tmp = abstract_http_ipc_deserialize_request(buf, len, &req);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
     http_request_free(&req);
@@ -459,14 +475,14 @@ TEST test_process_deserialization_edge_cases(void) {
   res.status_code = 200;
   http_headers_add(&res.headers, "Key", "Value");
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_response(&res, &buf, &len));
+            abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res);
   memset(&res, 0, sizeof(res));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
   {
-    int rc_test_tmp = cdd_ipc_deserialize_response(buf, len, &res);
+    int rc_test_tmp = abstract_http_ipc_deserialize_response(buf, len, &res);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
     http_response_free(&res);
@@ -480,11 +496,11 @@ TEST test_process_deserialization_edge_cases(void) {
   req.body = "data";
   req.body_len = 4;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_request(&req, &buf, &len));
+            abstract_http_ipc_serialize_request(&req, &buf, &len));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1; /* 0:url, 1:body */
   {
-    int rc_test_tmp = cdd_ipc_deserialize_request(buf, len, &req);
+    int rc_test_tmp = abstract_http_ipc_deserialize_request(buf, len, &req);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
     http_request_free(&req);
@@ -497,11 +513,11 @@ TEST test_process_deserialization_edge_cases(void) {
   res.body = "data";
   res.body_len = 4;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_response(&res, &buf, &len));
+            abstract_http_ipc_serialize_response(&res, &buf, &len));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* 0:body */
   {
-    int rc_test_tmp = cdd_ipc_deserialize_response(buf, len, &res);
+    int rc_test_tmp = abstract_http_ipc_deserialize_response(buf, len, &res);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
     http_response_free(&res);
@@ -511,7 +527,7 @@ TEST test_process_deserialization_edge_cases(void) {
     size_t fake_len = 1000;
     memcpy(buf + len - 4 - sizeof(size_t), &fake_len, sizeof(size_t));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-              cdd_ipc_deserialize_response(buf, len, &res));
+              abstract_http_ipc_deserialize_response(buf, len, &res));
     http_response_free(&res);
   }
   free(buf);
@@ -532,13 +548,13 @@ TEST test_process_more_edge_cases(void) {
   /* 429: read_size > end */
   /* Try to read size from an empty buffer (0 bytes) */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_request(buf, 0, &req));
+            abstract_http_ipc_deserialize_request(buf, 0, &req));
   http_request_free(&req);
 
   /* 438: read_str -> read_size > end */
   /* Give it enough for method (4 bytes) but not enough for url size */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            cdd_ipc_deserialize_request(buf, sizeof(int) + 1, &req));
+            abstract_http_ipc_deserialize_request(buf, sizeof(int) + 1, &req));
   http_request_free(&req);
 
   /* 444: p + len > end inside read_str */
@@ -547,8 +563,8 @@ TEST test_process_more_edge_cases(void) {
     size_t fake_size = 100;
     memcpy(buf + sizeof(int), &fake_size, sizeof(size_t));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-              cdd_ipc_deserialize_request(buf, sizeof(int) + sizeof(size_t) + 1,
-                                          &req));
+              abstract_http_ipc_deserialize_request(
+                  buf, sizeof(int) + sizeof(size_t) + 1, &req));
   }
 
   /* 542: p + body_len > end */
@@ -561,14 +577,14 @@ TEST test_process_more_edge_cases(void) {
     req.body = "data";
     req.body_len = 4;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              cdd_ipc_serialize_request(&req, &req_buf, &req_len));
+              abstract_http_ipc_serialize_request(&req, &req_buf, &req_len));
 
     /* corrupt the body_len to be large */
     {
       size_t fake_len = 1000;
       memcpy(req_buf + req_len - 4 - sizeof(size_t), &fake_len, sizeof(size_t));
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-                cdd_ipc_deserialize_request(req_buf, req_len, &req));
+                abstract_http_ipc_deserialize_request(req_buf, req_len, &req));
       http_request_free(&req);
     }
     free(req_buf);
@@ -591,7 +607,7 @@ TEST test_process_final_edge_cases(void) {
 
   /* 349: waitpid WIFEXITED == false */
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_process_test_waitpid_exit());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_process_test_waitpid_exit());
 #endif
 
   /* 390: C_ABSTRACT_HTTP_ERR_IO from read */
@@ -606,7 +622,7 @@ TEST test_process_final_edge_cases(void) {
     /* A closed pipe returns 0. An invalid fd returns -1. */
     /* I can just pass an invalid handle like (void*)9999 to avoid valgrind
      * warnings on -1 */
-    rc = cdd_ipc_read((void *)(size_t)9999, dummy_buf, 10);
+    rc = abstract_http_ipc_read((void *)(size_t)9999, dummy_buf, 10);
     g_mock_pipe_fail = 0;
 #if defined(_WIN32)
     ASSERT(rc == C_ABSTRACT_HTTP_ERR_IO || rc == C_ABSTRACT_HTTP_ERR_INVAL);
@@ -617,25 +633,26 @@ TEST test_process_final_edge_cases(void) {
 
   /* 514: http_request_init failure */
   {
-    struct CddProcess *my_proc = NULL;
-    struct CddIpcPipe p1, p2;
-    cdd_ipc_pipe_init(&p1);
-    cdd_ipc_pipe_init(&p2);
-    if (cdd_process_spawn(&my_proc, &p1, &p2) == C_ABSTRACT_HTTP_SUCCESS) {
+    struct AbstractHttpProcess *my_proc = NULL;
+    struct AbstractHttpIpcPipe p1, p2;
+    abstract_http_ipc_pipe_init(&p1);
+    abstract_http_ipc_pipe_init(&p2);
+    if (abstract_http_process_spawn(&my_proc, &p1, &p2) ==
+        C_ABSTRACT_HTTP_SUCCESS) {
       if (my_proc)
         free(my_proc);
     }
-    cdd_ipc_pipe_free(&p1);
-    cdd_ipc_pipe_free(&p2);
+    abstract_http_ipc_pipe_free(&p1);
+    abstract_http_ipc_pipe_free(&p2);
   }
   {
     /* To fail http_request_init, maybe pass NULL? No, it handles NULL. But we
        already passed valid pointer. Does it allocate? `int
        http_request_init(struct HttpRequest *req)` -> `if (!req) return
        C_ABSTRACT_HTTP_ERR_INVAL; memset(req,0); return 0;` Wait, it CANNOT fail
-       unless `req` is NULL! But `cdd_ipc_deserialize_request` already checks
-       `if (!req) return C_ABSTRACT_HTTP_ERR_INVAL;` at line 510! So `if ((rc =
-       http_request_init(req)) != 0)` is UNREACHABLE!
+       unless `req` is NULL! But `abstract_http_ipc_deserialize_request` already
+       checks `if (!req) return C_ABSTRACT_HTTP_ERR_INVAL;` at line 510! So `if
+       ((rc = http_request_init(req)) != 0)` is UNREACHABLE!
     */
   }
 
@@ -644,15 +661,15 @@ TEST test_process_final_edge_cases(void) {
     req.method = HTTP_GET;
     req.url = "/";
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              cdd_ipc_serialize_request(&req, &buf, &len));
+              abstract_http_ipc_serialize_request(&req, &buf, &len));
     req.url = NULL;
     http_request_free(&req);
     memset(&req, 0, sizeof(req));
 
     /* Cut off right before hcount */
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-              cdd_ipc_deserialize_request(buf, sizeof(int) + sizeof(size_t) + 1,
-                                          &req));
+              abstract_http_ipc_deserialize_request(
+                  buf, sizeof(int) + sizeof(size_t) + 1, &req));
     http_request_free(&req);
     free(buf);
   }
@@ -663,14 +680,14 @@ TEST test_process_final_edge_cases(void) {
     req.url = "/";
     http_headers_add(&req.headers, "A", "B");
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              cdd_ipc_serialize_request(&req, &buf, &len));
+              abstract_http_ipc_serialize_request(&req, &buf, &len));
     req.url = NULL;
     http_request_free(&req);
     memset(&req, 0, sizeof(req));
 
     /* Cut off right before body_len */
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-              cdd_ipc_deserialize_request(buf, len - sizeof(size_t), &req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_ipc_deserialize_request(
+                                             buf, len - sizeof(size_t), &req));
     http_request_free(&req);
     free(buf);
   }
@@ -681,14 +698,14 @@ TEST test_process_final_edge_cases(void) {
   {
     res.status_code = 200;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              cdd_ipc_serialize_response(&res, &buf, &len));
+              abstract_http_ipc_serialize_response(&res, &buf, &len));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-              cdd_ipc_deserialize_response(buf, sizeof(int) - 1,
-                                           &res)); /* status code cutoff */
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-              cdd_ipc_deserialize_response(buf,
-                                           sizeof(int) + sizeof(size_t) - 1,
-                                           &res)); /* hcount cutoff */
+              abstract_http_ipc_deserialize_response(
+                  buf, sizeof(int) - 1, &res)); /* status code cutoff */
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_ERR_INVAL,
+        abstract_http_ipc_deserialize_response(
+            buf, sizeof(int) + sizeof(size_t) - 1, &res)); /* hcount cutoff */
     free(buf);
   }
 
@@ -697,12 +714,12 @@ TEST test_process_final_edge_cases(void) {
     res.status_code = 200;
     http_headers_add(&res.headers, "A", "B");
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              cdd_ipc_serialize_response(&res, &buf, &len));
+              abstract_http_ipc_serialize_response(&res, &buf, &len));
     http_response_free(&res);
     memset(&res, 0, sizeof(res));
 
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-              cdd_ipc_deserialize_response(buf, len - sizeof(size_t), &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_ipc_deserialize_response(
+                                             buf, len - sizeof(size_t), &res));
     http_response_free(&res);
     free(buf);
   }
@@ -720,14 +737,14 @@ TEST test_process_misc_coverage(void) {
   http_request_init(&req);
   http_headers_add(&req.headers, NULL, "value");
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_request(&req, &buf, &len));
+            abstract_http_ipc_serialize_request(&req, &buf, &len));
   http_request_free(&req);
   free(buf);
 
   http_response_init(&res);
   http_headers_add(&res.headers, NULL, "value");
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_response(&res, &buf, &len));
+            abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res);
   free(buf);
 
@@ -741,8 +758,8 @@ TEST test_process_waitpid_fail_2(void) {
   printf("I AM EXECUTING\n");
 
   g_mock_waitpid_fail = 2;
-  ASSERT_EQ(0,
-            cdd_process_wait_and_free((struct CddProcess *)proc, &exit_code));
+  ASSERT_EQ(0, abstract_http_process_wait_and_free(
+                   (struct AbstractHttpProcess *)proc, &exit_code));
   ASSERT_EQ(-1, exit_code);
   g_mock_waitpid_fail = 0;
 #endif
@@ -752,18 +769,19 @@ TEST test_process_waitpid_fail_2(void) {
 #ifndef __EMSCRIPTEN__
 TEST test_process_wait_signal(void) {
 #if !defined(_WIN32)
-  struct CddProcess *proc = NULL;
-  struct CddIpcPipe p2c = {0}, c2p = {0};
+  struct AbstractHttpProcess *proc = NULL;
+  struct AbstractHttpIpcPipe p2c = {0}, c2p = {0};
   int exit_code = 0;
   printf("I AM EXECUTING\n");
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&p2c));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_ipc_pipe_init(&c2p));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_process_spawn(&proc, &p2c, &c2p));
-
-  cdd_ipc_pipe_free(&p2c);
-  cdd_ipc_pipe_free(&c2p);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_init(&p2c));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_init(&c2p));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_process_wait_and_free(proc, &exit_code));
+            abstract_http_process_spawn(&proc, &p2c, &c2p));
+
+  abstract_http_ipc_pipe_free(&p2c);
+  abstract_http_ipc_pipe_free(&c2p);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_process_wait_and_free(proc, &exit_code));
 #endif
   PASS();
 }
@@ -778,7 +796,7 @@ TEST test_process_null_header_keys(void) {
   http_request_init(&req);
   http_headers_add(&req.headers, NULL, "value");
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_request(&req, &buf, &len));
+            abstract_http_ipc_serialize_request(&req, &buf, &len));
   http_request_free(&req);
   free(buf);
 
@@ -786,7 +804,7 @@ TEST test_process_null_header_keys(void) {
   res.status_code = 200;
   http_headers_add(&res.headers, NULL, "value");
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_response(&res, &buf, &len));
+            abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res);
   free(buf);
 
@@ -802,7 +820,7 @@ TEST test_process_serialize_null_key_value(void) {
   http_request_init(&req);
   http_headers_add(&req.headers, "k", NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_request(&req, &buf, &len));
+            abstract_http_ipc_serialize_request(&req, &buf, &len));
   http_request_free(&req);
   free(buf);
 
@@ -810,7 +828,7 @@ TEST test_process_serialize_null_key_value(void) {
   res.status_code = 200;
   http_headers_add(&res.headers, "k", NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_response(&res, &buf, &len));
+            abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res);
   free(buf);
 
@@ -828,7 +846,7 @@ TEST test_process_serialize_null_key(void) {
   free((void *)req.headers.headers[0].key);
   req.headers.headers[0].key = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_request(&req, &buf, &len));
+            abstract_http_ipc_serialize_request(&req, &buf, &len));
   http_request_free(&req);
   free(buf);
 
@@ -839,7 +857,7 @@ TEST test_process_serialize_null_key(void) {
   free((void *)res.headers.headers[0].key);
   res.headers.headers[0].key = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_ipc_serialize_response(&res, &buf, &len));
+            abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res);
   free(buf);
 
@@ -886,30 +904,29 @@ TEST test_process_deserialize_oom(void) {
   p += sizeof(size_t);
   memcpy(p, &zero, sizeof(size_t));
   p += sizeof(size_t);
-
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0; /* first parse_str alloc (key) fails */
-  rc = cdd_ipc_deserialize_request(req_buf, 45, &req);
+  rc = abstract_http_ipc_deserialize_request(req_buf, 45, &req);
   g_mock_alloc_fail = 0;
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1; /* headers alloc fails */
-  rc = cdd_ipc_deserialize_request(req_buf, 45, &req);
+  rc = abstract_http_ipc_deserialize_request(req_buf, 45, &req);
   g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_INVAL, rc, "%d");
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  rc = cdd_ipc_deserialize_response(res_buf, 41, &res);
+  rc = abstract_http_ipc_deserialize_response(res_buf, 41, &res);
   g_mock_alloc_fail = 0;
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  rc = cdd_ipc_deserialize_response(res_buf, 41, &res);
+  rc = abstract_http_ipc_deserialize_response(res_buf, 41, &res);
   g_mock_alloc_fail = 0;
-  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_INVAL, rc, "%d");
   PASS();
 }
 #endif
@@ -927,11 +944,11 @@ SUITE(process_suite) {
 #endif
   RUN_TEST(test_process_waitpid_fail_2);
   RUN_TEST(test_process_misc_coverage);
-  RUN_TEST(test_cdd_process_hooks);
-  RUN_TEST(test_cdd_ipc_short_rw);
-  RUN_TEST(test_cdd_ipc_rw);
-  RUN_TEST(test_cdd_process_spawn_errors);
-  RUN_TEST(test_cdd_serialize_errors);
+  RUN_TEST(test_abstract_http_process_hooks);
+  RUN_TEST(test_abstract_http_ipc_short_rw);
+  RUN_TEST(test_abstract_http_ipc_rw);
+  RUN_TEST(test_abstract_http_process_spawn_errors);
+  RUN_TEST(test_abstract_http_serialize_errors);
   RUN_TEST(test_ipc_pipe_init_free);
   RUN_TEST(test_serialize_deserialize_request);
   RUN_TEST(test_serialize_deserialize_response);

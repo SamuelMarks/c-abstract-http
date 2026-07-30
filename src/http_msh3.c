@@ -28,7 +28,7 @@
 
 static MSH3_API *g_msh3_api = NULL;
 static int g_msh3_init_count = 0;
-static struct CddMutex *g_msh3_mutex = NULL;
+static struct AbstractHttpMutex *g_msh3_mutex = NULL;
 
 struct HttpTransportContext {
   MSH3_CONFIGURATION *config;
@@ -38,11 +38,11 @@ struct HttpTransportContext {
 
 enum c_abstract_http_error http_msh3_global_init(void) {
   if (!g_msh3_mutex) {
-    rc = cdd_mutex_init(&g_msh3_mutex);
+    rc = abstract_http_mutex_init(&g_msh3_mutex);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
-  rc = cdd_mutex_lock(g_msh3_mutex);
+  rc = abstract_http_mutex_lock(g_msh3_mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
   if (g_msh3_init_count++ == 0) {
@@ -56,14 +56,14 @@ enum c_abstract_http_error http_msh3_global_init(void) {
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
-  cdd_mutex_unlock(g_msh3_mutex);
+  abstract_http_mutex_unlock(g_msh3_mutex);
   return rc;
 }
 
 enum c_abstract_http_error http_msh3_global_cleanup(void) {
   if (!g_msh3_mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  if (cdd_mutex_lock(g_msh3_mutex) != 0)
+  if (abstract_http_mutex_lock(g_msh3_mutex) != 0)
     return C_ABSTRACT_HTTP_ERR_IO;
   if (g_msh3_init_count > 0 && --g_msh3_init_count == 0) {
     if (g_msh3_api) {
@@ -74,7 +74,7 @@ enum c_abstract_http_error http_msh3_global_cleanup(void) {
     WSACleanup();
 #endif
   }
-  cdd_mutex_unlock(g_msh3_mutex);
+  abstract_http_mutex_unlock(g_msh3_mutex);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -169,8 +169,8 @@ http_msh3_config_apply(struct HttpTransportContext *ctx,
 /* Internal context for MSH3 callbacks */
 struct msh3_req_ctx {
   struct HttpResponse *res;
-  struct CddMutex *mutex;
-  struct CddCond *cond;
+  struct AbstractHttpMutex *mutex;
+  struct AbstractHttpCond *cond;
   int is_complete;
   int error_code;
 };
@@ -237,23 +237,28 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
     break;
   }
   case MSH3_REQUEST_EVENT_SHUTDOWN_COMPLETE:
-    rc = cdd_mutex_lock(rctx->mutex);
+    rc = abstract_http_mutex_lock(rctx->mutex);
     if (rc == C_ABSTRACT_HTTP_SUCCESS) {
       rctx->is_complete = 1;
       if (ev->SHUTDOWN_COMPLETE.ConnectionClosedRemotely ||
           ev->SHUTDOWN_COMPLETE.ConnectionErrorCode != 0) {
         rctx->error_code = ECONNREFUSED;
       }
-      rc = cdd_cond_signal(rctx->cond);
+      rc = abstract_http_cond_signal(rctx->cond);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        LOG_DEBUG("msh3_request_cb: Error cdd_cond_signal failed with %d", rc);
+        LOG_DEBUG(
+            "msh3_request_cb: Error abstract_http_cond_signal failed with %d",
+            rc);
       }
-      rc = cdd_mutex_unlock(rctx->mutex);
+      rc = abstract_http_mutex_unlock(rctx->mutex);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        LOG_DEBUG("msh3_request_cb: Error cdd_mutex_unlock failed with %d", rc);
+        LOG_DEBUG(
+            "msh3_request_cb: Error abstract_http_mutex_unlock failed with %d",
+            rc);
       }
     } else {
-      LOG_DEBUG("msh3_request_cb: Error cdd_mutex_lock failed with %d", rc);
+      LOG_DEBUG(
+          "msh3_request_cb: Error abstract_http_mutex_lock failed with %d", rc);
     }
     break;
   default:
@@ -454,9 +459,10 @@ http_msh3_send(const struct HttpTransportContext *ctx,
 
   memset(&rctx, 0, sizeof(rctx));
   rctx.res = *res;
-  rc = cdd_mutex_init(&rctx.mutex);
+  rc = abstract_http_mutex_init(&rctx.mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("http_msh3_send: Error cdd_mutex_init failed with %d", rc);
+    LOG_DEBUG("http_msh3_send: Error abstract_http_mutex_init failed with %d",
+              rc);
     MsH3ConnectionClose(conn);
     free(host);
     free(port_str);
@@ -467,10 +473,11 @@ http_msh3_send(const struct HttpTransportContext *ctx,
     *res = NULL;
     return rc;
   }
-  rc = cdd_cond_init(&rctx.cond);
+  rc = abstract_http_cond_init(&rctx.cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("http_msh3_send: Error cdd_cond_init failed with %d", rc);
-    cdd_mutex_destroy(&rctx.mutex);
+    LOG_DEBUG("http_msh3_send: Error abstract_http_cond_init failed with %d",
+              rc);
+    abstract_http_mutex_destroy(&rctx.mutex);
     MsH3ConnectionClose(conn);
     free(host);
     free(port_str);
@@ -519,22 +526,27 @@ http_msh3_send(const struct HttpTransportContext *ctx,
       rctx.error_code = EIO;
       rctx.is_complete = 1;
     } else {
-      rc = cdd_mutex_lock(rctx.mutex);
+      rc = abstract_http_mutex_lock(rctx.mutex);
       if (rc == C_ABSTRACT_HTTP_SUCCESS) {
         while (!rctx.is_complete) {
-          rc = cdd_cond_wait(rctx.cond, rctx.mutex);
+          rc = abstract_http_cond_wait(rctx.cond, rctx.mutex);
           if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-            LOG_DEBUG("http_msh3_send: Error cdd_cond_wait failed with %d", rc);
+            LOG_DEBUG(
+                "http_msh3_send: Error abstract_http_cond_wait failed with %d",
+                rc);
             break;
           }
         }
-        rc = cdd_mutex_unlock(rctx.mutex);
+        rc = abstract_http_mutex_unlock(rctx.mutex);
         if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-          LOG_DEBUG("http_msh3_send: Error cdd_mutex_unlock failed with %d",
-                    rc);
+          LOG_DEBUG(
+              "http_msh3_send: Error abstract_http_mutex_unlock failed with %d",
+              rc);
         }
       } else {
-        LOG_DEBUG("http_msh3_send: Error cdd_mutex_lock failed with %d", rc);
+        LOG_DEBUG(
+            "http_msh3_send: Error abstract_http_mutex_lock failed with %d",
+            rc);
         rctx.error_code = rc;
       }
     }
@@ -547,8 +559,8 @@ http_msh3_send(const struct HttpTransportContext *ctx,
   }
 
   MsH3ConnectionClose(conn);
-  cdd_cond_free(rctx.cond);
-  cdd_mutex_free(rctx.mutex);
+  abstract_http_cond_free(rctx.cond);
+  abstract_http_mutex_free(rctx.mutex);
 
   free(host);
   free(port_str);

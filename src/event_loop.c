@@ -31,7 +31,7 @@
 /** @brief Internal struct TimerNode */
 struct TimerNode {
   /** @brief expiration (variable) of struct TimerNode */
-  cdd_int64_t expiration;
+  abstract_http_int64_t expiration;
   /** @brief id (variable) of struct TimerNode */
   int id;
   /** @brief cb (variable) of struct TimerNode */
@@ -92,23 +92,24 @@ struct ModalityEventLoop {
 #endif
 };
 
-cdd_int64_t math_get_current_time_ms(void);
-cdd_int64_t real_math_get_current_time_ms(void);
+abstract_http_int64_t math_get_current_time_ms(void);
+abstract_http_int64_t real_math_get_current_time_ms(void);
 #ifndef math_get_current_time_ms
 #define math_get_current_time_ms real_math_get_current_time_ms
 #endif
-cdd_int64_t real_math_get_current_time_ms(void) {
+abstract_http_int64_t real_math_get_current_time_ms(void) {
 
 #if defined(_WIN32)
 #if defined(_MSC_VER) && _MSC_VER < 1600
-  return (cdd_int64_t)GetTickCount();
+  return (abstract_http_int64_t)GetTickCount();
 #else
-  return (cdd_int64_t)GetTickCount64();
+  return (abstract_http_int64_t)GetTickCount64();
 #endif
 #else
   struct timeval tv;
   gettimeofday(&tv, NULL);
-  return (cdd_int64_t)tv.tv_sec * 1000 + (cdd_int64_t)tv.tv_usec / 1000;
+  return (abstract_http_int64_t)tv.tv_sec * 1000 +
+         (abstract_http_int64_t)tv.tv_usec / 1000;
 #endif
 }
 
@@ -507,7 +508,7 @@ http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
 static enum c_abstract_http_error
 process_timers(struct ModalityEventLoop *loop) {
   enum c_abstract_http_error rc;
-  cdd_int64_t now;
+  abstract_http_int64_t now;
 
   now = math_get_current_time_ms();
 
@@ -649,7 +650,7 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
           revents |= HTTP_LOOP_ERROR;
 
         if (revents) {
-          cdd_int64_t start_cb = math_get_current_time_ms();
+          abstract_http_int64_t start_cb = math_get_current_time_ms();
           loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                           loop->fds[i].user_data);
           if (math_get_current_time_ms() - start_cb > 50) {
@@ -683,8 +684,8 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
   loop->stop_requested = 0;
 
   while (loop->running && !loop->stop_requested) {
-    cdd_int64_t now;
-    cdd_int64_t next_timeout = -1;
+    abstract_http_int64_t now;
+    abstract_http_int64_t next_timeout = -1;
     size_t i;
     int active_fds = 0;
     int max_fd = -1;
@@ -716,7 +717,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
         }
       }
       if (loop->timer_count > 0) {
-        cdd_int64_t timer_timeout = loop->timers[0].expiration - now;
+        abstract_http_int64_t timer_timeout = loop->timers[0].expiration - now;
         if (timer_timeout < 0)
           timer_timeout = 0;
         next_timeout = timer_timeout;
@@ -800,7 +801,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
             revents |= HTTP_LOOP_ERROR;
 
           if (revents) {
-            cdd_int64_t start_cb = math_get_current_time_ms();
+            abstract_http_int64_t start_cb = math_get_current_time_ms();
             loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                             loop->fds[i].user_data);
             if (math_get_current_time_ms() - start_cb > 50) {
@@ -837,9 +838,9 @@ enum c_abstract_http_error http_loop_stop(struct ModalityEventLoop *loop) {
 
 #if 1
 enum c_abstract_http_error
-cdd_event_loop_test_unstop(struct ModalityEventLoop *loop);
+abstract_http_event_loop_test_unstop(struct ModalityEventLoop *loop);
 enum c_abstract_http_error
-cdd_event_loop_test_unstop(struct ModalityEventLoop *loop) {
+abstract_http_event_loop_test_unstop(struct ModalityEventLoop *loop) {
   if (loop)
     loop->stop_requested = 0;
   return C_ABSTRACT_HTTP_SUCCESS;

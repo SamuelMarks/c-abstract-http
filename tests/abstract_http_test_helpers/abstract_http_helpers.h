@@ -1,11 +1,11 @@
 /**
- * @file cdd_helpers.h
+ * @file abstract_http_helpers.h
  * @brief Helper functions for unit testing.
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_TESTS_CDD_HELPERS_H
-#define C_CDD_TESTS_CDD_HELPERS_H
+#ifndef C_ABSTRACT_HTTP_TESTS_ABSTRACT_HTTP_HELPERS_H
+#define C_ABSTRACT_HTTP_TESTS_ABSTRACT_HTTP_HELPERS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,7 +19,7 @@ extern "C" {
  * @brief Callback for assertion failures in dependencies.
  * Usually mocked out or prints to stderr.
  */
-extern void cdd_precondition_failed(void);
+extern void abstract_http_precondition_failed(void);
 
 /**
  * @brief Write string content to a file.
@@ -35,4 +35,4 @@ extern int write_to_file(const char *filename, const char *contents);
 }
 #endif /* __cplusplus */
 
-#endif /* !C_CDD_TESTS_CDD_HELPERS_H */
+#endif /* !C_ABSTRACT_HTTP_TESTS_ABSTRACT_HTTP_HELPERS_H */

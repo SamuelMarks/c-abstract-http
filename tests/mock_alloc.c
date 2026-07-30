@@ -123,25 +123,25 @@ int g_mock_listen_fail = 0;
 int g_mock_accept_fail = 0;
 int g_mock_recv_fail = 0;
 
-int *cdd_mock_get_g_mock_sha1_fail(void) { return &g_mock_sha1_fail; }
+int *abstract_http_mock_get_g_mock_sha1_fail(void) { return &g_mock_sha1_fail; }
 
-int *cdd_mock_get_g_mock_alloc_fail(void) { return &g_mock_alloc_fail; }
-int *cdd_mock_get_g_mock_alloc_count(void) { return &g_mock_alloc_count; }
-int *cdd_mock_get_g_mock_pthread_fail(void) { return &g_mock_pthread_fail; }
-int *cdd_mock_get_g_mock_pipe_fail(void) { return &g_mock_pipe_fail; }
-int *cdd_mock_get_g_mock_fork_fail(void) { return &g_mock_fork_fail; }
-int *cdd_mock_get_g_mock_waitpid_fail(void) { return &g_mock_waitpid_fail; }
-int *cdd_mock_get_g_mock_select_fail(void) { return &g_mock_select_fail; }
-int *cdd_mock_get_g_mock_select_error_fds(void) { return &g_mock_select_error_fds; }
-int *cdd_mock_get_g_mock_time_jump(void) { return &g_mock_time_jump; }
-int *cdd_mock_get_g_mock_time_jump_count(void) { return &g_mock_time_jump_count; }
-int *cdd_mock_get_g_mock_fwrite_fail(void) { return &g_mock_fwrite_fail; }
-int *cdd_mock_get_g_mock_fclose_fail(void) { return &g_mock_fclose_fail; }
-int *cdd_mock_get_g_mock_socket_fail(void) { return &g_mock_socket_fail; }
-int *cdd_mock_get_g_mock_bind_fail(void) { return &g_mock_bind_fail; }
-int *cdd_mock_get_g_mock_listen_fail(void) { return &g_mock_listen_fail; }
-int *cdd_mock_get_g_mock_accept_fail(void) { return &g_mock_accept_fail; }
-int *cdd_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
+int *abstract_http_mock_get_g_mock_alloc_fail(void) { return &g_mock_alloc_fail; }
+int *abstract_http_mock_get_g_mock_alloc_count(void) { return &g_mock_alloc_count; }
+int *abstract_http_mock_get_g_mock_pthread_fail(void) { return &g_mock_pthread_fail; }
+int *abstract_http_mock_get_g_mock_pipe_fail(void) { return &g_mock_pipe_fail; }
+int *abstract_http_mock_get_g_mock_fork_fail(void) { return &g_mock_fork_fail; }
+int *abstract_http_mock_get_g_mock_waitpid_fail(void) { return &g_mock_waitpid_fail; }
+int *abstract_http_mock_get_g_mock_select_fail(void) { return &g_mock_select_fail; }
+int *abstract_http_mock_get_g_mock_select_error_fds(void) { return &g_mock_select_error_fds; }
+int *abstract_http_mock_get_g_mock_time_jump(void) { return &g_mock_time_jump; }
+int *abstract_http_mock_get_g_mock_time_jump_count(void) { return &g_mock_time_jump_count; }
+int *abstract_http_mock_get_g_mock_fwrite_fail(void) { return &g_mock_fwrite_fail; }
+int *abstract_http_mock_get_g_mock_fclose_fail(void) { return &g_mock_fclose_fail; }
+int *abstract_http_mock_get_g_mock_socket_fail(void) { return &g_mock_socket_fail; }
+int *abstract_http_mock_get_g_mock_bind_fail(void) { return &g_mock_bind_fail; }
+int *abstract_http_mock_get_g_mock_listen_fail(void) { return &g_mock_listen_fail; }
+int *abstract_http_mock_get_g_mock_accept_fail(void) { return &g_mock_accept_fail; }
+int *abstract_http_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
 
 
 
@@ -164,33 +164,33 @@ int *cdd_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
 
 
 
-CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc(size_t size);
-CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_calloc(size_t count, size_t size);
-CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_realloc(void *ptr, size_t size);
-CDD_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc(size_t size);
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_calloc(size_t count, size_t size);
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_realloc(void *ptr, size_t size);
+ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
 enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s, char **out);
 
-CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc(size_t size) {
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc(size_t size) {
     if (g_mock_alloc_fail)
     if (g_mock_alloc_fail) { if (g_mock_alloc_count-- == 0) { return NULL; } }
     return malloc(size);
 }
 
-CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_calloc(size_t count, size_t size) {
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_calloc(size_t count, size_t size) {
     if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
         return NULL;
     }
     return calloc(count, size);
 }
 
-CDD_MOCK_ALLOC_RESTRICT CDD_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_realloc(void *ptr, size_t size) {
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_realloc(void *ptr, size_t size) {
     if (g_mock_alloc_fail)
     if (g_mock_alloc_fail)
     if (g_mock_alloc_fail) { if (g_mock_alloc_count-- == 0) { return NULL; } }
     return realloc(ptr, size);
 }
 
-CDD_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr) {
+ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr) {
     free(ptr);
 }
 

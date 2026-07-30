@@ -8,8 +8,8 @@
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_HTTP_NGHTTP3_H
-#define C_CDD_HTTP_NGHTTP3_H
+#ifndef C_ABSTRACT_HTTP_HTTP_NGHTTP3_H
+#define C_ABSTRACT_HTTP_HTTP_NGHTTP3_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -97,4 +97,4 @@ extern c_abstract_http_error_t http_nghttp3_send_multi(
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* C_CDD_HTTP_NGHTTP3_H */
+#endif /* C_ABSTRACT_HTTP_HTTP_NGHTTP3_H */

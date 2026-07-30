@@ -444,8 +444,8 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
     ctx->on_close = on_close;
     ctx->user_data = user_data;
 
-    rc = cdd_thread_pool_push(client->thread_pool,
-                              c_abstract_http_sse_async_task, ctx);
+    rc = abstract_http_thread_pool_push(client->thread_pool,
+                                        c_abstract_http_sse_async_task, ctx);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG(
           "c_abstract_http_sse_async_register: Error thread pool push failed");

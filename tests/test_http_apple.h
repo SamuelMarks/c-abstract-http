@@ -9,8 +9,8 @@ int g_mock_pthread_create_sync = 0;
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_TEST_HTTP_APPLE_H
-#define C_CDD_TEST_HTTP_APPLE_H
+#ifndef C_ABSTRACT_HTTP_TEST_HTTP_APPLE_H
+#define C_ABSTRACT_HTTP_TEST_HTTP_APPLE_H
 
 /* clang-format off */
 #include <stdlib.h>
@@ -41,7 +41,7 @@ extern "C" {
 
 #include <c_abstract_http/http_apple.h>
 #include <c_abstract_http/http_types.h>
-#include "cdd_test_helpers/mock_server.h"
+#include "abstract_http_test_helpers/mock_server.h"
 /* clang-format on */
 
 static int mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
@@ -651,4 +651,4 @@ SUITE(http_apple_suite) {
 }
 #endif /* __cplusplus */
 
-#endif /* C_CDD_TEST_HTTP_APPLE_H */
+#endif /* C_ABSTRACT_HTTP_TEST_HTTP_APPLE_H */

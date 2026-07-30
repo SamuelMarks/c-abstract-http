@@ -61,7 +61,7 @@ extern "C" {
 #endif
 #include "../../src/event_loop.c"
 #include "../../src/thread_pool.c"
-#include "../../src/cdd_tls.c"
+#include "../../src/c_abstract_http_tls.c"
 #include "../../src/coroutine.c"
 #include "../../src/actor.c"
 #include "../../src/str.c"

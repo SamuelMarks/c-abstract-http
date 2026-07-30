@@ -1,13 +1,13 @@
 get_filename_component(LIBRARY_NAME "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
 
 set(Header_Files
-        "cdd_helpers.h"
+        "abstract_http_helpers.h"
         "mock_server.h"
 )
 source_group("${LIBRARY_NAME} Header Files" FILES "${Header_Files}")
 
 set(Source_Files
-        "cdd_helpers.c"
+        "abstract_http_helpers.c"
         "mock_server.c"
 )
 source_group("${LIBRARY_NAME} Source Files" FILES "${Source_Files}")

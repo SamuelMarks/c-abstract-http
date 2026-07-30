@@ -29,7 +29,7 @@ extern "C" {
 #include "functions/parse/str.h"
 
 /* Helper: Build a request to localhost on a port likely to be closed */
-#include "cdd_test_helpers/mock_server.h"
+#include "abstract_http_test_helpers/mock_server.h"
 /* clang-format on */
 
 static int setup_request(struct HttpRequest *req, int port) {
@@ -694,8 +694,9 @@ TEST test_curl_payload_methods(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 struct curl_slist *g_mock_curl_cookies = NULL;
 extern int g_mock_curl_init_fail;
-extern void cdd_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
-                                     int events, void *user_data);
+extern void abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop,
+                                               int fd, int events,
+                                               void *user_data);
 extern int g_mock_curl_setopt_fail;
 extern int g_mock_curl_setopt_count;
 extern CURLcode g_mock_curl_perform_res;
@@ -766,7 +767,7 @@ TEST test_curl_send_cookies(void) {
   }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  cdd_test_multi_socket_cb(NULL, 0, HTTP_LOOP_ERROR, ctx);
+  abstract_http_test_multi_socket_cb(NULL, 0, HTTP_LOOP_ERROR, ctx);
   if (g_mock_curl_cookies) {
     curl_slist_free_all(g_mock_curl_cookies);
   }

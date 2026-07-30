@@ -18,7 +18,7 @@
 #else
 #include <pthread.h>
 #endif
-#define CDD_COND_BROADCAST cdd_cond_broadcast
+#define ABSTRACT_HTTP_COND_BROADCAST abstract_http_cond_broadcast
 
 #include <c_abstract_http/thread_pool.h>
 #include "c_abstract_http/log.h"
@@ -30,13 +30,13 @@
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
-/** @brief Internal struct CddMutex */
-struct CddMutex {
+/** @brief Internal struct AbstractHttpMutex */
+struct AbstractHttpMutex {
   CRITICAL_SECTION cs;
 };
 
-/** @brief Internal struct CddCond */
-struct CddCond {
+/** @brief Internal struct AbstractHttpCond */
+struct AbstractHttpCond {
 #if defined(_MSC_VER) && _MSC_VER < 1600
   HANDLE semaphore;
   int waiters;
@@ -45,41 +45,45 @@ struct CddCond {
 #endif
 };
 
-enum c_abstract_http_error cdd_mutex_init(struct CddMutex **mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_init(struct AbstractHttpMutex **mutex) {
   if (!mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  *mutex = (struct CddMutex *)malloc(sizeof(struct CddMutex));
+  *mutex = (struct AbstractHttpMutex *)malloc(sizeof(struct AbstractHttpMutex));
   if (!*mutex)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   InitializeCriticalSection(&(*mutex)->cs);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_mutex_lock(struct CddMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_lock(struct AbstractHttpMutex *mutex) {
   if (!mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   EnterCriticalSection(&mutex->cs);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_mutex_unlock(struct CddMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
   if (!mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   LeaveCriticalSection(&mutex->cs);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void cdd_mutex_free(struct CddMutex *mutex) {
+void abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
   if (mutex) {
     DeleteCriticalSection(&mutex->cs);
     free(mutex);
   }
 }
 
-enum c_abstract_http_error cdd_cond_init(struct CddCond **cond) {
+enum c_abstract_http_error
+abstract_http_cond_init(struct AbstractHttpCond **cond) {
   if (!cond)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  *cond = (struct CddCond *)malloc(sizeof(struct CddCond));
+  *cond = (struct AbstractHttpCond *)malloc(sizeof(struct AbstractHttpCond));
   if (!*cond)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 #if defined(_MSC_VER) && _MSC_VER < 1600
@@ -91,8 +95,9 @@ enum c_abstract_http_error cdd_cond_init(struct CddCond **cond) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_cond_wait(struct CddCond *cond,
-                                         struct CddMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_cond_wait(struct AbstractHttpCond *cond,
+                        struct AbstractHttpMutex *mutex) {
   if (!cond || !mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(_MSC_VER) && _MSC_VER < 1600
@@ -106,7 +111,8 @@ enum c_abstract_http_error cdd_cond_wait(struct CddCond *cond,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond) {
+enum c_abstract_http_error
+abstract_http_cond_signal(struct AbstractHttpCond *cond) {
   if (!cond)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(_MSC_VER) && _MSC_VER < 1600
@@ -120,7 +126,8 @@ enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error CDD_COND_BROADCAST(struct CddCond *cond) {
+enum c_abstract_http_error
+ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   if (!cond)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(_MSC_VER) && _MSC_VER < 1600
@@ -134,7 +141,7 @@ enum c_abstract_http_error CDD_COND_BROADCAST(struct CddCond *cond) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void cdd_cond_free(struct CddCond *cond) {
+void abstract_http_cond_free(struct AbstractHttpCond *cond) {
   if (cond) {
 #if defined(_MSC_VER) && _MSC_VER < 1600
     if (cond->semaphore) {
@@ -145,104 +152,113 @@ void cdd_cond_free(struct CddCond *cond) {
   }
 }
 
-typedef HANDLE cdd_thread_t;
-#define CDD_THREAD_FUNC DWORD
-typedef LPVOID cdd_thread_arg_t;
+typedef HANDLE abstract_http_thread_t;
+#define ABSTRACT_HTTP_THREAD_FUNC DWORD
+typedef LPVOID abstract_http_thread_arg_t;
 
-static int
-thread_create(cdd_thread_t *thread,
-              CDD_THREAD_FUNC(WINAPI *start_routine)(cdd_thread_arg_t),
-              cdd_thread_arg_t arg) {
+static int thread_create(abstract_http_thread_t *thread,
+                         ABSTRACT_HTTP_THREAD_FUNC(WINAPI *start_routine)(
+                             abstract_http_thread_arg_t),
+                         abstract_http_thread_arg_t arg) {
   *thread = CreateThread(NULL, 0, start_routine, arg, 0, NULL);
   return (*thread == NULL) ? EIO : 0;
 }
 
-static void thread_join(cdd_thread_t thread) {
+static void thread_join(abstract_http_thread_t thread) {
   WaitForSingleObject(thread, INFINITE);
   CloseHandle(thread);
 }
 
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 
-/** @brief Internal struct CddMutex */
-struct CddMutex {
+/** @brief Internal struct AbstractHttpMutex */
+struct AbstractHttpMutex {
   int dummy;
 };
-/** @brief Internal struct CddCond */
-struct CddCond {
+/** @brief Internal struct AbstractHttpCond */
+struct AbstractHttpCond {
   int dummy;
 };
 
-enum c_abstract_http_error cdd_mutex_init(struct CddMutex **mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_init(struct AbstractHttpMutex **mutex) {
   if (!mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  *mutex = (struct CddMutex *)malloc(sizeof(struct CddMutex));
+  *mutex = (struct AbstractHttpMutex *)malloc(sizeof(struct AbstractHttpMutex));
   return *mutex ? 0 : ENOMEM;
 }
-enum c_abstract_http_error cdd_mutex_lock(struct CddMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_lock(struct AbstractHttpMutex *mutex) {
   (void)mutex;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-enum c_abstract_http_error cdd_mutex_unlock(struct CddMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
   (void)mutex;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-void cdd_mutex_free(struct CddMutex *mutex) { free(mutex); }
+void abstract_http_mutex_free(struct AbstractHttpMutex *mutex) { free(mutex); }
 
-enum c_abstract_http_error cdd_cond_init(struct CddCond **cond) {
+enum c_abstract_http_error
+abstract_http_cond_init(struct AbstractHttpCond **cond) {
   if (!cond)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  *cond = (struct CddCond *)malloc(sizeof(struct CddCond));
+  *cond = (struct AbstractHttpCond *)malloc(sizeof(struct AbstractHttpCond));
   return *cond ? 0 : ENOMEM;
 }
-enum c_abstract_http_error cdd_cond_wait(struct CddCond *cond,
-                                         struct CddMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_cond_wait(struct AbstractHttpCond *cond,
+                        struct AbstractHttpMutex *mutex) {
   (void)cond;
   (void)mutex;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond) {
+enum c_abstract_http_error
+abstract_http_cond_signal(struct AbstractHttpCond *cond) {
   (void)cond;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-enum c_abstract_http_error CDD_COND_BROADCAST(struct CddCond *cond) {
+enum c_abstract_http_error
+ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   (void)cond;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-void cdd_cond_free(struct CddCond *cond) { free(cond); }
+void abstract_http_cond_free(struct AbstractHttpCond *cond) { free(cond); }
 
-typedef int cdd_thread_t;
-#define CDD_THREAD_FUNC void *
-typedef void *cdd_thread_arg_t;
+typedef int abstract_http_thread_t;
+#define ABSTRACT_HTTP_THREAD_FUNC void *
+typedef void *abstract_http_thread_arg_t;
 
-static int thread_create(cdd_thread_t *thread,
-                         CDD_THREAD_FUNC (*start_routine)(cdd_thread_arg_t),
-                         cdd_thread_arg_t arg) {
+static int thread_create(
+    abstract_http_thread_t *thread,
+    ABSTRACT_HTTP_THREAD_FUNC (*start_routine)(abstract_http_thread_arg_t),
+    abstract_http_thread_arg_t arg) {
   (void)thread;
   (void)start_routine;
   (void)arg;
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
-static void thread_join(cdd_thread_t thread) { (void)thread; }
+static void thread_join(abstract_http_thread_t thread) { (void)thread; }
 
 #else /* POSIX */
 
-/** @brief Internal struct CddMutex */
-struct CddMutex {
-  /** @brief mtx (variable) of struct CddMutex */
+/** @brief Internal struct AbstractHttpMutex */
+struct AbstractHttpMutex {
+  /** @brief mtx (variable) of struct AbstractHttpMutex */
   pthread_mutex_t mtx;
 };
 
-/** @brief Internal struct CddCond */
-struct CddCond {
-  /** @brief cond (variable) of struct CddCond */
+/** @brief Internal struct AbstractHttpCond */
+struct AbstractHttpCond {
+  /** @brief cond (variable) of struct AbstractHttpCond */
   pthread_cond_t cond;
 };
 
-enum c_abstract_http_error cdd_mutex_init(struct CddMutex **mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_init(struct AbstractHttpMutex **mutex) {
   if (!mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  *mutex = (struct CddMutex *)malloc(sizeof(struct CddMutex));
+  *mutex = (struct AbstractHttpMutex *)malloc(sizeof(struct AbstractHttpMutex));
   if (!*mutex)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   if (pthread_mutex_init(&(*mutex)->mtx, NULL) != 0) {
@@ -252,29 +268,32 @@ enum c_abstract_http_error cdd_mutex_init(struct CddMutex **mutex) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_mutex_lock(struct CddMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_lock(struct AbstractHttpMutex *mutex) {
   if (!mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_mutex_lock(&mutex->mtx);
 }
 
-enum c_abstract_http_error cdd_mutex_unlock(struct CddMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
   if (!mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_mutex_unlock(&mutex->mtx);
 }
 
-void cdd_mutex_free(struct CddMutex *mutex) {
+void abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
   if (mutex) {
     pthread_mutex_destroy(&mutex->mtx);
     free(mutex);
   }
 }
 
-enum c_abstract_http_error cdd_cond_init(struct CddCond **cond) {
+enum c_abstract_http_error
+abstract_http_cond_init(struct AbstractHttpCond **cond) {
   if (!cond)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  *cond = (struct CddCond *)malloc(sizeof(struct CddCond));
+  *cond = (struct AbstractHttpCond *)malloc(sizeof(struct AbstractHttpCond));
   if (!*cond)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   if (pthread_cond_init(&(*cond)->cond, NULL) != 0) {
@@ -284,43 +303,49 @@ enum c_abstract_http_error cdd_cond_init(struct CddCond **cond) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_cond_wait(struct CddCond *cond,
-                                         struct CddMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_cond_wait(struct AbstractHttpCond *cond,
+                        struct AbstractHttpMutex *mutex) {
   if (!cond || !mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_cond_wait(&cond->cond, &mutex->mtx);
 }
 
-enum c_abstract_http_error cdd_cond_signal(struct CddCond *cond) {
+enum c_abstract_http_error
+abstract_http_cond_signal(struct AbstractHttpCond *cond) {
   if (!cond)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_cond_signal(&cond->cond);
 }
 
-enum c_abstract_http_error CDD_COND_BROADCAST(struct CddCond *cond) {
+enum c_abstract_http_error
+ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   if (!cond)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   return pthread_cond_broadcast(&cond->cond);
 }
 
-void cdd_cond_free(struct CddCond *cond) {
+void abstract_http_cond_free(struct AbstractHttpCond *cond) {
   if (cond) {
     pthread_cond_destroy(&cond->cond);
     free(cond);
   }
 }
 
-typedef pthread_t cdd_thread_t;
-#define CDD_THREAD_FUNC void *
-typedef void *cdd_thread_arg_t;
+typedef pthread_t abstract_http_thread_t;
+#define ABSTRACT_HTTP_THREAD_FUNC void *
+typedef void *abstract_http_thread_arg_t;
 
-static int thread_create(cdd_thread_t *thread,
-                         CDD_THREAD_FUNC (*start_routine)(cdd_thread_arg_t),
-                         cdd_thread_arg_t arg) {
+static int thread_create(
+    abstract_http_thread_t *thread,
+    ABSTRACT_HTTP_THREAD_FUNC (*start_routine)(abstract_http_thread_arg_t),
+    abstract_http_thread_arg_t arg) {
   return (pthread_create(thread, NULL, start_routine, arg) == 0) ? 0 : EIO;
 }
 
-static void thread_join(cdd_thread_t thread) { pthread_join(thread, NULL); }
+static void thread_join(abstract_http_thread_t thread) {
+  pthread_join(thread, NULL);
+}
 
 #endif /* POSIX vs WIN32 */
 
@@ -329,54 +354,55 @@ static void thread_join(cdd_thread_t thread) { pthread_join(thread, NULL); }
 /** @brief Internal struct TaskNode */
 struct TaskNode {
   /** @brief cb (variable) of struct TaskNode */
-  cdd_thread_task_cb cb;
+  abstract_http_thread_task_cb cb;
   /** @brief arg (variable) of struct TaskNode */
   void *arg;
   /** @brief next (variable) of struct TaskNode */
   struct TaskNode *next;
 };
 
-/** @brief Internal struct CddThreadPool */
-struct CddThreadPool {
-  /** @brief is_external (variable) of struct CddThreadPool */
+/** @brief Internal struct AbstractHttpThreadPool */
+struct AbstractHttpThreadPool {
+  /** @brief is_external (variable) of struct AbstractHttpThreadPool */
   int is_external;
-  /** @brief hooks (variable) of struct CddThreadPool */
-  struct CddThreadPoolHooks hooks;
-  /** @brief threads (variable) of struct CddThreadPool */
-  cdd_thread_t *threads;
-  /** @brief num_threads (variable) of struct CddThreadPool */
+  /** @brief hooks (variable) of struct AbstractHttpThreadPool */
+  struct AbstractHttpThreadPoolHooks hooks;
+  /** @brief threads (variable) of struct AbstractHttpThreadPool */
+  abstract_http_thread_t *threads;
+  /** @brief num_threads (variable) of struct AbstractHttpThreadPool */
   size_t num_threads;
-  /** @brief head (variable) of struct CddThreadPool */
+  /** @brief head (variable) of struct AbstractHttpThreadPool */
   struct TaskNode *head;
-  /** @brief tail (variable) of struct CddThreadPool */
+  /** @brief tail (variable) of struct AbstractHttpThreadPool */
   struct TaskNode *tail;
-  /** @brief lock (variable) of struct CddThreadPool */
-  struct CddMutex *lock;
-  /** @brief cond (variable) of struct CddThreadPool */
-  struct CddCond *cond;
-  /** @brief stop (variable) of struct CddThreadPool */
+  /** @brief lock (variable) of struct AbstractHttpThreadPool */
+  struct AbstractHttpMutex *lock;
+  /** @brief cond (variable) of struct AbstractHttpThreadPool */
+  struct AbstractHttpCond *cond;
+  /** @brief stop (variable) of struct AbstractHttpThreadPool */
   int stop;
 };
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-static CDD_THREAD_FUNC WINAPI worker_thread(cdd_thread_arg_t arg) {
+static ABSTRACT_HTTP_THREAD_FUNC WINAPI
+worker_thread(abstract_http_thread_arg_t arg) {
 #else
-static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
+static ABSTRACT_HTTP_THREAD_FUNC worker_thread(abstract_http_thread_arg_t arg) {
 #endif
-  struct CddThreadPool *pool = (struct CddThreadPool *)arg;
+  struct AbstractHttpThreadPool *pool = (struct AbstractHttpThreadPool *)arg;
 
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   while (1) {
     struct TaskNode *task = NULL;
 
-    (void)cdd_mutex_lock(pool->lock);
+    (void)abstract_http_mutex_lock(pool->lock);
 
     while (!pool->stop && !pool->head) {
-      (void)cdd_cond_wait(pool->cond, pool->lock);
+      (void)abstract_http_cond_wait(pool->cond, pool->lock);
     }
 
     if (pool->stop && !pool->head) {
-      (void)cdd_mutex_unlock(pool->lock);
+      (void)abstract_http_mutex_unlock(pool->lock);
       break;
     }
 
@@ -386,7 +412,7 @@ static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
       pool->tail = NULL;
     }
 
-    (void)cdd_mutex_unlock(pool->lock);
+    (void)abstract_http_mutex_unlock(pool->lock);
 
     if (task) {
       task->cb(task->arg);
@@ -394,27 +420,30 @@ static CDD_THREAD_FUNC worker_thread(cdd_thread_arg_t arg) {
     }
   }
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-  return (CDD_THREAD_FUNC)(unsigned long)rc;
+  return (ABSTRACT_HTTP_THREAD_FUNC)(unsigned long)rc;
 #else
-  return (CDD_THREAD_FUNC)(unsigned long)rc;
+  return (ABSTRACT_HTTP_THREAD_FUNC)(unsigned long)rc;
 #endif
 }
 
-enum c_abstract_http_error cdd_thread_pool_init(struct CddThreadPool **pool,
-                                                size_t num_threads) {
-  struct CddThreadPool *p;
+enum c_abstract_http_error
+abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
+                               size_t num_threads) {
+  struct AbstractHttpThreadPool *p;
   size_t i;
 
   if (!pool || num_threads == 0)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
-  p = (struct CddThreadPool *)malloc(sizeof(struct CddThreadPool));
+  p = (struct AbstractHttpThreadPool *)malloc(
+      sizeof(struct AbstractHttpThreadPool));
   if (!p)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
-  memset(p, 0, sizeof(struct CddThreadPool));
+  memset(p, 0, sizeof(struct AbstractHttpThreadPool));
 
   p->num_threads = num_threads;
-  p->threads = (cdd_thread_t *)malloc(num_threads * sizeof(cdd_thread_t));
+  p->threads = (abstract_http_thread_t *)malloc(num_threads *
+                                                sizeof(abstract_http_thread_t));
   if (!p->threads) {
     free(p);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -422,16 +451,16 @@ enum c_abstract_http_error cdd_thread_pool_init(struct CddThreadPool **pool,
 
   {
     enum c_abstract_http_error err;
-    err = cdd_mutex_init(&p->lock);
+    err = abstract_http_mutex_init(&p->lock);
     if (err != C_ABSTRACT_HTTP_SUCCESS) {
       free(p->threads);
       free(p);
       return err;
     }
 
-    err = cdd_cond_init(&p->cond);
+    err = abstract_http_cond_init(&p->cond);
     if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      cdd_mutex_free(p->lock);
+      abstract_http_mutex_free(p->lock);
       free(p->threads);
       free(p);
       return err;
@@ -444,14 +473,14 @@ enum c_abstract_http_error cdd_thread_pool_init(struct CddThreadPool **pool,
     if (thread_create(&p->threads[i], worker_thread, p) != 0) {
       /* If we fail partway, trigger stop and join what we have */
       p->stop = 1;
-      (void)CDD_COND_BROADCAST(p->cond);
+      (void)ABSTRACT_HTTP_COND_BROADCAST(p->cond);
       while (i > 0) {
         printf("JOINING THREAD %lu\n", (unsigned long)i);
         i--;
         thread_join(p->threads[i]);
       }
-      cdd_cond_free(p->cond);
-      cdd_mutex_free(p->lock);
+      abstract_http_cond_free(p->cond);
+      abstract_http_mutex_free(p->lock);
       free(p->threads);
       free(p);
       return C_ABSTRACT_HTTP_ERR_IO;
@@ -462,18 +491,19 @@ enum c_abstract_http_error cdd_thread_pool_init(struct CddThreadPool **pool,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-cdd_thread_pool_init_external(struct CddThreadPool **pool,
-                              const struct CddThreadPoolHooks *hooks) {
-  struct CddThreadPool *p;
+enum c_abstract_http_error abstract_http_thread_pool_init_external(
+    struct AbstractHttpThreadPool **pool,
+    const struct AbstractHttpThreadPoolHooks *hooks) {
+  struct AbstractHttpThreadPool *p;
 
   if (!pool || !hooks)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
-  p = (struct CddThreadPool *)malloc(sizeof(struct CddThreadPool));
+  p = (struct AbstractHttpThreadPool *)malloc(
+      sizeof(struct AbstractHttpThreadPool));
   if (!p)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
-  memset(p, 0, sizeof(struct CddThreadPool));
+  memset(p, 0, sizeof(struct AbstractHttpThreadPool));
 
   p->is_external = 1;
   p->hooks = *hooks;
@@ -482,29 +512,29 @@ cdd_thread_pool_init_external(struct CddThreadPool **pool,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_thread_pool_push(struct CddThreadPool *pool,
-                                                cdd_thread_task_cb cb,
-                                                void *arg) {
+enum c_abstract_http_error
+abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
+                               abstract_http_thread_task_cb cb, void *arg) {
   struct TaskNode *task;
 
-  LOG_DEBUG("cdd_thread_pool_push: Entering");
+  LOG_DEBUG("abstract_http_thread_pool_push: Entering");
   if (!pool || !cb) {
-    LOG_DEBUG("cdd_thread_pool_push: Error EINVAL");
+    LOG_DEBUG("abstract_http_thread_pool_push: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (pool->is_external) {
     if (pool->hooks.push) {
-      LOG_DEBUG("cdd_thread_pool_push: Hooking");
+      LOG_DEBUG("abstract_http_thread_pool_push: Hooking");
       return pool->hooks.push(pool->hooks.external_context, cb, arg);
     }
-    LOG_DEBUG("cdd_thread_pool_push: Error ENOTSUP (hook missing)");
+    LOG_DEBUG("abstract_http_thread_pool_push: Error ENOTSUP (hook missing)");
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
 
   task = (struct TaskNode *)malloc(sizeof(struct TaskNode));
   if (!task) {
-    LOG_DEBUG("cdd_thread_pool_push: Error ENOMEM");
+    LOG_DEBUG("abstract_http_thread_pool_push: Error ENOMEM");
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
@@ -513,11 +543,11 @@ enum c_abstract_http_error cdd_thread_pool_push(struct CddThreadPool *pool,
   task->next = NULL;
 
   {
-    (void)cdd_mutex_lock(pool->lock);
+    (void)abstract_http_mutex_lock(pool->lock);
     if (pool->stop) {
-      (void)cdd_mutex_unlock(pool->lock);
+      (void)abstract_http_mutex_unlock(pool->lock);
       free(task);
-      LOG_DEBUG("cdd_thread_pool_push: Error EINVAL (pool stopped)");
+      LOG_DEBUG("abstract_http_thread_pool_push: Error EINVAL (pool stopped)");
       return C_ABSTRACT_HTTP_ERR_INVAL;
     }
 
@@ -529,37 +559,38 @@ enum c_abstract_http_error cdd_thread_pool_push(struct CddThreadPool *pool,
       pool->tail = task;
     }
 
-    (void)cdd_cond_signal(pool->cond);
-    (void)cdd_mutex_unlock(pool->lock);
+    (void)abstract_http_cond_signal(pool->cond);
+    (void)abstract_http_mutex_unlock(pool->lock);
   }
 
-  LOG_DEBUG("cdd_thread_pool_push: Success");
+  LOG_DEBUG("abstract_http_thread_pool_push: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_thread_pool_free(struct CddThreadPool *pool) {
+enum c_abstract_http_error
+abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
   size_t i;
-  LOG_DEBUG("cdd_thread_pool_free: Entering");
+  LOG_DEBUG("abstract_http_thread_pool_free: Entering");
   if (!pool) {
-    LOG_DEBUG("cdd_thread_pool_free: Exiting early (pool NULL)");
+    LOG_DEBUG("abstract_http_thread_pool_free: Exiting early (pool NULL)");
     return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   if (pool->is_external) {
     free(pool);
-    LOG_DEBUG("cdd_thread_pool_free: Exiting (external pool freed)");
+    LOG_DEBUG("abstract_http_thread_pool_free: Exiting (external pool freed)");
     return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   {
     enum c_abstract_http_error err;
-    err = cdd_mutex_lock(pool->lock);
+    err = abstract_http_mutex_lock(pool->lock);
     if (err != C_ABSTRACT_HTTP_SUCCESS) {
       return err;
     }
     pool->stop = 1;
-    (void)CDD_COND_BROADCAST(pool->cond);
-    (void)cdd_mutex_unlock(pool->lock);
+    (void)ABSTRACT_HTTP_COND_BROADCAST(pool->cond);
+    (void)abstract_http_mutex_unlock(pool->lock);
   }
 
   for (i = 0; i < pool->num_threads; ++i) {
@@ -573,27 +604,27 @@ enum c_abstract_http_error cdd_thread_pool_free(struct CddThreadPool *pool) {
     pool->head = next;
   }
 
-  cdd_cond_free(pool->cond);
-  cdd_mutex_free(pool->lock);
+  abstract_http_cond_free(pool->cond);
+  abstract_http_mutex_free(pool->lock);
   free(pool->threads);
   free(pool);
-  LOG_DEBUG("cdd_thread_pool_free: Exiting");
+  LOG_DEBUG("abstract_http_thread_pool_free: Exiting");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #if 1
 enum c_abstract_http_error
-cdd_thread_pool_test_set_stop(struct CddThreadPool *pool);
+abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool);
 enum c_abstract_http_error
-cdd_thread_pool_test_set_stop(struct CddThreadPool *pool) {
+abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool) {
   if (pool) {
     enum c_abstract_http_error err;
-    err = cdd_mutex_lock(pool->lock);
+    err = abstract_http_mutex_lock(pool->lock);
     if (err != C_ABSTRACT_HTTP_SUCCESS) {
       return err;
     }
     pool->stop = 1;
-    (void)cdd_mutex_unlock(pool->lock);
+    (void)abstract_http_mutex_unlock(pool->lock);
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -603,8 +634,10 @@ void dummy_cb_thread(void *arg) { (void)arg; }
 #else
 extern void dummy_cb_thread(void *arg);
 #endif
-void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool);
-void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool) {
+void abstract_http_thread_pool_test_inject_task(
+    struct AbstractHttpThreadPool *pool);
+void abstract_http_thread_pool_test_inject_task(
+    struct AbstractHttpThreadPool *pool) {
   if (pool) {
     struct TaskNode *t = (struct TaskNode *)malloc(sizeof(struct TaskNode));
     if (t) {
@@ -618,13 +651,14 @@ void cdd_thread_pool_test_inject_task(struct CddThreadPool *pool) {
 #endif
 
 #if 1
-void cdd_thread_pool_test_free_with_tasks(void);
-void cdd_thread_pool_test_free_with_tasks(void) {
-  struct CddThreadPool *fake_pool =
-      (struct CddThreadPool *)malloc(sizeof(struct CddThreadPool));
-  memset(fake_pool, 0, sizeof(struct CddThreadPool));
+void abstract_http_thread_pool_test_free_with_tasks(void);
+void abstract_http_thread_pool_test_free_with_tasks(void) {
+  struct AbstractHttpThreadPool *fake_pool =
+      (struct AbstractHttpThreadPool *)malloc(
+          sizeof(struct AbstractHttpThreadPool));
+  memset(fake_pool, 0, sizeof(struct AbstractHttpThreadPool));
   fake_pool->num_threads = 0;
-  cdd_thread_pool_test_inject_task(fake_pool);
-  cdd_thread_pool_free(fake_pool);
+  abstract_http_thread_pool_test_inject_task(fake_pool);
+  abstract_http_thread_pool_free(fake_pool);
 }
 #endif

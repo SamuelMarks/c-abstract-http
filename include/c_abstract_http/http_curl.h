@@ -14,8 +14,8 @@
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_HTTP_CURL_H
-#define C_CDD_HTTP_CURL_H
+#ifndef C_ABSTRACT_HTTP_HTTP_CURL_H
+#define C_ABSTRACT_HTTP_HTTP_CURL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -119,4 +119,4 @@ c_abstract_http_error_t http_curl_send_multi(
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* C_CDD_HTTP_CURL_H */
+#endif /* C_ABSTRACT_HTTP_HTTP_CURL_H */

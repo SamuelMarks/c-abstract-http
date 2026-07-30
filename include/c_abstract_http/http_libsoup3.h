@@ -7,8 +7,8 @@
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_HTTP_LIBSOUP3_H
-#define C_CDD_HTTP_LIBSOUP3_H
+#ifndef C_ABSTRACT_HTTP_HTTP_LIBSOUP3_H
+#define C_ABSTRACT_HTTP_HTTP_LIBSOUP3_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,4 +73,4 @@ c_abstract_http_error_t http_libsoup3_send(struct HttpTransportContext *ctx,
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* C_CDD_HTTP_LIBSOUP3_H */
+#endif /* C_ABSTRACT_HTTP_HTTP_LIBSOUP3_H */

@@ -1,5 +1,5 @@
 extern enum c_abstract_http_error
-cdd_event_loop_test_unstop(struct ModalityEventLoop *loop);
+abstract_http_event_loop_test_unstop(struct ModalityEventLoop *loop);
 #ifndef TEST_EVENT_LOOP_H
 #define TEST_EVENT_LOOP_H
 
@@ -335,7 +335,7 @@ TEST test_event_loop_multiple_timers(void) {
     /* Actually, `http_loop_run` or `http_loop_tick` doesn't exist? Oh it's
      * `http_loop_tick`. */
     /* wait, does `http_loop_tick` advance time or use system time? It uses
-     * `c_cdd_http_clock_ms()`. */
+     * `c_abstract_http_http_clock_ms()`. */
     /* If we just sleep, it will take 100ms. That's fine. */
   }
 
@@ -555,7 +555,8 @@ TEST test_event_loop_lazy_timer_cancel(void) {
 
   /* Unstop it to test next_timeout cleanup */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_event_loop_test_unstop(loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_event_loop_test_unstop(loop));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
 
@@ -701,7 +702,8 @@ TEST test_event_loop_run_full(void) {
   /* Now let's try to hit the ERROR revents branch inside run */
   /* Close the write end to generate an error/EOF event */
   close(pipefd[1]);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_event_loop_test_unstop(loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_event_loop_test_unstop(loop));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_loop_add_timer(loop, 20, stop_loop_cb, NULL, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
@@ -796,7 +798,8 @@ TEST test_event_loop_run_blocking(void) {
   /* 719: run with 0 active fds and 0 timers -> break */
   /* Remove the fd so it has 0 fds and 0 timers */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_remove_fd(loop, pipefd[0]));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_event_loop_test_unstop(loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_event_loop_test_unstop(loop));
   /* wait, if 0 fds and 0 timers, it exits loop immediately */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
 

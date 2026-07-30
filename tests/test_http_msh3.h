@@ -40,7 +40,7 @@ static int setup_request(struct HttpRequest *req, int port) {
   sprintf(url, "http://127.0.0.1:%d/test", port);
 #endif
 
-  req->url = (c_cdd_strdup(url, &_ast_strdup_0), _ast_strdup_0);
+  req->url = (c_abstract_http_strdup(url, &_ast_strdup_0), _ast_strdup_0);
   return (enum greatest_test_res)0;
 }
 

@@ -11,16 +11,16 @@ extern int g_mock_waitpid_fail;
 #include <stdlib.h>
 #include <string.h>
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#undef malloc
+#undef calloc
+#undef realloc
+#undef free
 #define malloc c_abstract_http_mock_malloc
+extern void *c_abstract_http_mock_malloc(size_t size);
+extern void *c_abstract_http_mock_calloc(size_t count, size_t size);
+extern void *c_abstract_http_mock_realloc(void *ptr, size_t size);
+extern void c_abstract_http_mock_free(void *ptr);
 #define calloc c_abstract_http_mock_calloc
-extern void *c_abstract_http_mock_realloc(void *, size_t);
-#define realloc c_abstract_http_mock_realloc
-#define free c_abstract_http_mock_free
-#endif
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-#define malloc c_abstract_http_mock_malloc
-#define calloc c_abstract_http_mock_calloc
-extern void *c_abstract_http_mock_realloc(void *, size_t);
 #define realloc c_abstract_http_mock_realloc
 #define free c_abstract_http_mock_free
 #endif
@@ -49,10 +49,11 @@ extern void *c_abstract_http_mock_realloc(void *, size_t);
 #define execv(path, argv) (-1)
 #endif
 
-static struct CddProcessHooks g_process_hooks = {NULL, NULL, NULL, NULL};
+static struct AbstractHttpProcessHooks g_process_hooks = {NULL, NULL, NULL,
+                                                          NULL};
 
 enum c_abstract_http_error
-cdd_process_set_hooks(const struct CddProcessHooks *hooks) {
+abstract_http_process_set_hooks(const struct AbstractHttpProcessHooks *hooks) {
   if (hooks) {
     g_process_hooks = *hooks;
   }
@@ -61,19 +62,20 @@ cdd_process_set_hooks(const struct CddProcessHooks *hooks) {
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
-/** @brief Internal struct CddProcess */
-struct CddProcess {
+/** @brief Internal struct AbstractHttpProcess */
+struct AbstractHttpProcess {
   HANDLE hProcess;
   HANDLE hThread;
 };
 
-enum c_abstract_http_error cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
+enum c_abstract_http_error
+abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *pipe) {
   SECURITY_ATTRIBUTES saAttr;
   HANDLE hRead, hWrite;
 
-  LOG_DEBUG("cdd_ipc_pipe_init: Entering");
+  LOG_DEBUG("abstract_http_ipc_pipe_init: Entering");
   if (!pipe) {
-    LOG_DEBUG("cdd_ipc_pipe_init: Error EINVAL");
+    LOG_DEBUG("abstract_http_ipc_pipe_init: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
@@ -82,18 +84,18 @@ enum c_abstract_http_error cdd_ipc_pipe_init(struct CddIpcPipe *pipe) {
   saAttr.lpSecurityDescriptor = NULL;
 
   if (!CreatePipe(&hRead, &hWrite, &saAttr, 0)) {
-    LOG_DEBUG("cdd_ipc_pipe_init: Error CreatePipe failed");
+    LOG_DEBUG("abstract_http_ipc_pipe_init: Error CreatePipe failed");
     return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   pipe->read_handle = hRead;
   pipe->write_handle = hWrite;
-  LOG_DEBUG("cdd_ipc_pipe_init: Success");
+  LOG_DEBUG("abstract_http_ipc_pipe_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
-  LOG_DEBUG("cdd_ipc_pipe_free: Entering");
+void abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
+  LOG_DEBUG("abstract_http_ipc_pipe_free: Entering");
   if (pipe) {
     if (pipe->read_handle) {
       CloseHandle((HANDLE)pipe->read_handle);
@@ -104,32 +106,33 @@ void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
       pipe->write_handle = NULL;
     }
   }
-  LOG_DEBUG("cdd_ipc_pipe_free: Exiting");
+  LOG_DEBUG("abstract_http_ipc_pipe_free: Exiting");
 }
 
 enum c_abstract_http_error
-cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
-                  struct CddIpcPipe *child_to_parent) {
+abstract_http_process_spawn(struct AbstractHttpProcess **proc,
+                            struct AbstractHttpIpcPipe *parent_to_child,
+                            struct AbstractHttpIpcPipe *child_to_parent) {
   PROCESS_INFORMATION piProcInfo;
   STARTUPINFOA siStartInfo;
   BOOL bSuccess = FALSE;
   char szCmdline[MAX_PATH];
-  struct CddProcess *p;
+  struct AbstractHttpProcess *p;
 
-  LOG_DEBUG("cdd_process_spawn: Entering");
+  LOG_DEBUG("abstract_http_process_spawn: Entering");
   if (g_process_hooks.spawn) {
-    LOG_DEBUG("cdd_process_spawn: Hooking");
+    LOG_DEBUG("abstract_http_process_spawn: Hooking");
     return g_process_hooks.spawn(proc, parent_to_child, child_to_parent);
   }
 
   if (!proc || !parent_to_child || !child_to_parent) {
-    LOG_DEBUG("cdd_process_spawn: Error EINVAL");
+    LOG_DEBUG("abstract_http_process_spawn: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
+  p = (struct AbstractHttpProcess *)malloc(sizeof(struct AbstractHttpProcess));
   if (!p) {
-    LOG_DEBUG("cdd_process_spawn: Error ENOMEM");
+    LOG_DEBUG("abstract_http_process_spawn: Error ENOMEM");
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
@@ -158,7 +161,7 @@ cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
                             &siStartInfo, &piProcInfo);
 
   if (!bSuccess) {
-    LOG_DEBUG("cdd_process_spawn: Error EIO (CreateProcessA failed)");
+    LOG_DEBUG("abstract_http_process_spawn: Error EIO (CreateProcessA failed)");
     free(p);
     return C_ABSTRACT_HTTP_ERR_IO;
   }
@@ -167,22 +170,23 @@ cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
   p->hThread = piProcInfo.hThread;
   *proc = p;
 
-  LOG_DEBUG("cdd_process_spawn: Success");
+  LOG_DEBUG("abstract_http_process_spawn: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_process_wait_and_free(struct CddProcess *proc,
-                                                     int *exit_code) {
+enum c_abstract_http_error
+abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
+                                    int *exit_code) {
   DWORD dwExitCode = 0;
 
-  LOG_DEBUG("cdd_process_wait_and_free: Entering");
+  LOG_DEBUG("abstract_http_process_wait_and_free: Entering");
   if (g_process_hooks.wait_and_free) {
-    LOG_DEBUG("cdd_process_wait_and_free: Hooking");
+    LOG_DEBUG("abstract_http_process_wait_and_free: Hooking");
     return g_process_hooks.wait_and_free(proc, exit_code);
   }
 
   if (!proc) {
-    LOG_DEBUG("cdd_process_wait_and_free: Error EINVAL");
+    LOG_DEBUG("abstract_http_process_wait_and_free: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
@@ -207,86 +211,88 @@ enum c_abstract_http_error cdd_process_wait_and_free(struct CddProcess *proc,
   if (proc->hThread)
     CloseHandle(proc->hThread);
   free(proc);
-  LOG_DEBUG("cdd_process_wait_and_free: Success");
+  LOG_DEBUG("abstract_http_process_wait_and_free: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_ipc_write(void *handle, const void *data,
-                                         size_t len) {
+enum c_abstract_http_error
+abstract_http_ipc_write(void *handle, const void *data, size_t len) {
   DWORD dwWritten;
   BOOL bSuccess;
 
-  LOG_DEBUG("cdd_ipc_write: Entering");
+  LOG_DEBUG("abstract_http_ipc_write: Entering");
   if (g_process_hooks.ipc_write) {
-    LOG_DEBUG("cdd_ipc_write: Hooking");
+    LOG_DEBUG("abstract_http_ipc_write: Hooking");
     return g_process_hooks.ipc_write(handle, data, len);
   }
 
   if (!handle || !data) {
-    LOG_DEBUG("cdd_ipc_write: Error EINVAL");
+    LOG_DEBUG("abstract_http_ipc_write: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   bSuccess = WriteFile((HANDLE)handle, data, (DWORD)len, &dwWritten, NULL);
   if (!bSuccess || dwWritten != len) {
-    LOG_DEBUG("cdd_ipc_write: Error EIO (WriteFile failed)");
+    LOG_DEBUG("abstract_http_ipc_write: Error EIO (WriteFile failed)");
     return C_ABSTRACT_HTTP_ERR_IO;
   }
-  LOG_DEBUG("cdd_ipc_write: Success");
+  LOG_DEBUG("abstract_http_ipc_write: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_ipc_read(void *handle, void *data, size_t len) {
+enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
+                                                  size_t len) {
   DWORD dwRead;
   BOOL bSuccess;
 
-  LOG_DEBUG("cdd_ipc_read: Entering");
+  LOG_DEBUG("abstract_http_ipc_read: Entering");
   if (g_process_hooks.ipc_read) {
-    LOG_DEBUG("cdd_ipc_read: Hooking");
+    LOG_DEBUG("abstract_http_ipc_read: Hooking");
     return g_process_hooks.ipc_read(handle, data, len);
   }
 
   if (!handle || !data) {
-    LOG_DEBUG("cdd_ipc_read: Error EINVAL");
+    LOG_DEBUG("abstract_http_ipc_read: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   bSuccess = ReadFile((HANDLE)handle, data, (DWORD)len, &dwRead, NULL);
   if (!bSuccess || dwRead != len) {
-    LOG_DEBUG("cdd_ipc_read: Error EIO (ReadFile failed)");
+    LOG_DEBUG("abstract_http_ipc_read: Error EIO (ReadFile failed)");
     return C_ABSTRACT_HTTP_ERR_IO;
   }
-  LOG_DEBUG("cdd_ipc_read: Success");
+  LOG_DEBUG("abstract_http_ipc_read: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #else /* POSIX */
 
-/** @brief Internal struct CddProcess */
-struct CddProcess {
-  /** @brief pid (variable) of struct CddProcess */
+/** @brief Internal struct AbstractHttpProcess */
+struct AbstractHttpProcess {
+  /** @brief pid (variable) of struct AbstractHttpProcess */
   pid_t pid;
 };
 
-enum c_abstract_http_error cdd_ipc_pipe_init(struct CddIpcPipe *p) {
+enum c_abstract_http_error
+abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *p) {
   int fd[2];
-  LOG_DEBUG("cdd_ipc_pipe_init: Entering");
+  LOG_DEBUG("abstract_http_ipc_pipe_init: Entering");
   if (!p) {
-    LOG_DEBUG("cdd_ipc_pipe_init: Error EINVAL");
+    LOG_DEBUG("abstract_http_ipc_pipe_init: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   if (pipe(fd) == -1) {
-    LOG_DEBUG("cdd_ipc_pipe_init: Error EIO (pipe failed)");
+    LOG_DEBUG("abstract_http_ipc_pipe_init: Error EIO (pipe failed)");
     return C_ABSTRACT_HTTP_ERR_IO;
   }
   p->read_handle = (void *)(size_t)fd[0];
   p->write_handle = (void *)(size_t)fd[1];
-  LOG_DEBUG("cdd_ipc_pipe_init: Success");
+  LOG_DEBUG("abstract_http_ipc_pipe_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
-  LOG_DEBUG("cdd_ipc_pipe_free: Entering");
+void abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
+  LOG_DEBUG("abstract_http_ipc_pipe_free: Entering");
   if (pipe) {
     if (pipe->read_handle)
       close((int)(size_t)pipe->read_handle);
@@ -295,35 +301,36 @@ void cdd_ipc_pipe_free(struct CddIpcPipe *pipe) {
     pipe->read_handle = NULL;
     pipe->write_handle = NULL;
   }
-  LOG_DEBUG("cdd_ipc_pipe_free: Exiting");
+  LOG_DEBUG("abstract_http_ipc_pipe_free: Exiting");
 }
 
 enum c_abstract_http_error
-cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
-                  struct CddIpcPipe *child_to_parent) {
+abstract_http_process_spawn(struct AbstractHttpProcess **proc,
+                            struct AbstractHttpIpcPipe *parent_to_child,
+                            struct AbstractHttpIpcPipe *child_to_parent) {
   pid_t pid;
-  struct CddProcess *p;
+  struct AbstractHttpProcess *p;
 
-  LOG_DEBUG("cdd_process_spawn: Entering");
+  LOG_DEBUG("abstract_http_process_spawn: Entering");
   if (g_process_hooks.spawn) {
-    LOG_DEBUG("cdd_process_spawn: Hooking");
+    LOG_DEBUG("abstract_http_process_spawn: Hooking");
     return g_process_hooks.spawn(proc, parent_to_child, child_to_parent);
   }
 
   if (!proc || !parent_to_child || !child_to_parent) {
-    LOG_DEBUG("cdd_process_spawn: Error EINVAL");
+    LOG_DEBUG("abstract_http_process_spawn: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
+  p = (struct AbstractHttpProcess *)malloc(sizeof(struct AbstractHttpProcess));
   if (!p) {
-    LOG_DEBUG("cdd_process_spawn: Error ENOMEM");
+    LOG_DEBUG("abstract_http_process_spawn: Error ENOMEM");
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   pid = fork();
   if (pid == -1) {
-    LOG_DEBUG("cdd_process_spawn: Error EIO (fork failed)");
+    LOG_DEBUG("abstract_http_process_spawn: Error EIO (fork failed)");
     free(p);
     return C_ABSTRACT_HTTP_ERR_IO;
   } else if (pid == 0) {
@@ -348,23 +355,24 @@ cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
 
     p->pid = pid;
     *proc = p;
-    LOG_DEBUG("cdd_process_spawn: Success");
+    LOG_DEBUG("abstract_http_process_spawn: Success");
     return C_ABSTRACT_HTTP_SUCCESS;
   }
 }
 
-enum c_abstract_http_error cdd_process_wait_and_free(struct CddProcess *proc,
-                                                     int *exit_code) {
+enum c_abstract_http_error
+abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
+                                    int *exit_code) {
   int status;
 
-  LOG_DEBUG("cdd_process_wait_and_free: Entering");
+  LOG_DEBUG("abstract_http_process_wait_and_free: Entering");
   if (g_process_hooks.wait_and_free) {
-    LOG_DEBUG("cdd_process_wait_and_free: Hooking");
+    LOG_DEBUG("abstract_http_process_wait_and_free: Hooking");
     return g_process_hooks.wait_and_free(proc, exit_code);
   }
 
   if (!proc) {
-    LOG_DEBUG("cdd_process_wait_and_free: Error EINVAL");
+    LOG_DEBUG("abstract_http_process_wait_and_free: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
@@ -378,44 +386,45 @@ enum c_abstract_http_error cdd_process_wait_and_free(struct CddProcess *proc,
   }
 
   free(proc);
-  LOG_DEBUG("cdd_process_wait_and_free: Success");
+  LOG_DEBUG("abstract_http_process_wait_and_free: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_ipc_write(void *handle, const void *data,
-                                         size_t len) {
+enum c_abstract_http_error
+abstract_http_ipc_write(void *handle, const void *data, size_t len) {
   ssize_t written;
 
-  LOG_DEBUG("cdd_ipc_write: Entering");
+  LOG_DEBUG("abstract_http_ipc_write: Entering");
   if (g_process_hooks.ipc_write) {
-    LOG_DEBUG("cdd_ipc_write: Hooking");
+    LOG_DEBUG("abstract_http_ipc_write: Hooking");
     return g_process_hooks.ipc_write(handle, data, len);
   }
 
   written = write((int)(size_t)handle, data, len);
   if (written < 0 || (size_t)written != len) {
-    LOG_DEBUG("cdd_ipc_write: Error EIO (write failed)");
+    LOG_DEBUG("abstract_http_ipc_write: Error EIO (write failed)");
     return C_ABSTRACT_HTTP_ERR_IO;
   }
-  LOG_DEBUG("cdd_ipc_write: Success");
+  LOG_DEBUG("abstract_http_ipc_write: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_ipc_read(void *handle, void *data, size_t len) {
+enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
+                                                  size_t len) {
   ssize_t r;
 
-  LOG_DEBUG("cdd_ipc_read: Entering");
+  LOG_DEBUG("abstract_http_ipc_read: Entering");
   if (g_process_hooks.ipc_read) {
-    LOG_DEBUG("cdd_ipc_read: Hooking");
+    LOG_DEBUG("abstract_http_ipc_read: Hooking");
     return g_process_hooks.ipc_read(handle, data, len);
   }
 
   r = read((int)(size_t)handle, data, len);
   if (r < 0 || (size_t)r != len) {
-    LOG_DEBUG("cdd_ipc_read: Error EIO (read failed)");
+    LOG_DEBUG("abstract_http_ipc_read: Error EIO (read failed)");
     return C_ABSTRACT_HTTP_ERR_IO;
   }
-  LOG_DEBUG("cdd_ipc_read: Success");
+  LOG_DEBUG("abstract_http_ipc_read: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -472,8 +481,11 @@ static enum c_abstract_http_error parse_str(const char **p, const char *end,
   }
   if (*p + len > end)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  *str = (char *)c_abstract_http_mock_malloc(len + 1);
+#else
   *str = (char *)malloc(len + 1);
+#endif
   if (!*str)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   memcpy(*str, *p, len);
@@ -483,8 +495,8 @@ static enum c_abstract_http_error parse_str(const char **p, const char *end,
 }
 
 enum c_abstract_http_error
-cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
-                          size_t *out_len) {
+abstract_http_ipc_serialize_request(const struct HttpRequest *req,
+                                    char **out_buf, size_t *out_len) {
   size_t i;
   size_t est_size = sizeof(int) + sizeof(size_t);
   char *buf, *p;
@@ -528,8 +540,8 @@ cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
 }
 
 enum c_abstract_http_error
-cdd_ipc_deserialize_request(const char *buf, size_t len,
-                            struct HttpRequest *req) {
+abstract_http_ipc_deserialize_request(const char *buf, size_t len,
+                                      struct HttpRequest *req) {
   size_t hcount, body_len;
   int method;
   size_t i;
@@ -544,8 +556,6 @@ cdd_ipc_deserialize_request(const char *buf, size_t len,
   end = buf + len;
 
   (void)http_request_init(req);
-  if (0)
-    return rc;
 
   if ((rc = parse_int(&p, end, &method)) != 0)
     return rc;
@@ -580,7 +590,11 @@ cdd_ipc_deserialize_request(const char *buf, size_t len,
   if (body_len > 0) {
     if (p + body_len > end)
       return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    req->body = c_abstract_http_mock_malloc(body_len);
+#else
     req->body = malloc(body_len);
+#endif
     if (!req->body)
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     memcpy(req->body, p, body_len);
@@ -588,13 +602,12 @@ cdd_ipc_deserialize_request(const char *buf, size_t len,
   } else {
     req->body = NULL;
   }
-
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
-cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
-                           size_t *out_len) {
+abstract_http_ipc_serialize_response(const struct HttpResponse *res,
+                                     char **out_buf, size_t *out_len) {
   size_t i;
   size_t est_size = sizeof(int) + sizeof(size_t);
   char *buf, *p;
@@ -636,8 +649,8 @@ cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
 }
 
 enum c_abstract_http_error
-cdd_ipc_deserialize_response(const char *buf, size_t len,
-                             struct HttpResponse *res) {
+abstract_http_ipc_deserialize_response(const char *buf, size_t len,
+                                       struct HttpResponse *res) {
   size_t hcount, body_len;
   size_t i;
   int rc;
@@ -695,9 +708,10 @@ cdd_ipc_deserialize_response(const char *buf, size_t len,
 }
 
 #if 1
-enum c_abstract_http_error cdd_process_test_waitpid_fail(void);
-enum c_abstract_http_error cdd_process_test_waitpid_fail(void) {
-  struct CddProcess *p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
+enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void);
+enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void) {
+  struct AbstractHttpProcess *p =
+      (struct AbstractHttpProcess *)malloc(sizeof(struct AbstractHttpProcess));
   if (p) {
     enum c_abstract_http_error rc;
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
@@ -706,7 +720,7 @@ enum c_abstract_http_error cdd_process_test_waitpid_fail(void) {
     p->pid = 123;
 #endif
     g_mock_waitpid_fail = 1;
-    rc = cdd_process_wait_and_free(p, NULL);
+    rc = abstract_http_process_wait_and_free(p, NULL);
     (void)rc;
     g_mock_waitpid_fail = 0;
   }
@@ -715,10 +729,11 @@ enum c_abstract_http_error cdd_process_test_waitpid_fail(void) {
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-enum c_abstract_http_error cdd_process_test_waitpid_exit(void);
-enum c_abstract_http_error cdd_process_test_waitpid_exit(void) {
+enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void);
+enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void) {
   /* Test WIFEXITED == false */
-  struct CddProcess *p = (struct CddProcess *)malloc(sizeof(struct CddProcess));
+  struct AbstractHttpProcess *p =
+      (struct AbstractHttpProcess *)malloc(sizeof(struct AbstractHttpProcess));
   if (p) {
     int exit_code;
     enum c_abstract_http_error rc;
@@ -728,7 +743,7 @@ enum c_abstract_http_error cdd_process_test_waitpid_exit(void) {
     p->pid = 123;
 #endif
     g_mock_waitpid_fail = 2;
-    rc = cdd_process_wait_and_free(p, &exit_code);
+    rc = abstract_http_process_wait_and_free(p, &exit_code);
     (void)rc;
     g_mock_waitpid_fail = 0;
   }

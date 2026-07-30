@@ -93,7 +93,7 @@ The library features extensive built-in support for generating and managing OAut
 
 ## Concurrency & Execution Modalities
 
-`c-abstract-http` allows developers to bypass the standard blocking synchronous paradigm by offering extensive abstraction interfaces for complex concurrent systems. Every modality exposes a generic struct (e.g., `ModalityEventLoop`, `CddThreadPool`, `CddCoroutine`, `CddMessageBus`, `CddProcess`) and a corresponding `*Hooks` interface.
+`c-abstract-http` allows developers to bypass the standard blocking synchronous paradigm by offering extensive abstraction interfaces for complex concurrent systems. Every modality exposes a generic struct (e.g., `ModalityEventLoop`, `AbstractHttpThreadPool`, `AbstractHttpCoroutine`, `AbstractHttpMessageBus`, `AbstractHttpProcess`) and a corresponding `*Hooks` interface.
 
 This Inversion-of-Control allows applications to either use the built-in cross-platform implementations, or proxy the abstractions perfectly into an external framework.
 

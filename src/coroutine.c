@@ -17,20 +17,20 @@
 #include <dos.h>
 #else
 #if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN__)
-#define CDD_NO_UCONTEXT 1
+#define ABSTRACT_HTTP_NO_UCONTEXT 1
 #endif
 #if defined(__APPLE__) && defined(__MACH__)
 /* ucontext is deprecated on macOS but still mostly works for simple cases on x86_64.
    It is broken on arm64 and will cause a Bus Error. */
 #if defined(__aarch64__) || defined(__arm64__) || defined(__arm__) || defined(__aarch64) || defined(EMSCRIPTEN)
-#define CDD_NO_UCONTEXT 1
+#define ABSTRACT_HTTP_NO_UCONTEXT 1
 #else
 #define _XOPEN_SOURCE 600
 #endif
 #elif defined(__linux__) && !defined(__GLIBC__)
-#define CDD_NO_UCONTEXT 1
+#define ABSTRACT_HTTP_NO_UCONTEXT 1
 #endif
-#ifndef CDD_NO_UCONTEXT
+#ifndef ABSTRACT_HTTP_NO_UCONTEXT
 #include <ucontext.h>
 #endif
 #include <pthread.h>
@@ -45,11 +45,11 @@
 #define ENOTSUP EINVAL
 #endif
 
-static struct CddCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL, NULL,
-                                                     NULL};
+static struct AbstractHttpCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL,
+                                                              NULL, NULL};
 
-enum c_abstract_http_error
-cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
+enum c_abstract_http_error abstract_http_coroutine_set_hooks(
+    const struct AbstractHttpCoroutineHooks *hooks) {
   if (hooks) {
     g_coroutine_hooks = *hooks;
   }
@@ -58,11 +58,11 @@ cdd_coroutine_set_hooks(const struct CddCoroutineHooks *hooks) {
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 
-/** @brief Internal struct CddCoroutine */
-struct CddCoroutine {
+/** @brief Internal struct AbstractHttpCoroutine */
+struct AbstractHttpCoroutine {
   LPVOID fiber;
   LPVOID caller_fiber;
-  cdd_coroutine_cb cb;
+  abstract_http_coroutine_cb cb;
   void *arg;
   int is_done;
 };
@@ -70,7 +70,8 @@ struct CddCoroutine {
 static DWORD dwTlsIndex = TLS_OUT_OF_INDEXES;
 
 static VOID WINAPI fiber_entry(LPVOID lpParameter) {
-  struct CddCoroutine *co = (struct CddCoroutine *)lpParameter;
+  struct AbstractHttpCoroutine *co =
+      (struct AbstractHttpCoroutine *)lpParameter;
   TlsSetValue(dwTlsIndex, co);
 
   co->cb(co->arg);
@@ -79,34 +80,36 @@ static VOID WINAPI fiber_entry(LPVOID lpParameter) {
   SwitchToFiber(co->caller_fiber);
 }
 
-enum c_abstract_http_error cdd_coroutine_init(struct CddCoroutine **co,
-                                              size_t stack_size,
-                                              cdd_coroutine_cb cb, void *arg) {
-  struct CddCoroutine *c;
-  printf("cdd_coroutine_init CALLED\n");
+enum c_abstract_http_error
+abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
+                             size_t stack_size, abstract_http_coroutine_cb cb,
+                             void *arg) {
+  struct AbstractHttpCoroutine *c;
+  printf("abstract_http_coroutine_init CALLED\n");
 
-  LOG_DEBUG("cdd_coroutine_init: Entering");
+  LOG_DEBUG("abstract_http_coroutine_init: Entering");
   if (g_coroutine_hooks.init) {
-    LOG_DEBUG("cdd_coroutine_init: Hooking");
+    LOG_DEBUG("abstract_http_coroutine_init: Hooking");
     return g_coroutine_hooks.init(co, stack_size, cb, arg);
   }
 
   if (!co || !cb) {
-    LOG_DEBUG("cdd_coroutine_init: Error EINVAL");
+    LOG_DEBUG("abstract_http_coroutine_init: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   if (dwTlsIndex == TLS_OUT_OF_INDEXES) {
     dwTlsIndex = TlsAlloc();
     if (dwTlsIndex == TLS_OUT_OF_INDEXES) {
-      LOG_DEBUG("cdd_coroutine_init: Error EIO (TlsAlloc failed)");
+      LOG_DEBUG("abstract_http_coroutine_init: Error EIO (TlsAlloc failed)");
       return C_ABSTRACT_HTTP_ERR_IO;
     }
   }
 
-  c = (struct CddCoroutine *)calloc(1, sizeof(struct CddCoroutine));
+  c = (struct AbstractHttpCoroutine *)calloc(
+      1, sizeof(struct AbstractHttpCoroutine));
   if (!c) {
-    LOG_DEBUG("cdd_coroutine_init: Error ENOMEM");
+    LOG_DEBUG("abstract_http_coroutine_init: Error ENOMEM");
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
@@ -119,20 +122,20 @@ enum c_abstract_http_error cdd_coroutine_init(struct CddCoroutine **co,
 
   c->fiber = CreateFiber(stack_size, fiber_entry, c);
   if (!c->fiber) {
-    LOG_DEBUG("cdd_coroutine_init: Error EIO (CreateFiber failed)");
+    LOG_DEBUG("abstract_http_coroutine_init: Error EIO (CreateFiber failed)");
     free(c);
     return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   *co = c;
-  LOG_DEBUG("cdd_coroutine_init: Success");
+  LOG_DEBUG("abstract_http_coroutine_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void cdd_coroutine_free(struct CddCoroutine *co) {
-  LOG_DEBUG("cdd_coroutine_free: Entering");
+void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
+  LOG_DEBUG("abstract_http_coroutine_free: Entering");
   if (g_coroutine_hooks.free) {
-    LOG_DEBUG("cdd_coroutine_free: Hooking");
+    LOG_DEBUG("abstract_http_coroutine_free: Hooking");
     g_coroutine_hooks.free(co);
     return;
   }
@@ -143,20 +146,21 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
     }
     free(co);
   }
-  LOG_DEBUG("cdd_coroutine_free: Exiting");
+  LOG_DEBUG("abstract_http_coroutine_free: Exiting");
 }
 
-enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co) {
+enum c_abstract_http_error
+abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   LPVOID current_fiber;
 
-  LOG_DEBUG("cdd_coroutine_resume: Entering");
+  LOG_DEBUG("abstract_http_coroutine_resume: Entering");
   if (g_coroutine_hooks.resume) {
-    LOG_DEBUG("cdd_coroutine_resume: Hooking");
+    LOG_DEBUG("abstract_http_coroutine_resume: Hooking");
     return g_coroutine_hooks.resume(co);
   }
 
   if (!co || co->is_done) {
-    LOG_DEBUG("cdd_coroutine_resume: Error EINVAL");
+    LOG_DEBUG("abstract_http_coroutine_resume: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
@@ -165,8 +169,8 @@ enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co) {
   if (current_fiber == (LPVOID)0x1e00 || current_fiber == NULL) {
     current_fiber = ConvertThreadToFiber(NULL);
     if (!current_fiber) {
-      LOG_DEBUG(
-          "cdd_coroutine_resume: Error EIO (ConvertThreadToFiber failed)");
+      LOG_DEBUG("abstract_http_coroutine_resume: Error EIO "
+                "(ConvertThreadToFiber failed)");
       return C_ABSTRACT_HTTP_ERR_IO;
     }
   }
@@ -174,36 +178,38 @@ enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co) {
   co->caller_fiber = current_fiber;
   SwitchToFiber(co->fiber);
 
-  LOG_DEBUG("cdd_coroutine_resume: Success");
+  LOG_DEBUG("abstract_http_coroutine_resume: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_coroutine_yield(void) {
-  struct CddCoroutine *co;
+enum c_abstract_http_error abstract_http_coroutine_yield(void) {
+  struct AbstractHttpCoroutine *co;
 
-  LOG_DEBUG("cdd_coroutine_yield: Entering");
+  LOG_DEBUG("abstract_http_coroutine_yield: Entering");
   if (g_coroutine_hooks.yield) {
-    LOG_DEBUG("cdd_coroutine_yield: Hooking");
+    LOG_DEBUG("abstract_http_coroutine_yield: Hooking");
     return g_coroutine_hooks.yield();
   }
 
   if (dwTlsIndex == TLS_OUT_OF_INDEXES) {
-    LOG_DEBUG("cdd_coroutine_yield: Error EINVAL (TLS uninitialized)");
+    LOG_DEBUG(
+        "abstract_http_coroutine_yield: Error EINVAL (TLS uninitialized)");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  co = (struct CddCoroutine *)TlsGetValue(dwTlsIndex);
+  co = (struct AbstractHttpCoroutine *)TlsGetValue(dwTlsIndex);
   if (!co || !co->caller_fiber) {
-    LOG_DEBUG("cdd_coroutine_yield: Error EINVAL");
+    LOG_DEBUG("abstract_http_coroutine_yield: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   SwitchToFiber(co->caller_fiber);
-  LOG_DEBUG("cdd_coroutine_yield: Success");
+  LOG_DEBUG("abstract_http_coroutine_yield: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
+int math_abstract_http_coroutine_is_done(
+    const struct AbstractHttpCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co);
   }
@@ -211,23 +217,23 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
   return co ? co->is_done : 1;
 }
 
-#elif !defined(CDD_NO_UCONTEXT) /* POSIX ucontext */
+#elif !defined(ABSTRACT_HTTP_NO_UCONTEXT) /* POSIX ucontext */
 
-/** @brief Internal struct CddCoroutine */
-struct CddCoroutine {
-  /** @brief ctx (variable) of struct CddCoroutine */
+/** @brief Internal struct AbstractHttpCoroutine */
+struct AbstractHttpCoroutine {
+  /** @brief ctx (variable) of struct AbstractHttpCoroutine */
   ucontext_t ctx;
-  /** @brief caller_ctx (variable) of struct CddCoroutine */
+  /** @brief caller_ctx (variable) of struct AbstractHttpCoroutine */
   ucontext_t caller_ctx;
-  /** @brief stack (variable) of struct CddCoroutine */
+  /** @brief stack (variable) of struct AbstractHttpCoroutine */
   void *stack;
-  /** @brief stack_size (variable) of struct CddCoroutine */
+  /** @brief stack_size (variable) of struct AbstractHttpCoroutine */
   size_t stack_size;
-  /** @brief cb (variable) of struct CddCoroutine */
-  cdd_coroutine_cb cb;
-  /** @brief arg (variable) of struct CddCoroutine */
+  /** @brief cb (variable) of struct AbstractHttpCoroutine */
+  abstract_http_coroutine_cb cb;
+  /** @brief arg (variable) of struct AbstractHttpCoroutine */
   void *arg;
-  /** @brief is_done (variable) of struct CddCoroutine */
+  /** @brief is_done (variable) of struct AbstractHttpCoroutine */
   int is_done;
 };
 
@@ -246,34 +252,36 @@ static enum c_abstract_http_error init_tls_key(void) {
 }
 
 static void ucontext_entry(void) {
-  struct CddCoroutine *co =
-      (struct CddCoroutine *)pthread_getspecific(co_tls_key);
+  struct AbstractHttpCoroutine *co =
+      (struct AbstractHttpCoroutine *)pthread_getspecific(co_tls_key);
   co->cb(co->arg);
   co->is_done = 1;
 }
 
-enum c_abstract_http_error cdd_coroutine_init(struct CddCoroutine **co,
-                                              size_t stack_size,
-                                              cdd_coroutine_cb cb, void *arg) {
-  struct CddCoroutine *c;
-  printf("cdd_coroutine_init CALLED\n");
+enum c_abstract_http_error
+abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
+                             size_t stack_size, abstract_http_coroutine_cb cb,
+                             void *arg) {
+  struct AbstractHttpCoroutine *c;
+  printf("abstract_http_coroutine_init CALLED\n");
 
-  LOG_DEBUG("cdd_coroutine_init: Entering");
+  LOG_DEBUG("abstract_http_coroutine_init: Entering");
   if (g_coroutine_hooks.init) {
-    LOG_DEBUG("cdd_coroutine_init: Hooking");
+    LOG_DEBUG("abstract_http_coroutine_init: Hooking");
     return g_coroutine_hooks.init(co, stack_size, cb, arg);
   }
 
   if (!co || !cb) {
-    LOG_DEBUG("cdd_coroutine_init: Error EINVAL");
+    LOG_DEBUG("abstract_http_coroutine_init: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   init_tls_key();
 
-  c = (struct CddCoroutine *)calloc(1, sizeof(struct CddCoroutine));
+  c = (struct AbstractHttpCoroutine *)calloc(
+      1, sizeof(struct AbstractHttpCoroutine));
   if (!c) {
-    LOG_DEBUG("cdd_coroutine_init: Error ENOMEM");
+    LOG_DEBUG("abstract_http_coroutine_init: Error ENOMEM");
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
@@ -287,7 +295,7 @@ enum c_abstract_http_error cdd_coroutine_init(struct CddCoroutine **co,
   c->stack_size = stack_size;
   c->stack = malloc(stack_size);
   if (!c->stack) {
-    LOG_DEBUG("cdd_coroutine_init: Error ENOMEM allocating stack");
+    LOG_DEBUG("abstract_http_coroutine_init: Error ENOMEM allocating stack");
     free(c);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
@@ -305,14 +313,14 @@ enum c_abstract_http_error cdd_coroutine_init(struct CddCoroutine **co,
   makecontext(&c->ctx, (void (*)(void))ucontext_entry, 0);
 
   *co = c;
-  LOG_DEBUG("cdd_coroutine_init: Success");
+  LOG_DEBUG("abstract_http_coroutine_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void cdd_coroutine_free(struct CddCoroutine *co) {
-  LOG_DEBUG("cdd_coroutine_free: Entering");
+void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
+  LOG_DEBUG("abstract_http_coroutine_free: Entering");
   if (g_coroutine_hooks.free) {
-    LOG_DEBUG("cdd_coroutine_free: Hooking");
+    LOG_DEBUG("abstract_http_coroutine_free: Hooking");
     g_coroutine_hooks.free(co);
     return;
   }
@@ -321,18 +329,19 @@ void cdd_coroutine_free(struct CddCoroutine *co) {
     free(co->stack);
     free(co);
   }
-  LOG_DEBUG("cdd_coroutine_free: Exiting");
+  LOG_DEBUG("abstract_http_coroutine_free: Exiting");
 }
 
-enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co) {
-  LOG_DEBUG("cdd_coroutine_resume: Entering");
+enum c_abstract_http_error
+abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
+  LOG_DEBUG("abstract_http_coroutine_resume: Entering");
   if (g_coroutine_hooks.resume) {
-    LOG_DEBUG("cdd_coroutine_resume: Hooking");
+    LOG_DEBUG("abstract_http_coroutine_resume: Hooking");
     return g_coroutine_hooks.resume(co);
   }
 
   if (!co || co->is_done) {
-    LOG_DEBUG("cdd_coroutine_resume: Error EINVAL");
+    LOG_DEBUG("abstract_http_coroutine_resume: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
@@ -340,33 +349,35 @@ enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co) {
   pthread_setspecific(co_tls_key, co);
 
   swapcontext(&co->caller_ctx, &co->ctx);
-  LOG_DEBUG("cdd_coroutine_resume: Success");
+  LOG_DEBUG("abstract_http_coroutine_resume: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_coroutine_yield(void) {
-  struct CddCoroutine *co;
+enum c_abstract_http_error abstract_http_coroutine_yield(void) {
+  struct AbstractHttpCoroutine *co;
 
-  LOG_DEBUG("cdd_coroutine_yield: Entering");
+  LOG_DEBUG("abstract_http_coroutine_yield: Entering");
   if (g_coroutine_hooks.yield) {
-    LOG_DEBUG("cdd_coroutine_yield: Hooking");
+    LOG_DEBUG("abstract_http_coroutine_yield: Hooking");
     return g_coroutine_hooks.yield();
   }
 
   init_tls_key();
-  co = (struct CddCoroutine *)pthread_getspecific(co_tls_key);
+  co = (struct AbstractHttpCoroutine *)pthread_getspecific(co_tls_key);
 
   if (!co) {
-    LOG_DEBUG("cdd_coroutine_yield: Error EINVAL (no coroutine in TLS)");
+    LOG_DEBUG(
+        "abstract_http_coroutine_yield: Error EINVAL (no coroutine in TLS)");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   swapcontext(&co->ctx, &co->caller_ctx);
-  LOG_DEBUG("cdd_coroutine_yield: Success");
+  LOG_DEBUG("abstract_http_coroutine_yield: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
+int math_abstract_http_coroutine_is_done(
+    const struct AbstractHttpCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co);
   }
@@ -376,13 +387,13 @@ int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
 
 #else
 
-/** @brief Internal struct CddCoroutine */
-struct CddCoroutine {
+/** @brief Internal struct AbstractHttpCoroutine */
+struct AbstractHttpCoroutine {
   pthread_t thread;
   pthread_mutex_t mutex;
   pthread_cond_t cond_resume;
   pthread_cond_t cond_yield;
-  cdd_coroutine_cb cb;
+  abstract_http_coroutine_cb cb;
   void *arg;
   int is_done;
   int should_run;
@@ -402,7 +413,7 @@ static void init_fallback_key(void) {
 }
 
 static void *co_thread_func(void *arg) {
-  struct CddCoroutine *co = (struct CddCoroutine *)arg;
+  struct AbstractHttpCoroutine *co = (struct AbstractHttpCoroutine *)arg;
   pthread_setspecific(co_fallback_key, co);
 
   pthread_mutex_lock(&co->mutex);
@@ -424,11 +435,12 @@ static void *co_thread_func(void *arg) {
   return NULL;
 }
 
-enum c_abstract_http_error cdd_coroutine_init(struct CddCoroutine **co,
-                                              size_t stack_size,
-                                              cdd_coroutine_cb cb, void *arg) {
-  struct CddCoroutine *c;
-  printf("cdd_coroutine_init CALLED\n");
+enum c_abstract_http_error
+abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
+                             size_t stack_size, abstract_http_coroutine_cb cb,
+                             void *arg) {
+  struct AbstractHttpCoroutine *c;
+  printf("abstract_http_coroutine_init CALLED\n");
   (void)stack_size;
   init_fallback_key();
 
@@ -440,7 +452,7 @@ enum c_abstract_http_error cdd_coroutine_init(struct CddCoroutine **co,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  c = (struct CddCoroutine *)malloc(sizeof(*c));
+  c = (struct AbstractHttpCoroutine *)malloc(sizeof(*c));
   if (!c) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
@@ -461,10 +473,10 @@ enum c_abstract_http_error cdd_coroutine_init(struct CddCoroutine **co,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void cdd_coroutine_free(struct CddCoroutine *co) {
-  LOG_DEBUG("cdd_coroutine_free (fallback): Entering");
+void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
+  LOG_DEBUG("abstract_http_coroutine_free (fallback): Entering");
   if (g_coroutine_hooks.free) {
-    LOG_DEBUG("cdd_coroutine_free (fallback): Hooking");
+    LOG_DEBUG("abstract_http_coroutine_free (fallback): Hooking");
     g_coroutine_hooks.free(co);
     return;
   }
@@ -496,10 +508,11 @@ extern int g_mock_pthread_create_fail;
 #define PTHREAD_CREATE_MOCK pthread_create
 #endif
 
-enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co) {
-  LOG_DEBUG("cdd_coroutine_resume (fallback): Entering");
+enum c_abstract_http_error
+abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
+  LOG_DEBUG("abstract_http_coroutine_resume (fallback): Entering");
   if (g_coroutine_hooks.resume) {
-    LOG_DEBUG("cdd_coroutine_resume (fallback): Hooking");
+    LOG_DEBUG("abstract_http_coroutine_resume (fallback): Hooking");
     return g_coroutine_hooks.resume(co);
   }
   if (!co)
@@ -529,16 +542,16 @@ enum c_abstract_http_error cdd_coroutine_resume(struct CddCoroutine *co) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error cdd_coroutine_yield(void) {
-  struct CddCoroutine *co;
-  LOG_DEBUG("cdd_coroutine_yield (fallback): Entering");
+enum c_abstract_http_error abstract_http_coroutine_yield(void) {
+  struct AbstractHttpCoroutine *co;
+  LOG_DEBUG("abstract_http_coroutine_yield (fallback): Entering");
   if (g_coroutine_hooks.yield) {
-    LOG_DEBUG("cdd_coroutine_yield (fallback): Hooking");
+    LOG_DEBUG("abstract_http_coroutine_yield (fallback): Hooking");
     return g_coroutine_hooks.yield();
   }
 
   init_fallback_key();
-  co = (struct CddCoroutine *)pthread_getspecific(co_fallback_key);
+  co = (struct AbstractHttpCoroutine *)pthread_getspecific(co_fallback_key);
   if (!co)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
@@ -557,7 +570,8 @@ enum c_abstract_http_error cdd_coroutine_yield(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int math_cdd_coroutine_is_done(const struct CddCoroutine *co) {
+int math_abstract_http_coroutine_is_done(
+    const struct AbstractHttpCoroutine *co) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co);
   }

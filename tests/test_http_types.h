@@ -33,7 +33,7 @@ static char *c_abstract_http_test_types_strdup(const char *s) {
 extern "C" {
 #endif /* __cplusplus */
 
-extern enum c_abstract_http_error cdd_test_urldecode_alloc(const char *src, size_t src_len, char **out);
+extern enum c_abstract_http_error abstract_http_test_urldecode_alloc(const char *src, size_t src_len, char **out);
 
 #if defined(_WIN32)
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -91,7 +91,7 @@ TEST test_oauth2_localhost_intercept(void) {
 #if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   SKIP();
 #else
-  struct CddThreadPool *pool;
+  struct AbstractHttpThreadPool *pool;
   struct ServerArgs args;
 #if defined(_WIN32)
   SOCKET sock;
@@ -112,9 +112,9 @@ TEST test_oauth2_localhost_intercept(void) {
   memset(&args, 0, sizeof(args));
   args.port = 18080;
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_thread_pool_push(pool, server_task, &args));
+            abstract_http_thread_pool_push(pool, server_task, &args));
 
   for (i = 0; i < 50; i++) {
 #if defined(_WIN32)
@@ -144,7 +144,7 @@ TEST test_oauth2_localhost_intercept(void) {
   }
   ASSERT_EQ(1, connected);
 
-  cdd_thread_pool_free(pool);
+  abstract_http_thread_pool_free(pool);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, args.rc);
   ASSERT_STR_EQ("a+<<? ", args.code);
@@ -164,9 +164,9 @@ TEST test_oauth2_localhost_intercept(void) {
   /* Test POST to trigger C_ABSTRACT_HTTP_ERR_INVAL */
   memset(&args, 0, sizeof(args));
   args.port = 18081;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_thread_pool_push(pool, server_task, &args));
+            abstract_http_thread_pool_push(pool, server_task, &args));
   connected = 0;
   for (i = 0; i < 50; i++) {
 #if defined(_WIN32)
@@ -186,15 +186,15 @@ TEST test_oauth2_localhost_intercept(void) {
     TEST_CLOSESOCKET(sock);
   }
   ASSERT_EQ(1, connected);
-  cdd_thread_pool_free(pool);
+  abstract_http_thread_pool_free(pool);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, args.rc);
 
   /* Test connect and close to trigger C_ABSTRACT_HTTP_ERR_IO on recv */
   memset(&args, 0, sizeof(args));
   args.port = 18082;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cdd_thread_pool_init(&pool, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_thread_pool_push(pool, server_task, &args));
+            abstract_http_thread_pool_push(pool, server_task, &args));
   connected = 0;
   for (i = 0; i < 50; i++) {
 #if defined(_WIN32)
@@ -213,7 +213,7 @@ TEST test_oauth2_localhost_intercept(void) {
     TEST_CLOSESOCKET(sock);
   }
   ASSERT_EQ(1, connected);
-  cdd_thread_pool_free(pool);
+  abstract_http_thread_pool_free(pool);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, args.rc);
 
 #endif
@@ -1390,7 +1390,7 @@ TEST test_http_types_more_errs_2(void) {
     char *out_url = NULL;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
-    rc = cdd_test_urldecode_alloc("a%20b", 5, &out_url);
+    rc = abstract_http_test_urldecode_alloc("a%20b", 5, &out_url);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
     if (out_url)

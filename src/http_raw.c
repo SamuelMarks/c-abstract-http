@@ -567,7 +567,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
               *next_nl = '\0';
               rc = http_headers_add(&(*res)->headers, p_nl, colon + 1);
               if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-                CDD_CLOSESOCKET(sockfd);
+                ABSTRACT_HTTP_CLOSESOCKET(sockfd);
                 free(response_buffer);
                 return rc;
               }

@@ -8,8 +8,8 @@
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_HTTP_PROCESS_H
-#define C_CDD_HTTP_PROCESS_H
+#ifndef C_ABSTRACT_HTTP_HTTP_PROCESS_H
+#define C_ABSTRACT_HTTP_HTTP_PROCESS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,12 +23,12 @@ extern "C" {
 /**
  * @brief Opaque process handle.
  */
-struct CddProcess;
+struct AbstractHttpProcess;
 
 /**
  * @brief IPC Pipe endpoints.
  */
-struct CddIpcPipe {
+struct AbstractHttpIpcPipe {
   void *read_handle;  /**< Platform-specific read handle (e.g. fd or HANDLE) */
   void *write_handle; /**< Platform-specific write handle (e.g. fd or HANDLE) */
 };
@@ -37,11 +37,12 @@ struct CddIpcPipe {
  * @brief Hooks to override internal process management with an external
  * framework.
  */
-struct CddProcessHooks {
-  int (*spawn)(struct CddProcess **proc, struct CddIpcPipe *p2c,
-               struct CddIpcPipe *c2p); /**< Hook for spawning a process */
+struct AbstractHttpProcessHooks {
+  int (*spawn)(
+      struct AbstractHttpProcess **proc, struct AbstractHttpIpcPipe *p2c,
+      struct AbstractHttpIpcPipe *c2p); /**< Hook for spawning a process */
   int (*wait_and_free)(
-      struct CddProcess *proc,
+      struct AbstractHttpProcess *proc,
       int *exit_code); /**< Hook for waiting and freeing a process */
   int (*ipc_write)(void *handle, const void *data,
                    size_t len); /**< Hook for IPC write */
@@ -54,20 +55,21 @@ struct CddProcessHooks {
  * @param[in] hooks The hooks structure (copied internally).
  */
 extern c_abstract_http_error_t
-cdd_process_set_hooks(const struct CddProcessHooks *hooks);
+abstract_http_process_set_hooks(const struct AbstractHttpProcessHooks *hooks);
 
 /**
  * @brief Initialize an IPC pipe pair.
  * @param[out] pipe The pipe structure to populate.
  * @return 0 on success, error code on failure.
  */
-extern c_abstract_http_error_t cdd_ipc_pipe_init(struct CddIpcPipe *pipe);
+extern c_abstract_http_error_t
+abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *pipe);
 
 /**
  * @brief Close an IPC pipe.
  * @param[in] pipe The pipe to close.
  */
-extern void cdd_ipc_pipe_free(struct CddIpcPipe *pipe);
+extern void abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe);
 
 /**
  * @brief Spawn a child process.
@@ -80,8 +82,9 @@ extern void cdd_ipc_pipe_free(struct CddIpcPipe *pipe);
  * @return 0 on success, error code on failure.
  */
 extern c_abstract_http_error_t
-cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
-                  struct CddIpcPipe *child_to_parent);
+abstract_http_process_spawn(struct AbstractHttpProcess **proc,
+                            struct AbstractHttpIpcPipe *parent_to_child,
+                            struct AbstractHttpIpcPipe *child_to_parent);
 
 /**
  * @brief Wait for a process to exit and free its handle.
@@ -90,7 +93,8 @@ cdd_process_spawn(struct CddProcess **proc, struct CddIpcPipe *parent_to_child,
  * @return 0 on success.
  */
 extern c_abstract_http_error_t
-cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code);
+abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
+                                    int *exit_code);
 
 /**
  * @brief Serialize an HttpRequest into a buffer.
@@ -100,8 +104,8 @@ cdd_process_wait_and_free(struct CddProcess *proc, int *exit_code);
  * @return 0 on success.
  */
 extern c_abstract_http_error_t
-cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
-                          size_t *out_len);
+abstract_http_ipc_serialize_request(const struct HttpRequest *req,
+                                    char **out_buf, size_t *out_len);
 
 /**
  * @brief Deserialize a buffer into an HttpRequest.
@@ -111,8 +115,8 @@ cdd_ipc_serialize_request(const struct HttpRequest *req, char **out_buf,
  * @return 0 on success.
  */
 extern c_abstract_http_error_t
-cdd_ipc_deserialize_request(const char *buf, size_t len,
-                            struct HttpRequest *req);
+abstract_http_ipc_deserialize_request(const char *buf, size_t len,
+                                      struct HttpRequest *req);
 
 /**
  * @brief Serialize an HttpResponse into a buffer.
@@ -122,8 +126,8 @@ cdd_ipc_deserialize_request(const char *buf, size_t len,
  * @return 0 on success.
  */
 extern c_abstract_http_error_t
-cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
-                           size_t *out_len);
+abstract_http_ipc_serialize_response(const struct HttpResponse *res,
+                                     char **out_buf, size_t *out_len);
 
 /**
  * @brief Deserialize a buffer into an HttpResponse.
@@ -133,8 +137,8 @@ cdd_ipc_serialize_response(const struct HttpResponse *res, char **out_buf,
  * @return 0 on success.
  */
 extern c_abstract_http_error_t
-cdd_ipc_deserialize_response(const char *buf, size_t len,
-                             struct HttpResponse *res);
+abstract_http_ipc_deserialize_response(const char *buf, size_t len,
+                                       struct HttpResponse *res);
 
 /**
  * @brief Write data to an IPC pipe endpoint securely.
@@ -143,8 +147,8 @@ cdd_ipc_deserialize_response(const char *buf, size_t len,
  * @param len The len parameter.
  * @return 0 on success, or an error code.
  */
-extern c_abstract_http_error_t cdd_ipc_write(void *handle, const void *data,
-                                             size_t len);
+extern c_abstract_http_error_t
+abstract_http_ipc_write(void *handle, const void *data, size_t len);
 
 /**
  * @brief Read data from an IPC pipe endpoint securely.
@@ -153,10 +157,10 @@ extern c_abstract_http_error_t cdd_ipc_write(void *handle, const void *data,
  * @param len The len parameter.
  * @return 0 on success, or an error code.
  */
-extern c_abstract_http_error_t cdd_ipc_read(void *handle, void *data,
-                                            size_t len);
+extern c_abstract_http_error_t abstract_http_ipc_read(void *handle, void *data,
+                                                      size_t len);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* C_CDD_HTTP_PROCESS_H */
+#endif /* C_ABSTRACT_HTTP_HTTP_PROCESS_H */

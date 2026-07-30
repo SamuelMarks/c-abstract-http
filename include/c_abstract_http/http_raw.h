@@ -3,8 +3,8 @@
  * @brief Raw POSIX socket fallback implementation for HTTP client.
  */
 
-#ifndef C_CDD_HTTP_RAW_H
-#define C_CDD_HTTP_RAW_H
+#ifndef C_ABSTRACT_HTTP_HTTP_RAW_H
+#define C_ABSTRACT_HTTP_HTTP_RAW_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,4 +66,4 @@ extern c_abstract_http_error_t http_raw_send_multi(
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* C_CDD_HTTP_RAW_H */
+#endif /* C_ABSTRACT_HTTP_HTTP_RAW_H */

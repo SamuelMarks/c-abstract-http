@@ -8,8 +8,8 @@
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_HTTP_TYPES_H
-#define C_CDD_HTTP_TYPES_H
+#ifndef C_ABSTRACT_HTTP_HTTP_TYPES_H
+#define C_ABSTRACT_HTTP_HTTP_TYPES_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,10 +90,10 @@ extern "C" {
 #endif
 
 #if defined(_MSC_VER) && (_MSC_VER < 1600)
-typedef __int64 cdd_int64_t;
-typedef unsigned __int64 cdd_uint64_t;
-/** @brief CDD_INT64_FMT macro */
-#define CDD_INT64_FMT "%I64d"
+typedef __int64 abstract_http_int64_t;
+typedef unsigned __int64 abstract_http_uint64_t;
+/** @brief ABSTRACT_HTTP_INT64_FMT macro */
+#define ABSTRACT_HTTP_INT64_FMT "%I64d"
 #else
 #if defined(_MSC_VER) && _MSC_VER < 1600
 typedef __int8 int8_t;
@@ -163,12 +163,12 @@ typedef unsigned __int64 uint64_t;
 #endif
 #endif
 /* clang-format on */
-/** @brief cdd_int64_t typedef */
-typedef int64_t cdd_int64_t;
-/** @brief cdd_uint64_t typedef */
-typedef uint64_t cdd_uint64_t;
-/** @brief CDD_INT64_FMT macro */
-#define CDD_INT64_FMT C_ABSTRACT_HTTP_NUM_FORMAT
+/** @brief abstract_http_int64_t typedef */
+typedef int64_t abstract_http_int64_t;
+/** @brief abstract_http_uint64_t typedef */
+typedef uint64_t abstract_http_uint64_t;
+/** @brief ABSTRACT_HTTP_INT64_FMT macro */
+#define ABSTRACT_HTTP_INT64_FMT C_ABSTRACT_HTTP_NUM_FORMAT
 #endif
 
 #include "c_abstract_http/no_discard.h"
@@ -462,8 +462,9 @@ struct HttpClient {
   struct HttpConfig config; /**< Client configuration */
 
   /* Runtime State */
-  struct ModalityEventLoop *loop;    /**< Event loop for async mode */
-  struct CddThreadPool *thread_pool; /**< Thread pool for multi-threaded mode */
+  struct ModalityEventLoop *loop; /**< Event loop for async mode */
+  struct AbstractHttpThreadPool
+      *thread_pool; /**< Thread pool for multi-threaded mode */
 };
 
 /**
@@ -1004,4 +1005,4 @@ c_abstract_http_error_t http_request_flatten_parts(struct HttpRequest *req);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* C_CDD_HTTP_TYPES_H */
+#endif /* C_ABSTRACT_HTTP_HTTP_TYPES_H */

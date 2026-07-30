@@ -5,13 +5,13 @@
  * Consolidates memory-safe string duplication, inspection, modifications,
  * and format specifier macros.
  *
- * Added `c_cdd_destringize` for _Pragma argument handling.
+ * Added `c_abstract_http_destringize` for _Pragma argument handling.
  *
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_STR_UTILS_H
-#define C_CDD_STR_UTILS_H
+#ifndef C_ABSTRACT_HTTP_STR_UTILS_H
+#define C_ABSTRACT_HTTP_STR_UTILS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -75,7 +75,8 @@ extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
  * @return 1 if `str` begins with `prefix`, 0 otherwise.
  */
 extern enum c_abstract_http_error
-c_cdd_str_starts_with(const char *str, const char *prefix, int *out_b);
+c_abstract_http_str_starts_with(const char *str, const char *prefix,
+                                int *out_b);
 
 /**
  * @brief Check if two strings are exactly equal.
@@ -85,8 +86,8 @@ c_cdd_str_starts_with(const char *str, const char *prefix, int *out_b);
  * @param[out] out_b Pointer to store the result.
  * @return 1 if strings match or both are NULL, 0 otherwise.
  */
-extern enum c_abstract_http_error c_cdd_str_equal(const char *a, const char *b,
-                                                  int *out_b);
+extern enum c_abstract_http_error
+c_abstract_http_str_equal(const char *a, const char *b, int *out_b);
 
 /**
  * @brief Compare strings case-insensitively like stricmp/strcasecmp.
@@ -95,8 +96,8 @@ extern enum c_abstract_http_error c_cdd_str_equal(const char *a, const char *b,
  * @param[in] b Second string.
  * @return 0 if equal, non-zero otherwise.
  */
-extern enum c_abstract_http_error math_c_cdd_stricmp(const char *a,
-                                                     const char *b);
+extern enum c_abstract_http_error math_c_abstract_http_stricmp(const char *a,
+                                                               const char *b);
 
 /**
  * @brief Check if two strings are equal ignoring ASCII case.
@@ -106,8 +107,8 @@ extern enum c_abstract_http_error math_c_cdd_stricmp(const char *a,
  * @param[out] out_b Pointer to store the result
  * @return 1 if strings match case-insensitively or both are NULL, 0 otherwise.
  */
-extern enum c_abstract_http_error c_cdd_str_iequal(const char *a, const char *b,
-                                                   int *out_b);
+extern enum c_abstract_http_error
+c_abstract_http_str_iequal(const char *a, const char *b, int *out_b);
 
 /**
  * @brief Find the substring after the last occurrence of a character.
@@ -118,7 +119,8 @@ extern enum c_abstract_http_error c_cdd_str_iequal(const char *a, const char *b,
  * @return Pointer to character immediately following the last delimiter.
  */
 extern enum c_abstract_http_error
-c_cdd_str_after_last(const char *str, int delimiter, const char **out_s);
+c_abstract_http_str_after_last(const char *str, int delimiter,
+                               const char **out_s);
 
 /**
  * @brief Check if a pointer reference matches a specific type name.
@@ -129,7 +131,7 @@ c_cdd_str_after_last(const char *str, int delimiter, const char **out_s);
  * @return 1 if the extracted name matches `type`.
  */
 extern enum c_abstract_http_error
-c_cdd_ref_is_type(const char *ref, const char *type, int *out_b);
+c_abstract_http_ref_is_type(const char *ref, const char *type, int *out_b);
 
 /* --- Modification Helpers --- */
 
@@ -138,7 +140,7 @@ c_cdd_ref_is_type(const char *ref, const char *type, int *out_b);
  *
  * @param[in,out] str The string to modify.
  */
-extern void c_cdd_str_trim_trailing_whitespace(char *str);
+extern void c_abstract_http_str_trim_trailing_whitespace(char *str);
 
 /**
  * @brief Decode a string literal token for _Pragma usage.
@@ -152,11 +154,11 @@ extern void c_cdd_str_trim_trailing_whitespace(char *str);
  * @param[in] quoted The string literal (with quotes).
  * @return Allocated string containing the decoded content, or NULL on error.
  */
-extern enum c_abstract_http_error c_cdd_destringize(const char *quoted,
-                                                    char **out_s);
+extern enum c_abstract_http_error
+c_abstract_http_destringize(const char *quoted, char **out_s);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-#endif /* C_CDD_STR_UTILS_H */
+#endif /* C_ABSTRACT_HTTP_STR_UTILS_H */

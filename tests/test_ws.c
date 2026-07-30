@@ -965,7 +965,7 @@ TEST test_ws_stubs(void) {
   PASS();
 }
 
-static int mock_push(void *ctx, cdd_thread_task_cb cb, void *arg) {
+static int mock_push(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
   (void)ctx;
   cb(arg); /* Run synchronously for test */
   return 0;
@@ -983,12 +983,12 @@ mock_client_send(struct HttpTransportContext *ctx,
 TEST test_ws_async_register_success(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
-  struct CddThreadPool *pool = NULL;
-  struct CddThreadPoolHooks hooks = {0};
+  struct AbstractHttpThreadPool *pool = NULL;
+  struct AbstractHttpThreadPoolHooks hooks = {0};
 
   hooks.push = mock_push;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            cdd_thread_pool_init_external(&pool, &hooks));
+            abstract_http_thread_pool_init_external(&pool, &hooks));
   client.thread_pool = pool;
   client.send = mock_client_send;
 
@@ -1026,7 +1026,7 @@ TEST test_ws_async_register_success(void) {
                                       &exit_flag);
   }
 
-  cdd_thread_pool_free(pool);
+  abstract_http_thread_pool_free(pool);
   PASS();
 }
 
@@ -1052,13 +1052,13 @@ TEST test_ws_async_coverage(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  cdd_thread_pool_init(&client.thread_pool, 1);
+  abstract_http_thread_pool_init(&client.thread_pool, 1);
   g_mock_alloc_fail = 1;
   rc = c_abstract_http_ws_async_register(&client, &req, NULL, mock_on_err, NULL,
                                          &err_called);
   g_mock_alloc_fail = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  cdd_thread_pool_free(client.thread_pool);
+  abstract_http_thread_pool_free(client.thread_pool);
 #endif
 
   if (req.ws_ctx) {

@@ -7,8 +7,8 @@
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_HTTP_TLS_H
-#define C_CDD_HTTP_TLS_H
+#ifndef C_ABSTRACT_HTTP_HTTP_TLS_H
+#define C_ABSTRACT_HTTP_HTTP_TLS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +22,7 @@ extern "C" {
 /**
  * @brief Opaque structure representing a Thread Local Storage key.
  */
-struct CddTlsKey;
+struct AbstractHttpTlsKey;
 
 /**
  * @brief Creates a new TLS key.
@@ -32,8 +32,9 @@ struct CddTlsKey;
  * exits.
  * @return 0 on success, or an error code on failure.
  */
-extern c_abstract_http_error_t cdd_tls_key_create(struct CddTlsKey **key,
-                                                  void (*destructor)(void *));
+extern c_abstract_http_error_t
+abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
+                             void (*destructor)(void *));
 
 /**
  * @brief Sets a thread-local value for the given key.
@@ -42,7 +43,8 @@ extern c_abstract_http_error_t cdd_tls_key_create(struct CddTlsKey **key,
  * @param[in] value The value to store.
  * @return 0 on success, or an error code on failure.
  */
-extern c_abstract_http_error_t cdd_tls_set(struct CddTlsKey *key, void *value);
+extern c_abstract_http_error_t
+abstract_http_tls_set(struct AbstractHttpTlsKey *key, void *value);
 
 /**
  * @brief Gets the thread-local value for the given key.
@@ -51,15 +53,16 @@ extern c_abstract_http_error_t cdd_tls_set(struct CddTlsKey *key, void *value);
  * @param[out] out_value Pointer to a void pointer to store the retrieved value.
  * @return 0 on success, or an error code on failure.
  */
-extern c_abstract_http_error_t cdd_tls_get(struct CddTlsKey *key,
-                                           void **out_value);
+extern c_abstract_http_error_t
+abstract_http_tls_get(struct AbstractHttpTlsKey *key, void **out_value);
 
 /**
  * @brief Deletes a TLS key.
  *
  * @param[in] key The TLS key to delete.
  */
-extern c_abstract_http_error_t cdd_tls_key_delete(struct CddTlsKey *key);
+extern c_abstract_http_error_t
+abstract_http_tls_key_delete(struct AbstractHttpTlsKey *key);
 
 #ifdef __cplusplus
 }

@@ -9,8 +9,8 @@
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_WIN_COMPAT_SYM_H
-#define C_CDD_WIN_COMPAT_SYM_H
+#ifndef C_ABSTRACT_HTTP_WIN_COMPAT_SYM_H
+#define C_ABSTRACT_HTTP_WIN_COMPAT_SYM_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,4 +56,4 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
-#endif /* C_CDD_WIN_COMPAT_SYM_H */
+#endif /* C_ABSTRACT_HTTP_WIN_COMPAT_SYM_H */

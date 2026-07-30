@@ -8,8 +8,8 @@
  * @author Samuel Marks
  */
 
-#ifndef C_CDD_TEST_HTTP_ANDROID_H
-#define C_CDD_TEST_HTTP_ANDROID_H
+#ifndef C_ABSTRACT_HTTP_TEST_HTTP_ANDROID_H
+#define C_ABSTRACT_HTTP_TEST_HTTP_ANDROID_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,4 +95,4 @@ SUITE(http_android_suite) {
 }
 #endif /* __cplusplus */
 
-#endif /* C_CDD_TEST_HTTP_ANDROID_H */
+#endif /* C_ABSTRACT_HTTP_TEST_HTTP_ANDROID_H */
