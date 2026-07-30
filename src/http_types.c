@@ -11,6 +11,7 @@
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 #define malloc c_abstract_http_mock_malloc
 #define calloc c_abstract_http_mock_calloc
+extern void *c_abstract_http_mock_realloc(void *, size_t);
 #define realloc c_abstract_http_mock_realloc
 #define free c_abstract_http_mock_free
 #endif
