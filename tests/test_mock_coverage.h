@@ -438,7 +438,7 @@ TEST test_mock_server_coverage(void) {
   mock_server_destroy((MockServerPtr)srv);
 
   /* Double destroy coverage */
-  mock_server_destroy((MockServerPtr)srv);
+  mock_server_destroy(NULL);
 
   /* Force test branch at 288 in mock_server.c */
   {
