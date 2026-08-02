@@ -162,7 +162,6 @@ typedef unsigned __int64 uint64_t;
 #endif
 #endif
 #endif
-/* clang-format on */
 /** @brief abstract_http_int64_t typedef */
 typedef int64_t abstract_http_int64_t;
 /** @brief abstract_http_uint64_t typedef */
@@ -173,7 +172,6 @@ typedef uint64_t abstract_http_uint64_t;
 
 #include "c_abstract_http/no_discard.h"
 
-/* clang-format off */
 #ifndef C_ABSTRACT_HTTP_API
 #if defined(_WIN32) || defined(__CYGWIN__)
 #if defined(C_ABSTRACT_HTTP_BUILD_SHARED)

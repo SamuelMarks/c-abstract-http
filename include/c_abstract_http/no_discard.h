@@ -3,7 +3,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* __cplusplus */
 
 #if defined(__GNUC__) || defined(__clang__)
 #define NO_DISCARD __attribute__((warn_unused_result))
@@ -15,6 +15,6 @@ extern "C" {
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* __cplusplus */
 
 #endif
