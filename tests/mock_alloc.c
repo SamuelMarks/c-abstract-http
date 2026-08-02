@@ -423,6 +423,10 @@ uint64_t c_abstract_http_mock_math_get_current_time_ms(void) {
 }
 
 void dummy_cb_thread(void *arg) { (void)arg; }
+void *dummy_cb_pthread(void *arg) {
+  (void)arg;
+  return NULL;
+}
 
 enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
                                                        char **out) {

@@ -104,7 +104,7 @@ struct AbstractHttpTlsKey {
 enum c_abstract_http_error
 abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
                              void (*destructor)(void *)) {
-  int rc;
+  enum c_abstract_http_error rc;
   LOG_DEBUG("abstract_http_tls_key_create: Entering");
   if (!key) {
     LOG_DEBUG("abstract_http_tls_key_create: Error EINVAL");
@@ -129,7 +129,7 @@ abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
 
 enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
                                                  void *value) {
-  int rc;
+  enum c_abstract_http_error rc;
   LOG_DEBUG("abstract_http_tls_set: Entering");
   if (!key) {
     LOG_DEBUG("abstract_http_tls_set: Error EINVAL");

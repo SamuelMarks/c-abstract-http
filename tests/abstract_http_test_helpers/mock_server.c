@@ -292,7 +292,10 @@ void mock_server_destroy(MockServerPtr server) {
   mutex_destroy(&server->lock);
   /* cond_destroy not strictly needed in simple pthread wrapper or windows CV */
 
-  free(server->captured_request);
+  if (server->captured_request) {
+    free(server->captured_request);
+    server->captured_request = NULL;
+  }
 
   free(server);
   platform_cleanup();
@@ -416,6 +419,10 @@ void abstract_http_mock_server_force_request(MockServerPtr server,
   if (server) {
     server->has_request = 1;
     server->captured_len = strlen(data);
+    if (server->captured_request) {
+      free(server->captured_request);
+      server->captured_request = NULL;
+    }
     server->captured_request = (char *)malloc(server->captured_len + 1);
     if (server->captured_request) {
       memcpy(server->captured_request, data, server->captured_len + 1);

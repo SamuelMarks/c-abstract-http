@@ -63,7 +63,7 @@ enum c_abstract_http_error http_picoquic_global_cleanup(void) {
 enum c_abstract_http_error
 http_picoquic_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  int rc;
+  enum c_abstract_http_error rc;
   uint8_t reset_seed[16] = {0};
 
   LOG_DEBUG("http_picoquic_context_init: Entering");
@@ -146,7 +146,7 @@ http_picoquic_config_apply(struct HttpTransportContext *ctx,
 enum c_abstract_http_error
 http_picoquic_send(const struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, struct HttpResponse **res) {
-  int rc;
+  enum c_abstract_http_error rc;
   cah_cppcheck_mut_ptr((void *)ctx);
   LOG_DEBUG("http_picoquic_send: Entering");
   if (!ctx || !req || !res) {

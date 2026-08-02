@@ -26,7 +26,7 @@ enum c_abstract_http_error http_aria2_global_cleanup(void) {
 
 enum c_abstract_http_error
 http_aria2_context_init(struct HttpTransportContext **ctx) {
-  int rc;
+  enum c_abstract_http_error rc;
   LOG_DEBUG("http_aria2_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_aria2_context_init: Error EINVAL");
@@ -77,7 +77,7 @@ http_aria2_config_apply(struct HttpTransportContext *ctx,
 enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
                                            const struct HttpRequest *req,
                                            struct HttpResponse **const res) {
-  int rc;
+  enum c_abstract_http_error rc;
   char cmd[4096];
   char tmp_filename[256];
   struct HttpResponse *new_res = NULL;

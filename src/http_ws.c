@@ -94,7 +94,7 @@ enum c_abstract_http_error ws_verify_accept(const char *client_key, const char *
 
 static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
                             size_t *out_read) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)user_data;
   if (!sctx)
     return -1;
@@ -613,7 +613,7 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
     c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
     c_abstract_http_ws_on_close on_close, void *user_data,
     volatile int *exit_flag) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpResponse *res = NULL;
   struct ws_parser_ctx parser;
   cah_cppcheck_mut_ptr((void *)exit_flag);
@@ -707,7 +707,7 @@ enum c_abstract_http_error c_abstract_http_ws_async_register(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
     c_abstract_http_ws_on_close on_close, void *user_data) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct c_abstract_http_ws_async_ctx *ctx;
 
   if (!client || !req) {
@@ -759,7 +759,7 @@ c_abstract_http_ws_send(struct HttpRequest *req,
   struct ws_stream_ctx *sctx;
   unsigned char header[10];
   size_t header_len = 0;
-  int rc;
+  enum c_abstract_http_error rc;
   unsigned char mask_key[4] = {0, 0, 0, 0};
   unsigned char *masked_payload = NULL;
 
@@ -875,7 +875,7 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
   struct ws_stream_ctx *sctx;
   unsigned char payload[2];
   uint16_t net_status = math_ws_htons((uint16_t)status_code);
-  int rc;
+  enum c_abstract_http_error rc;
   if (!req || !req->ws_ctx) /* LCOV_EXCL_BR_LINE */
     return C_ABSTRACT_HTTP_ERR_INVAL;
   sctx = (struct ws_stream_ctx *)req->ws_ctx;

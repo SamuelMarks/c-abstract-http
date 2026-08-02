@@ -185,7 +185,7 @@ enum c_abstract_http_error
 http_winhttp_context_init(struct HttpTransportContext **ctx) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
   HINTERNET hSession;
-  int rc;
+  enum c_abstract_http_error rc;
 
   LOG_DEBUG("http_winhttp_context_init: Entering");
   if (!ctx) {
@@ -695,7 +695,7 @@ static DWORD WINAPI winhttp_async_worker(LPVOID lpParam) {
   struct WinHttpAsyncWorkerCtx *worker_ctx =
       (struct WinHttpAsyncWorkerCtx *)lpParam;
   struct HttpResponse *res = NULL;
-  int rc;
+  enum c_abstract_http_error rc;
 
   rc = http_winhttp_send(worker_ctx->ctx, worker_ctx->req, &res);
 

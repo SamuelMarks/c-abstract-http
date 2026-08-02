@@ -48,7 +48,7 @@ struct RawCtx {
 enum c_abstract_http_error
 http_raw_context_init(struct HttpTransportContext **ctx) {
   struct RawCtx *c;
-  int rc;
+  enum c_abstract_http_error rc;
   LOG_DEBUG("http_raw_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_raw_context_init: Error EINVAL");

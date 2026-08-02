@@ -21,7 +21,7 @@ extern int c_abstract_http_mock_pthread_create(void *thread, const void *attr,
 
 TEST test_mock_alloc_coverage(void) {
 
-  dummy_cb_thread(NULL);
+  dummy_cb_pthread(NULL);
 
   g_mock_select_fail = 1;
   ASSERT_EQ(-1, c_abstract_http_mock_select(0, NULL, NULL, NULL,
@@ -163,12 +163,9 @@ TEST test_mock_alloc_more(void) {
   g_mock_alloc_count = 1;
   {
     pthread_t thread;
-    ASSERT_EQ(
-        0,
-        c_abstract_http_mock_pthread_create(/* LCOV_EXCL_BR_LINE */
-                                            &thread, NULL,
-                                            (void *(*)(void *))dummy_cb_thread,
-                                            NULL));
+    ASSERT_EQ(0, c_abstract_http_mock_pthread_create(/* LCOV_EXCL_BR_LINE */
+                                                     &thread, NULL,
+                                                     dummy_cb_pthread, NULL));
   }
   g_mock_pthread_fail = 0;
 

@@ -46,7 +46,7 @@ enum c_abstract_http_error http_xquic_global_cleanup(void) {
 enum c_abstract_http_error
 http_xquic_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  int rc;
+  enum c_abstract_http_error rc;
   LOG_DEBUG("http_xquic_context_init: Entering");
 
   if (!ctx) {

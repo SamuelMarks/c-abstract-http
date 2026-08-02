@@ -568,7 +568,7 @@ abstract_http_ipc_deserialize_request(const char *buf, size_t len,
   size_t hcount, body_len;
   int method;
   size_t i;
-  int rc;
+  enum c_abstract_http_error rc;
   const char *p;
   const char *end;
 
@@ -676,7 +676,7 @@ abstract_http_ipc_deserialize_response(const char *buf, size_t len,
                                        struct HttpResponse *res) {
   size_t hcount, body_len;
   size_t i;
-  int rc;
+  enum c_abstract_http_error rc;
   const char *p;
   const char *end;
 

@@ -83,7 +83,7 @@ enum c_abstract_http_error sse_parser_init(
     struct sse_parser_ctx *ctx, const struct c_abstract_http_sse_config *config,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
     c_abstract_http_sse_on_close on_cls, void *user_data) {
-  int rc;
+  enum c_abstract_http_error rc;
   LOG_DEBUG("sse_parser_init: Entering");
   if (!ctx) {
     LOG_DEBUG("sse_parser_init: Error EINVAL");
@@ -338,7 +338,7 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
     c_abstract_http_sse_on_close on_close, void *user_data,
     volatile int *exit_flag) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct HttpResponse *res = NULL;
   struct sse_parser_ctx parser;
   cah_cppcheck_mut_ptr((void *)exit_flag);
@@ -423,7 +423,7 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
     c_abstract_http_sse_on_close on_close, void *user_data) {
-  int rc;
+  enum c_abstract_http_error rc;
   struct c_abstract_http_sse_async_ctx *ctx;
 
   if (!client || !req) {

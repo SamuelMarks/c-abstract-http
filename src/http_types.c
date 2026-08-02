@@ -1694,7 +1694,8 @@ enum c_abstract_http_error http_oauth2_localhost_intercept(unsigned short port,
                cli_sock = ABSTRACT_HTTP_INVALID_SOCKET_VAL;
   struct sockaddr_in saddr;
   char buf[4096];
-  int rc = 0, n;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  int n;
   char *p;
   int opt = 1;
 

@@ -919,7 +919,7 @@ socket_error:
 enum c_abstract_http_error http_curl_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
-  int rc;
+  enum c_abstract_http_error rc;
   size_t i;
 
   LOG_DEBUG("http_curl_send_multi: Entering");

@@ -190,7 +190,7 @@ http_wininet_context_init(struct HttpTransportContext **ctx) {
 #ifdef _WIN32
   HINTERNET hInternet;
   DWORD flags = 0;
-  int rc;
+  enum c_abstract_http_error rc;
 
   LOG_DEBUG("http_wininet_context_init: Entering");
   CHECK_EINVAL(ctx);

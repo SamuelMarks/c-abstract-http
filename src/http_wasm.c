@@ -36,7 +36,7 @@ enum c_abstract_http_error http_wasm_global_cleanup(void) {
 
 enum c_abstract_http_error
 http_wasm_context_init(struct HttpTransportContext **ctx) {
-  int rc;
+  enum c_abstract_http_error rc;
   LOG_DEBUG("http_wasm_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_wasm_context_init: Error EINVAL");
