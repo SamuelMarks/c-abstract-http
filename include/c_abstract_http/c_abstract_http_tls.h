@@ -32,7 +32,7 @@ struct AbstractHttpTlsKey;
  * exits.
  * @return 0 on success, or an error code on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
                              void (*destructor)(void *));
 
@@ -43,7 +43,7 @@ abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
  * @param[in] value The value to store.
  * @return 0 on success, or an error code on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_tls_set(struct AbstractHttpTlsKey *key, void *value);
 
 /**
@@ -53,7 +53,7 @@ abstract_http_tls_set(struct AbstractHttpTlsKey *key, void *value);
  * @param[out] out_value Pointer to a void pointer to store the retrieved value.
  * @return 0 on success, or an error code on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_tls_get(struct AbstractHttpTlsKey *key, void **out_value);
 
 /**
@@ -61,7 +61,7 @@ abstract_http_tls_get(struct AbstractHttpTlsKey *key, void **out_value);
  *
  * @param[in] key The TLS key to delete.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_tls_key_delete(struct AbstractHttpTlsKey *key);
 
 #ifdef __cplusplus

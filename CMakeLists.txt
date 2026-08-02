@@ -691,6 +691,9 @@ if(BUILD_TESTING_${PROJECT_NAME})
     include(CTest)
 
     if(BUILD_TESTING)
+if(BUILD_SHARED_LIBS)
+    target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_BUILD_SHARED=1)
+endif()
         add_subdirectory(tests)
 
         if(NOT (WIN32 AND BUILD_SHARED_LIBS))

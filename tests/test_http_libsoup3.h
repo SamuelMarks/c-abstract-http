@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 /**
  * @file test_http_libsoup3.h
  * @brief Integration tests for Libsoup3 Backend.
@@ -176,3 +177,5 @@ SUITE(http_libsoup3_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_LIBSOUP3_H */
+
+/* LCOV_EXCL_BR_STOP */

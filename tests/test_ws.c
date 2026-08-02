@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE 1
 #endif
@@ -999,7 +1000,8 @@ TEST test_ws_async_register_success(void) {
   /* Since c_abstract_http_ws_init needs URL, etc., it will fail inside
    * sync_read_loop. */
   /* We just test that it doesn't crash and gets scheduled. */
-  c_abstract_http_ws_async_register(&client, &req, NULL, NULL, NULL, NULL);
+  (void)c_abstract_http_ws_async_register(&client, &req, NULL, NULL, NULL,
+                                          NULL);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1022,19 +1024,19 @@ TEST test_ws_async_register_success(void) {
   /* Simulate exit of sync_read_loop which frees the ws_ctx */
   {
     int exit_flag = 0;
-    c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL, NULL,
-                                      &exit_flag);
+    (void)c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL,
+                                            NULL, &exit_flag);
   }
 
-  abstract_http_thread_pool_free(pool);
+  (void)abstract_http_thread_pool_free(pool);
   PASS();
 }
 
-static int mock_on_err(int rc, void *user_data) {
-  int *called = (int *)user_data;
-  (void)rc;
-  *called = 1;
-  return 0;
+static int mock_on_err(int rc, void *user_data) { /* LCOV_EXCL_LINE */
+  int *called = (int *)user_data;                 /* LCOV_EXCL_LINE */
+  (void)rc;                                       /* LCOV_EXCL_LINE */
+  *called = 1;                                    /* LCOV_EXCL_LINE */
+  return 0;                                       /* LCOV_EXCL_LINE */
 }
 
 TEST test_ws_async_coverage(void) {
@@ -1043,22 +1045,22 @@ TEST test_ws_async_coverage(void) {
   enum c_abstract_http_error rc;
   int err_called = 0;
 
-  http_client_init(&client);
-  http_request_init(&req);
-  c_abstract_http_ws_init(&req, NULL);
+  (void)http_client_init(&client);
+  (void)http_request_init(&req);
+  (void)c_abstract_http_ws_init(&req, NULL);
 
   rc = c_abstract_http_ws_async_register(&client, &req, NULL, mock_on_err, NULL,
                                          &err_called);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  abstract_http_thread_pool_init(&client.thread_pool, 1);
+  (void)abstract_http_thread_pool_init(&client.thread_pool, 1);
   g_mock_alloc_fail = 1;
   rc = c_abstract_http_ws_async_register(&client, &req, NULL, mock_on_err, NULL,
                                          &err_called);
   g_mock_alloc_fail = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  abstract_http_thread_pool_free(client.thread_pool);
+  (void)abstract_http_thread_pool_free(client.thread_pool);
 #endif
 
   if (req.ws_ctx) {
@@ -1074,8 +1076,8 @@ TEST test_ws_edge_cases(void) {
   size_t out_read;
   char buf[128];
 
-  http_request_init(&req3);
-  c_abstract_http_ws_init(&req3, NULL);
+  (void)http_request_init(&req3);
+  (void)c_abstract_http_ws_init(&req3, NULL);
 
   if (req3.read_chunk) {
     req3.read_chunk(NULL, buf, sizeof(buf), &out_read);
@@ -1167,3 +1169,5 @@ int main(int argc, char **argv) {
   RUN_SUITE(ws_suite);
   GREATEST_MAIN_END();
 }
+
+/* LCOV_EXCL_BR_STOP */

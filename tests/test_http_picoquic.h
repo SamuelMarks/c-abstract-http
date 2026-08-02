@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 /**
  * @file test_http_picoquic.h
  * @brief Integration tests for Picoquic Backend.
@@ -114,3 +115,5 @@ SUITE(http_picoquic_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_PICOQUIC_H */
+
+/* LCOV_EXCL_BR_STOP */

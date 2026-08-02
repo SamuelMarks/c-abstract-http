@@ -31,13 +31,15 @@ struct HttpTransportContext;
  * Reference-counted; safe to call multiple times.
  * @return 0 on success, ENOMEM or native error code on failure.
  */
-extern c_abstract_http_error_t http_lsquic_global_init(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_lsquic_global_init(void);
 
 /**
  * @brief Clean up the global lsquic API state.
  * Automatically cleans up when the reference count drops to 0.
  */
-extern c_abstract_http_error_t http_lsquic_global_cleanup(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_lsquic_global_cleanup(void);
 
 /**
  * @brief Initialize a new lsquic transport context.
@@ -45,7 +47,7 @@ extern c_abstract_http_error_t http_lsquic_global_cleanup(void);
  * @param[out] ctx Double pointer to receive the newly allocated context.
  * @return 0 on success, ENOMEM on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_lsquic_context_init(struct HttpTransportContext **ctx);
 
 /**
@@ -53,7 +55,8 @@ http_lsquic_context_init(struct HttpTransportContext **ctx);
  *
  * @param[in] ctx The context to free.
  */
-extern void http_lsquic_context_free(struct HttpTransportContext *ctx);
+C_ABSTRACT_HTTP_API void
+http_lsquic_context_free(struct HttpTransportContext *ctx);
 
 /**
  * @brief Apply configuration settings to an lsquic transport context.
@@ -64,9 +67,8 @@ extern void http_lsquic_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration settings.
  * @return 0 on success, or a mapped error code on failure.
  */
-extern c_abstract_http_error_t
-http_lsquic_config_apply(struct HttpTransportContext *ctx,
-                         const struct HttpConfig *config);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_lsquic_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config);
 
 /**
  * @brief Synchronous single request dispatcher for lsquic.
@@ -77,7 +79,7 @@ http_lsquic_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Double pointer to receive the newly allocated response.
  * @return 0 on success, or a mapped error code on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_lsquic_send(struct HttpTransportContext *ctx,
                  const struct HttpRequest *req, struct HttpResponse **res);
 
@@ -91,7 +93,7 @@ http_lsquic_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t http_lsquic_send_multi(
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_lsquic_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 

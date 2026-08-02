@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 #if defined(_WIN32) && defined(_MSC_VER)
 #pragma warning(disable : 4273)
 #endif
@@ -26,13 +27,16 @@
 #undef bind
 #undef listen
 #undef accept
-#undef recv
+#undef getsockname
 
-/* clang-format off */
+int g_mock_getsockname_fail = 0;
+int *abstract_http_mock_get_g_mock_getsockname_fail(void) {
+  return &g_mock_getsockname_fail;
+}
+#include "mock_alloc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "mock_alloc.h"
 
 #if defined(_MSC_VER)
 #pragma warning(disable : 4565)
@@ -41,8 +45,9 @@
 #endif
 
 #ifdef _WIN32
-int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
-                                fd_set *errorfds, const struct timeval *timeout);
+int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
+                                       fd_set *writefds, fd_set *errorfds,
+                                       const struct timeval *timeout);
 #else
 int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
                                 fd_set *errorfds, struct timeval *timeout);
@@ -51,22 +56,30 @@ size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nitems,
                                    FILE *stream);
 int c_abstract_http_mock_fclose(FILE *stream);
 #ifdef _WIN32
-#include <winsock2.h>
 #include <BaseTsd.h>
+#include <winsock2.h>
 typedef SSIZE_T ssize_t;
 typedef int socklen_t;
 SOCKET WSAAPI c_abstract_http_mock_socket(int domain, int type, int protocol);
-int WSAAPI c_abstract_http_mock_bind(SOCKET socket, const struct sockaddr *address, socklen_t address_len);
+int WSAAPI c_abstract_http_mock_bind(SOCKET socket,
+                                     const struct sockaddr *address,
+                                     socklen_t address_len);
 int WSAAPI c_abstract_http_mock_listen(SOCKET socket, int backlog);
-SOCKET WSAAPI c_abstract_http_mock_accept(SOCKET socket, struct sockaddr *address, int *address_len);
-int WSAAPI c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length, int flags);
+SOCKET WSAAPI c_abstract_http_mock_accept(SOCKET socket,
+                                          struct sockaddr *address,
+                                          int *address_len);
+int WSAAPI c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length,
+                                     int flags);
 #else
 #include <sys/socket.h>
 int c_abstract_http_mock_socket(int domain, int type, int protocol);
-int c_abstract_http_mock_bind(int socket, const struct sockaddr *address, socklen_t address_len);
+int c_abstract_http_mock_bind(int socket, const struct sockaddr *address,
+                              socklen_t address_len);
 int c_abstract_http_mock_listen(int socket, int backlog);
-int c_abstract_http_mock_accept(int socket, struct sockaddr *address, socklen_t *address_len);
-ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length, int flags);
+int c_abstract_http_mock_accept(int socket, struct sockaddr *address,
+                                socklen_t *address_len);
+ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
+                                  int flags);
 #endif
 
 #undef g_mock_alloc_fail
@@ -125,25 +138,47 @@ int g_mock_recv_fail = 0;
 
 int *abstract_http_mock_get_g_mock_sha1_fail(void) { return &g_mock_sha1_fail; }
 
-int *abstract_http_mock_get_g_mock_alloc_fail(void) { return &g_mock_alloc_fail; }
-int *abstract_http_mock_get_g_mock_alloc_count(void) { return &g_mock_alloc_count; }
-int *abstract_http_mock_get_g_mock_pthread_fail(void) { return &g_mock_pthread_fail; }
+int *abstract_http_mock_get_g_mock_alloc_fail(void) {
+  return &g_mock_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_alloc_count(void) {
+  return &g_mock_alloc_count;
+}
+int *abstract_http_mock_get_g_mock_pthread_fail(void) {
+  return &g_mock_pthread_fail;
+}
 int *abstract_http_mock_get_g_mock_pipe_fail(void) { return &g_mock_pipe_fail; }
 int *abstract_http_mock_get_g_mock_fork_fail(void) { return &g_mock_fork_fail; }
-int *abstract_http_mock_get_g_mock_waitpid_fail(void) { return &g_mock_waitpid_fail; }
-int *abstract_http_mock_get_g_mock_select_fail(void) { return &g_mock_select_fail; }
-int *abstract_http_mock_get_g_mock_select_error_fds(void) { return &g_mock_select_error_fds; }
+int *abstract_http_mock_get_g_mock_waitpid_fail(void) {
+  return &g_mock_waitpid_fail;
+}
+int *abstract_http_mock_get_g_mock_select_fail(void) {
+  return &g_mock_select_fail;
+}
+int *abstract_http_mock_get_g_mock_select_error_fds(void) {
+  return &g_mock_select_error_fds;
+}
 int *abstract_http_mock_get_g_mock_time_jump(void) { return &g_mock_time_jump; }
-int *abstract_http_mock_get_g_mock_time_jump_count(void) { return &g_mock_time_jump_count; }
-int *abstract_http_mock_get_g_mock_fwrite_fail(void) { return &g_mock_fwrite_fail; }
-int *abstract_http_mock_get_g_mock_fclose_fail(void) { return &g_mock_fclose_fail; }
-int *abstract_http_mock_get_g_mock_socket_fail(void) { return &g_mock_socket_fail; }
+int *abstract_http_mock_get_g_mock_time_jump_count(void) {
+  return &g_mock_time_jump_count;
+}
+int *abstract_http_mock_get_g_mock_fwrite_fail(void) {
+  return &g_mock_fwrite_fail;
+}
+int *abstract_http_mock_get_g_mock_fclose_fail(void) {
+  return &g_mock_fclose_fail;
+}
+int *abstract_http_mock_get_g_mock_socket_fail(void) {
+  return &g_mock_socket_fail;
+}
 int *abstract_http_mock_get_g_mock_bind_fail(void) { return &g_mock_bind_fail; }
-int *abstract_http_mock_get_g_mock_listen_fail(void) { return &g_mock_listen_fail; }
-int *abstract_http_mock_get_g_mock_accept_fail(void) { return &g_mock_accept_fail; }
+int *abstract_http_mock_get_g_mock_listen_fail(void) {
+  return &g_mock_listen_fail;
+}
+int *abstract_http_mock_get_g_mock_accept_fail(void) {
+  return &g_mock_accept_fail;
+}
 int *abstract_http_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
-
-
 
 #undef malloc
 #undef calloc
@@ -162,44 +197,56 @@ int *abstract_http_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
 #undef math_get_current_time_ms
 #undef pthread_getspecific
 
-
-
-ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc(size_t size);
-ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_calloc(size_t count, size_t size);
-ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_realloc(void *ptr, size_t size);
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
+c_abstract_http_mock_malloc(size_t size);
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
+c_abstract_http_mock_calloc(size_t count, size_t size);
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
+c_abstract_http_mock_realloc(void *ptr, size_t size);
 ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
-enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s, char **out);
+enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
+                                                       char **out);
 
-ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_malloc(size_t size) {
-    if (g_mock_alloc_fail)
-    if (g_mock_alloc_fail) { if (g_mock_alloc_count-- == 0) { return NULL; } }
-    return malloc(size);
-}
-
-ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_calloc(size_t count, size_t size) {
-    if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
+c_abstract_http_mock_malloc(size_t size) {
+  if (g_mock_alloc_fail)
+    if (g_mock_alloc_fail) {
+      if (g_mock_alloc_count-- == 0) {
         return NULL;
+      }
     }
-    return calloc(count, size);
+  return malloc(size);
 }
 
-ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *c_abstract_http_mock_realloc(void *ptr, size_t size) {
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
+c_abstract_http_mock_calloc(size_t count, size_t size) {
+  if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
+    return NULL;
+  }
+  return calloc(count, size);
+}
+
+ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
+c_abstract_http_mock_realloc(void *ptr, size_t size) {
+  if (g_mock_alloc_fail)
     if (g_mock_alloc_fail)
-    if (g_mock_alloc_fail)
-    if (g_mock_alloc_fail) { if (g_mock_alloc_count-- == 0) { return NULL; } }
-    return realloc(ptr, size);
+      if (g_mock_alloc_fail) {
+        if (g_mock_alloc_count-- == 0) {
+          return NULL;
+        }
+      }
+  return realloc(ptr, size);
 }
 
 ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr) {
-    free(ptr);
+  free(ptr);
 }
-
 
 #if !defined(_WIN32)
 #include <pthread.h>
-#include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #endif
 #include <errno.h>
 #if !defined(_WIN32)
@@ -377,7 +424,8 @@ uint64_t c_abstract_http_mock_math_get_current_time_ms(void) {
 
 void dummy_cb_thread(void *arg) { (void)arg; }
 
-enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s, char **out) {
+enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
+                                                       char **out) {
   if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
     if (out)
       *out = NULL;
@@ -390,7 +438,7 @@ enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s, char **out
   }
   {
     size_t len = strlen(s);
-    char *d = (char *)malloc(len + 1);
+    char *d = (char *)c_abstract_http_mock_malloc(len + 1);
     if (!d) {
       if (out)
         *out = NULL;
@@ -504,6 +552,14 @@ int WSAAPI c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length,
     return SOCKET_ERROR;
   return recv(socket, buffer, length, flags);
 }
+
+int WSAAPI c_abstract_http_mock_getsockname(SOCKET socket,
+                                            struct sockaddr *address,
+                                            int *address_len) {
+  if (g_mock_getsockname_fail)
+    return SOCKET_ERROR;
+  return getsockname(socket, address, address_len);
+}
 #else
 int c_abstract_http_mock_socket(int domain, int type, int protocol) {
   if (g_mock_socket_fail)
@@ -537,6 +593,13 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
     return -1;
   return recv(socket, buffer, length, flags);
 }
+
+int c_abstract_http_mock_getsockname(int socket, struct sockaddr *address,
+                                     socklen_t *address_len) {
+  if (g_mock_getsockname_fail)
+    return -1;
+  return getsockname(socket, address, address_len);
+}
 #endif
 
 #ifdef __APPLE__
@@ -550,3 +613,6 @@ int c_abstract_http_mock_select_darwin_extsn(int nfds, fd_set *readfds,
                                      timeout);
 }
 #endif
+int g_mock_timer_heap_swap_fail = 0;
+
+/* LCOV_EXCL_BR_STOP */

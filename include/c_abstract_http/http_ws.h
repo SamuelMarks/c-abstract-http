@@ -99,9 +99,8 @@ typedef int (*c_abstract_http_ws_on_close)(int status_code, void *user_data);
  * @param config Optional WebSocket configuration.
  * @return 0 on success, or a negative error code.
  */
-c_abstract_http_error_t
-c_abstract_http_ws_init(struct HttpRequest *req,
-                        const struct c_abstract_http_ws_config *config);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t c_abstract_http_ws_init(
+    struct HttpRequest *req, const struct c_abstract_http_ws_config *config);
 
 /**
  * @brief Run a blocking loop to read WebSocket frames for the given connection.
@@ -115,11 +114,13 @@ c_abstract_http_ws_init(struct HttpRequest *req,
  * *exit_flag != 0.
  * @return 0 on clean exit, negative error code on failure.
  */
-c_abstract_http_error_t c_abstract_http_ws_sync_read_loop(
-    struct HttpClient *client, struct HttpRequest *req,
-    c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
-    c_abstract_http_ws_on_close on_close, void *user_data,
-    volatile int *exit_flag);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
+                                  struct HttpRequest *req,
+                                  c_abstract_http_ws_on_message on_msg,
+                                  c_abstract_http_ws_on_error on_err,
+                                  c_abstract_http_ws_on_close on_close,
+                                  void *user_data, volatile int *exit_flag);
 
 /**
  * @brief Register a WebSocket connection with the underlying transport's
@@ -132,10 +133,13 @@ c_abstract_http_error_t c_abstract_http_ws_sync_read_loop(
  * @param user_data Opaque pointer to pass to the callbacks.
  * @return 0 on success, negative error code on failure.
  */
-c_abstract_http_error_t c_abstract_http_ws_async_register(
-    struct HttpClient *client, struct HttpRequest *req,
-    c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
-    c_abstract_http_ws_on_close on_close, void *user_data);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_ws_async_register(struct HttpClient *client,
+                                  struct HttpRequest *req,
+                                  c_abstract_http_ws_on_message on_msg,
+                                  c_abstract_http_ws_on_error on_err,
+                                  c_abstract_http_ws_on_close on_close,
+                                  void *user_data);
 
 /**
  * @brief Queue a WebSocket frame to be sent asynchronously or from a thread
@@ -147,7 +151,7 @@ c_abstract_http_error_t c_abstract_http_ws_async_register(
  * @param len The length of the payload data.
  * @return 0 on success, or a negative error code.
  */
-c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_ws_send_async(struct HttpRequest *req,
                               enum c_abstract_http_ws_opcode opcode,
                               const unsigned char *payload, size_t len);
@@ -161,10 +165,9 @@ c_abstract_http_ws_send_async(struct HttpRequest *req,
  * @param len The length of the payload data.
  * @return 0 on success, or a negative error code.
  */
-c_abstract_http_error_t
-c_abstract_http_ws_send(struct HttpRequest *req,
-                        enum c_abstract_http_ws_opcode opcode,
-                        const unsigned char *payload, size_t len);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t c_abstract_http_ws_send(
+    struct HttpRequest *req, enum c_abstract_http_ws_opcode opcode,
+    const unsigned char *payload, size_t len);
 
 /**
  * @brief Close a WebSocket connection.
@@ -173,8 +176,8 @@ c_abstract_http_ws_send(struct HttpRequest *req,
  * @param status_code The closure status code (e.g., 1000 for normal closure).
  * @return 0 on success, or a negative error code.
  */
-c_abstract_http_error_t c_abstract_http_ws_close(struct HttpRequest *req,
-                                                 int status_code);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_ws_close(struct HttpRequest *req, int status_code);
 
 #ifdef __cplusplus
 }

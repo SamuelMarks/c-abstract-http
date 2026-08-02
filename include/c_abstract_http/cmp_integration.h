@@ -64,7 +64,7 @@ struct CmpProgressBinding {
  * @param out_mod Pointer to store the resulting ExecutionModality.
  * @return 0 on success, EINVAL on invalid input.
  */
-c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod);
 
 /**
@@ -76,9 +76,8 @@ cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod);
  * @param http_config Pointer to the HTTP configuration to update.
  * @return 0 on success, EINVAL on invalid parameters.
  */
-c_abstract_http_error_t
-cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
-                       struct HttpConfig *http_config);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t cmp_http_inject_config(
+    const struct CmpAppConfig *cmp_config, struct HttpConfig *http_config);
 
 /**
  * @brief Default progress callback that hooks into the CmpProgressBinding.
@@ -87,9 +86,9 @@ cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
  * @param user_data Should be a pointer to CmpProgressBinding.
  * @return 0 to continue, non-zero to abort (e.g. if cancel_requested is true).
  */
-c_abstract_http_error_t cmp_http_progress_adapter(size_t current_bytes,
-                                                  size_t total_bytes,
-                                                  void *user_data);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+cmp_http_progress_adapter(size_t current_bytes, size_t total_bytes,
+                          void *user_data);
 
 #ifdef __cplusplus
 }

@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 #ifndef TEST_COROUTINE_H
 #define TEST_COROUTINE_H
 
@@ -21,190 +22,211 @@ struct CoroutineTestState {
   int counter;
 };
 
-static void test_co_cb(void *arg) {
-  struct CoroutineTestState *state = (struct CoroutineTestState *)arg;
-  state->counter++;
-  abstract_http_coroutine_yield();
-  state->counter++;
-  abstract_http_coroutine_yield();
-  state->counter++;
-}
+static void test_co_cb(void *arg) { /* LCOV_EXCL_LINE */
+  struct CoroutineTestState *state =
+      (struct CoroutineTestState *)arg; /* LCOV_EXCL_LINE */
+  state->counter++;                     /* LCOV_EXCL_LINE */
+  abstract_http_coroutine_yield();      /* LCOV_EXCL_LINE */
+  state->counter++;                     /* LCOV_EXCL_LINE */
+  abstract_http_coroutine_yield();      /* LCOV_EXCL_LINE */
+  state->counter++;                     /* LCOV_EXCL_LINE */
+} /* LCOV_EXCL_LINE */
 
-TEST test_coroutine_execution(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  struct AbstractHttpCoroutine *co = NULL;
+TEST test_coroutine_execution(void) {                      /* LCOV_EXCL_LINE */
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS; /* LCOV_EXCL_LINE */
+  struct AbstractHttpCoroutine *co = NULL;                 /* LCOV_EXCL_LINE */
   struct CoroutineTestState state;
-  state.counter = 0;
+  state.counter = 0; /* LCOV_EXCL_LINE */
 
-  rc = abstract_http_coroutine_init(&co, 0, test_co_cb, &state);
-  if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {
-    PASS();
-  }
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  rc = abstract_http_coroutine_init(&co, 0, test_co_cb,
+                                    &state); /* LCOV_EXCL_LINE */
+  if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {    /* LCOV_EXCL_LINE */
+    PASS();                                  /* LCOV_EXCL_LINE */
+  } /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc); /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(0, state.counter);
-  ASSERT_EQ(0, math_abstract_http_coroutine_is_done(co));
+  ASSERT_EQ(0, state.counter);                            /* LCOV_EXCL_LINE */
+  ASSERT_EQ(0, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_resume(co));
-  ASSERT_EQ(1, state.counter);
-  ASSERT_EQ(0, math_abstract_http_coroutine_is_done(co));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_coroutine_resume(co));          /* LCOV_EXCL_LINE */
+  ASSERT_EQ(1, state.counter);                            /* LCOV_EXCL_LINE */
+  ASSERT_EQ(0, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_resume(co));
-  ASSERT_EQ(2, state.counter);
-  ASSERT_EQ(0, math_abstract_http_coroutine_is_done(co));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_coroutine_resume(co));          /* LCOV_EXCL_LINE */
+  ASSERT_EQ(2, state.counter);                            /* LCOV_EXCL_LINE */
+  ASSERT_EQ(0, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_resume(co));
-  ASSERT_EQ(3, state.counter);
-  ASSERT_EQ(1, math_abstract_http_coroutine_is_done(co));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_coroutine_resume(co));          /* LCOV_EXCL_LINE */
+  ASSERT_EQ(3, state.counter);                            /* LCOV_EXCL_LINE */
+  ASSERT_EQ(1, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
 
   /* Calling resume on a finished coroutine should return an error */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_coroutine_resume(co));
-
-  abstract_http_coroutine_free(co);
-  PASS();
-}
-
-static void dummy_coroutine_cb(void *arg) { (void)arg; }
-
-TEST test_coroutine_errors(void) {
-  struct AbstractHttpCoroutine *co = NULL;
-  enum c_abstract_http_error rc =
-      abstract_http_coroutine_init(&co, 0, NULL, NULL);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_coroutine_resume(co)); /* LCOV_EXCL_LINE */
+
+  abstract_http_coroutine_free(co); /* LCOV_EXCL_LINE */
+  PASS();                           /* LCOV_EXCL_LINE */
+} /* LCOV_EXCL_LINE */
+
+static void dummy_coroutine_cb(void *arg) { (void)arg; } /* LCOV_EXCL_LINE */
+
+TEST test_coroutine_errors(void) {                      /* LCOV_EXCL_LINE */
+  struct AbstractHttpCoroutine *co = NULL;              /* LCOV_EXCL_LINE */
+  enum c_abstract_http_error rc =                       /* LCOV_EXCL_LINE */
+      abstract_http_coroutine_init(&co, 0, NULL, NULL); /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);             /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,                  /* LCOV_EXCL_LINE */
             abstract_http_coroutine_init(NULL, 1024, dummy_coroutine_cb, NULL));
 
   /* Test stack_size == 0 (use 65536 to avoid Wine CreateFiber(0) bug) */
-  rc = abstract_http_coroutine_init(&co, 65536, dummy_coroutine_cb, NULL);
-  if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {
-    PASS();
-  }
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  abstract_http_coroutine_free(co);
-  co = NULL;
+  rc = abstract_http_coroutine_init(&co, 65536, dummy_coroutine_cb,
+                                    NULL); /* LCOV_EXCL_LINE */
+  if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {  /* LCOV_EXCL_LINE */
+    PASS();                                /* LCOV_EXCL_LINE */
+  } /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc); /* LCOV_EXCL_LINE */
+  abstract_http_coroutine_free(co);       /* LCOV_EXCL_LINE */
+  co = NULL;                              /* LCOV_EXCL_LINE */
 
   /* Test stack_size != 0 */
-  rc = abstract_http_coroutine_init(&co, 2048, dummy_coroutine_cb, NULL);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  abstract_http_coroutine_free(co);
-  co = NULL;
+  rc = abstract_http_coroutine_init(&co, 2048, dummy_coroutine_cb,
+                                    NULL); /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);  /* LCOV_EXCL_LINE */
+  abstract_http_coroutine_free(co);        /* LCOV_EXCL_LINE */
+  co = NULL;                               /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_coroutine_resume(co));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_coroutine_yield());
-  ASSERT_EQ(1, math_abstract_http_coroutine_is_done(co));
-  abstract_http_coroutine_free(co);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_coroutine_resume(co)); /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_coroutine_yield());             /* LCOV_EXCL_LINE */
+  ASSERT_EQ(1, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
+  abstract_http_coroutine_free(co);                       /* LCOV_EXCL_LINE */
 
-  abstract_http_coroutine_set_hooks(NULL);
+  abstract_http_coroutine_set_hooks(NULL); /* LCOV_EXCL_LINE */
 
-  PASS();
-}
+  PASS(); /* LCOV_EXCL_LINE */
+} /* LCOV_EXCL_LINE */
 
-static int mock_co_init(struct AbstractHttpCoroutine **co, size_t stack_size,
+static int mock_co_init(struct AbstractHttpCoroutine **co,
+                        size_t stack_size, /* LCOV_EXCL_LINE */
                         abstract_http_coroutine_cb cb, void *arg) {
-  (void)co;
-  (void)stack_size;
-  (void)cb;
-  (void)arg;
-  return 0;
+  (void)co;         /* LCOV_EXCL_LINE */
+  (void)stack_size; /* LCOV_EXCL_LINE */
+  (void)cb;         /* LCOV_EXCL_LINE */
+  (void)arg;        /* LCOV_EXCL_LINE */
+  return 0;         /* LCOV_EXCL_LINE */
 }
-static void mock_co_free(struct AbstractHttpCoroutine *co) { (void)co; }
-static int mock_co_resume(struct AbstractHttpCoroutine *co) {
+static void mock_co_free(struct AbstractHttpCoroutine *co) {
   (void)co;
-  return 0;
+} /* LCOV_EXCL_LINE */
+static int
+mock_co_resume(struct AbstractHttpCoroutine *co) { /* LCOV_EXCL_LINE */
+  (void)co;                                        /* LCOV_EXCL_LINE */
+  return 0;                                        /* LCOV_EXCL_LINE */
 }
-static int mock_co_yield(void) { return 0; }
-static int mock_co_is_done(const struct AbstractHttpCoroutine *co) {
-  (void)co;
-  return 1;
+static int mock_co_yield(void) { return 0; } /* LCOV_EXCL_LINE */
+static int
+mock_co_is_done(const struct AbstractHttpCoroutine *co) { /* LCOV_EXCL_LINE */
+  (void)co;                                               /* LCOV_EXCL_LINE */
+  return 1;                                               /* LCOV_EXCL_LINE */
 }
 
-TEST test_coroutine_hooks(void) {
+TEST test_coroutine_hooks(void) { /* LCOV_EXCL_LINE */
   struct AbstractHttpCoroutineHooks hooks;
-  struct AbstractHttpCoroutine *co = NULL;
+  struct AbstractHttpCoroutine *co = NULL; /* LCOV_EXCL_LINE */
 
-  hooks.init = mock_co_init;
-  hooks.free = mock_co_free;
-  hooks.resume = mock_co_resume;
-  hooks.yield = mock_co_yield;
-  hooks.is_done = mock_co_is_done;
+  hooks.init = mock_co_init;       /* LCOV_EXCL_LINE */
+  hooks.free = mock_co_free;       /* LCOV_EXCL_LINE */
+  hooks.resume = mock_co_resume;   /* LCOV_EXCL_LINE */
+  hooks.yield = mock_co_yield;     /* LCOV_EXCL_LINE */
+  hooks.is_done = mock_co_is_done; /* LCOV_EXCL_LINE */
 
-  abstract_http_coroutine_set_hooks(&hooks);
+  abstract_http_coroutine_set_hooks(&hooks); /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_coroutine_init(&co, 0, NULL, NULL));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_resume(co));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_yield());
-  ASSERT_EQ(1, math_abstract_http_coroutine_is_done(co));
-  abstract_http_coroutine_free(co);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_coroutine_resume(co)); /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_coroutine_yield());             /* LCOV_EXCL_LINE */
+  ASSERT_EQ(1, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
+  abstract_http_coroutine_free(co);                       /* LCOV_EXCL_LINE */
 
   {
     struct AbstractHttpCoroutineHooks z;
-    memset(&z, 0, sizeof(z));
-    abstract_http_coroutine_set_hooks(&z);
+    memset(&z, 0, sizeof(z));              /* LCOV_EXCL_LINE */
+    abstract_http_coroutine_set_hooks(&z); /* LCOV_EXCL_LINE */
   }
 
-  PASS();
-}
+  PASS(); /* LCOV_EXCL_LINE */
+} /* LCOV_EXCL_LINE */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-TEST test_coroutine_pthread_create_fail(void) {
-  struct AbstractHttpCoroutine *co = NULL;
+TEST test_coroutine_pthread_create_fail(void) { /* LCOV_EXCL_LINE */
+  struct AbstractHttpCoroutine *co = NULL;      /* LCOV_EXCL_LINE */
   enum c_abstract_http_error rc;
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_coroutine_init(&co, 0, dummy_coroutine_cb, NULL));
 
-  g_mock_pthread_create_fail = 1;
-  rc = abstract_http_coroutine_resume(co);
-  g_mock_pthread_create_fail = 0;
+  g_mock_pthread_create_fail = 1;          /* LCOV_EXCL_LINE */
+  rc = abstract_http_coroutine_resume(co); /* LCOV_EXCL_LINE */
+  g_mock_pthread_create_fail = 0;          /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc); /* LCOV_EXCL_LINE */
 
-  abstract_http_coroutine_free(co);
-  PASS();
-}
+  abstract_http_coroutine_free(co); /* LCOV_EXCL_LINE */
+  PASS();                           /* LCOV_EXCL_LINE */
+} /* LCOV_EXCL_LINE */
 #endif
 
-TEST test_coroutine_fallback_paths(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  struct AbstractHttpCoroutine *co = NULL;
+TEST test_coroutine_fallback_paths(void) {                 /* LCOV_EXCL_LINE */
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS; /* LCOV_EXCL_LINE */
+  struct AbstractHttpCoroutine *co = NULL;                 /* LCOV_EXCL_LINE */
 
   struct CoroutineTestState state;
-  state.counter = 0;
+  state.counter = 0; /* LCOV_EXCL_LINE */
 
   /* coverage for C_ABSTRACT_HTTP_ERR_NOMEM */
-  g_mock_alloc_fail = 1;
-  g_mock_alloc_count = 0;
-  rc = abstract_http_coroutine_init(&co, 0, test_co_cb, &state);
-  printf("abstract_http_coroutine_init returned %d\n", rc);
+  g_mock_alloc_fail = 1;  /* LCOV_EXCL_LINE */
+  g_mock_alloc_count = 0; /* LCOV_EXCL_LINE */
+  rc = abstract_http_coroutine_init(&co, 0, test_co_cb,
+                                    &state);                /* LCOV_EXCL_LINE */
+  printf("abstract_http_coroutine_init returned %d\n", rc); /* LCOV_EXCL_LINE */
   {
-    int rc_test_tmp = rc;
-    g_mock_alloc_fail = 0;
-    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
+    int rc_test_tmp = rc;  /* LCOV_EXCL_LINE */
+    g_mock_alloc_fail = 0; /* LCOV_EXCL_LINE */
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
+                  "%d"); /* LCOV_EXCL_LINE */
   }
 
   /* coverage for free while running */
-  rc = abstract_http_coroutine_init(&co, 0, test_co_cb, &state);
-  if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {
-    PASS();
-  }
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  rc = abstract_http_coroutine_init(&co, 0, test_co_cb,
+                                    &state); /* LCOV_EXCL_LINE */
+  if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP) {    /* LCOV_EXCL_LINE */
+    PASS();                                  /* LCOV_EXCL_LINE */
+  } /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc); /* LCOV_EXCL_LINE */
 
   /* We start it, let it yield, then free it */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_resume(co));
-  abstract_http_coroutine_free(co);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_coroutine_resume(co)); /* LCOV_EXCL_LINE */
+  abstract_http_coroutine_free(co);              /* LCOV_EXCL_LINE */
 
-  PASS();
-}
+  PASS(); /* LCOV_EXCL_LINE */
+} /* LCOV_EXCL_LINE */
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-TEST test_coroutine_edge_cases(void) {
-  struct AbstractHttpCoroutine *co = NULL;
+TEST test_coroutine_edge_cases(void) {     /* LCOV_EXCL_LINE */
+  struct AbstractHttpCoroutine *co = NULL; /* LCOV_EXCL_LINE */
 
-  g_mock_alloc_fail = 1;
-  g_mock_alloc_count = 1;
+  g_mock_alloc_fail = 1;  /* LCOV_EXCL_LINE */
+  g_mock_alloc_count = 1; /* LCOV_EXCL_LINE */
   /* Need a valid callback so we don't hit C_ABSTRACT_HTTP_ERR_INVAL at line 267
    */
 #if !defined(_WIN32) && !defined(__APPLE__) && !defined(__EMSCRIPTEN__)
@@ -213,39 +235,44 @@ TEST test_coroutine_edge_cases(void) {
                                          NULL));
 #else
   {
-    int edge_rc = abstract_http_coroutine_init(
-        &co, 65536, (abstract_http_coroutine_cb)1, NULL);
-    if (edge_rc == 0)
-      abstract_http_coroutine_free(co);
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, edge_rc);
+    int edge_rc =
+        abstract_http_coroutine_init(/* LCOV_EXCL_LINE */
+                                     &co, 65536, (abstract_http_coroutine_cb)1,
+                                     NULL);
+    if (edge_rc == 0)                            /* LCOV_EXCL_LINE */
+      abstract_http_coroutine_free(co);          /* LCOV_EXCL_LINE */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, edge_rc); /* LCOV_EXCL_LINE */
   }
 #endif
-  g_mock_alloc_fail = 0;
+  g_mock_alloc_fail = 0; /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_coroutine_yield());
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_coroutine_yield()); /* LCOV_EXCL_LINE */
 
-  PASS();
-}
+  PASS(); /* LCOV_EXCL_LINE */
+} /* LCOV_EXCL_LINE */
 #endif
 
-SUITE(coroutine_suite) {
+SUITE(coroutine_suite) { /* LCOV_EXCL_LINE */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  RUN_TEST(test_coroutine_edge_cases);
+  RUN_TEST(test_coroutine_edge_cases); /* LCOV_EXCL_LINE */
 #endif
 
-  RUN_TEST(test_coroutine_errors);
-  RUN_TEST(test_coroutine_execution);
-  RUN_TEST(test_coroutine_hooks);
+  RUN_TEST(test_coroutine_errors);    /* LCOV_EXCL_LINE */
+  RUN_TEST(test_coroutine_execution); /* LCOV_EXCL_LINE */
+  RUN_TEST(test_coroutine_hooks);     /* LCOV_EXCL_LINE */
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  RUN_TEST(test_coroutine_fallback_paths);
-  RUN_TEST(test_coroutine_pthread_create_fail);
+  RUN_TEST(test_coroutine_fallback_paths);      /* LCOV_EXCL_LINE */
+  RUN_TEST(test_coroutine_pthread_create_fail); /* LCOV_EXCL_LINE */
 
 #endif
-}
+} /* LCOV_EXCL_LINE */
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif
+
+/* LCOV_EXCL_BR_STOP */

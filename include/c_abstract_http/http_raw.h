@@ -19,26 +19,29 @@ extern "C" {
  * @brief Initialize the global raw socket environment.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t http_raw_global_init(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_raw_global_init(void);
 
 /**
  * @brief Cleanup the global raw socket environment.
  */
-extern c_abstract_http_error_t http_raw_global_cleanup(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_raw_global_cleanup(void);
 
 /**
  * @brief Initialize a new raw socket transport context.
  * @param ctx Pointer to the newly allocated context.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_raw_context_init(struct HttpTransportContext **ctx);
 
 /**
  * @brief Free a raw socket transport context.
  * @param ctx Context to free.
  */
-extern void http_raw_context_free(struct HttpTransportContext *ctx);
+C_ABSTRACT_HTTP_API void
+http_raw_context_free(struct HttpTransportContext *ctx);
 
 /**
  * @brief Send an HTTP request synchronously using raw sockets.
@@ -47,9 +50,9 @@ extern void http_raw_context_free(struct HttpTransportContext *ctx);
  * @param res Response to return.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t http_raw_send(struct HttpTransportContext *ctx,
-                                             const struct HttpRequest *req,
-                                             struct HttpResponse **res);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_raw_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+              struct HttpResponse **res);
 
 /**
  * @brief Send multiple HTTP requests asynchronously using raw sockets.
@@ -59,7 +62,7 @@ extern c_abstract_http_error_t http_raw_send(struct HttpTransportContext *ctx,
  * @param future Futures to return.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t http_raw_send_multi(
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_raw_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *reqs, struct HttpFuture **future);
 

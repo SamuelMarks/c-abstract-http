@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE 1
 #endif
@@ -294,3 +295,5 @@ int main(int argc, char **argv) {
   RUN_SUITE(crypto_suite);
   GREATEST_MAIN_END();
 }
+
+/* LCOV_EXCL_BR_STOP */

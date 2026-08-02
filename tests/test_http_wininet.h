@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 /**
  * @file test_http_wininet.h
  * @brief Unit tests for the WinInet Transport Backend.
@@ -371,3 +372,5 @@ SUITE(http_wininet_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_WININET_H */
+
+/* LCOV_EXCL_BR_STOP */

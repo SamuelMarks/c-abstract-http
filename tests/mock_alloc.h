@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 #ifndef ABSTRACT_HTTP_MOCK_ALLOC_H
 #define ABSTRACT_HTTP_MOCK_ALLOC_H
 
@@ -35,6 +36,7 @@
 extern "C" {
 #endif
 
+extern int *abstract_http_mock_get_g_mock_sha1_fail(void);
 extern int *abstract_http_mock_get_g_mock_alloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_alloc_count(void);
 extern int *abstract_http_mock_get_g_mock_pthread_fail(void);
@@ -52,6 +54,7 @@ extern int *abstract_http_mock_get_g_mock_bind_fail(void);
 extern int *abstract_http_mock_get_g_mock_listen_fail(void);
 extern int *abstract_http_mock_get_g_mock_accept_fail(void);
 extern int *abstract_http_mock_get_g_mock_recv_fail(void);
+extern int *abstract_http_mock_get_g_mock_getsockname_fail(void);
 
 #if defined(_MSC_VER)
 #pragma warning(push)
@@ -95,6 +98,9 @@ extern SOCKET WSAAPI c_abstract_http_mock_accept(SOCKET socket,
                                                  int *address_len);
 extern int WSAAPI c_abstract_http_mock_recv(SOCKET socket, char *buffer,
                                             int length, int flags);
+extern int WSAAPI c_abstract_http_mock_getsockname(SOCKET socket,
+                                                   struct sockaddr *address,
+                                                   int *address_len);
 extern int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
                                               fd_set *writefds,
                                               fd_set *exceptfds,
@@ -108,6 +114,9 @@ extern int c_abstract_http_mock_accept(int socket, struct sockaddr *address,
                                        socklen_t *address_len);
 extern ssize_t c_abstract_http_mock_recv(int socket, void *buffer,
                                          size_t length, int flags);
+extern int c_abstract_http_mock_getsockname(int socket,
+                                            struct sockaddr *address,
+                                            socklen_t *address_len);
 extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
                                        fd_set *writefds, fd_set *exceptfds,
                                        struct timeval *timeout);
@@ -130,6 +139,7 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_listen_fail (*abstract_http_mock_get_g_mock_listen_fail())
 #define g_mock_accept_fail (*abstract_http_mock_get_g_mock_accept_fail())
 #define g_mock_recv_fail (*abstract_http_mock_get_g_mock_recv_fail())
+#define g_mock_getsockname_fail (*abstract_http_mock_get_g_mock_getsockname_fail())
 
 #if defined(_MSC_VER) && _MSC_VER < 1600
 typedef unsigned __int64 uint64_t;
@@ -153,3 +163,5 @@ extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
 #endif
 
 #endif
+
+/* LCOV_EXCL_BR_STOP */

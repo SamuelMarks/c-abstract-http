@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 /**
  * @file mock_server.h
  * @brief Lightweight, cross-platform TCP server for integration testing.
@@ -90,9 +91,16 @@ extern int mock_server_wait_for_request(MockServerPtr server,
  * @param[in] req The request structure to clean.
  */
 extern void mock_server_request_cleanup(struct MockServerRequest *req);
+extern void abstract_http_mock_server_force_request(MockServerPtr server,
+                                                    const char *data);
+extern int abstract_http_mock_server_has_request(MockServerPtr server);
+extern void abstract_http_mock_server_clear_request(MockServerPtr server);
+extern void abstract_http_mock_server_force_fd(MockServerPtr server, int fd);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif /* ABSTRACT_HTTP_TEST_HELPERS_MOCK_SERVER_H */
+
+/* LCOV_EXCL_BR_STOP */

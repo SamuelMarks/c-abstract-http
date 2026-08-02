@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 /**
  * @file test_http_wasm.h
  * @brief Integration tests for Wasm Backend.
@@ -178,3 +179,5 @@ SUITE(http_wasm_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_WASM_H */
+
+/* LCOV_EXCL_BR_STOP */

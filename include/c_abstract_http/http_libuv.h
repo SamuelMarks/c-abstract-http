@@ -36,14 +36,16 @@ extern "C" {
  *
  * @return 0 on success, EIO on failure.
  */
-c_abstract_http_error_t http_libuv_global_init(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_libuv_global_init(void);
 
 /**
  * @brief Decrement the global initialization reference count.
  *
  * If the count reaches zero, `libuv_global_cleanup` is invoked.
  */
-c_abstract_http_error_t http_libuv_global_cleanup(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_libuv_global_cleanup(void);
 
 /**
  * @brief Create a new libuv-backed transport context.
@@ -53,7 +55,7 @@ c_abstract_http_error_t http_libuv_global_cleanup(void);
  * @return 0 on success, ENOMEM on allocation failure, EIO on libuv init
  * failure.
  */
-c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libuv_context_init(struct HttpTransportContext **ctx);
 
 /**
@@ -75,9 +77,8 @@ void http_libuv_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration structure to apply.
  * @return 0 on success, EINVAL if inputs invalid, or EIO if setopt fails.
  */
-c_abstract_http_error_t
-http_libuv_config_apply(struct HttpTransportContext *ctx,
-                        const struct HttpConfig *config);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_libuv_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config);
 
 /**
  * @brief The send implementation for liblibuv.
@@ -98,9 +99,9 @@ http_libuv_config_apply(struct HttpTransportContext *ctx,
  * @return 0 on success, or a mapped error code (e.g. ETIMEDOUT, ECONNREFUSED)
  * on failure.
  */
-c_abstract_http_error_t http_libuv_send(struct HttpTransportContext *ctx,
-                                        const struct HttpRequest *req,
-                                        struct HttpResponse **res);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_libuv_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+                struct HttpResponse **res);
 
 #ifdef __cplusplus
 }

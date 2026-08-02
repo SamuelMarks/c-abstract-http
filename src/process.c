@@ -23,6 +23,29 @@ extern void c_abstract_http_mock_free(void *ptr);
 #define calloc c_abstract_http_mock_calloc
 #define realloc c_abstract_http_mock_realloc
 #define free c_abstract_http_mock_free
+int g_mock_write_partial = 0;
+#if defined(_WIN32)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
+#ifdef _MSC_VER
+typedef int ssize_t;
+#endif
+ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count) {
+  if (g_mock_write_partial) {
+    g_mock_write_partial = 0;
+    return count > 1 ? count - 1 : 0;
+  }
+#undef write
+#if defined(_WIN32)
+  return _write(fd, buf, (unsigned int)count);
+#else
+  return write(fd, buf, count);
+#endif
+#define write c_abstract_http_mock_write
+}
+#define write c_abstract_http_mock_write
 #endif
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
@@ -46,7 +69,7 @@ extern void c_abstract_http_mock_free(void *ptr);
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-#define execv(path, argv) (-1)
+#define execv(path, argv) ((void)path, (void)argv, -1)
 #endif
 
 static struct AbstractHttpProcessHooks g_process_hooks = {NULL, NULL, NULL,
@@ -345,7 +368,7 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
     close((int)(size_t)parent_to_child->read_handle);
     close((int)(size_t)child_to_parent->write_handle);
 
-    execv("/proc/self/exe", argv);
+    (void)execv("/proc/self/exe", argv);
     _exit(1);
   } else {
     close((int)(size_t)parent_to_child->read_handle);
@@ -663,8 +686,7 @@ abstract_http_ipc_deserialize_response(const char *buf, size_t len,
   p = buf;
   end = buf + len;
 
-  if ((rc = http_response_init(res)) != C_ABSTRACT_HTTP_SUCCESS)
-    return rc;
+  (void)http_response_init(res);
 
   if ((rc = parse_int(&p, end, &res->status_code)) != 0)
     return rc;

@@ -52,8 +52,7 @@ int g_mock_curl_init_fail = 0;
 
 #undef ABSTRACT_HTTP_CURL_GLOBAL_INIT
 #define ABSTRACT_HTTP_CURL_GLOBAL_INIT(flags)                                  \
-  (g_mock_curl_init_fail == 3 ? CURLE_FAILED_INIT                              \
-                              : (ABSTRACT_HTTP_CURL_GLOBAL_INIT)(flags))
+  (g_mock_curl_init_fail == 3 ? CURLE_FAILED_INIT : (curl_global_init)(flags))
 
 #undef curl_easy_init
 #define curl_easy_init()                                                       \
@@ -65,27 +64,26 @@ int g_mock_curl_init_fail = 0;
 
 #undef ABSTRACT_HTTP_CURL_EASY_PERFORM
 #define ABSTRACT_HTTP_CURL_EASY_PERFORM(handle)                                \
-  (g_mock_curl_perform_res != CURLE_OK                                         \
-       ? g_mock_curl_perform_res                                               \
-       : (ABSTRACT_HTTP_CURL_EASY_PERFORM)(handle))
+  (g_mock_curl_perform_res != CURLE_OK ? g_mock_curl_perform_res               \
+                                       : (curl_easy_perform)(handle))
 
 #undef ABSTRACT_HTTP_CURL_EASY_SETOPT
 #define ABSTRACT_HTTP_CURL_EASY_SETOPT(handle, option, param)                  \
   (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0                  \
        ? CURLE_OUT_OF_MEMORY                                                   \
-       : (ABSTRACT_HTTP_CURL_EASY_SETOPT)(handle, option, param))
+       : (curl_easy_setopt)(handle, option, param))
 
 #undef ABSTRACT_HTTP_CURL_MULTI_SETOPT
 #define ABSTRACT_HTTP_CURL_MULTI_SETOPT(handle, option, param)                 \
   (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0                  \
        ? CURLM_OUT_OF_MEMORY                                                   \
-       : (ABSTRACT_HTTP_CURL_MULTI_SETOPT)(handle, option, param))
+       : (curl_multi_setopt)(handle, option, param))
 
 #undef ABSTRACT_HTTP_CURL_MULTI_ADD_HANDLE
 #define ABSTRACT_HTTP_CURL_MULTI_ADD_HANDLE(multi, handle)                     \
   (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0                  \
        ? CURLM_OUT_OF_MEMORY                                                   \
-       : (ABSTRACT_HTTP_CURL_MULTI_ADD_HANDLE)(multi, handle))
+       : (curl_multi_add_handle)(multi, handle))
 
 extern struct curl_slist *g_mock_curl_cookies;
 #undef ABSTRACT_HTTP_CURL_EASY_GETINFO
@@ -94,7 +92,7 @@ extern struct curl_slist *g_mock_curl_cookies;
        ? (*(struct curl_slist **)param = g_mock_curl_cookies, CURLE_OK)        \
        : (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0           \
               ? CURLE_OUT_OF_MEMORY                                            \
-              : (ABSTRACT_HTTP_CURL_EASY_GETINFO)(curl, info, param)))
+              : (curl_easy_getinfo)(curl, info, param)))
 
 #undef curl_slist_free_all
 #define curl_slist_free_all(list)                                              \
@@ -108,7 +106,7 @@ extern struct curl_slist *g_mock_curl_cookies;
 #define ABSTRACT_HTTP_CURL_SLIST_APPEND(list, str)                             \
   (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0                  \
        ? NULL                                                                  \
-       : (ABSTRACT_HTTP_CURL_SLIST_APPEND)(list, str))
+       : (curl_slist_append)(list, str))
 
 #undef curl_easy_duphandle
 #define curl_easy_duphandle(curl)                                              \

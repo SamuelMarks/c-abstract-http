@@ -36,14 +36,16 @@ extern "C" {
  *
  * @return 0 on success, EIO on failure.
  */
-c_abstract_http_error_t http_curl_global_init(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_curl_global_init(void);
 
 /**
  * @brief Decrement the global initialization reference count.
  *
  * If the count reaches zero, `curl_global_cleanup` is invoked.
  */
-c_abstract_http_error_t http_curl_global_cleanup(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_curl_global_cleanup(void);
 
 /**
  * @brief Create a new Curl-backed transport context.
@@ -52,7 +54,7 @@ c_abstract_http_error_t http_curl_global_cleanup(void);
  * @param[out] ctx Double pointer to receive the allocated context.
  * @return 0 on success, ENOMEM on allocation failure, EIO on Curl init failure.
  */
-c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_curl_context_init(struct HttpTransportContext **ctx);
 
 /**
@@ -74,8 +76,8 @@ void http_curl_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration structure to apply.
  * @return 0 on success, EINVAL if inputs invalid, or EIO if setopt fails.
  */
-c_abstract_http_error_t http_curl_config_apply(struct HttpTransportContext *ctx,
-                                               const struct HttpConfig *config);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_curl_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config);
 
 /**
  * @brief The send implementation for libcurl.
@@ -96,9 +98,9 @@ c_abstract_http_error_t http_curl_config_apply(struct HttpTransportContext *ctx,
  * @return 0 on success, or a mapped error code (e.g. ETIMEDOUT, ECONNREFUSED)
  * on failure.
  */
-c_abstract_http_error_t http_curl_send(struct HttpTransportContext *ctx,
-                                       const struct HttpRequest *req,
-                                       struct HttpResponse **res);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_curl_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+               struct HttpResponse **res);
 
 /**
  * @brief Asynchronous multi-send implementation for libcurl.
@@ -112,7 +114,7 @@ c_abstract_http_error_t http_curl_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures.
  * @return 0 on success.
  */
-c_abstract_http_error_t http_curl_send_multi(
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_curl_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 

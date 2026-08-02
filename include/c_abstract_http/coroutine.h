@@ -51,7 +51,8 @@ struct AbstractHttpCoroutineHooks {
  * @brief Register external coroutine hooks.
  * @param[in] hooks The hooks structure.
  */
-extern c_abstract_http_error_t abstract_http_coroutine_set_hooks(
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+abstract_http_coroutine_set_hooks(
     const struct AbstractHttpCoroutineHooks *hooks);
 
 /**
@@ -62,7 +63,7 @@ extern c_abstract_http_error_t abstract_http_coroutine_set_hooks(
  * @param[in] arg Argument to pass to the entry point.
  * @return 0 on success, ENOMEM or EINVAL on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
                              size_t stack_size, abstract_http_coroutine_cb cb,
                              void *arg);
@@ -72,7 +73,8 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
  * Must be called after the coroutine finishes.
  * @param[in] co The coroutine handle.
  */
-extern void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co);
+C_ABSTRACT_HTTP_API void
+abstract_http_coroutine_free(struct AbstractHttpCoroutine *co);
 
 /**
  * @brief Transfer execution to the coroutine.
@@ -81,7 +83,7 @@ extern void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co);
  * @param[in] co The coroutine handle.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co);
 
 /**
@@ -89,14 +91,15 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co);
  * MUST be called from within the currently active coroutine.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t abstract_http_coroutine_yield(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+abstract_http_coroutine_yield(void);
 
 /**
  * @brief Check if the coroutine has finished executing.
  * @param[in] co The coroutine handle.
  * @return 1 if finished, 0 if still active.
  */
-extern int
+C_ABSTRACT_HTTP_API int
 math_abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co);
 
 #ifdef __cplusplus

@@ -414,10 +414,8 @@ static ABSTRACT_HTTP_THREAD_FUNC worker_thread(abstract_http_thread_arg_t arg) {
 
     (void)abstract_http_mutex_unlock(pool->lock);
 
-    if (task) {
-      task->cb(task->arg);
-      free(task);
-    }
+    task->cb(task->arg);
+    free(task);
   }
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   return (ABSTRACT_HTTP_THREAD_FUNC)(unsigned long)rc;
@@ -615,11 +613,16 @@ abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
 #if 1
 enum c_abstract_http_error
 abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool);
+extern int g_mock_pthread_fail;
 enum c_abstract_http_error
 abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool) {
   if (pool) {
     enum c_abstract_http_error err;
-    err = abstract_http_mutex_lock(pool->lock);
+    if (g_mock_pthread_fail == 3) {
+      err = C_ABSTRACT_HTTP_ERR_INVAL;
+    } else {
+      err = abstract_http_mutex_lock(pool->lock);
+    }
     if (err != C_ABSTRACT_HTTP_SUCCESS) {
       return err;
     }
@@ -659,6 +662,6 @@ void abstract_http_thread_pool_test_free_with_tasks(void) {
   memset(fake_pool, 0, sizeof(struct AbstractHttpThreadPool));
   fake_pool->num_threads = 0;
   abstract_http_thread_pool_test_inject_task(fake_pool);
-  abstract_http_thread_pool_free(fake_pool);
+  (void)abstract_http_thread_pool_free(fake_pool);
 }
 #endif

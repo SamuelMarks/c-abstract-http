@@ -54,7 +54,7 @@ struct AbstractHttpProcessHooks {
  * @brief Register external process hooks.
  * @param[in] hooks The hooks structure (copied internally).
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_process_set_hooks(const struct AbstractHttpProcessHooks *hooks);
 
 /**
@@ -62,14 +62,15 @@ abstract_http_process_set_hooks(const struct AbstractHttpProcessHooks *hooks);
  * @param[out] pipe The pipe structure to populate.
  * @return 0 on success, error code on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *pipe);
 
 /**
  * @brief Close an IPC pipe.
  * @param[in] pipe The pipe to close.
  */
-extern void abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe);
+C_ABSTRACT_HTTP_API void
+abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe);
 
 /**
  * @brief Spawn a child process.
@@ -81,7 +82,7 @@ extern void abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe);
  * @param[out] child_to_parent The pipe for child -> parent communication.
  * @return 0 on success, error code on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_process_spawn(struct AbstractHttpProcess **proc,
                             struct AbstractHttpIpcPipe *parent_to_child,
                             struct AbstractHttpIpcPipe *child_to_parent);
@@ -92,7 +93,7 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
  * @param[out] exit_code Pointer to store the exit code (optional).
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
                                     int *exit_code);
 
@@ -103,7 +104,7 @@ abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
  * @param[out] out_len Length of the buffer.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_ipc_serialize_request(const struct HttpRequest *req,
                                     char **out_buf, size_t *out_len);
 
@@ -114,7 +115,7 @@ abstract_http_ipc_serialize_request(const struct HttpRequest *req,
  * @param[out] req The request to populate.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_ipc_deserialize_request(const char *buf, size_t len,
                                       struct HttpRequest *req);
 
@@ -125,7 +126,7 @@ abstract_http_ipc_deserialize_request(const char *buf, size_t len,
  * @param[out] out_len Length of the buffer.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_ipc_serialize_response(const struct HttpResponse *res,
                                      char **out_buf, size_t *out_len);
 
@@ -136,7 +137,7 @@ abstract_http_ipc_serialize_response(const struct HttpResponse *res,
  * @param[out] res The response to populate.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_ipc_deserialize_response(const char *buf, size_t len,
                                        struct HttpResponse *res);
 
@@ -147,7 +148,7 @@ abstract_http_ipc_deserialize_response(const char *buf, size_t len,
  * @param len The len parameter.
  * @return 0 on success, or an error code.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_ipc_write(void *handle, const void *data, size_t len);
 
 /**
@@ -157,8 +158,8 @@ abstract_http_ipc_write(void *handle, const void *data, size_t len);
  * @param len The len parameter.
  * @return 0 on success, or an error code.
  */
-extern c_abstract_http_error_t abstract_http_ipc_read(void *handle, void *data,
-                                                      size_t len);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+abstract_http_ipc_read(void *handle, void *data, size_t len);
 
 #ifdef __cplusplus
 }

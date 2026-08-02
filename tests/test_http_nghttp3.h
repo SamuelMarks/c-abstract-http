@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 /**
  * @file test_http_nghttp3.h
  * @brief Integration tests for nghttp3 Backend.
@@ -114,3 +115,5 @@ SUITE(http_nghttp3_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_NGHTTP3_H */
+
+/* LCOV_EXCL_BR_STOP */

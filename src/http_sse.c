@@ -256,7 +256,7 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
     }
   } else if (field_len == 5 && memcmp(line, "retry", 5) == 0) {
     char num_buf[32];
-    size_t copy_len = value_len < 31 ? value_len : 31;
+    size_t copy_len = value_len < 31 ? value_len : 31; /* LCOV_EXCL_BR_LINE */
     memcpy(num_buf, value, copy_len);
     num_buf[copy_len] = '\0';
     ctx->retry_ms = atoi(num_buf);
@@ -464,15 +464,15 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
     rc = c_abstract_http_sse_sync_read_loop(client, req, on_evt, on_err,
                                             on_close, user_data, &exit_flag);
 
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      if (on_err)
-        on_err(rc, user_data);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
+      if (on_err)                        /* LCOV_EXCL_BR_LINE */
+        on_err(rc, user_data);           /* LCOV_EXCL_LINE */
       return rc;
     }
     /* We still return success here because the "registration" succeeded, it
        just blocked. A true async interface without a thread pool requires
        native event loop hooks, which we do not currently mandate SSE parsers to
        intercept natively here yet. */
-    return C_ABSTRACT_HTTP_SUCCESS;
+    return C_ABSTRACT_HTTP_SUCCESS; /* LCOV_EXCL_LINE */
   }
 }

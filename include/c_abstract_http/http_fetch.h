@@ -36,14 +36,16 @@ extern "C" {
  *
  * @return 0 on success, EIO on failure.
  */
-c_abstract_http_error_t http_fetch_global_init(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_fetch_global_init(void);
 
 /**
  * @brief Decrement the global initialization reference count.
  *
  * If the count reaches zero, `fetch_global_cleanup` is invoked.
  */
-c_abstract_http_error_t http_fetch_global_cleanup(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_fetch_global_cleanup(void);
 
 /**
  * @brief Create a new Fetch-backed transport context.
@@ -53,7 +55,7 @@ c_abstract_http_error_t http_fetch_global_cleanup(void);
  * @return 0 on success, ENOMEM on allocation failure, EIO on Fetch init
  * failure.
  */
-c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_fetch_context_init(struct HttpTransportContext **ctx);
 
 /**
@@ -75,9 +77,8 @@ void http_fetch_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration structure to apply.
  * @return 0 on success, EINVAL if inputs invalid, or EIO if setopt fails.
  */
-c_abstract_http_error_t
-http_fetch_config_apply(struct HttpTransportContext *ctx,
-                        const struct HttpConfig *config);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_fetch_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config);
 
 /**
  * @brief The send implementation for libfetch.
@@ -98,9 +99,9 @@ http_fetch_config_apply(struct HttpTransportContext *ctx,
  * @return 0 on success, or a mapped error code (e.g. ETIMEDOUT, ECONNREFUSED)
  * on failure.
  */
-c_abstract_http_error_t http_fetch_send(struct HttpTransportContext *ctx,
-                                        const struct HttpRequest *req,
-                                        struct HttpResponse **res);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_fetch_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+                struct HttpResponse **res);
 
 /**
  * @brief Dispatch multiple HTTP requests using libfetch asynchronous modes.
@@ -115,7 +116,7 @@ c_abstract_http_error_t http_fetch_send(struct HttpTransportContext *ctx,
  * @return 0 on success (all requests initiated), negative mapped error
  * otherwise.
  */
-extern c_abstract_http_error_t http_fetch_send_multi(
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_fetch_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 

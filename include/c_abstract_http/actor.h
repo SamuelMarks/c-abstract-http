@@ -86,7 +86,7 @@ struct AbstractHttpActorHooks {
  * @brief Register external actor hooks.
  * @param[in] hooks The hooks structure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_actor_set_hooks(const struct AbstractHttpActorHooks *hooks);
 
 /**
@@ -94,14 +94,15 @@ abstract_http_actor_set_hooks(const struct AbstractHttpActorHooks *hooks);
  * @param[out] bus Pointer to receive the bus handle.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_message_bus_init(struct AbstractHttpMessageBus **bus);
 
 /**
  * @brief Free a message bus.
  * @param[in] bus The bus handle.
  */
-extern void abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus);
+C_ABSTRACT_HTTP_API void
+abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus);
 
 /**
  * @brief Process all pending messages in the bus queue (run the event loop).
@@ -110,7 +111,7 @@ extern void abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus);
  * @param[in] bus The bus handle.
  * @return Number of messages processed, or error code.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus);
 
 /**
@@ -122,7 +123,7 @@ abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus);
  * @param[out] actor Pointer to receive the actor handle.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name,
                           abstract_http_actor_handler_cb handler, void *state,
                           struct AbstractHttpActor **actor);
@@ -133,9 +134,8 @@ abstract_http_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name,
  * @param[in] msg The message structure (copied internally).
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
-abstract_http_actor_send(struct AbstractHttpMessageBus *bus,
-                         const struct AbstractHttpMessage *msg);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t abstract_http_actor_send(
+    struct AbstractHttpMessageBus *bus, const struct AbstractHttpMessage *msg);
 
 /**
  * @brief Retrieve the state of an actor.
@@ -143,7 +143,7 @@ abstract_http_actor_send(struct AbstractHttpMessageBus *bus,
  * @param[out] state Pointer to receive the state.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_actor_get_state(struct AbstractHttpActor *actor, void **state);
 
 /**
@@ -152,7 +152,7 @@ abstract_http_actor_get_state(struct AbstractHttpActor *actor, void **state);
  * @param[out] name Pointer to receive the name.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_actor_get_name(const struct AbstractHttpActor *actor,
                              const char **name);
 

@@ -40,7 +40,7 @@ struct AbstractHttpThreadPool;
  * @param[out] mutex Pointer to receive the allocated mutex.
  * @return 0 on success, error code on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_mutex_init(struct AbstractHttpMutex **mutex);
 
 /**
@@ -48,7 +48,7 @@ abstract_http_mutex_init(struct AbstractHttpMutex **mutex);
  * @param[in] mutex The mutex.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_mutex_lock(struct AbstractHttpMutex *mutex);
 
 /**
@@ -56,21 +56,22 @@ abstract_http_mutex_lock(struct AbstractHttpMutex *mutex);
  * @param[in] mutex The mutex.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex);
 
 /**
  * @brief Free a mutex.
  * @param[in] mutex The mutex.
  */
-extern void abstract_http_mutex_free(struct AbstractHttpMutex *mutex);
+C_ABSTRACT_HTTP_API void
+abstract_http_mutex_free(struct AbstractHttpMutex *mutex);
 
 /**
  * @brief Initialize a condition variable.
  * @param[out] cond Pointer to receive the allocated condition variable.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_cond_init(struct AbstractHttpCond **cond);
 
 /**
@@ -79,16 +80,15 @@ abstract_http_cond_init(struct AbstractHttpCond **cond);
  * @param[in] mutex The associated mutex.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
-abstract_http_cond_wait(struct AbstractHttpCond *cond,
-                        struct AbstractHttpMutex *mutex);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t abstract_http_cond_wait(
+    struct AbstractHttpCond *cond, struct AbstractHttpMutex *mutex);
 
 /**
  * @brief Signal a condition variable (wake one).
  * @param[in] cond The condition variable.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_cond_signal(struct AbstractHttpCond *cond);
 
 /**
@@ -96,14 +96,14 @@ abstract_http_cond_signal(struct AbstractHttpCond *cond);
  * @param[in] cond The condition variable.
  * @return 0 on success.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_cond_broadcast(struct AbstractHttpCond *cond);
 
 /**
  * @brief Free a condition variable.
  * @param[in] cond The condition variable.
  */
-extern void abstract_http_cond_free(struct AbstractHttpCond *cond);
+C_ABSTRACT_HTTP_API void abstract_http_cond_free(struct AbstractHttpCond *cond);
 
 /**
  * @brief Thread pool task callback signature.
@@ -126,7 +126,7 @@ struct AbstractHttpThreadPoolHooks {
  * @param[in] num_threads Number of worker threads to spawn.
  * @return 0 on success, ENOMEM or other error on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
                                size_t num_threads);
 
@@ -137,7 +137,8 @@ abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
  * @param[in] hooks External thread pool hooks.
  * @return 0 on success, error code on failure.
  */
-extern c_abstract_http_error_t abstract_http_thread_pool_init_external(
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+abstract_http_thread_pool_init_external(
     struct AbstractHttpThreadPool **pool,
     const struct AbstractHttpThreadPoolHooks *hooks);
 
@@ -148,7 +149,7 @@ extern c_abstract_http_error_t abstract_http_thread_pool_init_external(
  * @param[in] arg The argument to pass to the function.
  * @return 0 on success, error code on failure.
  */
-extern c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
                                abstract_http_thread_task_cb cb, void *arg);
 
@@ -156,7 +157,7 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
  * @brief Destroy the thread pool, waiting for tasks to complete.
  * @param[in] pool The thread pool.
  */
-extern enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool);
 
 #ifdef __cplusplus

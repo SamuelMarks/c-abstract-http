@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE 1
 #endif
@@ -89,15 +90,15 @@
 #endif
 /* clang-format on */
 
-GREATEST_MAIN_DEFS();
+GREATEST_MAIN_DEFS(); /* LCOV_EXCL_BR_LINE */
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv) { /* LCOV_EXCL_LINE */
   int i;
-  for (i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "--test-worker") == 0) {
-      _exit(1);
+  for (i = 1; i < argc; ++i) {                   /* LCOV_EXCL_LINE */
+    if (strcmp(argv[i], "--test-worker") == 0) { /* LCOV_EXCL_LINE */
+      _exit(1);                                  /* LCOV_EXCL_LINE */
     }
-  }
+  } /* LCOV_EXCL_LINE */
 
 #if defined(_MSC_VER)
   _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
@@ -105,19 +106,19 @@ int main(int argc, char **argv) {
   _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
   _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
 #endif
-  GREATEST_MAIN_BEGIN();
+  GREATEST_MAIN_BEGIN(); /* LCOV_EXCL_LINE */
 
-  RUN_SUITE(http_types_suite);
-  RUN_SUITE(event_loop_suite);
-  RUN_SUITE(thread_pool_suite);
-  RUN_SUITE(tls_suite);
-  RUN_SUITE(process_suite);
-  RUN_SUITE(coroutine_suite);
-  RUN_SUITE(actor_suite);
-  RUN_SUITE(transport_suite);
+  RUN_SUITE(http_types_suite);  /* LCOV_EXCL_LINE */
+  RUN_SUITE(event_loop_suite);  /* LCOV_EXCL_LINE */
+  RUN_SUITE(thread_pool_suite); /* LCOV_EXCL_LINE */
+  RUN_SUITE(tls_suite);         /* LCOV_EXCL_LINE */
+  RUN_SUITE(process_suite);     /* LCOV_EXCL_LINE */
+  RUN_SUITE(coroutine_suite);   /* LCOV_EXCL_LINE */
+  RUN_SUITE(actor_suite);       /* LCOV_EXCL_LINE */
+  RUN_SUITE(transport_suite);   /* LCOV_EXCL_LINE */
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) ||                      \
     !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
-  RUN_SUITE(cmp_integration_suite);
+  RUN_SUITE(cmp_integration_suite); /* LCOV_EXCL_LINE */
 #endif
 
 #if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
@@ -144,7 +145,7 @@ int main(int argc, char **argv) {
   RUN_SUITE(http_wininet_suite);
 #endif
 #elif defined(__APPLE__)
-  RUN_SUITE(http_apple_suite);
+  RUN_SUITE(http_apple_suite); /* LCOV_EXCL_LINE */
 #elif defined(__ANDROID__)
   RUN_SUITE(http_android_suite);
 #elif defined(__EMSCRIPTEN__)
@@ -158,8 +159,10 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef malloc
-  RUN_SUITE(mock_coverage_suite);
+  RUN_SUITE(mock_coverage_suite); /* LCOV_EXCL_LINE */
 #endif
 
-  GREATEST_MAIN_END();
-}
+  GREATEST_MAIN_END(); /* LCOV_EXCL_LINE */
+} /* LCOV_EXCL_LINE */
+
+/* LCOV_EXCL_BR_STOP */

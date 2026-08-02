@@ -25,12 +25,14 @@ extern "C" {
  *
  * @return 0 on success, EIO on failure.
  */
-c_abstract_http_error_t http_aria2_global_init(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_aria2_global_init(void);
 
 /**
  * @brief Decrement the global initialization reference count.
  */
-c_abstract_http_error_t http_aria2_global_cleanup(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_aria2_global_cleanup(void);
 
 /**
  * @brief Initialize a new aria2 context.
@@ -38,7 +40,7 @@ c_abstract_http_error_t http_aria2_global_cleanup(void);
  * @param[out] ctx Pointer to a pointer to receive the context.
  * @return 0 on success, ENOMEM or EINVAL on error.
  */
-c_abstract_http_error_t
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_aria2_context_init(struct HttpTransportContext **const ctx);
 
 /**
@@ -55,9 +57,8 @@ void http_aria2_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration to apply.
  * @return 0 on success, EINVAL on error.
  */
-c_abstract_http_error_t
-http_aria2_config_apply(struct HttpTransportContext *ctx,
-                        const struct HttpConfig *config);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_aria2_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config);
 
 /**
  * @brief Perform a single blocking HTTP request via aria2.
@@ -67,9 +68,9 @@ http_aria2_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Pointer to receive the response pointer.
  * @return 0 on success, or an error code.
  */
-c_abstract_http_error_t http_aria2_send(struct HttpTransportContext *ctx,
-                                        const struct HttpRequest *req,
-                                        struct HttpResponse **const res);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_aria2_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+                struct HttpResponse **const res);
 
 /**
  * @brief Perform multiple HTTP requests concurrently via aria2.
@@ -80,7 +81,7 @@ c_abstract_http_error_t http_aria2_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures to populate.
  * @return 0 on success, ENOTSUP if unsupported.
  */
-c_abstract_http_error_t http_aria2_send_multi(
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_aria2_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 

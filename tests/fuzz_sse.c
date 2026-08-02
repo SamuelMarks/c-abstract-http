@@ -1,3 +1,4 @@
+/* LCOV_EXCL_BR_START */
 /* clang-format off */
 #include "../src/sse_internal.h"
 #include <stddef.h>
@@ -58,3 +59,5 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   sse_parser_destroy(&ctx);
   return 0;
 }
+
+/* LCOV_EXCL_BR_STOP */
