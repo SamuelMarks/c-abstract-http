@@ -92,8 +92,14 @@
 
 GREATEST_MAIN_DEFS(); /* LCOV_EXCL_BR_LINE */
 
-int main(int argc, char **argv) { /* LCOV_EXCL_LINE */
+#if defined(__linux__) || defined(__APPLE__)
+#include <signal.h>
+#endif
+int main(int argc, char **argv) {
   int i;
+#if defined(__linux__) || defined(__APPLE__)
+  signal(SIGPIPE, SIG_IGN);
+#endif                                           /* LCOV_EXCL_LINE */
   for (i = 1; i < argc; ++i) {                   /* LCOV_EXCL_LINE */
     if (strcmp(argv[i], "--test-worker") == 0) { /* LCOV_EXCL_LINE */
       _exit(1);                                  /* LCOV_EXCL_LINE */

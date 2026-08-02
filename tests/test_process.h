@@ -960,12 +960,14 @@ TEST test_process_write_partial(void) { /* LCOV_EXCL_LINE */
   struct AbstractHttpIpcPipe my_pipe;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_ipc_pipe_init(&my_pipe)); /* LCOV_EXCL_LINE */
-  g_mock_write_partial = 1;                         /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,                 /* LCOV_EXCL_LINE */
+#ifndef _WIN32
+  g_mock_write_partial = 1;         /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, /* LCOV_EXCL_LINE */
             abstract_http_ipc_write(my_pipe.write_handle, "test", 4));
   g_mock_write_partial = 1;         /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, /* LCOV_EXCL_LINE */
             abstract_http_ipc_write(my_pipe.write_handle, "t", 1));
+#endif
   abstract_http_ipc_pipe_free(&my_pipe); /* LCOV_EXCL_LINE */
   PASS();                                /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */

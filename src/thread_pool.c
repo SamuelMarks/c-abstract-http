@@ -21,6 +21,7 @@
 #define ABSTRACT_HTTP_COND_BROADCAST abstract_http_cond_broadcast
 
 #include <c_abstract_http/thread_pool.h>
+extern void *c_abstract_http_mock_malloc(size_t size);
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
@@ -642,7 +643,8 @@ void abstract_http_thread_pool_test_inject_task(
 void abstract_http_thread_pool_test_inject_task(
     struct AbstractHttpThreadPool *pool) {
   if (pool) {
-    struct TaskNode *t = (struct TaskNode *)malloc(sizeof(struct TaskNode));
+    struct TaskNode *t =
+        (struct TaskNode *)c_abstract_http_mock_malloc(sizeof(struct TaskNode));
     if (t) {
       t->cb = dummy_cb_thread;
       t->arg = NULL;
@@ -657,11 +659,15 @@ void abstract_http_thread_pool_test_inject_task(
 void abstract_http_thread_pool_test_free_with_tasks(void);
 void abstract_http_thread_pool_test_free_with_tasks(void) {
   struct AbstractHttpThreadPool *fake_pool =
-      (struct AbstractHttpThreadPool *)malloc(
+      (struct AbstractHttpThreadPool *)c_abstract_http_mock_malloc(
           sizeof(struct AbstractHttpThreadPool));
-  memset(fake_pool, 0, sizeof(struct AbstractHttpThreadPool));
-  fake_pool->num_threads = 0;
-  abstract_http_thread_pool_test_inject_task(fake_pool);
-  (void)abstract_http_thread_pool_free(fake_pool);
+  if (fake_pool) {
+    memset(fake_pool, 0, sizeof(struct AbstractHttpThreadPool));
+    fake_pool->num_threads = 0;
+    abstract_http_mutex_init(&fake_pool->lock);
+    abstract_http_cond_init(&fake_pool->cond);
+    abstract_http_thread_pool_test_inject_task(fake_pool);
+    (void)abstract_http_thread_pool_free(fake_pool);
+  }
 }
 #endif

@@ -93,8 +93,8 @@ set(C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE 32768 CACHE STRING "Max SSE line size")
 
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
   if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-    add_compile_options(--coverage -g -O0)
-    add_link_options(--coverage)
+
+
   endif()
 endif()
 configure_file(

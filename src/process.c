@@ -35,7 +35,7 @@ typedef int ssize_t;
 ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count) {
   if (g_mock_write_partial) {
     g_mock_write_partial = 0;
-    return count > 1 ? count - 1 : 0;
+    return count > 1 ? (ssize_t)(count - 1) : 0;
   }
 #undef write
 #if defined(_WIN32)

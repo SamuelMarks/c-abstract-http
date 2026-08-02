@@ -132,9 +132,11 @@ TEST test_mock_alloc_more(void) {
   }
   g_mock_select_error_fds = 0;
 
+#ifndef _WIN32
   g_mock_waitpid_fail = 3;
   ASSERT_EQ(0, c_abstract_http_mock_fork()); /* LCOV_EXCL_BR_LINE */
   g_mock_waitpid_fail = 0;
+#endif
 
   {
     char *out_test = NULL;
@@ -288,7 +290,7 @@ TEST test_mock_server_coverage(void) {
                                                      /* LCOV_EXCL_BR_LINE */
   /* Send mock data */
   {
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = (int)socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -298,7 +300,7 @@ TEST test_mock_server_coverage(void) {
 
     connect(sock, (struct sockaddr *)&addr, sizeof(addr));
     send(sock, "test", 4, 0);
-    close(sock);
+    TEST_CLOSESOCKET(sock);
   }
 
   {
@@ -354,7 +356,7 @@ TEST test_mock_server_coverage(void) {
 
   /* Mock alloc fail inside server recv loop */
   {
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = (int)socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -380,12 +382,12 @@ TEST test_mock_server_coverage(void) {
     }
 #endif
     g_mock_alloc_fail = 0;
-    close(sock);
+    TEST_CLOSESOCKET(sock);
   }
 
   /* Mock alloc fail for existing captured_request in recv loop */
   {
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = (int)socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -408,9 +410,9 @@ TEST test_mock_server_coverage(void) {
     }
 #endif
 
-    close(sock);
+    TEST_CLOSESOCKET(sock);
 
-    sock = socket(AF_INET, SOCK_STREAM, 0);
+    sock = (int)socket(AF_INET, SOCK_STREAM, 0);
     connect(sock, (struct sockaddr *)&addr, sizeof(addr));
 
     /* Make malloc fail for the second one, to hit the `free` block */
@@ -428,7 +430,7 @@ TEST test_mock_server_coverage(void) {
     }
 #endif
     g_mock_alloc_fail = 0;
-    close(sock);
+    TEST_CLOSESOCKET(sock);
   }
 
   /* Mock alloc fail inside server recv loop? We can't easily sync that unless

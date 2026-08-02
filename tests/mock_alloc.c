@@ -209,12 +209,12 @@ enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
 
 ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
 c_abstract_http_mock_malloc(size_t size) {
-  if (g_mock_alloc_fail)
-    if (g_mock_alloc_fail) {
-      if (g_mock_alloc_count-- == 0) {
-        return NULL;
-      }
+  if (g_mock_alloc_fail) {
+    if (g_mock_alloc_count <= 0) {
+      return NULL;
     }
+    g_mock_alloc_count--;
+  }
   return malloc(size);
 }
 
@@ -404,6 +404,8 @@ int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
         FD_SET(i, errorfds);
       }
       return 1;
+    } else {
+      return 0;
     }
   }
   return select(nfds, readfds, writefds, errorfds, timeout);

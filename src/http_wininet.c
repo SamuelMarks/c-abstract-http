@@ -22,14 +22,15 @@
 #endif
 
 #include <c_abstract_http/http_wininet.h>
+#include <cfs/cfs.h>
 #include "str.h"
 /* clang-format on */
 
 static enum c_abstract_http_error
 ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out_len) {
   cfs_size_t written = 0;
-  enum cfs_error rc = cfs_mb_to_wide(s, ws, (cfs_size_t)buf_cap, &written);
-  if (rc != CFS_SUCCESS || written == 0)
+  cfs_errc rc = cfs_mb_to_wide(s, ws, (cfs_size_t)buf_cap, &written);
+  if (rc != cfs_errc_success || written == 0)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_len = (size_t)(written - 1);
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -38,8 +39,8 @@ ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out_len) {
 static enum c_abstract_http_error
 wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out_len) {
   cfs_size_t written = 0;
-  enum cfs_error rc = cfs_wide_to_mb(ws, s, (cfs_size_t)buf_cap, &written);
-  if (rc != CFS_SUCCESS || written == 0)
+  cfs_errc rc = cfs_wide_to_mb(ws, s, (cfs_size_t)buf_cap, &written);
+  if (rc != cfs_errc_success || written == 0)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_len = (size_t)(written - 1);
   return C_ABSTRACT_HTTP_SUCCESS;

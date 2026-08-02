@@ -27,7 +27,7 @@ extern "C" {
 #include <curl/curl.h>
 #endif
 #include <c_abstract_http/http_types.h>
-#include "functions/parse/str.h"
+
 
 /* Helper: Build a request to localhost on a port likely to be closed */
 #include "abstract_http_test_helpers/mock_server.h"
@@ -470,7 +470,7 @@ TEST test_curl_edge_cases(void) {
       g_mock_alloc_fail = 0;
       if (res) {
         http_response_free(res);
-        free(res);
+        c_abstract_http_mock_free(res);
         res = NULL;
       }
       if (rc_test_tmp == 0)
@@ -519,7 +519,7 @@ TEST test_curl_send_write_oom(void) {
       g_mock_alloc_fail = 0;
       if (res) {
         http_response_free(res);
-        free(res);
+        c_abstract_http_mock_free(res);
         res = NULL;
       }
     }
@@ -734,12 +734,15 @@ TEST test_curl_send_cookies(void) {
   g_mock_curl_cookies = cookies;
 #endif
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res));
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res), "%d");
   if (res) {
     http_response_free(res);
-    free(res);
+    c_abstract_http_mock_free(res);
     res = NULL;
   }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_curl_cookies = NULL;
+#endif
 
   {
     int i;
@@ -749,9 +752,8 @@ TEST test_curl_send_cookies(void) {
       if (g_mock_curl_cookies) {
         curl_slist_free_all(g_mock_curl_cookies);
       }
-      cookies = curl_slist_append(
+      g_mock_curl_cookies = curl_slist_append(
           NULL, "example.com\tFALSE\t/\tFALSE\t0\tname\tvalue");
-      g_mock_curl_cookies = cookies;
 #endif
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = i;
@@ -759,9 +761,15 @@ TEST test_curl_send_cookies(void) {
       g_mock_alloc_fail = 0;
       if (res) {
         http_response_free(res);
-        free(res);
+        c_abstract_http_mock_free(res);
         res = NULL;
       }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+      if (g_mock_curl_cookies) {
+        curl_slist_free_all(g_mock_curl_cookies);
+        g_mock_curl_cookies = NULL;
+      }
+#endif
       if (rc_test_tmp == 0)
         break;
     }
@@ -916,10 +924,10 @@ TEST test_curl_send_chunked_methods(void) {
   req.read_chunk_user_data = &up_state;
   req.expected_body_len = 4;
   up_state.pos = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res));
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res), "%d");
   if (res) {
     http_response_free(res);
-    free(res);
+    c_abstract_http_mock_free(res);
     res = NULL;
   }
   http_request_free(&req);
@@ -932,10 +940,10 @@ TEST test_curl_send_chunked_methods(void) {
   req.read_chunk_user_data = &up_state;
   req.expected_body_len = 4;
   up_state.pos = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res));
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res), "%d");
   if (res) {
     http_response_free(res);
-    free(res);
+    c_abstract_http_mock_free(res);
     res = NULL;
   }
   http_request_free(&req);
@@ -965,10 +973,10 @@ TEST test_curl_send_chunked_methods(void) {
   req.read_chunk_user_data = &up_state;
   req.expected_body_len = 4;
   up_state.pos = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res));
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res), "%d");
   if (res) {
     http_response_free(res);
-    free(res);
+    c_abstract_http_mock_free(res);
     res = NULL;
   }
   http_request_free(&req);
@@ -979,10 +987,10 @@ TEST test_curl_send_chunked_methods(void) {
   req.method = HTTP_QUERY;
   req.body = (unsigned char *)"data";
   req.body_len = 4;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res));
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res), "%d");
   if (res) {
     http_response_free(res);
-    free(res);
+    c_abstract_http_mock_free(res);
     res = NULL;
   }
   req.body = NULL;
@@ -992,10 +1000,10 @@ TEST test_curl_send_chunked_methods(void) {
   http_request_init(&req);
   setup_request(&req, port);
   req.method = 999;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res));
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res), "%d");
   if (res) {
     http_response_free(res);
-    free(res);
+    c_abstract_http_mock_free(res);
     res = NULL;
   }
   http_request_free(&req);
@@ -1008,10 +1016,10 @@ TEST test_curl_send_chunked_methods(void) {
   req.read_chunk_user_data = &up_state;
   req.expected_body_len = 4;
   up_state.pos = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res));
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res), "%d");
   if (res) {
     http_response_free(res);
-    free(res);
+    c_abstract_http_mock_free(res);
     res = NULL;
   }
   http_request_free(&req);
@@ -1066,7 +1074,7 @@ TEST test_curl_send_multi(void) {
     http_loop_tick(loop);
   }
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, future1->error_code);
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, future1->error_code, "%d");
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, future2->error_code);
   ASSERT(future1->response != NULL);
   ASSERT(future2->response != NULL);

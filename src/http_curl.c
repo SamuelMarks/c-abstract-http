@@ -237,7 +237,7 @@ static enum c_abstract_http_error ABSTRACT_HTTP_MAP_CURL_ERROR(CURLcode res) {
 }
 
 static int g_curl_init_count = 0;
-enum c_abstract_http_error http_ABSTRACT_HTTP_CURL_GLOBAL_INIT(void) {
+enum c_abstract_http_error http_curl_global_init(void) {
   if (g_curl_init_count == 0) {
     if ((int)ABSTRACT_HTTP_CURL_GLOBAL_INIT(CURL_GLOBAL_ALL) != 0) {
       return C_ABSTRACT_HTTP_ERR_IO;
@@ -465,7 +465,6 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
                                  struct CurlWriteContext *write_ctx,
                                  struct curl_slist **out_headers) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  char *_ast_ABSTRACT_HTTP_FORMAT_HEADER_0;
   size_t i;
   void *payload = req->body;
   size_t payload_len = req->body_len;
@@ -488,6 +487,7 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
   write_ctx->user_aborted = 0;
 
   ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_URL, req->url);
+  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_NOSIGNAL, 1L);
 
   if (req->read_chunk) {
     switch (req->method) {
@@ -636,7 +636,8 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FINISH_CURL_REQUEST(
 
   ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
-  new_res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
+  new_res = (struct HttpResponse *)c_abstract_http_mock_calloc(
+      1, sizeof(struct HttpResponse));
   if (!new_res) {
     LOG_DEBUG("ABSTRACT_HTTP_FINISH_CURL_REQUEST: Error ENOMEM for new_res");
     rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -704,6 +705,10 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FINISH_CURL_REQUEST(
   *out_res = new_res;
 
 cleanup:
+  if (rc != C_ABSTRACT_HTTP_SUCCESS && new_res) {
+    http_response_free(new_res);
+    c_abstract_http_mock_free(new_res);
+  }
   if (headers)
     curl_slist_free_all(headers);
   if (write_ctx->chunk.memory)
@@ -845,7 +850,7 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
 
   if (ctx->timer_id > 0) {
     rc = http_loop_cancel_timer(ctx->loop, ctx->timer_id);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS && rc != ENOENT) {
       LOG_DEBUG("multi_timer_function: http_loop_cancel_timer failed");
       goto timer_error;
     }
@@ -857,6 +862,7 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
                              &ctx->timer_id);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("multi_timer_function: http_loop_add_timer failed");
+      printf("TIMER ERROR %d\n", rc);
       goto timer_error;
     }
   }

@@ -135,7 +135,14 @@ TEST test_oauth2_localhost_intercept(void) {
     memset(&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
     saddr.sin_port = htons(i == 0 ? 1 : args.port); /* LCOV_EXCL_BR_LINE */
+#if defined(_WIN32)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
     saddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+#if defined(_WIN32)
+#pragma warning(pop)
+#endif
     if (connect(sock, (struct sockaddr *)&saddr, sizeof(saddr)) == 0) {
       connected = 1;
       send(sock, req, (int)strlen(req), 0);
@@ -195,6 +202,15 @@ TEST test_oauth2_localhost_intercept(void) {
   ASSERT_EQ(1, connected); /* LCOV_EXCL_BR_LINE */
   abstract_http_thread_pool_free(pool);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, args.rc); /* LCOV_EXCL_BR_LINE */
+
+  if (args.code)
+    free(args.code);
+  if (args.state)
+    free(args.state);
+  if (args.err)
+    free(args.err);
+  if (args.err_desc)
+    free(args.err_desc);
 
   /* Test connect and close to trigger C_ABSTRACT_HTTP_ERR_IO on recv */
   memset(&args, 0, sizeof(args));

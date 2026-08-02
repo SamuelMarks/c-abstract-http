@@ -165,7 +165,22 @@ TEST test_coroutine_hooks(void) { /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+
+#if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__)
+#define ABSTRACT_HTTP_NO_UCONTEXT 1
+#endif
+#if defined(__APPLE__) && defined(__MACH__)
+#if defined(__aarch64__) || defined(__arm64__) || defined(__arm__) ||          \
+    defined(__aarch64) || defined(EMSCRIPTEN)
+#define ABSTRACT_HTTP_NO_UCONTEXT 1
+#endif
+#elif defined(__linux__) && !defined(__GLIBC__)
+#define ABSTRACT_HTTP_NO_UCONTEXT 1
+#endif
+
+#if !defined(_WIN32) && !defined(__WIN32__) && !defined(__WINDOWS__) &&        \
+    !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS) &&               \
+    defined(ABSTRACT_HTTP_NO_UCONTEXT)
 TEST test_coroutine_pthread_create_fail(void) { /* LCOV_EXCL_LINE */
   struct AbstractHttpCoroutine *co = NULL;      /* LCOV_EXCL_LINE */
   enum c_abstract_http_error rc;
@@ -263,8 +278,12 @@ SUITE(coroutine_suite) { /* LCOV_EXCL_LINE */
   RUN_TEST(test_coroutine_execution); /* LCOV_EXCL_LINE */
   RUN_TEST(test_coroutine_hooks);     /* LCOV_EXCL_LINE */
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  RUN_TEST(test_coroutine_fallback_paths);      /* LCOV_EXCL_LINE */
+  RUN_TEST(test_coroutine_fallback_paths); /* LCOV_EXCL_LINE */
+#if !defined(_WIN32) && !defined(__WIN32__) && !defined(__WINDOWS__) &&        \
+    !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS) &&               \
+    defined(ABSTRACT_HTTP_NO_UCONTEXT)
   RUN_TEST(test_coroutine_pthread_create_fail); /* LCOV_EXCL_LINE */
+#endif
 
 #endif
 } /* LCOV_EXCL_LINE */

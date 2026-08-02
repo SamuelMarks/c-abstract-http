@@ -178,6 +178,7 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
   const char *response = "HTTP/1.1 200 OK\r\n"
                          "Content-Type: text/plain\r\n"
                          "Content-Length: 2\r\n"
+                         "Connection: close\r\n"
                          "\r\n"
                          "OK";
 
@@ -227,7 +228,11 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
     }
 
     /* Send Response */
+#ifdef MSG_NOSIGNAL
+    send(client_fd, response, (int)strlen(response), MSG_NOSIGNAL);
+#else
     send(client_fd, response, (int)strlen(response), 0);
+#endif
 
     close_socket(client_fd);
   }
@@ -381,9 +386,6 @@ int mock_server_wait_for_request(MockServerPtr server,
 
   if (server->has_request && server->captured_request) { /* LCOV_EXCL_BR_LINE */
                                                          /* Copy data out */
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    out_req->raw_header = _strdup(server->captured_request);
-#else
     {
       size_t len = strlen(server->captured_request);
       out_req->raw_header = (char *)malloc(len + 1);
@@ -391,7 +393,6 @@ int mock_server_wait_for_request(MockServerPtr server,
         memcpy(out_req->raw_header, server->captured_request, len + 1);
       }
     }
-#endif
     out_req->header_len = server->captured_len;
 
     /* Consume it */
