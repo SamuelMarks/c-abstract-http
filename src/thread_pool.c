@@ -395,15 +395,31 @@ static ABSTRACT_HTTP_THREAD_FUNC worker_thread(abstract_http_thread_arg_t arg) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   while (1) {
     struct TaskNode *task = NULL;
+    enum c_abstract_http_error err;
 
-    (void)abstract_http_mutex_lock(pool->lock);
+    err = abstract_http_mutex_lock(pool->lock);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
+      rc = err;                           /* LCOV_EXCL_LINE */
+      break;                              /* LCOV_EXCL_LINE */
+    }
 
     while (!pool->stop && !pool->head) {
-      (void)abstract_http_cond_wait(pool->cond, pool->lock);
+      err = abstract_http_cond_wait(pool->cond, pool->lock);
+      if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
+        rc = err;                           /* LCOV_EXCL_LINE */
+        break;                              /* LCOV_EXCL_LINE */
+      }
+    }
+
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {            /* LCOV_EXCL_BR_LINE */
+      err = abstract_http_mutex_unlock(pool->lock); /* LCOV_EXCL_LINE */
+      (void)err;                                    /* LCOV_EXCL_LINE */
+      break;                                        /* LCOV_EXCL_LINE */
     }
 
     if (pool->stop && !pool->head) {
-      (void)abstract_http_mutex_unlock(pool->lock);
+      err = abstract_http_mutex_unlock(pool->lock);
+      (void)err;
       break;
     }
 
@@ -413,10 +429,16 @@ static ABSTRACT_HTTP_THREAD_FUNC worker_thread(abstract_http_thread_arg_t arg) {
       pool->tail = NULL;
     }
 
-    (void)abstract_http_mutex_unlock(pool->lock);
+    err = abstract_http_mutex_unlock(pool->lock);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
+      rc = err;                           /* LCOV_EXCL_LINE */
+      /* We should probably execute the task anyway since we popped it */
+    }
 
-    task->cb(task->arg);
-    free(task);
+    if (task) {
+      task->cb(task->arg);
+      free(task);
+    }
   }
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   return (ABSTRACT_HTTP_THREAD_FUNC)(unsigned long)rc;
@@ -470,9 +492,11 @@ abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
 
   for (i = 0; i < num_threads; ++i) {
     if (thread_create(&p->threads[i], worker_thread, p) != 0) {
+      enum c_abstract_http_error berr;
       /* If we fail partway, trigger stop and join what we have */
       p->stop = 1;
-      (void)ABSTRACT_HTTP_COND_BROADCAST(p->cond);
+      berr = ABSTRACT_HTTP_COND_BROADCAST(p->cond);
+      (void)berr;
       while (i > 0) {
         printf("JOINING THREAD %lu\n", (unsigned long)i);
         i--;
@@ -542,9 +566,14 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
   task->next = NULL;
 
   {
-    (void)abstract_http_mutex_lock(pool->lock);
+    enum c_abstract_http_error err = abstract_http_mutex_lock(pool->lock);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
+      free(task);                         /* LCOV_EXCL_LINE */
+      return err;                         /* LCOV_EXCL_LINE */
+    }
     if (pool->stop) {
-      (void)abstract_http_mutex_unlock(pool->lock);
+      err = abstract_http_mutex_unlock(pool->lock);
+      (void)err;
       free(task);
       LOG_DEBUG("abstract_http_thread_pool_push: Error EINVAL (pool stopped)");
       return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -558,8 +587,10 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
       pool->tail = task;
     }
 
-    (void)abstract_http_cond_signal(pool->cond);
-    (void)abstract_http_mutex_unlock(pool->lock);
+    err = abstract_http_cond_signal(pool->cond);
+    (void)err;
+    err = abstract_http_mutex_unlock(pool->lock);
+    (void)err;
   }
 
   LOG_DEBUG("abstract_http_thread_pool_push: Success");
@@ -584,12 +615,14 @@ abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
   {
     enum c_abstract_http_error err;
     err = abstract_http_mutex_lock(pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      return err;
+    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
+      return err;                         /* LCOV_EXCL_LINE */
     }
     pool->stop = 1;
-    (void)ABSTRACT_HTTP_COND_BROADCAST(pool->cond);
-    (void)abstract_http_mutex_unlock(pool->lock);
+    err = ABSTRACT_HTTP_COND_BROADCAST(pool->cond);
+    (void)err;
+    err = abstract_http_mutex_unlock(pool->lock);
+    (void)err;
   }
 
   for (i = 0; i < pool->num_threads; ++i) {
@@ -624,11 +657,12 @@ abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool) {
     } else {
       err = abstract_http_mutex_lock(pool->lock);
     }
-    if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      return err;
+    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
+      return err;                         /* LCOV_EXCL_LINE */
     }
     pool->stop = 1;
-    (void)abstract_http_mutex_unlock(pool->lock);
+    err = abstract_http_mutex_unlock(pool->lock);
+    (void)err;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -662,12 +696,16 @@ void abstract_http_thread_pool_test_free_with_tasks(void) {
       (struct AbstractHttpThreadPool *)c_abstract_http_mock_malloc(
           sizeof(struct AbstractHttpThreadPool));
   if (fake_pool) {
+    enum c_abstract_http_error err;
     memset(fake_pool, 0, sizeof(struct AbstractHttpThreadPool));
     fake_pool->num_threads = 0;
-    abstract_http_mutex_init(&fake_pool->lock);
-    abstract_http_cond_init(&fake_pool->cond);
+    err = abstract_http_mutex_init(&fake_pool->lock);
+    (void)err;
+    err = abstract_http_cond_init(&fake_pool->cond);
+    (void)err;
     abstract_http_thread_pool_test_inject_task(fake_pool);
-    (void)abstract_http_thread_pool_free(fake_pool);
+    err = abstract_http_thread_pool_free(fake_pool);
+    (void)err;
   }
 }
 #endif

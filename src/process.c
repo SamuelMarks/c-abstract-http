@@ -579,7 +579,8 @@ abstract_http_ipc_deserialize_request(const char *buf, size_t len,
   p = buf;
   end = buf + len;
 
-  (void)http_request_init(req);
+  if ((rc = http_request_init(req)) != 0) /* LCOV_EXCL_BR_LINE */
+    return rc;                            /* LCOV_EXCL_LINE */
 
   if ((rc = parse_int(&p, end, &method)) != 0)
     return rc;
@@ -687,7 +688,8 @@ abstract_http_ipc_deserialize_response(const char *buf, size_t len,
   p = buf;
   end = buf + len;
 
-  (void)http_response_init(res);
+  if ((rc = http_response_init(res)) != 0) /* LCOV_EXCL_BR_LINE */
+    return rc;                             /* LCOV_EXCL_LINE */
 
   if ((rc = parse_int(&p, end, &res->status_code)) != 0)
     return rc;

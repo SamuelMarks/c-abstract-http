@@ -59,17 +59,22 @@ TEST test_mock_alloc_more(void) {
   abstract_http_mock_get_g_mock_recv_fail();
 
 #if !defined(_WIN32)
-  g_mock_pthread_fail = 1;
-  ASSERT_EQ(1, c_abstract_http_mock_pthread_create(
-                   NULL, NULL, NULL, NULL)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(NULL, c_abstract_http_mock_pthread_getspecific(
-                      0)); /* LCOV_EXCL_BR_LINE */
+  {
+    pthread_t dummy_thread;
+    g_mock_pthread_fail = 1;
+    ASSERT_EQ(1, c_abstract_http_mock_pthread_create(
+                     &dummy_thread, NULL, dummy_cb_pthread,
+                     NULL)); /* LCOV_EXCL_BR_LINE */
+    ASSERT_EQ(NULL, c_abstract_http_mock_pthread_getspecific(
+                        0)); /* LCOV_EXCL_BR_LINE */
 
-  g_mock_pthread_fail = 2;
-  g_mock_alloc_count = 0;
-  ASSERT_EQ(1, c_abstract_http_mock_pthread_create(
-                   NULL, NULL, NULL, NULL)); /* LCOV_EXCL_BR_LINE */
-  g_mock_pthread_fail = 0;
+    g_mock_pthread_fail = 2;
+    g_mock_alloc_count = 0;
+    ASSERT_EQ(1, c_abstract_http_mock_pthread_create(
+                     &dummy_thread, NULL, dummy_cb_pthread,
+                     NULL)); /* LCOV_EXCL_BR_LINE */
+    g_mock_pthread_fail = 0;
+  }
 #endif
 
   ASSERT_EQ(22,
