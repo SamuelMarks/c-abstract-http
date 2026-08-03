@@ -636,8 +636,7 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FINISH_CURL_REQUEST(
 
   ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, CURLINFO_RESPONSE_CODE, &response_code);
 
-  new_res = (struct HttpResponse *)c_abstract_http_mock_calloc(
-      1, sizeof(struct HttpResponse));
+  new_res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
   if (!new_res) {
     LOG_DEBUG("ABSTRACT_HTTP_FINISH_CURL_REQUEST: Error ENOMEM for new_res");
     rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -707,7 +706,7 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FINISH_CURL_REQUEST(
 cleanup:
   if (rc != C_ABSTRACT_HTTP_SUCCESS && new_res) {
     http_response_free(new_res);
-    c_abstract_http_mock_free(new_res);
+    free(new_res);
   }
   if (headers)
     curl_slist_free_all(headers);
