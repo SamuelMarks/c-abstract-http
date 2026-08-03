@@ -359,6 +359,7 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
   } else if (pid == 0) {
     char *argv[] = {"test-worker", "--test-worker", NULL};
     (void)argv;
+    free(p);
 
     dup2((int)(size_t)parent_to_child->read_handle, STDIN_FILENO);
     dup2((int)(size_t)child_to_parent->write_handle, STDOUT_FILENO);

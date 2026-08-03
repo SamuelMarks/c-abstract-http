@@ -263,9 +263,7 @@ TEST test_thread_pool_edge_cases(void) { /* LCOV_EXCL_LINE */
   abstract_http_thread_pool_free(pool); /* LCOV_EXCL_LINE */
 
   /* I can create a fake pool to free! */
-  {
-    abstract_http_thread_pool_test_free_with_tasks(); /* LCOV_EXCL_LINE */
-  }
+  { abstract_http_thread_pool_test_free_with_tasks(); /* LCOV_EXCL_LINE */ }
 
   PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
