@@ -12,10 +12,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 #if !defined(_WIN32)
-extern void *c_abstract_http_mock_pthread_getspecific(unsigned long key);
-extern int c_abstract_http_mock_pthread_create(void *thread, const void *attr,
-                                               void *(*start_routine)(void *),
-                                               void *arg);
+#include <pthread.h>
 #endif
 /* extern int g_mock_recv_fail; */
 
