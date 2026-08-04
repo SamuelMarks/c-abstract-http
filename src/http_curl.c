@@ -85,6 +85,7 @@ int g_mock_curl_init_fail = 0;
        ? CURLM_OUT_OF_MEMORY                                                   \
        : (curl_multi_add_handle)(multi, handle))
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 extern struct curl_slist *g_mock_curl_cookies;
 #undef ABSTRACT_HTTP_CURL_EASY_GETINFO
 #define ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, info, param)                     \
@@ -101,6 +102,11 @@ extern struct curl_slist *g_mock_curl_cookies;
       g_mock_curl_cookies = NULL;                                              \
     (curl_slist_free_all)(list);                                               \
   } while (0)
+#else
+#undef ABSTRACT_HTTP_CURL_EASY_GETINFO
+#define ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, info, param)                     \
+  (curl_easy_getinfo)(curl, info, param)
+#endif
 
 #undef ABSTRACT_HTTP_CURL_SLIST_APPEND
 #define ABSTRACT_HTTP_CURL_SLIST_APPEND(list, str)                             \

@@ -231,7 +231,7 @@ TEST test_sse_sync_loop_exit_flag(void) {
   volatile int exit_flag = 1;
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
-  (void)http_request_init(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL, NULL,
                                                NULL, &exit_flag));
@@ -285,7 +285,7 @@ static int mock_on_event_cb(const struct c_abstract_http_sse_event *ev,
 TEST test_sse_sync_loop_success(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
-  (void)http_request_init(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   client.send = mock_send_success;
   mock_on_event_called = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -299,7 +299,7 @@ TEST test_sse_sync_loop_success(void) {
 TEST test_sse_sync_loop_fail(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
-  (void)http_request_init(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   client.send = mock_send_fail;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             c_abstract_http_sse_sync_read_loop(&client, NULL, NULL, NULL, NULL,
@@ -410,10 +410,11 @@ TEST test_sse_async_register_thread_pool(void) {
 
   memset(&client, 0, sizeof(client));
   memset(&hooks, 0, sizeof(hooks));
-  (void)http_request_init(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   hooks.push = mock_push_fail;
 
-  (void)abstract_http_thread_pool_init_external(&pool, &hooks);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_init_external(&pool, &hooks));
   client.thread_pool = pool;
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -430,7 +431,7 @@ TEST test_sse_async_register_thread_pool(void) {
   ASSERT_EQ(123, c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
                                                     NULL, NULL));
 
-  (void)abstract_http_thread_pool_free(pool);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
   http_request_free(&req);
   PASS();
 }
@@ -793,7 +794,7 @@ TEST test_sse_sync_loop_null_body(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
   struct test_sse_ctx ctx = {0};
-  (void)http_request_init(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   client.send = test_sse_mock_send_null_body;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -807,7 +808,7 @@ TEST test_sse_sync_loop_null_res(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
   struct test_sse_ctx ctx = {0};
-  (void)http_request_init(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   client.send = test_sse_mock_send_null_res;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -822,7 +823,7 @@ TEST test_sse_sync_loop_errors(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
   struct test_sse_ctx ctx = {0};
-  (void)http_request_init(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   /* Mock send failure */
   client.send = test_sse_mock_send_err;
   {
@@ -871,16 +872,17 @@ TEST test_sse_async_register_success(void) {
   struct AbstractHttpThreadPool *pool = NULL;
   struct AbstractHttpThreadPoolHooks hooks = {0};
   struct test_sse_ctx ctx = {0};
-  (void)http_request_init(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   hooks.push = mock_push_success;
-  (void)abstract_http_thread_pool_init_external(&pool, &hooks);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_init_external(&pool, &hooks));
   client.thread_pool = pool;
   client.send = test_sse_mock_send_empty;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_sse_async_register(&client, &req, test_sse_on_event,
                                                test_sse_on_error,
                                                test_sse_on_close, &ctx));
-  (void)abstract_http_thread_pool_free(pool);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
   http_request_free(&req);
   PASS();
 }
@@ -1031,7 +1033,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
   int i;
 
   for (i = 0; i < 10; i++) {
-    (void)http_request_init(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = test_sse_mock_send_empty;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1046,7 +1048,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
   }
 
   for (i = 0; i < 10; i++) {
-    (void)http_request_init(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = test_sse_mock_send_empty;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1062,7 +1064,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
   }
 
   for (i = 0; i < 15; i++) {
-    (void)http_request_init(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = mock_send_success_huge_body;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1077,7 +1079,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
   }
 
   for (i = 0; i < 15; i++) {
-    (void)http_request_init(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = mock_send_success_huge_body;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
@@ -1180,7 +1182,7 @@ TEST test_sse_async_task_error(void) {
   struct HttpRequest req = {0};
   struct test_sse_ctx t_ctx = {0};
 
-  (void)http_request_init(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   client.send = mock_send_err_for_task;
 
   memset(ctx, 0, sizeof(*ctx));
@@ -1198,7 +1200,7 @@ TEST test_sse_async_task_error(void) {
 
   /* Async task error with NULL error callback */
   ctx = malloc(sizeof(*ctx));
-  (void)http_request_init(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   memset(ctx, 0, sizeof(*ctx));
   ctx->client = &client;
   ctx->req = &req;

@@ -1000,8 +1000,9 @@ TEST test_ws_async_register_success(void) {
   /* Since c_abstract_http_ws_init needs URL, etc., it will fail inside
    * sync_read_loop. */
   /* We just test that it doesn't crash and gets scheduled. */
-  (void)c_abstract_http_ws_async_register(&client, &req, NULL, NULL, NULL,
-                                          NULL);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_ws_async_register(&client, &req, NULL, NULL, NULL, NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1024,11 +1025,12 @@ TEST test_ws_async_register_success(void) {
   /* Simulate exit of sync_read_loop which frees the ws_ctx */
   {
     int exit_flag = 0;
-    (void)c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL,
-                                            NULL, &exit_flag);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+              c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL,
+                                                NULL, &exit_flag));
   }
 
-  (void)abstract_http_thread_pool_free(pool);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
   PASS();
 }
 
@@ -1045,22 +1047,24 @@ TEST test_ws_async_coverage(void) {
   enum c_abstract_http_error rc;
   int err_called = 0;
 
-  (void)http_client_init(&client);
-  (void)http_request_init(&req);
-  (void)c_abstract_http_ws_init(&req, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
 
   rc = c_abstract_http_ws_async_register(&client, &req, NULL, mock_on_err, NULL,
                                          &err_called);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  (void)abstract_http_thread_pool_init(&client.thread_pool, 1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_init(&client.thread_pool, 1));
   g_mock_alloc_fail = 1;
   rc = c_abstract_http_ws_async_register(&client, &req, NULL, mock_on_err, NULL,
                                          &err_called);
   g_mock_alloc_fail = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  (void)abstract_http_thread_pool_free(client.thread_pool);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_free(client.thread_pool));
 #endif
 
   if (req.ws_ctx) {
@@ -1076,8 +1080,8 @@ TEST test_ws_edge_cases(void) {
   size_t out_read;
   char buf[128];
 
-  (void)http_request_init(&req3);
-  (void)c_abstract_http_ws_init(&req3, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req3));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req3, NULL));
 
   if (req3.read_chunk) {
     req3.read_chunk(NULL, buf, sizeof(buf), &out_read);
