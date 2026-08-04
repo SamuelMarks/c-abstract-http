@@ -36,7 +36,7 @@ enum c_abstract_http_error ws_generate_key(char out_key[25]) {
 
 
 
-  C_ABSTRACT_HTTP_STRCPY_S(out_key, 25, base64_str);
+  c89stringutils_strcpy_s(out_key, 25, base64_str);
   free(base64_str);
 
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -57,8 +57,8 @@ enum c_abstract_http_error ws_sign_key(const char *client_key, char out_accept[2
   if (len1 + len2 >= sizeof(concatenated))
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
-  C_ABSTRACT_HTTP_STRCPY_S(concatenated, sizeof(concatenated), client_key);
-  C_ABSTRACT_HTTP_STRCPY_S(concatenated + len1, sizeof(concatenated) - len1,
+  c89stringutils_strcpy_s(concatenated, sizeof(concatenated), client_key);
+  c89stringutils_strcpy_s(concatenated + len1, sizeof(concatenated) - len1,
                            magic_guid);
 
   rc = sha1_init(&ctx);
@@ -74,7 +74,7 @@ enum c_abstract_http_error ws_sign_key(const char *client_key, char out_accept[2
 
 
 
-  C_ABSTRACT_HTTP_STRCPY_S(out_accept, 29, base64_str);
+  c89stringutils_strcpy_s(out_accept, 29, base64_str);
   free(base64_str);
 
   return C_ABSTRACT_HTTP_SUCCESS;

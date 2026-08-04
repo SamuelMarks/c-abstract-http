@@ -74,8 +74,7 @@ static int sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fm
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   written = vsprintf_s(buf + start, cap - start, fmt, args);
 #else
-  (void)cap; /* Unused in C89 fallback */
-  written = C_ABSTRACT_HTTP_VSPRINTF_S(buf + start, cap - start, fmt, args);
+  written = c89stringutils_vsnprintf(buf + start, cap - start, fmt, args);
 #endif
   va_end(args);
   return written;

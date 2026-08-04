@@ -19,27 +19,6 @@ extern "C" {
 #include <errno.h>
 #include <stddef.h>
 
-
-#ifdef _MSC_VER
-#define C_ABSTRACT_HTTP_SPRINTF_S(dest, sz, fmt, ...)                          \
-  sprintf_s(dest, sz, fmt, __VA_ARGS__)
-#define C_ABSTRACT_HTTP_VSPRINTF_S(dest, sz, fmt, args)                        \
-  vsprintf_s(dest, sz, fmt, args)
-#define C_ABSTRACT_HTTP_STRCPY_S(dest, sz, src) strcpy_s(dest, sz, src)
-#define C_ABSTRACT_HTTP_STRNCPY_S(dest, sz, src, count)                        \
-  strncpy_s(dest, sz, src, count)
-#define C_ABSTRACT_HTTP_STRCAT_S(dest, sz, src) strcat_s(dest, sz, src)
-#else
-#define C_ABSTRACT_HTTP_SPRINTF_S(dest, sz, fmt, ...)                          \
-  snprintf(dest, sz, fmt, __VA_ARGS__)
-#define C_ABSTRACT_HTTP_VSPRINTF_S(dest, sz, fmt, args)                        \
-  vsprintf(dest, fmt, args)
-#define C_ABSTRACT_HTTP_STRCPY_S(dest, sz, src) strcpy(dest, src)
-#define C_ABSTRACT_HTTP_STRNCPY_S(dest, sz, src, count)                        \
-  strncpy(dest, src, count)
-#define C_ABSTRACT_HTTP_STRCAT_S(dest, sz, src) strcat(dest, src)
-#endif
-
 #ifndef ENOTSUP
 /** @brief ENOTSUP macro */
 #define ENOTSUP EINVAL
@@ -94,74 +73,19 @@ typedef __int64 abstract_http_int64_t;
 typedef unsigned __int64 abstract_http_uint64_t;
 /** @brief ABSTRACT_HTTP_INT64_FMT macro */
 #define ABSTRACT_HTTP_INT64_FMT "%I64d"
-#else
-#if defined(_MSC_VER) && _MSC_VER < 1600
-typedef __int8 int8_t;
-typedef unsigned __int8 uint8_t;
-typedef __int16 int16_t;
-typedef unsigned __int16 uint16_t;
-typedef __int32 int32_t;
-typedef unsigned __int32 uint32_t;
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-#else
-#if defined(_MSC_VER) && _MSC_VER < 1600
-typedef __int8 int8_t;
-typedef unsigned __int8 uint8_t;
-typedef __int16 int16_t;
-typedef unsigned __int16 uint16_t;
-typedef __int32 int32_t;
-typedef unsigned __int32 uint32_t;
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-#else
-#if defined(_MSC_VER) && _MSC_VER < 1600
-typedef __int8 int8_t;
-typedef unsigned __int8 uint8_t;
-typedef __int16 int16_t;
-typedef unsigned __int16 uint16_t;
-typedef __int32 int32_t;
-typedef unsigned __int32 uint32_t;
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-#else
-#if defined(_MSC_VER) && _MSC_VER < 1600
-typedef __int8 int8_t;
-typedef unsigned __int8 uint8_t;
-typedef __int16 int16_t;
-typedef unsigned __int16 uint16_t;
-typedef __int32 int32_t;
-typedef unsigned __int32 uint32_t;
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-#else
-#if defined(_MSC_VER) && _MSC_VER < 1600
-typedef __int8 int8_t;
-typedef unsigned __int8 uint8_t;
-typedef __int16 int16_t;
-typedef unsigned __int16 uint16_t;
-typedef __int32 int32_t;
-typedef unsigned __int32 uint32_t;
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-#else
-#if defined(_MSC_VER) && _MSC_VER < 1600
+
 typedef signed char int8_t;
-typedef short int16_t;
-typedef int int32_t;
-typedef __int64 int64_t;
 typedef unsigned char uint8_t;
+typedef short int16_t;
 typedef unsigned short uint16_t;
+typedef int int32_t;
 typedef unsigned int uint32_t;
+typedef __int64 int64_t;
 typedef unsigned __int64 uint64_t;
+
 #else
 #include <stdint.h>
-#endif
-#endif
-#endif
-#endif
-#endif
-#endif
+
 /** @brief abstract_http_int64_t typedef */
 typedef int64_t abstract_http_int64_t;
 /** @brief abstract_http_uint64_t typedef */

@@ -15,12 +15,6 @@ extern "C" {
 #endif
 /* clang-format on */
 
-#ifdef _MSC_VER
-#define C_ABSTRACT_HTTP_STRCPY_S(dest, sz, src) strcpy_s(dest, sz, src)
-#else
-#define C_ABSTRACT_HTTP_STRCPY_S(dest, sz, src) strcpy(dest, src)
-#endif
-
 /* WebSocket public API definitions will go here */
 
 /**

@@ -33,6 +33,7 @@ int g_mock_getsockname_fail = 0;
 int *abstract_http_mock_get_g_mock_getsockname_fail(void) {
   return &g_mock_getsockname_fail;
 }
+/* clang-format off */
 #include "mock_alloc.h"
 #include <stdio.h>
 #include <stdlib.h>
