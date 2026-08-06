@@ -37,7 +37,12 @@ static int test_sse_on_event(const struct c_abstract_http_sse_event *ev,
   struct test_sse_ctx *ctx = (struct test_sse_ctx *)user_data;
   ctx->event_count++;
   if (ev->id) {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    strncpy_s(ctx->last_id, sizeof(ctx->last_id), ev->id,
+              sizeof(ctx->last_id) - 1);
+#else
     strncpy(ctx->last_id, ev->id, sizeof(ctx->last_id) - 1);
+#endif
   } else {
     ctx->last_id[0] = '\0';
   }
@@ -959,10 +964,16 @@ TEST test_sse_parser_feed_current_data_oom(void) {
             sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
                             test_sse_on_close, &ctx));
 
-  for (i = 0; i < 15; i++) {
-    strcat(chunk, "data: ");
-    memset(chunk + strlen(chunk), 'a', 500);
-    strcat(chunk, "\n");
+  {
+    size_t chunk_len = 0;
+    for (i = 0; i < 15; i++) {
+      memcpy(&chunk[chunk_len], "data: ", 6);
+      chunk_len += 6;
+      memset(&chunk[chunk_len], 'a', 500);
+      chunk_len += 500;
+      chunk[chunk_len++] = '\n';
+    }
+    chunk[chunk_len] = '\0';
   }
 
   g_mock_alloc_fail = 1;
@@ -1138,10 +1149,16 @@ TEST test_sse_parser_feed_current_data_limit_real(void) {
   char chunk[50000] = {0};
   int i;
 
-  for (i = 0; i < 80; i++) {
-    strcat(chunk, "data: ");
-    memset(chunk + strlen(chunk), 'a', 500);
-    strcat(chunk, "\n");
+  {
+    size_t chunk_len = 0;
+    for (i = 0; i < 80; i++) {
+      memcpy(&chunk[chunk_len], "data: ", 6);
+      chunk_len += 6;
+      memset(&chunk[chunk_len], 'a', 500);
+      chunk_len += 500;
+      chunk[chunk_len++] = '\n';
+    }
+    chunk[chunk_len] = '\0';
   }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1223,9 +1240,16 @@ TEST test_sse_parser_feed_huge_single_line(void) {
             sse_parser_init(&parser, NULL, test_sse_on_event, test_sse_on_error,
                             test_sse_on_close, &ctx));
 
-  strcat(chunk, "data: ");
-  memset(chunk + strlen(chunk), 'a', 10000);
-  strcat(chunk, "\n\n");
+  {
+    size_t chunk_len = 0;
+    memcpy(&chunk[chunk_len], "data: ", 6);
+    chunk_len += 6;
+    memset(&chunk[chunk_len], 'a', 10000);
+    chunk_len += 10000;
+    chunk[chunk_len++] = '\n';
+    chunk[chunk_len++] = '\n';
+    chunk[chunk_len] = '\0';
+  }
 
   rc = sse_parser_feed(&parser, chunk, strlen(chunk));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
