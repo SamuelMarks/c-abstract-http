@@ -402,6 +402,7 @@ TEST test_event_loop_heap_down(void) {
   int ids[10];
   int i;
   int rc_test_tmp;
+  (void)rc_test_tmp;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */

@@ -644,7 +644,7 @@ abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-#if 1
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 enum c_abstract_http_error
 abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool);
 extern int g_mock_pthread_fail;
@@ -689,7 +689,7 @@ void abstract_http_thread_pool_test_inject_task(
 }
 #endif
 
-#if 1
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 void abstract_http_thread_pool_test_free_with_tasks(void);
 void abstract_http_thread_pool_test_free_with_tasks(void) {
   struct AbstractHttpThreadPool *fake_pool =

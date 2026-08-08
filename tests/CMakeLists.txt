@@ -168,8 +168,6 @@ if(WIN32 AND BUILD_SHARED_LIBS)
                     $<TARGET_FILE:cfs>
                     $<TARGET_FILE_DIR:${TARGET_NAME}>
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    $<TARGET_FILE_DIR:${TARGET_NAME}>
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     $<TARGET_FILE:parson>
                     $<TARGET_FILE_DIR:${TARGET_NAME}>
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different

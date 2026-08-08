@@ -110,6 +110,7 @@ TEST test_mutex_lock_unlock(void) {      /* LCOV_EXCL_LINE */
   PASS();                         /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_errors(void) {          /* LCOV_EXCL_LINE */
   struct AbstractHttpMutex *lock = NULL;      /* LCOV_EXCL_LINE */
   struct AbstractHttpCond *cond = NULL;       /* LCOV_EXCL_LINE */
@@ -202,6 +203,7 @@ TEST test_thread_pool_errors(void) {          /* LCOV_EXCL_LINE */
   PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 
+#endif
 extern void dummy_cb_thread(void *arg);
 
 TEST test_thread_pool_external(void) { /* LCOV_EXCL_LINE */
@@ -226,6 +228,7 @@ static int dummy_hook_push(void *ctx,
 }
 
 extern void abstract_http_thread_pool_test_free_with_tasks(void);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_edge_cases(void) { /* LCOV_EXCL_LINE */
   struct AbstractHttpThreadPool *pool;
   struct AbstractHttpThreadPoolHooks hooks;
@@ -268,6 +271,7 @@ TEST test_thread_pool_edge_cases(void) { /* LCOV_EXCL_LINE */
   PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 
+#endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
 TEST test_thread_pool_pthread_create_failures(void) {      /* LCOV_EXCL_LINE */
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS; /* LCOV_EXCL_LINE */
@@ -382,12 +386,16 @@ TEST test_thread_pool_fallback_paths(void) {               /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 #endif
 
-SUITE(thread_pool_suite) {               /* LCOV_EXCL_LINE */
-  RUN_TEST(test_thread_pool_external);   /* LCOV_EXCL_LINE */
-  RUN_TEST(test_thread_pool_errors);     /* LCOV_EXCL_LINE */
-  RUN_TEST(test_mutex_lock_unlock);      /* LCOV_EXCL_LINE */
-  RUN_TEST(test_thread_pool_execution);  /* LCOV_EXCL_LINE */
+SUITE(thread_pool_suite) {             /* LCOV_EXCL_LINE */
+  RUN_TEST(test_thread_pool_external); /* LCOV_EXCL_LINE */
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  RUN_TEST(test_thread_pool_errors); /* LCOV_EXCL_LINE */
+#endif
+  RUN_TEST(test_mutex_lock_unlock);     /* LCOV_EXCL_LINE */
+  RUN_TEST(test_thread_pool_execution); /* LCOV_EXCL_LINE */
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_thread_pool_edge_cases); /* LCOV_EXCL_LINE */
+#endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
   RUN_TEST(test_thread_pool_pthread_create_failures); /* LCOV_EXCL_LINE */
 #endif
