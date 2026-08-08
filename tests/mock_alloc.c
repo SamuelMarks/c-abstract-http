@@ -640,3 +640,5 @@ void (*__imp_c_abstract_http_mock_getsockname)(void) =
 void (*__imp_c_abstract_http_mock_recv)(void) =
     (void (*)(void)) & c_abstract_http_mock_recv;
 #endif
+struct curl_slist;
+struct curl_slist *g_mock_curl_cookies = 0;

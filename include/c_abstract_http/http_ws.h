@@ -172,6 +172,7 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t c_abstract_http_ws_send(
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_ws_close(struct HttpRequest *req, int status_code);
+C_ABSTRACT_HTTP_API void c_abstract_http_ws_free(struct HttpRequest *req);
 
 #ifdef __cplusplus
 }

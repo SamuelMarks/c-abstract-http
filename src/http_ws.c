@@ -904,3 +904,10 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
 
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+void c_abstract_http_ws_free(struct HttpRequest *req) {
+  if (req && req->ws_ctx) {
+    ws_stream_ctx_free((struct ws_stream_ctx *)req->ws_ctx);
+    req->ws_ctx = NULL;
+  }
+}

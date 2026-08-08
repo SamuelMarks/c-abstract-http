@@ -1067,11 +1067,9 @@ TEST test_ws_async_coverage(void) {
             abstract_http_thread_pool_free(client.thread_pool));
 #endif
 
-  if (req.ws_ctx) {
-    /* Properly free ws_ctx to prevent leaks or corrupted state for later tests
-     * using same req variable */
-    /* actually let's just not reuse req, or use a new one */
-  }
+  c_abstract_http_ws_free(&req);
+  http_request_free(&req);
+  http_client_free(&client);
   PASS();
 }
 
@@ -1087,6 +1085,8 @@ TEST test_ws_edge_cases(void) {
     req3.read_chunk(NULL, buf, sizeof(buf), &out_read);
   }
 
+  c_abstract_http_ws_free(&req3);
+  http_request_free(&req3);
   PASS();
 }
 

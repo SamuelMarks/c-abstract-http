@@ -693,7 +693,7 @@ TEST test_curl_payload_methods(void) {
 
 /** @brief Documented */
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-struct curl_slist *g_mock_curl_cookies = NULL;
+extern struct curl_slist *g_mock_curl_cookies;
 extern int g_mock_curl_init_fail;
 extern void abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop,
                                                int fd, int events,

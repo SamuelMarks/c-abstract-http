@@ -662,6 +662,8 @@ enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
   req->read_chunk = NULL;
   req->read_chunk_user_data = NULL;
   req->expected_body_len = 0;
+  req->ws_ctx = NULL;
+  req->sse_ctx = NULL;
   rc = http_headers_init(&req->headers);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_BR_LINE */
     return rc; /* LCOV_EXCL_LINE */
@@ -948,6 +950,8 @@ enum c_abstract_http_error http_request_init_oauth2_password_grant(
     return rc;
 
   req->method = HTTP_POST;
+  req->ws_ctx = NULL;
+  req->sse_ctx = NULL;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
@@ -1032,6 +1036,8 @@ enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(struct H
     return rc;
 
   req->method = HTTP_POST;
+  req->ws_ctx = NULL;
+  req->sse_ctx = NULL;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
@@ -1108,6 +1114,8 @@ enum c_abstract_http_error http_request_init_oauth2_authorization_code_grant(
     return rc;
 
   req->method = HTTP_POST;
+  req->ws_ctx = NULL;
+  req->sse_ctx = NULL;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
@@ -1191,6 +1199,8 @@ enum c_abstract_http_error http_request_init_oauth2_client_credentials_grant(
     return rc;
 
   req->method = HTTP_POST;
+  req->ws_ctx = NULL;
+  req->sse_ctx = NULL;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
@@ -1261,6 +1271,8 @@ enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(struct Http
     return rc;
 
   req->method = HTTP_POST;
+  req->ws_ctx = NULL;
+  req->sse_ctx = NULL;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
@@ -1319,6 +1331,8 @@ enum c_abstract_http_error http_request_init_oauth2_device_authorization_request
     return rc;
 
   req->method = HTTP_POST;
+  req->ws_ctx = NULL;
+  req->sse_ctx = NULL;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
@@ -1369,6 +1383,8 @@ enum c_abstract_http_error http_request_init_oauth2_device_access_token_request(
     return rc;
 
   req->method = HTTP_POST;
+  req->ws_ctx = NULL;
+  req->sse_ctx = NULL;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
@@ -1421,6 +1437,8 @@ enum c_abstract_http_error http_request_init_oauth2_token_revocation(
     return rc;
 
   req->method = HTTP_POST;
+  req->ws_ctx = NULL;
+  req->sse_ctx = NULL;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
@@ -1488,6 +1506,8 @@ enum c_abstract_http_error http_request_init_oauth2_token_introspection(
     return rc;
 
   req->method = HTTP_POST;
+  req->ws_ctx = NULL;
+  req->sse_ctx = NULL;
 
   rc = http_headers_add(&req->headers, "Content-Type",
                         "application/x-www-form-urlencoded");
