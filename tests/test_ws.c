@@ -102,6 +102,7 @@ TEST test_ws_init_headers(void) {
             http_headers_get(&req.headers, "Sec-WebSocket-Key", &val));
   ASSERT_EQ(24, strlen(val));
 
+  c_abstract_http_ws_free(&req);
   http_request_free(&req);
   PASS();
 }
@@ -309,6 +310,7 @@ TEST test_ws_sync_loop_exit_flag(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL,
                                               NULL, &exit_flag));
+  c_abstract_http_ws_free(&req);
   http_request_free(&req);
   PASS();
 }
@@ -360,6 +362,7 @@ TEST test_ws_sync_loop_success(void) {
             c_abstract_http_ws_sync_read_loop(&client, &req, test_ws_on_message,
                                               test_ws_on_error,
                                               test_ws_on_close, &ctx, NULL));
+  c_abstract_http_ws_free(&req);
   http_request_free(&req);
   PASS();
 }
@@ -373,6 +376,7 @@ TEST test_ws_sync_loop_fail(void) {
             c_abstract_http_ws_sync_read_loop(&client, &req, test_ws_on_message,
                                               test_ws_on_error,
                                               test_ws_on_close, &ctx, NULL));
+  c_abstract_http_ws_free(&req);
   http_request_free(&req);
   PASS();
 }
@@ -519,13 +523,18 @@ TEST test_ws_oom_branches(void) {
     rc = c_abstract_http_ws_init(&req, &config);
     g_mock_alloc_fail = 0;
     if (rc == 0) {
+      c_abstract_http_ws_free(&req);
+      c_abstract_http_ws_free(&req);
       http_request_free(&req);
       break;
     }
+    c_abstract_http_ws_free(&req);
+    c_abstract_http_ws_free(&req);
     http_request_free(&req);
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
     memset(&req, 0, sizeof(req));
   }
+  c_abstract_http_ws_free(&req);
   http_request_free(&req);
   PASS();
 }
@@ -872,6 +881,7 @@ TEST test_ws_sync_loop_init_oom(void) {
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
+  c_abstract_http_ws_free(&req);
   http_request_free(&req);
   PASS();
 }
@@ -900,6 +910,8 @@ TEST test_ws_sync_loop_parser_oom(void) {
                                              test_ws_on_error, test_ws_on_close,
                                              &ctx, NULL);
       g_mock_alloc_fail = 0;
+      c_abstract_http_ws_free(&req);
+      c_abstract_http_ws_free(&req);
       http_request_free(&req);
       memset(&req, 0, sizeof(req));
       if (rc == C_ABSTRACT_HTTP_ERR_NOMEM) {
@@ -908,6 +920,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
       }
     }
   }
+  c_abstract_http_ws_free(&req);
   http_request_free(&req);
   PASS();
 }
@@ -943,6 +956,7 @@ TEST test_ws_sync_loop_feed_error(void) {
                                               test_ws_on_close, &ctx, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, test_ws_mock_on_error_called);
 
+  c_abstract_http_ws_free(&req);
   http_request_free(&req);
   PASS();
 }
@@ -1031,6 +1045,9 @@ TEST test_ws_async_register_success(void) {
   }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
+  c_abstract_http_ws_free(&req);
+  c_abstract_http_ws_free(&req);
+  http_request_free(&req);
   PASS();
 }
 
@@ -1067,6 +1084,7 @@ TEST test_ws_async_coverage(void) {
             abstract_http_thread_pool_free(client.thread_pool));
 #endif
 
+  c_abstract_http_ws_free(&req);
   c_abstract_http_ws_free(&req);
   http_request_free(&req);
   http_client_free(&client);
