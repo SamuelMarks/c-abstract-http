@@ -57,7 +57,7 @@ size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nitems,
                                    FILE *stream);
 int c_abstract_http_mock_fclose(FILE *stream);
 #ifdef _WIN32
-#include <BaseTsd.h>
+#include <basetsd.h>
 #include <winsock2.h>
 typedef SSIZE_T ssize_t;
 typedef int socklen_t;
@@ -523,7 +523,7 @@ int c_abstract_http_mock_fclose(FILE *stream) {
 }
 
 #ifdef _WIN32
-#include <BaseTsd.h>
+#include <basetsd.h>
 /* clang-format on */
 SOCKET WSAAPI c_abstract_http_mock_socket(int domain, int type, int protocol) {
   if (g_mock_socket_fail)
@@ -623,3 +623,20 @@ int c_abstract_http_mock_select_darwin_extsn(int nfds, fd_set *readfds,
 int g_mock_timer_heap_swap_fail = 0;
 
 /* LCOV_EXCL_BR_STOP */
+
+#ifdef __MINGW32__
+void (*__imp_c_abstract_http_mock_select)(void) =
+    (void (*)(void)) & c_abstract_http_mock_select;
+void (*__imp_c_abstract_http_mock_socket)(void) =
+    (void (*)(void)) & c_abstract_http_mock_socket;
+void (*__imp_c_abstract_http_mock_bind)(void) =
+    (void (*)(void)) & c_abstract_http_mock_bind;
+void (*__imp_c_abstract_http_mock_listen)(void) =
+    (void (*)(void)) & c_abstract_http_mock_listen;
+void (*__imp_c_abstract_http_mock_accept)(void) =
+    (void (*)(void)) & c_abstract_http_mock_accept;
+void (*__imp_c_abstract_http_mock_getsockname)(void) =
+    (void (*)(void)) & c_abstract_http_mock_getsockname;
+void (*__imp_c_abstract_http_mock_recv)(void) =
+    (void (*)(void)) & c_abstract_http_mock_recv;
+#endif
