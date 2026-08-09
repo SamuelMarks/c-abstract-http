@@ -24,7 +24,6 @@ extern "C" {
 
 #include <c_abstract_http/http_libuv.h>
 #include <c_abstract_http/http_types.h>
-#include "functions/parse/str.h"
 
 /* Helper: Build a request to localhost on a port likely to be closed */
 #include "abstract_http_test_helpers/mock_server.h"

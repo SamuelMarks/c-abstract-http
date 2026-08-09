@@ -995,6 +995,7 @@ mock_client_send(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
 
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 TEST test_ws_async_register_success(void) {
   struct HttpClient client = {0};
   struct HttpRequest req = {0};
@@ -1050,6 +1051,7 @@ TEST test_ws_async_register_success(void) {
   http_request_free(&req);
   PASS();
 }
+#endif
 
 static int mock_on_err(int rc, void *user_data) { /* LCOV_EXCL_LINE */
   int *called = (int *)user_data;                 /* LCOV_EXCL_LINE */
@@ -1166,7 +1168,9 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_apply_mask_invalid);
   RUN_TEST(test_ws_parser_single_frame);
   RUN_TEST(test_ws_stubs);
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
   RUN_TEST(test_ws_async_register_success);
+#endif
   RUN_TEST(test_ws_parser_chunked_delivery);
   RUN_TEST(test_ws_parser_fragmented_message);
   RUN_TEST(test_ws_parser_reject_fragmented_control);

@@ -501,9 +501,9 @@ void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int g_mock_pthread_create_fail;
+extern int g_mock_pthread_fail;
 #define PTHREAD_CREATE_MOCK(a, b, c, d)                                        \
-  (g_mock_pthread_create_fail ? 1 : pthread_create(a, b, c, d))
+  (g_mock_pthread_fail ? 1 : pthread_create(a, b, c, d))
 #else
 #define PTHREAD_CREATE_MOCK pthread_create
 #endif

@@ -29,10 +29,16 @@
 
 #include "test_http_types.h"
 #include "test_event_loop.h"
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 #include "test_thread_pool.h"
+#endif
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 #include "test_tls.h"
+#endif
 #include "test_process.h"
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 #include "test_coroutine.h"
+#endif
 #include "test_actor.h"
 #include "test_transport.h"
 #include "test_mock_coverage.h"
@@ -114,14 +120,20 @@ int main(int argc, char **argv) {
 #endif
   GREATEST_MAIN_BEGIN(); /* LCOV_EXCL_LINE */
 
-  RUN_SUITE(http_types_suite);  /* LCOV_EXCL_LINE */
-  RUN_SUITE(event_loop_suite);  /* LCOV_EXCL_LINE */
-  RUN_SUITE(thread_pool_suite); /* LCOV_EXCL_LINE */
-  RUN_SUITE(tls_suite);         /* LCOV_EXCL_LINE */
-  RUN_SUITE(process_suite);     /* LCOV_EXCL_LINE */
-  RUN_SUITE(coroutine_suite);   /* LCOV_EXCL_LINE */
-  RUN_SUITE(actor_suite);       /* LCOV_EXCL_LINE */
-  RUN_SUITE(transport_suite);   /* LCOV_EXCL_LINE */
+  RUN_SUITE(http_types_suite); /* LCOV_EXCL_LINE */
+  RUN_SUITE(event_loop_suite); /* LCOV_EXCL_LINE */
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
+  RUN_SUITE(thread_pool_suite);
+#endif /* LCOV_EXCL_LINE */
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
+  RUN_SUITE(tls_suite);
+#endif                      /* LCOV_EXCL_LINE */
+  RUN_SUITE(process_suite); /* LCOV_EXCL_LINE */
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
+  RUN_SUITE(coroutine_suite);
+#endif                        /* LCOV_EXCL_LINE */
+  RUN_SUITE(actor_suite);     /* LCOV_EXCL_LINE */
+  RUN_SUITE(transport_suite); /* LCOV_EXCL_LINE */
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) ||                      \
     !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
   RUN_SUITE(cmp_integration_suite); /* LCOV_EXCL_LINE */

@@ -24,7 +24,6 @@ extern "C" {
 
 #include <c_abstract_http/http_nghttp3.h>
 #include <c_abstract_http/http_types.h>
-#include "functions/parse/str.h"
 /* clang-format on */
 
 /** @brief Documented */

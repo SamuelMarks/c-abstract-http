@@ -21,7 +21,6 @@ extern "C" {
 
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_wasm.h>
-#include "functions/parse/str.h"
 /* clang-format on */
 
 #ifndef __EMSCRIPTEN__
