@@ -11,6 +11,11 @@ else()
     option(BUILD_TESTING_${PROJECT_NAME} "Build tests" OFF)
 endif()
 
+if(MSVC AND BUILD_SHARED_LIBS AND CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "^MultiThreaded(Debug)?$")
+    message(WARNING "Testing a Shared Library (DLL) with Static CRT (/MT, /MTd) is unsupported due to cross-boundary heap corruption. Disabling tests.")
+    set(BUILD_TESTING_${PROJECT_NAME} OFF)
+endif()
+
 if(CYGWIN)
     foreach(dep parson c89stringutils c_str_span c_orm  cfs)
         string(TOUPPER "${dep}" DEP_UPPER)
@@ -473,6 +478,9 @@ else()
                         src/transport.c
         )
         set_target_properties(c-abstract-http PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+        if(MINGW OR CYGWIN)
+            target_link_options(c-abstract-http PRIVATE "-Wl,--export-all-symbols")
+        endif()
     else()
         add_library(c-abstract-http STATIC
             src/http_types.c

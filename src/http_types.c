@@ -70,7 +70,6 @@ static int sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fm
                           ...) {
   int written;
   va_list args;
-  memset(&args, 0, sizeof(args));
   va_start(args, fmt);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   written = vsprintf_s(buf + start, cap - start, fmt, args);
@@ -1989,7 +1988,6 @@ __attribute__((format(printf, 1, 2)))
 #endif
 void c_abstract_http_log_debug(const char *fmt, ...) {
   va_list args;
-  memset(&args, 0, sizeof(args));
   va_start(args, fmt);
   vfprintf(stderr, fmt, args);
   va_end(args);
