@@ -13,8 +13,8 @@ extern "C" {
 #include <string.h>
 
 #include <c_abstract_http/coroutine.h>
+#include "mock_alloc.h"
 /* clang-format on */
-int g_mock_pthread_create_fail = 0;
 
 /** @brief Documented */
 struct CoroutineTestState {
@@ -188,9 +188,9 @@ TEST test_coroutine_pthread_create_fail(void) { /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_coroutine_init(&co, 0, dummy_coroutine_cb, NULL));
 
-  g_mock_pthread_create_fail = 1;          /* LCOV_EXCL_LINE */
+  g_mock_pthread_fail = 1;                 /* LCOV_EXCL_LINE */
   rc = abstract_http_coroutine_resume(co); /* LCOV_EXCL_LINE */
-  g_mock_pthread_create_fail = 0;          /* LCOV_EXCL_LINE */
+  g_mock_pthread_fail = 0;                 /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc); /* LCOV_EXCL_LINE */
 
