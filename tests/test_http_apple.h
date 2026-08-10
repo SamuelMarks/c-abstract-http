@@ -203,10 +203,15 @@ TEST test_apple_send_mock_server(void) { /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             mock_server_init(&server)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            mock_server_start(server));           /* LCOV_EXCL_LINE */
-  port = math_mock_server_get_port(server);       /* LCOV_EXCL_LINE */
-  ASSERT(port > 0);                               /* LCOV_EXCL_LINE */
+            mock_server_start(server));     /* LCOV_EXCL_LINE */
+  port = math_mock_server_get_port(server); /* LCOV_EXCL_LINE */
+  ASSERT(port > 0);                         /* LCOV_EXCL_LINE */
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/echo",
+            port); /* LCOV_EXCL_LINE */
+#else
   sprintf(url, "http://127.0.0.1:%d/echo", port); /* LCOV_EXCL_LINE */
+#endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_apple_context_init(&ctx)); /* LCOV_EXCL_LINE */
@@ -506,9 +511,14 @@ TEST test_apple_send_multi(void) { /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             mock_server_init(&server)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            mock_server_start(server));           /* LCOV_EXCL_LINE */
-  port = math_mock_server_get_port(server);       /* LCOV_EXCL_LINE */
+            mock_server_start(server));     /* LCOV_EXCL_LINE */
+  port = math_mock_server_get_port(server); /* LCOV_EXCL_LINE */
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/echo",
+            port); /* LCOV_EXCL_LINE */
+#else
   sprintf(url, "http://127.0.0.1:%d/echo", port); /* LCOV_EXCL_LINE */
+#endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_apple_context_init(&ctx)); /* LCOV_EXCL_LINE */

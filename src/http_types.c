@@ -820,7 +820,7 @@ enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req, 
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int base64_encode(const unsigned char *src, size_t len, char **out) {
+static enum c_abstract_http_error base64_encode(const unsigned char *src, size_t len, char **out) {
   static const char b64[] =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   char *res;

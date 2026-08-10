@@ -495,7 +495,12 @@ TEST test_curl_send_write_oom(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(url_buf, sizeof(url_buf), "http://127.0.0.1:%d",
+            math_mock_server_get_port(server));
+#else
   sprintf(url_buf, "http://127.0.0.1:%d", math_mock_server_get_port(server));
+#endif
 
   http_curl_global_init();
   http_curl_context_init(&ctx);
