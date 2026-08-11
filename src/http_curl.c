@@ -90,7 +90,8 @@ extern struct curl_slist *g_mock_curl_cookies;
 #undef ABSTRACT_HTTP_CURL_EASY_GETINFO
 #define ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, info, param)                     \
   ((info) == CURLINFO_COOKIELIST && g_mock_curl_cookies                        \
-       ? (*(struct curl_slist **)param = g_mock_curl_cookies, CURLE_OK)        \
+       ? (memcpy((param), &g_mock_curl_cookies, sizeof(struct curl_slist *)),  \
+          CURLE_OK)                                                            \
        : (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0           \
               ? CURLE_OUT_OF_MEMORY                                            \
               : (curl_easy_getinfo)(curl, info, param)))

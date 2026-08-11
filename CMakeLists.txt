@@ -346,6 +346,7 @@ endif()
         target_link_libraries(c-abstract-http INTERFACE c89stringutils cfs)
     elseif(EMSCRIPTEN)
         target_link_options(c-abstract-http INTERFACE "SHELL:-s FETCH=1")
+        target_compile_options(c-abstract-http INTERFACE "SHELL:-s FETCH=1")
         target_link_libraries(c-abstract-http INTERFACE c89stringutils cfs)
     elseif(C_ABSTRACT_HTTP_USE_LIBUV)
         c_abstract_http_resolve_dependency(libuv https://github.com/libuv/libuv.git v1.48.0)
@@ -539,6 +540,7 @@ endif()
         )
 #Fetch API requires - s FETCH = 1
         target_link_options(c-abstract-http PUBLIC "SHELL:-s FETCH=1")
+        target_compile_options(c-abstract-http PUBLIC "SHELL:-s FETCH=1")
     elseif(C_ABSTRACT_HTTP_USE_LIBUV)
         target_sources(c-abstract-http PRIVATE
             src/http_libuv.c
