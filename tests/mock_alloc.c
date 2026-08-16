@@ -15,6 +15,7 @@
 #undef pthread_mutex_init
 #undef pthread_cond_init
 #undef pthread_create
+#undef pthread_join
 #undef pipe
 #undef fork
 #undef waitpid
@@ -191,6 +192,7 @@ int *abstract_http_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
 #undef pthread_mutex_init
 #undef pthread_cond_init
 #undef pthread_create
+#undef pthread_join
 #undef pipe
 #undef fork
 #undef waitpid
@@ -256,6 +258,7 @@ extern int pthread_mutex_init(pthread_mutex_t *, const pthread_mutexattr_t *);
 extern int pthread_cond_init(pthread_cond_t *, const pthread_condattr_t *);
 extern int pthread_create(pthread_t *, const pthread_attr_t *,
                           void *(*)(void *), void *);
+extern int pthread_join(pthread_t, void **);
 extern int pipe(int[2]);
 extern pid_t fork(void);
 extern pid_t waitpid(pid_t, int *, int);
@@ -276,6 +279,7 @@ int c_abstract_http_mock_pthread_create(pthread_t *thread,
                                         const pthread_attr_t *attr,
                                         void *(*start_routine)(void *),
                                         void *arg);
+int c_abstract_http_mock_pthread_join(pthread_t thread, void **value_ptr);
 int c_abstract_http_mock_pipe(int fildes[2]);
 pid_t c_abstract_http_mock_fork(void);
 pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options);
@@ -335,6 +339,12 @@ int c_abstract_http_mock_pthread_create(pthread_t *thread,
   if (g_mock_pthread_fail == 2 && g_mock_alloc_count-- == 0)
     return 1;
   return pthread_create(thread, attr, start_routine, arg);
+}
+
+int c_abstract_http_mock_pthread_join(pthread_t thread, void **value_ptr) {
+  if (g_mock_pthread_fail == 3)
+    return 1;
+  return pthread_join(thread, value_ptr);
 }
 
 int c_abstract_http_mock_pipe(int fildes[2]) {

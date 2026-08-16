@@ -139,6 +139,7 @@ int main(int argc, char **argv) {
   RUN_SUITE(cmp_integration_suite); /* LCOV_EXCL_LINE */
 #endif
 
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 #if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   RUN_SUITE(http_libsoup3_suite);
 #elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
@@ -175,9 +176,12 @@ int main(int argc, char **argv) {
 #else
   RUN_SUITE(http_curl_suite);
 #endif
+#endif
 
 #ifdef malloc
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
   RUN_SUITE(mock_coverage_suite); /* LCOV_EXCL_LINE */
+#endif
 #endif
 
   GREATEST_MAIN_END(); /* LCOV_EXCL_LINE */

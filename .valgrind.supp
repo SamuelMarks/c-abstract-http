@@ -1,10 +1,18 @@
 {
-   glibc_pthread_create_tls_leak
+   glibc_tls_false_positive
    Memcheck:Leak
    match-leak-kinds: possible
-   ...
+   fun:calloc
    fun:allocate_dtv
    fun:_dl_allocate_tls
    fun:allocate_stack
+   fun:pthread_create*
+}
+{
+   glibc_tls_false_positive_calloc
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   ...
    fun:pthread_create*
 }

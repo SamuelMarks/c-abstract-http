@@ -170,6 +170,7 @@ TEST test_mock_alloc_more(void) {
     ASSERT_EQ(0, c_abstract_http_mock_pthread_create(/* LCOV_EXCL_BR_LINE */
                                                      &thread, NULL,
                                                      dummy_cb_pthread, NULL));
+    c_abstract_http_mock_pthread_join(thread, NULL);
   }
   g_mock_pthread_fail = 0;
 

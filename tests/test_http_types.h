@@ -63,6 +63,7 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #include <c_abstract_http/thread_pool.h>
 /* clang-format on */
 
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 /** @brief Documented */
 struct ServerArgs {
   /** @brief Documented */
@@ -91,7 +92,17 @@ static void server_task(void *arg) {                  /* LCOV_EXCL_LINE */
                                       &args->err_desc); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 #endif
+#endif
 
+#if defined(_WIN32)
+#define TEST_CLOSESOCKET closesocket
+#define TEST_INVALID_SOCKET INVALID_SOCKET
+#else
+#define TEST_CLOSESOCKET close
+#define TEST_INVALID_SOCKET -1
+#endif
+
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 TEST test_oauth2_localhost_intercept(void) {
 #if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   SKIP();
@@ -100,12 +111,8 @@ TEST test_oauth2_localhost_intercept(void) {
   struct ServerArgs args;
 #if defined(_WIN32)
   SOCKET sock;
-#define TEST_CLOSESOCKET closesocket
-#define TEST_INVALID_SOCKET INVALID_SOCKET
 #else
   int sock;
-#define TEST_CLOSESOCKET close
-#define TEST_INVALID_SOCKET -1
 #endif
   struct sockaddr_in saddr;
   const char *req = "GET "
@@ -244,6 +251,7 @@ TEST test_oauth2_localhost_intercept(void) {
 
   PASS();
 }
+#endif
 
 TEST test_multipart_lifecycle(void) {
   struct HttpRequest req;
@@ -2310,14 +2318,16 @@ SUITE(http_types_suite) {
   RUN_TEST(test_oauth2_client_credentials_grant);     /* LCOV_EXCL_BR_LINE */
   RUN_TEST(test_oauth2_jwt_bearer_grant);             /* LCOV_EXCL_BR_LINE */
   RUN_TEST(test_oauth2_build_authorization_url);      /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_oauth2_localhost_intercept);          /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_http_config_init_redirects);          /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_http_request_init_defaults);          /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_http_headers_get_remove);             /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_http_cookie_jar);                     /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_modality_context);                    /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_http_future);                         /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_http_multi_request);                  /* LCOV_EXCL_BR_LINE */
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
+  RUN_TEST(test_oauth2_localhost_intercept); /* LCOV_EXCL_BR_LINE */
+#endif
+  RUN_TEST(test_http_config_init_redirects); /* LCOV_EXCL_BR_LINE */
+  RUN_TEST(test_http_request_init_defaults); /* LCOV_EXCL_BR_LINE */
+  RUN_TEST(test_http_headers_get_remove);    /* LCOV_EXCL_BR_LINE */
+  RUN_TEST(test_http_cookie_jar);            /* LCOV_EXCL_BR_LINE */
+  RUN_TEST(test_modality_context);           /* LCOV_EXCL_BR_LINE */
+  RUN_TEST(test_http_future);                /* LCOV_EXCL_BR_LINE */
+  RUN_TEST(test_http_multi_request);         /* LCOV_EXCL_BR_LINE */
 }
 
 #ifdef __cplusplus
