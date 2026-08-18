@@ -27,6 +27,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <pthread.h>
 #endif
 
 #include <stdio.h>
@@ -84,6 +85,13 @@ int c_abstract_http_mock_fclose(FILE *stream);
 int c_abstract_http_mock_pipe(int fildes[2]);
 pid_t c_abstract_http_mock_fork(void);
 pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options);
+int c_abstract_http_mock_pthread_key_create(pthread_key_t *key, void (*destructor)(void *));
+int c_abstract_http_mock_pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
+int c_abstract_http_mock_pthread_cond_init(pthread_cond_t *cond, const pthread_condattr_t *attr);
+int c_abstract_http_mock_pthread_create(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg);
+int c_abstract_http_mock_pthread_join(pthread_t thread, void **value_ptr);
+int c_abstract_http_mock_pthread_setspecific(pthread_key_t key, const void *value);
+void *c_abstract_http_mock_pthread_getspecific(pthread_key_t key);
 #endif
 
 #if defined(_WIN32)
