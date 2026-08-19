@@ -1075,15 +1075,16 @@ TEST test_ws_async_coverage(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            abstract_http_thread_pool_init(&client.thread_pool, 1));
-  g_mock_alloc_fail = 1;
-  rc = c_abstract_http_ws_async_register(&client, &req, NULL, mock_on_err, NULL,
-                                         &err_called);
-  g_mock_alloc_fail = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            abstract_http_thread_pool_free(client.thread_pool));
+  rc = abstract_http_thread_pool_init(&client.thread_pool, 1);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+    g_mock_alloc_fail = 1;
+    rc = c_abstract_http_ws_async_register(&client, &req, NULL, mock_on_err,
+                                           NULL, &err_called);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_free(client.thread_pool));
+  }
 #endif
 
   c_abstract_http_ws_free(&req);

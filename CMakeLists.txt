@@ -17,7 +17,7 @@ if(MSVC AND BUILD_SHARED_LIBS AND CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "^MultiThre
 endif()
 
 if(CYGWIN)
-    foreach(dep parson c89stringutils c_str_span c_orm  cfs)
+    foreach(dep parson c89stringutils c_str_span cfs)
         string(TOUPPER "${dep}" DEP_UPPER)
         set(VAR_NAME "FETCHCONTENT_SOURCE_DIR_${DEP_UPPER}")
         if(DEFINED CACHE{${VAR_NAME}})
