@@ -11,7 +11,7 @@ else()
     option(BUILD_TESTING_${PROJECT_NAME} "Build tests" OFF)
 endif()
 
-if(MSVC AND BUILD_SHARED_LIBS AND CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "^MultiThreaded(Debug)?$")
+if(MSVC AND BUILD_SHARED_LIBS AND (CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "^MultiThreaded(Debug)?$" OR C_ABSTRACT_HTTP_CRT_LINKAGE STREQUAL "Static"))
     message(WARNING "Testing a Shared Library (DLL) with Static CRT (/MT, /MTd) is unsupported due to cross-boundary heap corruption. Disabling tests.")
     set(BUILD_TESTING_${PROJECT_NAME} OFF)
 endif()
@@ -46,32 +46,29 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 option(C_ABSTRACT_HTTP_HEADER_ONLY "Use header-only STB-style library" OFF)
-option(C_ABSTRACT_HTTP_STATIC_CRT "Use Static CRT (/MT, /MTd)" OFF)
-option(C_ABSTRACT_HTTP_SHARED_CRT "Use Shared CRT (/MD, /MDd) (default)" ON)
-option(C_ABSTRACT_HTTP_UNICODE "Use UNICODE" OFF)
-option(C_ABSTRACT_HTTP_ANSI "Use ANSI (Multi-Byte)" OFF)
-option(C_ABSTRACT_HTTP_MULTI_THREADED "Multi-threaded" ON)
-option(C_ABSTRACT_HTTP_SINGLE_THREADED "Single-threaded" OFF)
+set(C_ABSTRACT_HTTP_CRT_LINKAGE "Shared" CACHE STRING "MSVC CRT Linkage: Static or Shared")
+set(C_ABSTRACT_HTTP_CHARSET "Unicode" CACHE STRING "Charset to use: Unicode or ANSI")
+set(C_ABSTRACT_HTTP_THREADING "Multi-threaded" CACHE STRING "Threading: Multi-threaded or Single-threaded")
+set(C_ABSTRACT_HTTP_MSVC_RTC "" CACHE STRING "MSVC Runtime Checks: RTC1, RTCs, RTCu, or empty")
+option(C_ABSTRACT_HTTP_LTO "Enable Link-Time Optimization (LTO)" OFF)
 
+if(DEFINED CDD_CRT_LINKAGE)
+    set(C_ABSTRACT_HTTP_CRT_LINKAGE "${CDD_CRT_LINKAGE}" CACHE STRING "" FORCE)
+endif()
+if(DEFINED CDD_CHARSET)
+    set(C_ABSTRACT_HTTP_CHARSET "${CDD_CHARSET}" CACHE STRING "" FORCE)
+endif()
 if(DEFINED CDD_THREADING)
-    if(CDD_THREADING)
-        set(C_ABSTRACT_HTTP_MULTI_THREADED ON CACHE BOOL "" FORCE)
-        set(C_ABSTRACT_HTTP_SINGLE_THREADED OFF CACHE BOOL "" FORCE)
-    else()
-        set(C_ABSTRACT_HTTP_MULTI_THREADED OFF CACHE BOOL "" FORCE)
-        set(C_ABSTRACT_HTTP_SINGLE_THREADED ON CACHE BOOL "" FORCE)
-    endif()
+    set(C_ABSTRACT_HTTP_THREADING "${CDD_THREADING}" CACHE STRING "" FORCE)
+endif()
+if(DEFINED CDD_MSVC_RTC)
+    set(C_ABSTRACT_HTTP_MSVC_RTC "${CDD_MSVC_RTC}" CACHE STRING "" FORCE)
 endif()
 
-if(C_ABSTRACT_HTTP_SINGLE_THREADED)
+if(C_ABSTRACT_HTTP_THREADING STREQUAL "Single-threaded")
     add_compile_definitions(C_ABSTRACT_HTTP_SINGLE_THREADED=1)
 endif()
 
-
-option(C_ABSTRACT_HTTP_LTO "Enable Link Time Optimization" OFF)
-option(C_ABSTRACT_HTTP_RTC1 "Enable /RTC1" OFF)
-option(C_ABSTRACT_HTTP_RTCs "Enable /RTCs" OFF)
-option(C_ABSTRACT_HTTP_RTCu "Enable /RTCu" OFF)
 option(C_ABSTRACT_HTTP_USE_LSQUIC "Use lsquic instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_PICOQUIC "Use picoquic instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_NGHTTP3 "Use nghttp3 instead of libcurl" OFF)
@@ -136,31 +133,27 @@ endif()
 
 if(MSVC)
     add_compile_options(/wd4005)
-    if(C_ABSTRACT_HTTP_STATIC_CRT)
-        foreach(flag_var
-            CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-            CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
-            if(${flag_var} MATCHES "/MD")
-                set(_tmp "${${flag_var}}")
-                string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${_tmp}")
-            endif()
+
+    if (C_ABSTRACT_HTTP_CRT_LINKAGE STREQUAL "Static")
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        foreach(flag_var CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
+            string(REGEX REPLACE "/MD(d?)" "/MT\\1" ${flag_var} "${${flag_var}}")
+        endforeach()
+    else()
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+        foreach(flag_var CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
+            string(REGEX REPLACE "/MT(d?)" "/MD\\1" ${flag_var} "${${flag_var}}")
         endforeach()
     endif()
 
-    if(C_ABSTRACT_HTTP_UNICODE)
+    if(C_ABSTRACT_HTTP_CHARSET STREQUAL "Unicode")
         add_definitions(-DUNICODE -D_UNICODE)
-    elseif(C_ABSTRACT_HTTP_ANSI)
+    elseif(C_ABSTRACT_HTTP_CHARSET STREQUAL "ANSI")
         add_definitions(-D_MBCS)
     endif()
 
-    if(C_ABSTRACT_HTTP_RTC1)
-        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /RTC1")
-    endif()
-    if(C_ABSTRACT_HTTP_RTCs)
-        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /RTCs")
-    endif()
-    if(C_ABSTRACT_HTTP_RTCu)
-        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /RTCu")
+    if(C_ABSTRACT_HTTP_MSVC_RTC)
+        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /${C_ABSTRACT_HTTP_MSVC_RTC}")
     endif()
 endif()
 
@@ -243,8 +236,6 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
             endif()
         endif()
     endif()
-    set(OLD_BUILD_TESTING_${PROJECT_NAME} ${BUILD_TESTING_${PROJECT_NAME}})
-    set(BUILD_TESTING_${PROJECT_NAME} ${OLD_BUILD_TESTING_${PROJECT_NAME}} CACHE BOOL "Build tests" FORCE)
     c_abstract_http_resolve_dependency(cfs https://github.com/SamuelMarks/c-fs.git master)
     if(TARGET cfs AND APPLE)
         target_compile_definitions(cfs PUBLIC _DARWIN_C_SOURCE)
@@ -695,7 +686,6 @@ endif()
 endif()
 
 if(BUILD_TESTING_${PROJECT_NAME})
-    set(BUILD_TESTING ON CACHE BOOL "Build tests" FORCE)
     include(CTest)
 
     if(BUILD_TESTING)
@@ -740,7 +730,6 @@ endif()
         endif()
     endif(BUILD_TESTING)
 endif(BUILD_TESTING_${PROJECT_NAME})
-    set(BUILD_TESTING ON CACHE BOOL "Build tests" FORCE)
 
 
 if(C_ABSTRACT_HTTP_USE_ASAN)
@@ -755,45 +744,4 @@ if(C_ABSTRACT_HTTP_USE_TSAN)
     add_compile_options(-fsanitize=thread)
     add_link_options(-fsanitize=thread)
   endif()
-endif()
-
-
-
-
-
-
-if(BUILD_TESTING_${PROJECT_NAME} AND NOT (WIN32 AND BUILD_SHARED_LIBS))
-    target_compile_definitions(c-abstract-http PUBLIC
-        C_ABSTRACT_HTTP_TEST_OOM=1
-        _ACRTIMP= _CRTIMP=
-        malloc=c_abstract_http_mock_malloc
-        calloc=c_abstract_http_mock_calloc
-        realloc=c_abstract_http_mock_realloc
-        free=c_abstract_http_mock_free c_abstract_http_strdup=c_abstract_http_mock_strdup
-        fwrite=c_abstract_http_mock_fwrite
-        fclose=c_abstract_http_mock_fclose
-        socket=c_abstract_http_mock_socket
-        bind=c_abstract_http_mock_bind
-        listen=c_abstract_http_mock_listen
-        accept=c_abstract_http_mock_accept
-        recv=c_abstract_http_mock_recv
-        pthread_key_create=c_abstract_http_mock_pthread_key_create
-        pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
-        pthread_cond_init=c_abstract_http_mock_pthread_cond_init
-        pthread_create=c_abstract_http_mock_pthread_create
-        pipe=c_abstract_http_mock_pipe
-        fork=c_abstract_http_mock_fork
-        waitpid=c_abstract_http_mock_waitpid
-        select=c_abstract_http_mock_select
-        math_get_current_time_ms=c_abstract_http_mock_math_get_current_time_ms
-        pthread_setspecific=c_abstract_http_mock_pthread_setspecific
-        pthread_getspecific=c_abstract_http_mock_pthread_getspecific
-
-    )
-    if(NOT C_ABSTRACT_HTTP_HEADER_ONLY)
-        target_sources(c-abstract-http PRIVATE tests/mock_alloc.c)
-        if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
-            target_sources(c-abstract-http PRIVATE tests/abstract_http_test_helpers/mock_server.c)
-        endif()
-    endif()
 endif()

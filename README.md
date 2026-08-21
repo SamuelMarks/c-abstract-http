@@ -130,16 +130,11 @@ Configure your build precisely by passing these flags to CMake:
 | Option | Default | Description |
 | :--- | :---: | :--- |
 | `C_ABSTRACT_HTTP_HEADER_ONLY` | OFF | Use header-only STB-style library |
-| `C_ABSTRACT_HTTP_STATIC_CRT` | OFF | Use Static CRT (/MT, /MTd) |
-| `C_ABSTRACT_HTTP_SHARED_CRT` | ON | Use Shared CRT (/MD, /MDd) |
-| `C_ABSTRACT_HTTP_UNICODE` | OFF | Use UNICODE on Windows |
-| `C_ABSTRACT_HTTP_ANSI` | OFF | Use ANSI (Multi-Byte) on Windows |
-| `C_ABSTRACT_HTTP_MULTI_THREADED` | ON | Enable multi-threading support |
-| `C_ABSTRACT_HTTP_SINGLE_THREADED` | OFF | Single-threaded mode |
-| `C_ABSTRACT_HTTP_LTO` | OFF | Enable Link Time Optimization |
-| `C_ABSTRACT_HTTP_RTC1` | OFF | Enable MSVC /RTC1 runtime checks |
-| `C_ABSTRACT_HTTP_RTCs` | OFF | Enable MSVC /RTCs runtime checks |
-| `C_ABSTRACT_HTTP_RTCu` | OFF | Enable MSVC /RTCu runtime checks |
+| `C_ABSTRACT_HTTP_CRT_LINKAGE` | Shared | MSVC CRT Linkage: Static or Shared |
+| `C_ABSTRACT_HTTP_CHARSET` | Unicode | Charset to use: Unicode or ANSI |
+| `C_ABSTRACT_HTTP_THREADING` | Multi-threaded | Threading model: Multi-threaded or Single-threaded |
+| `C_ABSTRACT_HTTP_LTO` | OFF | Enable Link-Time Optimization (LTO) |
+| `C_ABSTRACT_HTTP_MSVC_RTC` | "" | MSVC Runtime Checks: RTC1, RTCs, RTCu, or empty |
 | `C_ABSTRACT_HTTP_USE_MSH3` | OFF | Use msh3 (HTTP/3) instead of libcurl |
 | `C_ABSTRACT_HTTP_USE_LSQUIC` | OFF | Use lsquic (HTTP/3) instead of libcurl |
 | `C_ABSTRACT_HTTP_USE_PICOQUIC` | OFF | Use picoquic (HTTP/3) instead of libcurl |

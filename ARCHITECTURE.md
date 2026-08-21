@@ -114,13 +114,11 @@ CMake configuration drives the abstraction mapping and code generation:
 
 **Core Build Flags**
 - `C_ABSTRACT_HTTP_HEADER_ONLY`: Package as a single header (STB-style library).
-- `C_ABSTRACT_HTTP_STATIC_CRT`: Use Static CRT (`/MT`, `/MTd`).
-- `C_ABSTRACT_HTTP_SHARED_CRT`: Use Shared CRT (`/MD`, `/MDd`).
-- `C_ABSTRACT_HTTP_UNICODE`: Use UNICODE `wchar_t` APIs.
-- `C_ABSTRACT_HTTP_ANSI`: Use ANSI (Multi-Byte) string APIs.
-- `C_ABSTRACT_HTTP_MULTI_THREADED`: Enable multi-threaded safety and locking.
-- `C_ABSTRACT_HTTP_SINGLE_THREADED`: Single-threaded build (no locks).
+- `C_ABSTRACT_HTTP_CRT_LINKAGE`: MSVC CRT Linkage (`Static` or `Shared`).
+- `C_ABSTRACT_HTTP_CHARSET`: Character set (`Unicode` or `ANSI`).
+- `C_ABSTRACT_HTTP_THREADING`: Threading model (`Multi-threaded` or `Single-threaded`).
 - `C_ABSTRACT_HTTP_LTO`: Enable Link Time Optimization (`-flto` / `/GL`).
+- `C_ABSTRACT_HTTP_MSVC_RTC`: Enable MSVC Runtime Checks (`RTC1`, `RTCs`, `RTCu`).
 
 **Backend Overrides**
 - `C_ABSTRACT_HTTP_USE_LIBSOUP3`: Force libsoup3 over libcurl.
