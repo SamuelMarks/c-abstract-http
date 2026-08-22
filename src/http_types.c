@@ -1880,7 +1880,15 @@ enum c_abstract_http_error http_response_save_to_file(const struct HttpResponse 
       return err;
   }
 #else
+  #if defined(_MSC_VER)
+  if(fopen_s(&f, path, "wb") != 0) f = NULL;
+#else
+  #if defined(_MSC_VER)
+  if(fopen_s(&f, path, "wb") != 0) f = NULL;
+#else
   f = fopen(path, "wb");
+#endif
+#endif
   if (!f)
     return errno ? errno : EIO; /* LCOV_EXCL_BR_LINE */
 #endif

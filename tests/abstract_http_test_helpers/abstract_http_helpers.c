@@ -43,7 +43,17 @@ int write_to_file(const char *const filename, const char *const contents) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   fopen_s(&fh, filename, "w");
 #else
+#if defined(_MSC_VER)
+  if (fopen_s(&fh, filename, "w") != 0)
+    fh = NULL;
+#else
+#if defined(_MSC_VER)
+  if (fopen_s(&fh, filename, "w") != 0)
+    fh = NULL;
+#else
   fh = fopen(filename, "w");
+#endif
+#endif
 #endif
 #endif
 #endif

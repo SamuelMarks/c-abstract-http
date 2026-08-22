@@ -268,6 +268,16 @@ extern int pthread_setspecific(pthread_key_t, const void *);
 extern void *pthread_getspecific(pthread_key_t);
 #endif
 
+#ifdef _WIN32
+int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
+                                       fd_set *writefds, fd_set *errorfds,
+                                       const struct timeval *timeout);
+#else
+int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
+                                fd_set *errorfds, struct timeval *timeout);
+#endif
+uint64_t c_abstract_http_mock_math_get_current_time_ms(void);
+
 #if !defined(_WIN32)
 int c_abstract_http_mock_pthread_key_create(pthread_key_t *key,
                                             void (*destructor)(void *));
@@ -283,15 +293,6 @@ int c_abstract_http_mock_pthread_join(pthread_t thread, void **value_ptr);
 int c_abstract_http_mock_pipe(int fildes[2]);
 pid_t c_abstract_http_mock_fork(void);
 pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options);
-#ifdef _WIN32
-int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
-                                       fd_set *writefds, fd_set *errorfds,
-                                       const struct timeval *timeout);
-#else
-int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
-                                fd_set *errorfds, struct timeval *timeout);
-#endif
-uint64_t c_abstract_http_mock_math_get_current_time_ms(void);
 int c_abstract_http_mock_pthread_setspecific(pthread_key_t key,
                                              const void *value);
 void *c_abstract_http_mock_pthread_getspecific(pthread_key_t key);
@@ -636,19 +637,19 @@ int g_mock_timer_heap_swap_fail = 0;
 
 #ifdef __MINGW32__
 void (*__imp_c_abstract_http_mock_select)(void) =
-    (void (*)(void)) & c_abstract_http_mock_select;
+    (void (*)(void))&c_abstract_http_mock_select;
 void (*__imp_c_abstract_http_mock_socket)(void) =
-    (void (*)(void)) & c_abstract_http_mock_socket;
+    (void (*)(void))&c_abstract_http_mock_socket;
 void (*__imp_c_abstract_http_mock_bind)(void) =
-    (void (*)(void)) & c_abstract_http_mock_bind;
+    (void (*)(void))&c_abstract_http_mock_bind;
 void (*__imp_c_abstract_http_mock_listen)(void) =
-    (void (*)(void)) & c_abstract_http_mock_listen;
+    (void (*)(void))&c_abstract_http_mock_listen;
 void (*__imp_c_abstract_http_mock_accept)(void) =
-    (void (*)(void)) & c_abstract_http_mock_accept;
+    (void (*)(void))&c_abstract_http_mock_accept;
 void (*__imp_c_abstract_http_mock_getsockname)(void) =
-    (void (*)(void)) & c_abstract_http_mock_getsockname;
+    (void (*)(void))&c_abstract_http_mock_getsockname;
 void (*__imp_c_abstract_http_mock_recv)(void) =
-    (void (*)(void)) & c_abstract_http_mock_recv;
+    (void (*)(void))&c_abstract_http_mock_recv;
 #endif
 struct curl_slist;
 struct curl_slist *g_mock_curl_cookies = 0;
