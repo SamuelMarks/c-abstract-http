@@ -263,7 +263,7 @@ TEST test_mock_server_coverage(void) {
 
   /* Wait so thread runs and hits accept failure */
 #if defined(_WIN32)
-  Sleep(20);
+  Sleep(150);
 #else
   {
     struct timespec ts;
@@ -332,6 +332,7 @@ TEST test_mock_server_coverage(void) {
      * count */
     mock_server_destroy((MockServerPtr)srv);
     mock_server_init((MockServerPtr *)&srv);
+    mock_server_start((MockServerPtr)srv);
 
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;

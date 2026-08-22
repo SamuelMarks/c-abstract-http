@@ -142,14 +142,7 @@ TEST test_oauth2_localhost_intercept(void) {
     memset(&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
     saddr.sin_port = htons(i == 0 ? 1 : args.port); /* LCOV_EXCL_BR_LINE */
-#if defined(_WIN32)
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#endif
-    saddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-#if defined(_WIN32)
-#pragma warning(pop)
-#endif
+    saddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     if (connect(sock, (struct sockaddr *)&saddr, sizeof(saddr)) == 0) {
       connected = 1;
       send(sock, req, (int)strlen(req), 0);

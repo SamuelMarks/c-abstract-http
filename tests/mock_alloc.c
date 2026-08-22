@@ -1,9 +1,7 @@
 /* LCOV_EXCL_BR_START */
 #if defined(_WIN32) && defined(_MSC_VER)
-#pragma warning(disable : 4273)
 #endif
 #if defined(_MSC_VER)
-#pragma warning(disable : 4273)
 #endif
 #undef malloc
 #undef calloc
@@ -41,9 +39,6 @@ int *abstract_http_mock_get_g_mock_getsockname_fail(void) {
 #include <string.h>
 
 #if defined(_MSC_VER)
-#pragma warning(disable : 4565)
-#pragma warning(disable : 4559)
-#pragma warning(disable : 4273)
 #endif
 
 #ifdef _WIN32
@@ -475,8 +470,6 @@ enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
 #include <stddef.h>
 #include <stdio.h>
 
-extern size_t fwrite(const void *, size_t, size_t, FILE *);
-extern int fclose(FILE *);
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -500,8 +493,6 @@ extern int g_mock_recv_fail;
 #undef accept
 #undef recv
 
-extern size_t fwrite(const void *, size_t, size_t, FILE *);
-extern int fclose(FILE *);
 
 #ifdef _WIN32
 /* extern SOCKET socket(int, int, int); */
@@ -637,19 +628,19 @@ int g_mock_timer_heap_swap_fail = 0;
 
 #ifdef __MINGW32__
 void (*__imp_c_abstract_http_mock_select)(void) =
-    (void (*)(void))&c_abstract_http_mock_select;
+    (void (*)(void)) & c_abstract_http_mock_select;
 void (*__imp_c_abstract_http_mock_socket)(void) =
-    (void (*)(void))&c_abstract_http_mock_socket;
+    (void (*)(void)) & c_abstract_http_mock_socket;
 void (*__imp_c_abstract_http_mock_bind)(void) =
-    (void (*)(void))&c_abstract_http_mock_bind;
+    (void (*)(void)) & c_abstract_http_mock_bind;
 void (*__imp_c_abstract_http_mock_listen)(void) =
-    (void (*)(void))&c_abstract_http_mock_listen;
+    (void (*)(void)) & c_abstract_http_mock_listen;
 void (*__imp_c_abstract_http_mock_accept)(void) =
-    (void (*)(void))&c_abstract_http_mock_accept;
+    (void (*)(void)) & c_abstract_http_mock_accept;
 void (*__imp_c_abstract_http_mock_getsockname)(void) =
-    (void (*)(void))&c_abstract_http_mock_getsockname;
+    (void (*)(void)) & c_abstract_http_mock_getsockname;
 void (*__imp_c_abstract_http_mock_recv)(void) =
-    (void (*)(void))&c_abstract_http_mock_recv;
+    (void (*)(void)) & c_abstract_http_mock_recv;
 #endif
 struct curl_slist;
 struct curl_slist *g_mock_curl_cookies = 0;

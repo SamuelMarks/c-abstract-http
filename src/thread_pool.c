@@ -385,8 +385,8 @@ struct AbstractHttpThreadPool {
 };
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-static ABSTRACT_HTTP_THREAD_FUNC
-    WINAPI worker_thread(abstract_http_thread_arg_t arg) {
+static ABSTRACT_HTTP_THREAD_FUNC WINAPI
+worker_thread(abstract_http_thread_arg_t arg) {
 #else
 static ABSTRACT_HTTP_THREAD_FUNC worker_thread(abstract_http_thread_arg_t arg) {
 #endif

@@ -57,19 +57,8 @@ extern int *abstract_http_mock_get_g_mock_accept_fail(void);
 extern int *abstract_http_mock_get_g_mock_recv_fail(void);
 extern int *abstract_http_mock_get_g_mock_getsockname_fail(void);
 
-#if defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable : 4565) /* redefinition; the symbol was previously     \
-                                   declared with __declspec(...) */
-#pragma warning(                                                               \
-    disable : 4559) /* redefinition; the function gains __declspec(...) */
-#pragma warning(disable : 4273) /* inconsistent dll linkage */
-#define ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT __declspec(restrict)
-#define ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS __declspec(noalias)
-#else
 #define ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT
 #define ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS
-#endif
 
 ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
 c_abstract_http_mock_malloc(size_t size);
@@ -162,10 +151,6 @@ void dummy_cb_thread(void *arg);
 void *dummy_cb_pthread(void *arg);
 extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
                                                               char **out);
-
-#if defined(_MSC_VER)
-#pragma warning(pop)
-#endif
 
 #ifdef __cplusplus
 }

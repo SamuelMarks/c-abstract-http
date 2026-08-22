@@ -1747,7 +1747,7 @@ enum c_abstract_http_error http_oauth2_localhost_intercept(unsigned short port,
   memset(&saddr, 0, sizeof(saddr));
   saddr.sin_family = AF_INET;
   saddr.sin_port = htons(port); /* LCOV_EXCL_BR_LINE */
-  saddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+  saddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
   if (bind(srv_sock, (struct sockaddr *)&saddr, sizeof(saddr)) ==
       ABSTRACT_HTTP_SOCKET_ERROR_VAL) {
