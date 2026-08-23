@@ -3,6 +3,12 @@ cmake_policy(SET CMP0091 NEW)
 if(POLICY CMP0077)
     cmake_policy(SET CMP0077 NEW)
 endif()
+if(APPLE)
+    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "10.10" CACHE STRING "Minimum OS X deployment version")
+    endif()
+endif()
+
 project(c-abstract-http C)
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)

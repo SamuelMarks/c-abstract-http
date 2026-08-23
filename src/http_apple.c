@@ -15,9 +15,6 @@
 #include <pthread.h>
 /* clang-format on */
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-
 struct HttpTransportContext {
   struct HttpConfig config;
 };
@@ -746,7 +743,5 @@ http_apple_send_multi(/* LCOV_EXCL_LINE */
   LOG_DEBUG("http_apple_send_multi: Success");
   return C_ABSTRACT_HTTP_SUCCESS; /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
-
-#pragma clang diagnostic pop
 
 #endif

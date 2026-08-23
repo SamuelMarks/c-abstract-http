@@ -16,7 +16,6 @@
 #include <wininet.h>
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-#pragma comment(lib, "wininet.lib")
 #endif
 
 #endif
