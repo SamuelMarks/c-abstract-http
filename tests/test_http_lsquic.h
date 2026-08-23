@@ -78,7 +78,12 @@ TEST test_lsquic_send_invalid_arguments(void) {
 
   http_lsquic_global_init();
   http_lsquic_context_init(&ctx);
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   /* NULL ctx */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_lsquic_send(NULL, &req, &res));

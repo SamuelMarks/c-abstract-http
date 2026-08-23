@@ -163,7 +163,7 @@ TEST test_actor_hooks(void) { /* LCOV_EXCL_LINE */
   hooks.actor_get_state = mock_actor_get_state; /* LCOV_EXCL_LINE */
   hooks.actor_get_name = mock_actor_get_name; /* LCOV_EXCL_LINE */
 
-  abstract_http_actor_set_hooks(&hooks); /* LCOV_EXCL_LINE */
+  { enum c_abstract_http_error rc_test = abstract_http_actor_set_hooks(&hooks); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } } /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_init(&bus)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_process(bus)); /* LCOV_EXCL_LINE */
@@ -177,7 +177,7 @@ TEST test_actor_hooks(void) { /* LCOV_EXCL_LINE */
   {
     struct AbstractHttpActorHooks z;
     memset(&z, 0, sizeof(z)); /* LCOV_EXCL_LINE */
-    abstract_http_actor_set_hooks(&z); /* LCOV_EXCL_LINE */
+    { enum c_abstract_http_error rc_test = abstract_http_actor_set_hooks(&z); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } } /* LCOV_EXCL_LINE */
   }
   PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
@@ -207,7 +207,7 @@ TEST test_actor_errors(void) { /* LCOV_EXCL_LINE */
   abstract_http_message_bus_free(bus); /* LCOV_EXCL_LINE */
   abstract_http_message_bus_free(NULL); /* LCOV_EXCL_LINE */
 
-  abstract_http_actor_set_hooks(NULL); /* LCOV_EXCL_LINE */
+  { enum c_abstract_http_error rc_test = abstract_http_actor_set_hooks(NULL); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } } /* LCOV_EXCL_LINE */
 
   PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
@@ -246,8 +246,8 @@ TEST test_actor_getters(void) { /* LCOV_EXCL_LINE */
   const char *name = NULL; /* LCOV_EXCL_LINE */
   (void)bus; /* LCOV_EXCL_LINE */
 
-  abstract_http_message_bus_init(&bus); /* LCOV_EXCL_LINE */
-  abstract_http_actor_spawn(bus, "myactor", dummy_handler, (void *)0x123, &actor); /* LCOV_EXCL_LINE */
+  { enum c_abstract_http_error rc_test = abstract_http_message_bus_init(&bus); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } } /* LCOV_EXCL_LINE */
+  { enum c_abstract_http_error rc_test = abstract_http_actor_spawn(bus, "myactor", dummy_handler, (void *)0x123, &actor); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } } /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_get_state(actor, &state)); /* LCOV_EXCL_LINE */
   ASSERT_EQ((void *)0x123, state); /* LCOV_EXCL_LINE */
@@ -384,15 +384,30 @@ TEST test_actor_queued_free_and_tail(void) { /* LCOV_EXCL_LINE */
   memset(&msg1, 0, sizeof(msg1)); /* LCOV_EXCL_LINE */
   memset(&msg2, 0, sizeof(msg2)); /* LCOV_EXCL_LINE */
 
-  abstract_http_message_bus_init(&bus); /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_message_bus_init(&bus);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
   abstract_http_actor_spawn(bus, "myactor", dummy_handler, NULL,
                             &actor); /* LCOV_EXCL_LINE */
 
   msg1.receiver = actor; /* LCOV_EXCL_LINE */
   msg2.receiver = actor; /* LCOV_EXCL_LINE */
 
-  abstract_http_actor_send(bus, &msg1); /* LCOV_EXCL_LINE */
-  abstract_http_actor_send(bus, &msg2);
+  {
+    enum c_abstract_http_error rc_test = abstract_http_actor_send(bus, &msg1);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_actor_send(bus, &msg2);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   /* hits tail->next logic */ /* LCOV_EXCL_LINE */
 
   /* don't process, just free, hitting lines 100-102 */

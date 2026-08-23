@@ -65,7 +65,12 @@ TEST test_wininet_config_apply(void) {
   (void)_ast_strdup_proxy2;
 
   http_wininet_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   /* Customize */
   config.timeout_ms = 500;
@@ -107,7 +112,12 @@ TEST test_wininet_send_validation(void) {
   (void)_ast_strdup_0;
 
   http_wininet_context_init(&ctx);
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   /* Null checks */
   rc = http_wininet_send(NULL, &req, &res);
@@ -174,10 +184,20 @@ TEST test_wininet_send_chunked(void) {
 
   http_wininet_global_init();
   http_wininet_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_wininet_config_apply(ctx, &config);
 
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
@@ -236,10 +256,20 @@ TEST test_wininet_send_chunked_abort(void) {
 
   http_wininet_global_init();
   http_wininet_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_wininet_config_apply(ctx, &config);
 
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
@@ -314,10 +344,20 @@ TEST test_wininet_send_upload_chunked(void) {
 
   http_wininet_global_init();
   http_wininet_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_wininet_config_apply(ctx, &config);
 
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));

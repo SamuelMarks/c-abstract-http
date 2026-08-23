@@ -83,7 +83,12 @@ TEST test_wasm_config_application(void) {
 
   http_wasm_global_init();
   http_wasm_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   config.timeout_ms = 500;
   config.verify_peer = 0;
@@ -115,7 +120,12 @@ TEST test_wasm_send_connection_failure(void) {
 
   http_wasm_global_init();
   http_wasm_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   config.timeout_ms = 50;
   http_wasm_config_apply(ctx, &config);
@@ -147,7 +157,12 @@ TEST test_wasm_send_invalid_arguments(void) {
 
   http_wasm_global_init();
   http_wasm_context_init(&ctx);
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wasm_send(NULL, &req, &res));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wasm_send(ctx, NULL, &res));

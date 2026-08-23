@@ -35,9 +35,14 @@ TEST test_serialize_deserialize_request(void) { /* LCOV_EXCL_LINE */
   size_t len = 0;             /* LCOV_EXCL_LINE */
   char *_ast_strdup_0 = NULL; /* LCOV_EXCL_LINE */
 
-  http_request_init(&req_in); /* LCOV_EXCL_LINE */
-  req_in.method = HTTP_POST;  /* LCOV_EXCL_LINE */
-  req_in.url =                /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req_in);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  req_in.method = HTTP_POST; /* LCOV_EXCL_LINE */
+  req_in.url =               /* LCOV_EXCL_LINE */
       (c_abstract_http_mock_strdup("http://example.com/api",
                                    &_ast_strdup_0), /* LCOV_EXCL_LINE */
        _ast_strdup_0);                              /* LCOV_EXCL_LINE */
@@ -85,9 +90,20 @@ TEST test_serialize_deserialize_response(void) { /* LCOV_EXCL_LINE */
   char *buf = NULL; /* LCOV_EXCL_LINE */
   size_t len = 0;   /* LCOV_EXCL_LINE */
 
-  http_response_init(&res_in);                         /* LCOV_EXCL_LINE */
-  res_in.status_code = 404;                            /* LCOV_EXCL_LINE */
-  http_headers_add(&res_in.headers, "Server", "mock"); /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = http_response_init(&res_in);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  res_in.status_code = 404; /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&res_in.headers, "Server", "mock");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
 
   res_in.body_len = 9;                               /* LCOV_EXCL_LINE */
   res_in.body = malloc(res_in.body_len);             /* LCOV_EXCL_LINE */
@@ -194,14 +210,31 @@ TEST test_abstract_http_serialize_errors(void) { /* LCOV_EXCL_LINE */
 
 TEST test_abstract_http_process_hooks(void) { /* LCOV_EXCL_LINE */
   struct AbstractHttpProcessHooks hooks;
-  memset(&hooks, 0, sizeof(hooks));        /* LCOV_EXCL_LINE */
-  abstract_http_process_set_hooks(&hooks); /* LCOV_EXCL_LINE */
-  abstract_http_process_set_hooks(NULL);
+  memset(&hooks, 0, sizeof(hooks)); /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        abstract_http_process_set_hooks(&hooks);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_process_set_hooks(NULL);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   /* Should do nothing */ /* LCOV_EXCL_LINE */
 
   /* Reset hooks so it doesn't affect other tests */
-  abstract_http_process_set_hooks(&hooks); /* LCOV_EXCL_LINE */
-  PASS();                                  /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        abstract_http_process_set_hooks(&hooks);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  PASS(); /* LCOV_EXCL_LINE */
 }
 
 TEST test_abstract_http_ipc_short_rw(void) { /* LCOV_EXCL_LINE */
@@ -320,7 +353,13 @@ TEST test_process_hooks_coverage(void) { /* LCOV_EXCL_LINE */
   hooks.wait_and_free = dummy_process_wait_and_free; /* LCOV_EXCL_LINE */
   hooks.ipc_write = dummy_ipc_write;                 /* LCOV_EXCL_LINE */
   hooks.ipc_read = dummy_ipc_read;                   /* LCOV_EXCL_LINE */
-  abstract_http_process_set_hooks(&hooks);           /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        abstract_http_process_set_hooks(&hooks);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_process_spawn(&proc, &p2c, &c2p));
@@ -331,9 +370,15 @@ TEST test_process_hooks_coverage(void) { /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_ipc_read(NULL, NULL, 0)); /* LCOV_EXCL_LINE */
 
-  memset(&hooks, 0, sizeof(hooks));        /* LCOV_EXCL_LINE */
-  abstract_http_process_set_hooks(&hooks); /* LCOV_EXCL_LINE */
-  PASS();                                  /* LCOV_EXCL_LINE */
+  memset(&hooks, 0, sizeof(hooks)); /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        abstract_http_process_set_hooks(&hooks);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -491,10 +536,16 @@ TEST test_process_deserialization_edge_cases(void) { /* LCOV_EXCL_LINE */
   http_response_free(&res); /* LCOV_EXCL_LINE */
   free(buf);                /* LCOV_EXCL_LINE */
 
-  req.method = HTTP_GET;                          /* LCOV_EXCL_LINE */
-  req.url = "/";                                  /* LCOV_EXCL_LINE */
-  http_headers_add(&req.headers, "Key", "Value"); /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,              /* LCOV_EXCL_LINE */
+  req.method = HTTP_GET; /* LCOV_EXCL_LINE */
+  req.url = "/";         /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&req.headers, "Key", "Value");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_ipc_serialize_request(&req, &buf, &len));
   req.url = NULL;               /* LCOV_EXCL_LINE */
   http_request_free(&req);      /* LCOV_EXCL_LINE */
@@ -512,9 +563,15 @@ TEST test_process_deserialization_edge_cases(void) { /* LCOV_EXCL_LINE */
   }
   free(buf); /* LCOV_EXCL_LINE */
 
-  res.status_code = 200;                          /* LCOV_EXCL_LINE */
-  http_headers_add(&res.headers, "Key", "Value"); /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,              /* LCOV_EXCL_LINE */
+  res.status_code = 200; /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&res.headers, "Key", "Value");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res);     /* LCOV_EXCL_LINE */
   memset(&res, 0, sizeof(res)); /* LCOV_EXCL_LINE */
@@ -686,8 +743,18 @@ TEST test_process_final_edge_cases(void) {                 /* LCOV_EXCL_LINE */
   {
     struct AbstractHttpProcess *my_proc = NULL; /* LCOV_EXCL_LINE */
     struct AbstractHttpIpcPipe p1, p2;
-    abstract_http_ipc_pipe_init(&p1);                      /* LCOV_EXCL_LINE */
-    abstract_http_ipc_pipe_init(&p2);                      /* LCOV_EXCL_LINE */
+    {
+      enum c_abstract_http_error rc_test = abstract_http_ipc_pipe_init(&p1);
+      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+        printf("Error: %d\n", (int)rc_test);
+      }
+    } /* LCOV_EXCL_LINE */
+    {
+      enum c_abstract_http_error rc_test = abstract_http_ipc_pipe_init(&p2);
+      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+        printf("Error: %d\n", (int)rc_test);
+      }
+    } /* LCOV_EXCL_LINE */
     if (abstract_http_process_spawn(&my_proc, &p1, &p2) == /* LCOV_EXCL_LINE */
         C_ABSTRACT_HTTP_SUCCESS) {
       if (my_proc)     /* LCOV_EXCL_LINE */
@@ -727,10 +794,16 @@ TEST test_process_final_edge_cases(void) {                 /* LCOV_EXCL_LINE */
 
   /* 538: read_size(&body_len) failure */
   {
-    req.method = HTTP_GET;                    /* LCOV_EXCL_LINE */
-    req.url = "/";                            /* LCOV_EXCL_LINE */
-    http_headers_add(&req.headers, "A", "B"); /* LCOV_EXCL_LINE */
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,        /* LCOV_EXCL_LINE */
+    req.method = HTTP_GET; /* LCOV_EXCL_LINE */
+    req.url = "/";         /* LCOV_EXCL_LINE */
+    {
+      enum c_abstract_http_error rc_test =
+          http_headers_add(&req.headers, "A", "B");
+      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+        printf("Error: %d\n", (int)rc_test);
+      }
+    } /* LCOV_EXCL_LINE */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
               abstract_http_ipc_serialize_request(&req, &buf, &len));
     req.url = NULL;               /* LCOV_EXCL_LINE */
     http_request_free(&req);      /* LCOV_EXCL_LINE */
@@ -765,9 +838,15 @@ TEST test_process_final_edge_cases(void) {                 /* LCOV_EXCL_LINE */
 
   /* 631: read_size body_len */
   {
-    res.status_code = 200;                    /* LCOV_EXCL_LINE */
-    http_headers_add(&res.headers, "A", "B"); /* LCOV_EXCL_LINE */
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,        /* LCOV_EXCL_LINE */
+    res.status_code = 200; /* LCOV_EXCL_LINE */
+    {
+      enum c_abstract_http_error rc_test =
+          http_headers_add(&res.headers, "A", "B");
+      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+        printf("Error: %d\n", (int)rc_test);
+      }
+    } /* LCOV_EXCL_LINE */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
               abstract_http_ipc_serialize_response(&res, &buf, &len));
     http_response_free(&res);     /* LCOV_EXCL_LINE */
     memset(&res, 0, sizeof(res)); /* LCOV_EXCL_LINE */
@@ -790,16 +869,38 @@ TEST test_process_misc_coverage(void) { /* LCOV_EXCL_LINE */
   char *buf = NULL; /* LCOV_EXCL_LINE */
   size_t len = 0;   /* LCOV_EXCL_LINE */
 
-  http_request_init(&req);                       /* LCOV_EXCL_LINE */
-  http_headers_add(&req.headers, NULL, "value"); /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,             /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&req.headers, NULL, "value");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_ipc_serialize_request(&req, &buf, &len));
   http_request_free(&req); /* LCOV_EXCL_LINE */
   free(buf);               /* LCOV_EXCL_LINE */
 
-  http_response_init(&res);                      /* LCOV_EXCL_LINE */
-  http_headers_add(&res.headers, NULL, "value"); /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,             /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = http_response_init(&res);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&res.headers, NULL, "value");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res); /* LCOV_EXCL_LINE */
   free(buf);                /* LCOV_EXCL_LINE */
@@ -853,17 +954,34 @@ TEST test_process_null_header_keys(void) { /* LCOV_EXCL_LINE */
   char *buf = NULL; /* LCOV_EXCL_LINE */
   size_t len = 0;   /* LCOV_EXCL_LINE */
 
-  http_request_init(&req);                       /* LCOV_EXCL_LINE */
-  http_headers_add(&req.headers, NULL, "value"); /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,             /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&req.headers, NULL, "value");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_ipc_serialize_request(&req, &buf, &len));
   http_request_free(&req); /* LCOV_EXCL_LINE */
   free(buf);               /* LCOV_EXCL_LINE */
 
-  memset(&res, 0, sizeof(res));                  /* LCOV_EXCL_LINE */
-  res.status_code = 200;                         /* LCOV_EXCL_LINE */
-  http_headers_add(&res.headers, NULL, "value"); /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,             /* LCOV_EXCL_LINE */
+  memset(&res, 0, sizeof(res)); /* LCOV_EXCL_LINE */
+  res.status_code = 200;        /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&res.headers, NULL, "value");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res); /* LCOV_EXCL_LINE */
   free(buf);                /* LCOV_EXCL_LINE */
@@ -877,8 +995,19 @@ TEST test_process_serialize_null_key_value(void) { /* LCOV_EXCL_LINE */
   char *buf = NULL; /* LCOV_EXCL_LINE */
   size_t len = 0;   /* LCOV_EXCL_LINE */
 
-  http_request_init(&req);                    /* LCOV_EXCL_LINE */
-  http_headers_add(&req.headers, "k", "v");   /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&req.headers, "k", "v");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
   free((void *)req.headers.headers[0].value); /* LCOV_EXCL_LINE */
   req.headers.headers[0].value = NULL;        /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,          /* LCOV_EXCL_LINE */
@@ -886,9 +1015,15 @@ TEST test_process_serialize_null_key_value(void) { /* LCOV_EXCL_LINE */
   http_request_free(&req); /* LCOV_EXCL_LINE */
   free(buf);               /* LCOV_EXCL_LINE */
 
-  memset(&res, 0, sizeof(res));               /* LCOV_EXCL_LINE */
-  res.status_code = 200;                      /* LCOV_EXCL_LINE */
-  http_headers_add(&res.headers, "k", "v");   /* LCOV_EXCL_LINE */
+  memset(&res, 0, sizeof(res)); /* LCOV_EXCL_LINE */
+  res.status_code = 200;        /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&res.headers, "k", "v");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
   free((void *)res.headers.headers[0].value); /* LCOV_EXCL_LINE */
   res.headers.headers[0].value = NULL;        /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,          /* LCOV_EXCL_LINE */
@@ -905,8 +1040,19 @@ TEST test_process_serialize_null_key(void) { /* LCOV_EXCL_LINE */
   char *buf = NULL; /* LCOV_EXCL_LINE */
   size_t len = 0;   /* LCOV_EXCL_LINE */
 
-  http_request_init(&req);                  /* LCOV_EXCL_LINE */
-  http_headers_add(&req.headers, "k", "v"); /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&req.headers, "k", "v");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
   free((void *)req.headers.headers[0].key); /* LCOV_EXCL_LINE */
   req.headers.headers[0].key = NULL;        /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,        /* LCOV_EXCL_LINE */
@@ -914,10 +1060,21 @@ TEST test_process_serialize_null_key(void) { /* LCOV_EXCL_LINE */
   http_request_free(&req); /* LCOV_EXCL_LINE */
   free(buf);               /* LCOV_EXCL_LINE */
 
-  memset(&res, 0, sizeof(res));             /* LCOV_EXCL_LINE */
-  res.status_code = 200;                    /* LCOV_EXCL_LINE */
-  http_headers_init(&res.headers);          /* LCOV_EXCL_LINE */
-  http_headers_add(&res.headers, "k", "v"); /* LCOV_EXCL_LINE */
+  memset(&res, 0, sizeof(res)); /* LCOV_EXCL_LINE */
+  res.status_code = 200;        /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = http_headers_init(&res.headers);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        http_headers_add(&res.headers, "k", "v");
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
   free((void *)res.headers.headers[0].key); /* LCOV_EXCL_LINE */
   res.headers.headers[0].key = NULL;        /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,        /* LCOV_EXCL_LINE */
@@ -934,7 +1091,12 @@ TEST test_process_serialize_body_len_no_body(void) { /* LCOV_EXCL_LINE */
   char *buf = NULL; /* LCOV_EXCL_LINE */
   size_t len = 0;   /* LCOV_EXCL_LINE */
 
-  http_request_init(&req);           /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
   req.body_len = 100;                /* LCOV_EXCL_LINE */
   req.body = NULL;                   /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */

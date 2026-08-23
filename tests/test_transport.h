@@ -15,7 +15,12 @@ extern "C" {
 
 TEST test_transport_global(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, transport_global_init());
-  transport_global_cleanup();
+  {
+    enum c_abstract_http_error rc_test = transport_global_cleanup();
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   PASS();
 }
 
@@ -27,9 +32,20 @@ TEST test_transport_factory(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, transport_factory_init_client(&client));
   ASSERT(client.send != NULL);
 
-  transport_factory_cleanup_client(NULL);
+  {
+    enum c_abstract_http_error rc_test = transport_factory_cleanup_client(NULL);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
-  transport_factory_cleanup_client(&client);
+  {
+    enum c_abstract_http_error rc_test =
+        transport_factory_cleanup_client(&client);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   ASSERT(client.transport == NULL);
 
   transport_factory_cleanup_client(

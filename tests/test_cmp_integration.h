@@ -49,7 +49,12 @@ TEST test_inject_config(void) { /* LCOV_EXCL_LINE */
                                  16}; /* LCOV_EXCL_LINE */
   struct HttpConfig http_cfg;
 
-  http_config_init(&http_cfg);       /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&http_cfg);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             cmp_http_inject_config(&cmp_cfg, &http_cfg));
 

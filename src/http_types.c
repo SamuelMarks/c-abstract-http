@@ -9,6 +9,8 @@
 #include <c_abstract_http/http_types.h>
 #include <c89stringutils_string_extras.h>
 
+#include "str.h"
+
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 extern void *c_abstract_http_mock_malloc(size_t size);
 extern void *c_abstract_http_mock_calloc(size_t num, size_t size);
@@ -110,8 +112,9 @@ void http_headers_free(struct HttpHeaders *headers) {
   headers->capacity = 0;
 }
 #undef c_abstract_http_strdup
-static enum c_abstract_http_error c_abstract_http_strdup(const char *s,
-                                                         char **out_s) {
+extern enum c_abstract_http_error c_abstract_http_strdup(const char *s,
+                                                         char **out_s);
+enum c_abstract_http_error c_abstract_http_strdup(const char *s, char **out_s) {
   size_t len;
   if (!s || !out_s)
     return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_BR_LINE */
@@ -1821,7 +1824,11 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
   buf[n] = '\0';
 
   if (html_response) { /* LCOV_EXCL_BR_LINE */
+#if defined(_WIN32)
+    send(cli_sock, html_response, (int)strlen(html_response), 0);
+#else
     send(cli_sock, html_response, (size_t)strlen(html_response), 0);
+#endif
   }
 
   if (strncmp(buf, "GET ", 4) != 0) {

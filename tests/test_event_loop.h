@@ -1065,7 +1065,12 @@ TEST test_event_loop_write_error_coverage(void) {
             http_loop_add_fd(loop, pipes[1], HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
                              dummy_write_cb, &triggered));
 
-  http_loop_run(loop);
+  {
+    enum c_abstract_http_error rc_test = http_loop_run(loop);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   ASSERT(triggered & HTTP_LOOP_WRITE); /* LCOV_EXCL_BR_LINE */
 
@@ -1095,9 +1100,20 @@ TEST test_event_loop_timer_past_coverage(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
 
-  http_loop_add_timer(loop, -10, dummy_timer_past_cb, &triggered, &timer_id);
+  {
+    enum c_abstract_http_error rc_test = http_loop_add_timer(
+        loop, -10, dummy_timer_past_cb, &triggered, &timer_id);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
-  http_loop_run(loop);
+  {
+    enum c_abstract_http_error rc_test = http_loop_run(loop);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   ASSERT(triggered); /* LCOV_EXCL_BR_LINE */
 
@@ -1135,7 +1151,12 @@ TEST test_event_loop_write_error_coverage2(void) {
             http_loop_add_fd(loop, pipes[1], HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
                              dummy_error_cb, &triggered));
 
-  http_loop_tick(loop);
+  {
+    enum c_abstract_http_error rc_test = http_loop_tick(loop);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   close(pipes[0]);
   close(pipes[1]);

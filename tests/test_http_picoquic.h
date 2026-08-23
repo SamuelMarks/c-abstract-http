@@ -78,7 +78,12 @@ TEST test_picoquic_send_invalid_arguments(void) {
 
   http_picoquic_global_init();
   http_picoquic_context_init(&ctx);
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   /* NULL ctx */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_picoquic_send(NULL, &req, &res));

@@ -56,10 +56,20 @@ struct TestTaskData {
 static void test_task_cb(void *arg) {                     /* LCOV_EXCL_LINE */
   struct TestTaskData *data = (struct TestTaskData *)arg; /* LCOV_EXCL_LINE */
   sleep_ms(5); /* Simulate work */                        /* LCOV_EXCL_LINE */
-  abstract_http_mutex_lock(data->lock);                   /* LCOV_EXCL_LINE */
-  (*data->counter)++;                                     /* LCOV_EXCL_LINE */
-  abstract_http_mutex_unlock(data->lock);                 /* LCOV_EXCL_LINE */
-  free(data);                                             /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_mutex_lock(data->lock);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  (*data->counter)++; /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_mutex_unlock(data->lock);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  free(data); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 
 TEST test_thread_pool_execution(void) {       /* LCOV_EXCL_LINE */
@@ -88,7 +98,12 @@ TEST test_thread_pool_execution(void) {       /* LCOV_EXCL_LINE */
               abstract_http_thread_pool_push(pool, test_task_cb, data));
   } /* LCOV_EXCL_LINE */
 
-  abstract_http_thread_pool_free(pool);
+  {
+    enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   /* Blocks until all tasks complete */ /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(50, counter); /* LCOV_EXCL_LINE */
@@ -169,7 +184,12 @@ TEST test_thread_pool_errors(void) {          /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_LINE */
             abstract_http_thread_pool_init_external(&pool, NULL));
 
-  abstract_http_thread_pool_free(NULL); /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(NULL);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
 
   abstract_http_thread_pool_test_set_stop(NULL);    /* LCOV_EXCL_LINE */
   abstract_http_thread_pool_test_inject_task(NULL); /* LCOV_EXCL_LINE */
@@ -182,7 +202,13 @@ TEST test_thread_pool_errors(void) {          /* LCOV_EXCL_LINE */
                                                just use a valid pool */
   g_mock_alloc_fail = 0;                    /* LCOV_EXCL_LINE */
 
-  abstract_http_thread_pool_init(&pool, 1); /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test =
+        abstract_http_thread_pool_init(&pool, 1);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
 
   g_mock_pthread_fail = 3;                       /* LCOV_EXCL_LINE */
   abstract_http_thread_pool_test_set_stop(pool); /* LCOV_EXCL_LINE */
@@ -198,7 +224,12 @@ TEST test_thread_pool_errors(void) {          /* LCOV_EXCL_LINE */
   g_mock_alloc_fail = 0;                            /* LCOV_EXCL_LINE */
 
   abstract_http_thread_pool_test_inject_task(pool); /* LCOV_EXCL_LINE */
-  abstract_http_thread_pool_free(pool);             /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
 
   PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
@@ -214,8 +245,13 @@ TEST test_thread_pool_external(void) { /* LCOV_EXCL_LINE */
             abstract_http_thread_pool_init_external(&pool, &hooks));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, /* LCOV_EXCL_LINE */
             abstract_http_thread_pool_push(pool, dummy_cb_thread, NULL));
-  abstract_http_thread_pool_free(pool); /* LCOV_EXCL_LINE */
-  PASS();                               /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
+  PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 
 static int dummy_hook_push(void *ctx,
@@ -245,7 +281,12 @@ TEST test_thread_pool_edge_cases(void) { /* LCOV_EXCL_LINE */
             abstract_http_thread_pool_init_external(&pool, &hooks));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_LINE */
             abstract_http_thread_pool_push(pool, dummy_cb_thread, NULL));
-  abstract_http_thread_pool_free(pool); /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
 
   /* 516-519: push when stopped */
   /* and 563-565: tasks left in queue */
@@ -263,7 +304,12 @@ TEST test_thread_pool_edge_cases(void) { /* LCOV_EXCL_LINE */
 
   /* Stop the pool first, let it join threads, THEN inject task to test cleanup
    */
-  abstract_http_thread_pool_free(pool); /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
 
   /* I can create a fake pool to free! */
   { abstract_http_thread_pool_test_free_with_tasks(); /* LCOV_EXCL_LINE */ }
@@ -380,7 +426,12 @@ TEST test_thread_pool_fallback_paths(void) {               /* LCOV_EXCL_LINE */
   rc = abstract_http_thread_pool_push(pool, test_task_cb,
                                       NULL); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);  /* LCOV_EXCL_LINE */
-  abstract_http_thread_pool_free(pool);      /* LCOV_EXCL_LINE */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  } /* LCOV_EXCL_LINE */
 
   PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */

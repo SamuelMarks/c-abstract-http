@@ -69,7 +69,12 @@ TEST test_winhttp_config_usage(void) {
   struct HttpConfig cfg;
 
   http_winhttp_context_init(&ctx);
-  http_config_init(&cfg);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&cfg);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   /* Set some values */
   cfg.timeout_ms = 5000;
@@ -131,7 +136,12 @@ TEST test_winhttp_send_fail(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* Initialize request */
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   /* Invalid URL syntax to trigger immediate failure in CrackUrl */
   req.url =
       (c_abstract_http_mock_strdup("not_a_url", &_ast_strdup_1), _ast_strdup_1);
@@ -160,7 +170,12 @@ TEST test_winhttp_send_null_checks(void) {
   struct HttpConfig cfg;
 
   http_winhttp_context_init(&ctx);
-  http_config_init(&cfg);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&cfg);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   /* Send with NULLs */
   rc = http_winhttp_send(ctx, NULL, &res);
@@ -226,10 +241,20 @@ TEST test_winhttp_send_chunked(void) {
 
   http_winhttp_global_init();
   http_winhttp_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_winhttp_config_apply(ctx, &config);
 
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
@@ -289,10 +314,20 @@ TEST test_winhttp_send_chunked_abort(void) {
 
   http_winhttp_global_init();
   http_winhttp_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_winhttp_config_apply(ctx, &config);
 
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
@@ -368,10 +403,20 @@ TEST test_winhttp_send_upload_chunked(void) {
 
   http_winhttp_global_init();
   http_winhttp_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_winhttp_config_apply(ctx, &config);
 
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
@@ -464,19 +509,39 @@ TEST test_winhttp_send_multi(void) {
 
   http_winhttp_global_init();
   http_winhttp_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_winhttp_config_apply(ctx, &config);
 
   http_loop_init(&loop);
-  http_multi_request_init(&multi);
+  {
+    enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_future_init(&f1);
   http_future_init(&f2);
 
   setup_request(&req1, math_mock_server_get_port(server1));
   setup_request(&req2, math_mock_server_get_port(server2));
 
-  http_multi_request_add(&multi, &req1);
-  http_multi_request_add(&multi, &req2);
+  {
+    enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req1);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
+  {
+    enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req2);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   futures[0] = &f1;
   futures[1] = &f2;
@@ -488,8 +553,19 @@ TEST test_winhttp_send_multi(void) {
     int timeout_ticks = 100;
     while (timeout_ticks-- > 0 && (!f1.is_ready || !f2.is_ready)) {
       int timer_id;
-      http_loop_add_timer(loop, 10, dummy_timeout_cb, NULL, &timer_id);
-      http_loop_run(loop);
+      {
+        enum c_abstract_http_error rc_test =
+            http_loop_add_timer(loop, 10, dummy_timeout_cb, NULL, &timer_id);
+        if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+          printf("Error: %d\n", (int)rc_test);
+        }
+      }
+      {
+        enum c_abstract_http_error rc_test = http_loop_run(loop);
+        if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+          printf("Error: %d\n", (int)rc_test);
+        }
+      }
     }
   }
 

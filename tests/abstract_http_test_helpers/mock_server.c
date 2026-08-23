@@ -231,7 +231,11 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
 #ifdef MSG_NOSIGNAL
     send(client_fd, response, (size_t)strlen(response), MSG_NOSIGNAL);
 #else
+#if defined(_WIN32)
+    send(client_fd, response, (int)strlen(response), 0);
+#else
     send(client_fd, response, (size_t)strlen(response), 0);
+#endif
 #endif
 
     close_socket(client_fd);

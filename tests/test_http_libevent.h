@@ -87,7 +87,12 @@ TEST test_libevent_config_application(void) {
 
   http_libevent_global_init();
   http_libevent_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   /* Set some values */
   config.timeout_ms = 500;
@@ -121,7 +126,12 @@ TEST test_libevent_send_connection_failure(void) {
 
   http_libevent_global_init();
   http_libevent_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   /* Fast timeout for test speed */
   config.timeout_ms = 50;
@@ -164,7 +174,12 @@ TEST test_libevent_send_invalid_arguments(void) {
 
   http_libevent_global_init();
   http_libevent_context_init(&ctx);
-  http_request_init(&req);
+  {
+    enum c_abstract_http_error rc_test = http_request_init(&req);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
 
   /* NULL ctx */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libevent_send(NULL, &req, &res));
@@ -230,7 +245,12 @@ TEST test_libevent_send_chunked(void) {
 
   http_libevent_global_init();
   http_libevent_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_libevent_config_apply(ctx, &config);
 
   setup_request(&req, math_mock_server_get_port(server));
@@ -279,7 +299,12 @@ TEST test_libevent_send_chunked_abort(void) {
 
   http_libevent_global_init();
   http_libevent_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_libevent_config_apply(ctx, &config);
 
   setup_request(&req, math_mock_server_get_port(server));
@@ -344,7 +369,12 @@ TEST test_libevent_send_upload_chunked(void) {
 
   http_libevent_global_init();
   http_libevent_context_init(&ctx);
-  http_config_init(&config);
+  {
+    enum c_abstract_http_error rc_test = http_config_init(&config);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  }
   http_libevent_config_apply(ctx, &config);
 
   setup_request(&req, math_mock_server_get_port(server));
