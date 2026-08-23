@@ -127,7 +127,7 @@ typedef pthread_cond_t cond_t;
 #define THREAD_FUNC_RETURN void *
 #define THREAD_FUNC_ARG void *
 
-static void sleep_ms(int ms) { usleep(ms * 1000); }
+static void sleep_ms(int ms) { usleep((unsigned int)(ms * 1000)); }
 
 static void mutex_init(mutex_t *m) { pthread_mutex_init(m, NULL); }
 static void mutex_destroy(mutex_t *m) { pthread_mutex_destroy(m); }
@@ -209,17 +209,17 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
       char buffer[4096];
       int bytes_read;
       sleep_ms(100); /* Wait for body packets (e.g. from WinHTTP) */
-      bytes_read = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+      bytes_read = (int)recv(client_fd, buffer, sizeof(buffer) - 1, 0);
       if (bytes_read > 0) { /* LCOV_EXCL_BR_LINE */
         buffer[bytes_read] = '\0';
 
         mutex_lock(&s->lock);
         if (s->captured_request)
           free(s->captured_request);
-        s->captured_request = (char *)malloc(bytes_read + 1);
+        s->captured_request = (char *)malloc((size_t)bytes_read + 1);
         if (s->captured_request) { /* LCOV_EXCL_BR_LINE */
           memcpy(s->captured_request, buffer, bytes_read + 1);
-          s->captured_len = bytes_read;
+          s->captured_len = (size_t)bytes_read;
           s->has_request = 1;
           cond_signal(&s->cond_req_ready);
         }
@@ -229,9 +229,9 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
 
     /* Send Response */
 #ifdef MSG_NOSIGNAL
-    send(client_fd, response, (int)strlen(response), MSG_NOSIGNAL);
+    send(client_fd, response, (size_t)strlen(response), MSG_NOSIGNAL);
 #else
-    send(client_fd, response, (int)strlen(response), 0);
+    send(client_fd, response, (size_t)strlen(response), 0);
 #endif
 
     close_socket(client_fd);

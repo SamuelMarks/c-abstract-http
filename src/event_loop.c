@@ -768,7 +768,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
 
     if (next_timeout >= 0) {
       tv.tv_sec = (long)(next_timeout / 1000);
-      tv.tv_usec = (long)((next_timeout % 1000) * 1000);
+      tv.tv_usec = (int)((next_timeout % 1000) * 1000);
       ptv = &tv;
     }
 

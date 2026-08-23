@@ -67,15 +67,16 @@ static int strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((format(printf, 4, 5)))
 #endif
-static int
+static size_t
 sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fmt, ...) {
-  int written;
+  size_t written;
   va_list args;
   va_start(args, fmt);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  written = vsprintf_s(buf + start, cap - start, fmt, args);
+  written = (size_t)vsprintf_s(buf + start, cap - start, fmt, args);
 #else
-  written = c89stringutils_vsnprintf(buf + start, cap - start, fmt, args);
+  written =
+      (size_t)c89stringutils_vsnprintf(buf + start, cap - start, fmt, args);
 #endif
   va_end(args);
   return written;
@@ -109,7 +110,8 @@ void http_headers_free(struct HttpHeaders *headers) {
   headers->capacity = 0;
 }
 #undef c_abstract_http_strdup
-enum c_abstract_http_error c_abstract_http_strdup(const char *s, char **out_s) {
+static enum c_abstract_http_error c_abstract_http_strdup(const char *s,
+                                                         char **out_s) {
   size_t len;
   if (!s || !out_s)
     return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_BR_LINE */
@@ -340,7 +342,12 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
   sprintf_s(boundary, sizeof(boundary), "------------------------cddbound%08x",
             rand());
 #else
+#if defined(_MSC_VER)
+  sprintf_s(boundary, sizeof(boundary), "------------------------cddbound%08x",
+            rand());
+#else
   sprintf(boundary, "------------------------cddbound%08x", rand());
+#endif
 #endif
 
   /* 2. Calculate Size */
@@ -386,7 +393,7 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
   for (i = 0; i < req->parts.count; ++i) {
     struct HttpPart *part = &req->parts.parts[i];
     size_t h;
-    int written;
+    size_t written;
 
     /* Boundary start */
     /* Note: Using sprintf directly is unsafe if we didn't pre-calc, assume size
@@ -395,31 +402,31 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
     /* --boundary\r\n */
     written =
         sprintf_s_wrapper(buffer, pos, estimated_size, "--%s\r\n", boundary);
-    pos += written;
+    pos += (size_t)written;
 
     /* Header */
     written = sprintf_s_wrapper(buffer, pos, estimated_size,
                                 "Content-Disposition: form-data; name=\"%s\"",
                                 part->name);
-    pos += written;
+    pos += (size_t)written;
 
     if (part->filename) {
       written = sprintf_s_wrapper(buffer, pos, estimated_size,
                                   "; filename=\"%s\"", part->filename);
-      pos += written;
+      pos += (size_t)written;
     }
     written = sprintf_s_wrapper(buffer, pos, estimated_size, "\r\n");
-    pos += written;
+    pos += (size_t)written;
 
     /* Content-Type */
     if (part->content_type) {
       written = sprintf_s_wrapper(buffer, pos, estimated_size,
                                   "Content-Type: %s\r\n", part->content_type);
-      pos += written;
+      pos += (size_t)written;
     } else if (part->filename) {
       written = sprintf_s_wrapper(buffer, pos, estimated_size,
                                   "Content-Type: application/octet-stream\r\n");
-      pos += written;
+      pos += (size_t)written;
     }
 
     for (h = 0; h < part->headers.count; ++h) {
@@ -427,12 +434,12 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
 
       written = sprintf_s_wrapper(buffer, pos, estimated_size, "%s: %s\r\n",
                                   hdr->key, hdr->value);
-      pos += written;
+      pos += (size_t)written;
     }
 
     /* End of headers */
     written = sprintf_s_wrapper(buffer, pos, estimated_size, "\r\n");
-    pos += written;
+    pos += (size_t)written;
 
     /* Data */
     if (part->data_len > 0 && part->data) { /* LCOV_EXCL_BR_LINE */
@@ -442,14 +449,14 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
 
     /* End of part */
     written = sprintf_s_wrapper(buffer, pos, estimated_size, "\r\n");
-    pos += written;
+    pos += (size_t)written;
   }
 
   /* Final Boundary */
   {
-    int written =
+    size_t written =
         sprintf_s_wrapper(buffer, pos, estimated_size, "--%s--\r\n", boundary);
-    pos += written;
+    pos += (size_t)written;
   }
 
   /* 4. Update Request */
@@ -462,7 +469,11 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(ct, sizeof(ct), "multipart/form-data; boundary=%s", boundary);
 #else
+#if defined(_MSC_VER)
+    sprintf_s(ct, sizeof(ct), "multipart/form-data; boundary=%s", boundary);
+#else
     sprintf(ct, "multipart/form-data; boundary=%s", boundary);
+#endif
 #endif
     /* If header exists, this adds a duplicate. Typically client code shouldn't
      * set CT if using parts. */
@@ -792,7 +803,11 @@ enum c_abstract_http_error http_request_set_auth_bearer(struct HttpRequest *req,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(val, len, "Bearer %s", token);
 #else
+#if defined(_MSC_VER)
+  sprintf_s(val, sizeof(val), "Bearer %s", token);
+#else
   sprintf(val, "Bearer %s", token);
+#endif
 #endif
 
   rc = http_headers_add(&req->headers, "Authorization", val);
@@ -822,7 +837,11 @@ enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(val, len, "Basic %s", token);
 #else
+#if defined(_MSC_VER)
+  sprintf_s(val, sizeof(val), "Basic %s", token);
+#else
   sprintf(val, "Basic %s", token);
+#endif
 #endif
 
   rc = http_headers_add(&req->headers, "Authorization", val);
@@ -887,7 +906,11 @@ enum c_abstract_http_error http_request_set_auth_basic_userpwd(
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(raw, len, "%s:%s", username, password);
 #else
+#if defined(_MSC_VER)
+  sprintf_s(raw, sizeof(raw), "%s:%s", username, password);
+#else
   sprintf(raw, "%s:%s", username, password);
+#endif
 #endif
 
   rc = base64_encode((const unsigned char *)raw, len - 1, &encoded);
@@ -936,7 +959,7 @@ static void urlencode_append(char **dest, const char *src) {
         (c >= '0' && c <= '9') || c == '-' || c == '_' ||
         c == '.' || /* LCOV_EXCL_BR_LINE */
         c == '~') {
-      *q++ = c;
+      *q++ = (char)c;
     } else if (c == ' ') {
       *q++ = '+';
     } else {
@@ -1790,7 +1813,7 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
     goto cleanup;
   }
 
-  n = recv(cli_sock, buf, sizeof(buf) - 1, 0);
+  n = (int)recv(cli_sock, buf, sizeof(buf) - 1, 0);
   if (n <= 0) {
     rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
@@ -1798,7 +1821,7 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
   buf[n] = '\0';
 
   if (html_response) { /* LCOV_EXCL_BR_LINE */
-    send(cli_sock, html_response, (int)strlen(html_response), 0);
+    send(cli_sock, html_response, (size_t)strlen(html_response), 0);
   }
 
   if (strncmp(buf, "GET ", 4) != 0) {
@@ -1820,14 +1843,14 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
 
       while (*p && *p != '=' && *p != '&' && *p != ' ') /* LCOV_EXCL_BR_LINE */
         p++;
-      key_len = p - key;
+      key_len = (size_t)(p - key);
 
       if (*p == '=') { /* LCOV_EXCL_BR_LINE */
         p++;
         val = p;
         while (*p && *p != '&' && *p != ' ') /* LCOV_EXCL_BR_LINE */
           p++;
-        val_len = p - val;
+        val_len = (size_t)(p - val);
       }
 
       if (key_len == 4 && strncmp(key, "code", 4) == 0 && out_code &&

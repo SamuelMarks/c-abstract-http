@@ -274,7 +274,7 @@ enum c_abstract_http_error ws_apply_mask(unsigned char *payload, size_t len,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error ws_pack_header_small(unsigned char *buf, int fin, int opcode, int mask,
+enum c_abstract_http_error ws_pack_header_small(unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode, int mask,
                          size_t len, size_t *out_len) {
   if (!buf || len > 125)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -284,7 +284,7 @@ enum c_abstract_http_error ws_pack_header_small(unsigned char *buf, int fin, int
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin, int opcode, int mask,
+enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode, int mask,
                           size_t len, size_t *out_len) {
   uint16_t net_len;
   if (!buf || len <= 125 || len > 65535)
@@ -297,7 +297,7 @@ enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin, in
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error ws_pack_header_large(unsigned char *buf, int fin, int opcode, int mask,
+enum c_abstract_http_error ws_pack_header_large(unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode, int mask,
                          size_t len, size_t *out_len) {
   uint64_t net_len;
   if (!buf || len <= 65535)
@@ -357,7 +357,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
     case WS_PARSER_READ_OPCODE: {
       unsigned char b = chunk[i++];
       ctx->current_frame.fin = (b & 0x80) != 0;
-      ctx->current_frame.opcode = b & 0x0F;
+      ctx->current_frame.opcode = (enum c_abstract_http_ws_opcode)(b & 0x0F);
 
       /* Fail if any RSV bits are set */
       if (b & 0x70) {

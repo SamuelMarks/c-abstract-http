@@ -495,7 +495,7 @@ else()
     if(MSVC)
         target_compile_options(c-abstract-http PRIVATE "/W4" "/WX")
     else()
-        target_compile_options(c-abstract-http PRIVATE "-Wall" "-Wextra" "-Werror" "-pedantic" "-std=c89")
+        target_compile_options(c-abstract-http PRIVATE "-Wall" "-Wextra" "-Werror" "-pedantic" "-std=c89" "-Wconversion" "-Wshadow" "-Wcast-align" "-Wstrict-prototypes" "-Wmissing-prototypes" "-Wsign-conversion" "-Wshorten-64-to-32")
     endif()
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
   target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=

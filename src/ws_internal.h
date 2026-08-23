@@ -41,11 +41,11 @@ struct ws_stream_ctx {
  * @brief Internal structure representing a parsed WebSocket frame header.
  */
 struct ws_frame_header {
-  int fin;                      /**< FIN bit flag */
-  int opcode;                   /**< Frame opcode */
-  int mask;                     /**< Mask bit flag */
-  uint64_t payload_len;         /**< Parsed payload length */
-  unsigned char masking_key[4]; /**< Masking key if present */
+  int fin;                               /**< FIN bit flag */
+  enum c_abstract_http_ws_opcode opcode; /**< Frame opcode */
+  int mask;                              /**< Mask bit flag */
+  uint64_t payload_len;                  /**< Parsed payload length */
+  unsigned char masking_key[4];          /**< Masking key if present */
 };
 
 /**
@@ -103,9 +103,10 @@ enum c_abstract_http_error ws_apply_mask(unsigned char *payload, size_t len,
  * @param out_len Pointer to store the number of bytes written.
  * @return Number of bytes written.
  */
-enum c_abstract_http_error ws_pack_header_small(unsigned char *buf, int fin,
-                                                int opcode, int mask,
-                                                size_t len, size_t *out_len);
+enum c_abstract_http_error
+ws_pack_header_small(unsigned char *buf, int fin,
+                     enum c_abstract_http_ws_opcode opcode, int mask,
+                     size_t len, size_t *out_len);
 
 /**
  * @brief Pack a medium WebSocket frame header (126 <= payload <= 65535).
@@ -117,9 +118,10 @@ enum c_abstract_http_error ws_pack_header_small(unsigned char *buf, int fin,
  * @param out_len Pointer to store the number of bytes written.
  * @return Number of bytes written.
  */
-enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin,
-                                                 int opcode, int mask,
-                                                 size_t len, size_t *out_len);
+enum c_abstract_http_error
+ws_pack_header_medium(unsigned char *buf, int fin,
+                      enum c_abstract_http_ws_opcode opcode, int mask,
+                      size_t len, size_t *out_len);
 
 /**
  * @brief Pack a large WebSocket frame header (payload > 65535).
@@ -131,9 +133,10 @@ enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin,
  * @param out_len Pointer to store the number of bytes written.
  * @return Number of bytes written.
  */
-enum c_abstract_http_error ws_pack_header_large(unsigned char *buf, int fin,
-                                                int opcode, int mask,
-                                                size_t len, size_t *out_len);
+enum c_abstract_http_error
+ws_pack_header_large(unsigned char *buf, int fin,
+                     enum c_abstract_http_ws_opcode opcode, int mask,
+                     size_t len, size_t *out_len);
 
 /**
  * @brief State machine enum for the WebSocket parser.

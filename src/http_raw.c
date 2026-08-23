@@ -177,7 +177,11 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
       free(*host);
       return -1;
     }
+#if defined(_MSC_VER)
+    strcpy_s(*path, 2, "/");
+#else
     strcpy(*path, "/");
+#endif
   }
 
   return 0;
@@ -395,12 +399,20 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
       }
       request_buf = new_buf;
     }
+#if defined(_MSC_VER)
+    strcat_s(request_buf, sizeof(request_buf), len_buf);
+#else
     strcat(request_buf, len_buf);
+#endif
     req_len += strlen(len_buf);
     memcpy(request_buf + req_len, req->body, req->body_len);
     req_len += req->body_len;
   } else {
+#if defined(_MSC_VER)
+    strcat_s(request_buf, sizeof(request_buf), "\r\n");
+#else
     strcat(request_buf, "\r\n");
+#endif
     req_len += 2;
   }
 

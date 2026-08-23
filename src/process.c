@@ -32,7 +32,7 @@ int g_mock_write_partial = 0;
 #ifdef _MSC_VER
 typedef int ssize_t;
 #endif
-ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count) {
+static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count) {
   if (g_mock_write_partial) {
     g_mock_write_partial = 0;
     return count > 1 ? (ssize_t)(count - 1) : 0;
@@ -177,7 +177,11 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcat_s(szCmdline, MAX_PATH, " --test-worker");
 #else
+#if defined(_MSC_VER)
+  strcat_s(szCmdline, 1024, " --test-worker");
+#else
   strcat(szCmdline, " --test-worker");
+#endif
 #endif
 
   bSuccess = CreateProcessA(NULL, szCmdline, NULL, NULL, TRUE, 0, NULL, NULL,
@@ -559,7 +563,7 @@ abstract_http_ipc_serialize_request(const struct HttpRequest *req,
   }
 
   *out_buf = buf;
-  *out_len = p - buf;
+  *out_len = (size_t)(p - buf);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -669,7 +673,7 @@ abstract_http_ipc_serialize_response(const struct HttpResponse *res,
   }
 
   *out_buf = buf;
-  *out_len = p - buf;
+  *out_len = (size_t)(p - buf);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
