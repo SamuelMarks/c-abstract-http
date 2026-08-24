@@ -1218,7 +1218,7 @@ TEST test_http_send_multi(void) {
   reqs_ptrs[0] = &reqs[0];
   reqs_ptrs[1] = &reqs[1];
 
-  http_client_init(&client);
+  (void)!http_client_init(&client);
   client.config.modality = MODALITY_SYNC;
   for (i = 0; i < 2; ++i) {
     {
@@ -1229,8 +1229,8 @@ TEST test_http_send_multi(void) {
     }
   }
 
-  http_client_send_multi(&client, (struct HttpRequest *const *)reqs_ptrs, 2,
-                         futures, NULL, NULL, 0);
+  (void)!http_client_send_multi(&client, (struct HttpRequest *const *)reqs_ptrs,
+                                2, futures, NULL, NULL, 0);
 
   for (i = 0; i < 2; ++i) {
     http_request_free(&reqs[i]);
@@ -1306,7 +1306,7 @@ TEST test_http_types_leftover_errs(void) {
   http_request_free(&req);
   memset(&req, 0, sizeof(req));
   /* cookie jar errs */
-  http_cookie_jar_init(&jar);
+  (void)!http_cookie_jar_init(&jar);
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -1604,7 +1604,7 @@ TEST test_http_types_leftover_errs(void) {
 TEST test_http_cookie_jar_set_val_oom(void) {
   struct HttpCookieJar jar;
 
-  http_cookie_jar_init(&jar);
+  (void)!http_cookie_jar_init(&jar);
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2; /* fails allocation of value, the 3rd alloc */
@@ -1683,7 +1683,7 @@ TEST test_http_types_more_errs_2(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_BR_LINE */
             http_request_set_auth_bearer(&req, NULL));
 
-  http_parts_init(NULL);
+  (void)!http_parts_init(NULL);
   http_parts_free(NULL);
   {
     enum c_abstract_http_error rc_test =
@@ -1692,7 +1692,7 @@ TEST test_http_types_more_errs_2(void) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_request_add_part_header_last(NULL, "k", "v");
+  (void)!http_request_add_part_header_last(NULL, "k", "v");
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(NULL);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1706,7 +1706,7 @@ TEST test_http_types_more_errs_2(void) {
     }
   }
   http_response_free(NULL);
-  http_future_init(NULL);
+  (void)!http_future_init(NULL);
   http_future_free(NULL);
 
   for (i = 0; i < 10; i++) { /* LCOV_EXCL_BR_LINE */
@@ -2144,8 +2144,8 @@ TEST test_http_types_oom_bruteforce_all(void) {
   /* Additional tests */
   for (i = 0; i < 5; i++) {
     struct HttpCookieJar jar;
-    http_cookie_jar_init(&jar);
-    http_cookie_jar_set(&jar, "name1", "val1");
+    (void)!http_cookie_jar_init(&jar);
+    (void)!http_cookie_jar_set(&jar, "name1", "val1");
     g_mock_alloc_fail = 1;
     {
       enum c_abstract_http_error rc_test = http_request_init(&req);
@@ -2165,8 +2165,8 @@ TEST test_http_types_oom_bruteforce_all(void) {
   }
   for (i = 0; i < 5; i++) {
     struct HttpCookieJar jar;
-    http_cookie_jar_init(&jar);
-    http_cookie_jar_set(&jar, "name1", "val1");
+    (void)!http_cookie_jar_init(&jar);
+    (void)!http_cookie_jar_set(&jar, "name1", "val1");
     g_mock_alloc_fail = 1;
     {
       enum c_abstract_http_error rc_test = http_request_init(&req);
@@ -2324,7 +2324,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_request_flatten_parts(&req);
+  (void)!http_request_flatten_parts(&req);
   http_request_free(&req);
 
   for (i = 0; i < 10; i++) {

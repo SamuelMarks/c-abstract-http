@@ -48,7 +48,7 @@ TEST test_transport_factory(void) {
   }
   ASSERT(client.transport == NULL);
 
-  transport_factory_cleanup_client(
+  (void)!transport_factory_cleanup_client(
       &client); /* test client->transport == NULL case */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

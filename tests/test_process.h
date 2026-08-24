@@ -46,10 +46,10 @@ TEST test_serialize_deserialize_request(void) { /* LCOV_EXCL_LINE */
       (c_abstract_http_mock_strdup("http://example.com/api",
                                    &_ast_strdup_0), /* LCOV_EXCL_LINE */
        _ast_strdup_0);                              /* LCOV_EXCL_LINE */
-  http_headers_add(&req_in.headers, "Content-Type",
-                   "application/json"); /* LCOV_EXCL_LINE */
-  http_headers_add(&req_in.headers, "X-Custom",
-                   "test_val"); /* LCOV_EXCL_LINE */
+  (void)!http_headers_add(&req_in.headers, "Content-Type",
+                          "application/json"); /* LCOV_EXCL_LINE */
+  (void)!http_headers_add(&req_in.headers, "X-Custom",
+                          "test_val"); /* LCOV_EXCL_LINE */
 
   req_in.body_len = 13;                                  /* LCOV_EXCL_LINE */
   req_in.body = malloc(req_in.body_len);                 /* LCOV_EXCL_LINE */

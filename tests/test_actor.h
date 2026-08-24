@@ -328,8 +328,8 @@ TEST test_actor_oom(void) {                                /* LCOV_EXCL_LINE */
   {
     int i;
     for (i = 0; i < 15; i++) { /* 15 + dummy = 16 actors */ /* LCOV_EXCL_LINE */
-      abstract_http_actor_spawn(bus, "test", dummy_handler, NULL,
-                                &actor); /* LCOV_EXCL_LINE */
+      (void)!abstract_http_actor_spawn(bus, "test", dummy_handler, NULL,
+                                       &actor); /* LCOV_EXCL_LINE */
     } /* LCOV_EXCL_LINE */
     g_mock_alloc_fail = 1;  /* LCOV_EXCL_LINE */
     g_mock_alloc_count = 0; /* LCOV_EXCL_LINE */
@@ -344,8 +344,8 @@ TEST test_actor_oom(void) {                                /* LCOV_EXCL_LINE */
     }
 
     /* Now successfully spawn one so the next tests don't shift */
-    abstract_http_actor_spawn(bus, "test_success", dummy_handler, NULL,
-                              &actor); /* LCOV_EXCL_LINE */
+    (void)!abstract_http_actor_spawn(bus, "test_success", dummy_handler, NULL,
+                                     &actor); /* LCOV_EXCL_LINE */
   }
 
   /* Test actor spawn OOM on calloc */
@@ -390,8 +390,8 @@ TEST test_actor_queued_free_and_tail(void) { /* LCOV_EXCL_LINE */
       printf("Error: %d\n", (int)rc_test);
     }
   } /* LCOV_EXCL_LINE */
-  abstract_http_actor_spawn(bus, "myactor", dummy_handler, NULL,
-                            &actor); /* LCOV_EXCL_LINE */
+  (void)!abstract_http_actor_spawn(bus, "myactor", dummy_handler, NULL,
+                                   &actor); /* LCOV_EXCL_LINE */
 
   msg1.receiver = actor; /* LCOV_EXCL_LINE */
   msg2.receiver = actor; /* LCOV_EXCL_LINE */

@@ -194,10 +194,11 @@ TEST test_thread_pool_errors(void) {          /* LCOV_EXCL_LINE */
   abstract_http_thread_pool_test_set_stop(NULL);    /* LCOV_EXCL_LINE */
   abstract_http_thread_pool_test_inject_task(NULL); /* LCOV_EXCL_LINE */
 
-  g_mock_alloc_fail = 1;                    /* LCOV_EXCL_LINE */
-  g_mock_alloc_count = 0;                   /* LCOV_EXCL_LINE */
-  abstract_http_thread_pool_init(           /* LCOV_EXCL_LINE */
-                                 &pool, 1); /* this will fail due to
+  g_mock_alloc_fail = 1;                /* LCOV_EXCL_LINE */
+  g_mock_alloc_count = 0;               /* LCOV_EXCL_LINE */
+  (void)!abstract_http_thread_pool_init(/* LCOV_EXCL_LINE */
+                                        &pool,
+                                        1); /* this will fail due to
                                                C_ABSTRACT_HTTP_ERR_NOMEM or we
                                                just use a valid pool */
   g_mock_alloc_fail = 0;                    /* LCOV_EXCL_LINE */
