@@ -218,7 +218,7 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
           free(s->captured_request);
         s->captured_request = (char *)malloc((size_t)bytes_read + 1);
         if (s->captured_request) { /* LCOV_EXCL_BR_LINE */
-          memcpy(s->captured_request, buffer, bytes_read + 1);
+          memcpy(s->captured_request, buffer, (size_t)bytes_read + 1);
           s->captured_len = (size_t)bytes_read;
           s->has_request = 1;
           cond_signal(&s->cond_req_ready);
