@@ -860,7 +860,7 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
 
   if (ctx->timer_id > 0) {
     rc = http_loop_cancel_timer(ctx->loop, ctx->timer_id);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS && rc != ENOENT) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS && rc != C_ABSTRACT_HTTP_ERR_INVAL) {
       LOG_DEBUG("multi_timer_function: http_loop_cancel_timer failed");
       goto timer_error;
     }

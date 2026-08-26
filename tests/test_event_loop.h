@@ -304,11 +304,14 @@ TEST test_event_loop_errors(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
             http_loop_add_fd(loop, 5, 1, mock_fd_cb, NULL));
   ASSERT_EQ(EEXIST, http_loop_add_fd(loop, 5, 1, mock_fd_cb,
-                                     NULL));       /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(ENOENT, http_loop_mod_fd(loop, 6, 1)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(ENOENT, http_loop_remove_fd(loop, 6)); /* LCOV_EXCL_BR_LINE */
+                                     NULL)); /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_loop_mod_fd(loop, 6, 1)); /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_loop_remove_fd(loop, 6)); /* LCOV_EXCL_BR_LINE */
 
-  ASSERT_EQ(ENOENT, http_loop_cancel_timer(loop, 999)); /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_loop_cancel_timer(loop, 999)); /* LCOV_EXCL_BR_LINE */
 
   http_loop_free(loop);
   PASS();

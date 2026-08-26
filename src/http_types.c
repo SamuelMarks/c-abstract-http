@@ -174,7 +174,7 @@ enum c_abstract_http_error http_headers_get(const struct HttpHeaders *headers,
       return C_ABSTRACT_HTTP_SUCCESS;
     }
   }
-  return ENOENT;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 enum c_abstract_http_error http_headers_remove(struct HttpHeaders *headers,
                                                const char *key) {
@@ -205,7 +205,7 @@ enum c_abstract_http_error http_headers_remove(struct HttpHeaders *headers,
     }
   }
 
-  return found ? 0 : ENOENT;
+  return found ? 0 : C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
 /* --- Multipart Implementation --- */
@@ -592,7 +592,7 @@ enum c_abstract_http_error http_cookie_jar_get(const struct HttpCookieJar *jar,
       return C_ABSTRACT_HTTP_SUCCESS;
     }
   }
-  return ENOENT;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
 enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
@@ -1935,26 +1935,13 @@ http_response_save_to_file(const struct HttpResponse *res, const char *path) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  {
-    errno_t err = fopen_s(&f, path, "wb");
-    if (err != 0)
-      return err;
-  }
-#else
-#if defined(_MSC_VER)
-  if (fopen_s(&f, path, "wb") != 0)
-    f = NULL;
-#else
-#if defined(_MSC_VER)
   if (fopen_s(&f, path, "wb") != 0)
     f = NULL;
 #else
   f = fopen(path, "wb");
 #endif
-#endif
   if (!f)
-    return errno ? errno : EIO; /* LCOV_EXCL_BR_LINE */
-#endif
+    return C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_BR_LINE */
 
   if (res->body_len > 0 && res->body) { /* LCOV_EXCL_BR_LINE */
     written = fwrite(res->body, 1, res->body_len, f);

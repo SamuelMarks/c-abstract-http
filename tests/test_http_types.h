@@ -471,31 +471,34 @@ TEST test_http_headers_get_remove(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,      /* LCOV_EXCL_BR_LINE */
             http_headers_get(&headers, "x-custom", &out));
   ASSERT_STR_EQ("123", out); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(ENOENT, http_headers_get(&headers, "Not-Found",
-                                     &out)); /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      http_headers_get(&headers, "Not-Found", &out)); /* LCOV_EXCL_BR_LINE */
 
   /* Test Remove (Middle element) */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_headers_remove(&headers, "x-custom")); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(ENOENT, http_headers_get(&headers, "x-custom",
-                                     &out));             /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      http_headers_get(&headers, "x-custom", &out));     /* LCOV_EXCL_BR_LINE */
   ASSERT_EQ(2, headers.count);                           /* LCOV_EXCL_BR_LINE */
   ASSERT_STR_EQ("Content-Type", headers.headers[0].key); /* LCOV_EXCL_BR_LINE */
   ASSERT_STR_EQ("Set-Cookie", headers.headers[1].key);
   /* Shifted left */ /* LCOV_EXCL_BR_LINE */
 
   /* Test Remove (Not Found) */
-  ASSERT_EQ(ENOENT,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_headers_remove(&headers, "Not-Found")); /* LCOV_EXCL_BR_LINE */
   ASSERT_EQ(2, headers.count);                           /* LCOV_EXCL_BR_LINE */
 
   /* Test Remove (First element) */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
             http_headers_remove(&headers, "content-type"));
-  ASSERT_EQ(ENOENT, http_headers_get(&headers, "content-type",
-                                     &out));           /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(1, headers.count);                         /* LCOV_EXCL_BR_LINE */
-  ASSERT_STR_EQ("Set-Cookie", headers.headers[0].key); /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      http_headers_get(&headers, "content-type", &out)); /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(1, headers.count);                           /* LCOV_EXCL_BR_LINE */
+  ASSERT_STR_EQ("Set-Cookie", headers.headers[0].key);   /* LCOV_EXCL_BR_LINE */
 
   /* Test Remove (Last element) */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
@@ -556,7 +559,7 @@ TEST test_http_cookie_jar(void) {
   ASSERT_STR_EQ("def", out); /* LCOV_EXCL_BR_LINE */
 
   /* Unknown cookie */
-  ASSERT_EQ(ENOENT,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_cookie_jar_get(&jar, "unknown", &out)); /* LCOV_EXCL_BR_LINE */
 
   http_cookie_jar_free(&jar);
@@ -1828,7 +1831,7 @@ TEST test_http_types_end_errs(void) {
   /* try to write to an invalid directory to trigger C_ABSTRACT_HTTP_ERR_IO */
   rc = http_response_save_to_file(
       &res, "/invalid_dir_that_does_not_exist_123/out.txt");
-  ASSERT_EQ(ENOENT, rc); /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc); /* LCOV_EXCL_BR_LINE */
 
   /* 1971, 1979: send_multi */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_BR_LINE */

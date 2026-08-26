@@ -401,7 +401,7 @@ enum c_abstract_http_error http_loop_mod_fd(struct ModalityEventLoop *loop,
     }
   }
   LOG_DEBUG("http_loop_mod_fd: Error ENOENT");
-  return ENOENT;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
 enum c_abstract_http_error http_loop_remove_fd(struct ModalityEventLoop *loop,
@@ -430,7 +430,7 @@ enum c_abstract_http_error http_loop_remove_fd(struct ModalityEventLoop *loop,
     }
   }
   LOG_DEBUG("http_loop_remove_fd: Error ENOENT");
-  return ENOENT;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
 enum c_abstract_http_error
@@ -514,7 +514,7 @@ http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
     }
   }
   LOG_DEBUG("http_loop_cancel_timer: Error ENOENT");
-  return ENOENT;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
 static enum c_abstract_http_error

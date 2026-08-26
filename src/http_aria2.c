@@ -137,17 +137,7 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
     f = NULL;
   }
 #else
-#if defined(_MSC_VER)
-  if (fopen_s(&f, tmp_filename, "rb") != 0)
-    f = NULL;
-#else
-#if defined(_MSC_VER)
-  if (fopen_s(&f, tmp_filename, "rb") != 0)
-    f = NULL;
-#else
   f = fopen(tmp_filename, "rb");
-#endif
-#endif
 #endif
 
   if (f) {

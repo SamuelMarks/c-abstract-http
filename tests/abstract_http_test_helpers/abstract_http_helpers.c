@@ -23,45 +23,16 @@ int write_to_file(const char *const filename, const char *const contents) {
   if (filename == NULL || contents == NULL)
     return EXIT_FAILURE;
 
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER) ||                         \
-    defined(__STDC_LIB_EXT1__) && __STDC_WANT_LIB_EXT1__
-  {
-    errno_t err;
-    err = fopen_s(&fh, filename, "w");
-    if (err != 0 || fh == NULL) {
-      fprintf(stderr, "Failed to open for writing %s\n", filename);
-      return EXIT_FAILURE;
-    }
-  }
-#else
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  fopen_s(&fh, filename, "w");
-#else
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  fopen_s(&fh, filename, "w");
-#else
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  fopen_s(&fh, filename, "w");
-#else
-#if defined(_MSC_VER)
-  if (fopen_s(&fh, filename, "w") != 0)
-    fh = NULL;
-#else
-#if defined(_MSC_VER)
   if (fopen_s(&fh, filename, "w") != 0)
     fh = NULL;
 #else
   fh = fopen(filename, "w");
 #endif
-#endif
-#endif
-#endif
-#endif
   if (fh == NULL) {
     fprintf(stderr, "Failed to open for writing %s\n", filename);
     return EXIT_FAILURE;
   }
-#endif
 
   if (fputs(contents, fh) < 0) {
     fprintf(stderr, "Failure to write to %s\n", filename);

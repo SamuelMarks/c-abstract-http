@@ -157,12 +157,13 @@ typedef HANDLE abstract_http_thread_t;
 #define ABSTRACT_HTTP_THREAD_FUNC DWORD
 typedef LPVOID abstract_http_thread_arg_t;
 
-static int thread_create(abstract_http_thread_t *thread,
-                         ABSTRACT_HTTP_THREAD_FUNC(WINAPI *start_routine)(
-                             abstract_http_thread_arg_t),
-                         abstract_http_thread_arg_t arg) {
+static enum c_abstract_http_error
+thread_create(abstract_http_thread_t *thread,
+              ABSTRACT_HTTP_THREAD_FUNC(WINAPI *start_routine)(
+                  abstract_http_thread_arg_t),
+              abstract_http_thread_arg_t arg) {
   *thread = CreateThread(NULL, 0, start_routine, arg, 0, NULL);
-  return (*thread == NULL) ? EIO : 0;
+  return (*thread == NULL) ? C_ABSTRACT_HTTP_ERR_IO : C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static void thread_join(abstract_http_thread_t thread) {
@@ -186,7 +187,7 @@ abstract_http_mutex_init(struct AbstractHttpMutex **mutex) {
   if (!mutex)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   *mutex = (struct AbstractHttpMutex *)malloc(sizeof(struct AbstractHttpMutex));
-  return *mutex ? 0 : ENOMEM;
+  return *mutex ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_NOMEM;
 }
 enum c_abstract_http_error
 abstract_http_mutex_lock(struct AbstractHttpMutex *mutex) {
@@ -205,7 +206,7 @@ abstract_http_cond_init(struct AbstractHttpCond **cond) {
   if (!cond)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   *cond = (struct AbstractHttpCond *)malloc(sizeof(struct AbstractHttpCond));
-  return *cond ? 0 : ENOMEM;
+  return *cond ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_NOMEM;
 }
 enum c_abstract_http_error
 abstract_http_cond_wait(struct AbstractHttpCond *cond,
@@ -230,7 +231,7 @@ typedef int abstract_http_thread_t;
 #define ABSTRACT_HTTP_THREAD_FUNC void *
 typedef void *abstract_http_thread_arg_t;
 
-static int thread_create(
+static enum c_abstract_http_error thread_create(
     abstract_http_thread_t *thread,
     ABSTRACT_HTTP_THREAD_FUNC (*start_routine)(abstract_http_thread_arg_t),
     abstract_http_thread_arg_t arg) {
@@ -337,11 +338,13 @@ typedef pthread_t abstract_http_thread_t;
 #define ABSTRACT_HTTP_THREAD_FUNC void *
 typedef void *abstract_http_thread_arg_t;
 
-static int thread_create(
+static enum c_abstract_http_error thread_create(
     abstract_http_thread_t *thread,
     ABSTRACT_HTTP_THREAD_FUNC (*start_routine)(abstract_http_thread_arg_t),
     abstract_http_thread_arg_t arg) {
-  return (pthread_create(thread, NULL, start_routine, arg) == 0) ? 0 : EIO;
+  return (pthread_create(thread, NULL, start_routine, arg) == 0)
+             ? C_ABSTRACT_HTTP_SUCCESS
+             : C_ABSTRACT_HTTP_ERR_IO;
 }
 
 static void thread_join(abstract_http_thread_t thread) {
