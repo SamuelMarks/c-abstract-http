@@ -1998,7 +1998,11 @@ TEST test_http_types_final_errs(void) {
   }
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  (void)http_client_send_multi(&client, &req_ptr, 1, futures, NULL, NULL, 0);
+  {
+    c_abstract_http_error_t rc_send =
+        http_client_send_multi(&client, &req_ptr, 1, futures, NULL, NULL, 0);
+    (void)rc_send;
+  }
   g_mock_alloc_fail = 0;
   http_request_free(&req);
   http_request_free(&req);

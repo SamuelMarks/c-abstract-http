@@ -22,7 +22,7 @@ def main():
         subprocess.run([
             "cmake", "-B", build_dir,
             "-DC_ABSTRACT_HTTP_ENABLE_COVERAGE=ON",
-            "-DBUILD_TESTING_c-abstract-http=ON",
+            "-DBUILD_TESTING=ON",
             "-DC_ABSTRACT_HTTP_ENABLE_WEBSOCKETS=ON",
             "-DC_ABSTRACT_HTTP_ENABLE_SSE=ON"
         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
@@ -42,7 +42,7 @@ def main():
 
     print("--> Running tests...")
     try:
-        tests_dir = os.path.join(build_dir, "tests")
+        tests_dir = build_dir
         subprocess.run(["ctest", "--output-on-failure"], cwd=tests_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
     except subprocess.CalledProcessError:
         print("Warning: Tests failed. Badge will still be updated based on whatever ran.")

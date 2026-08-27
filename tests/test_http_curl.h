@@ -59,8 +59,14 @@ TEST test_curl_global_lifecycle(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_curl_global_init()); /* Re-entrant check */
 
-  http_curl_global_cleanup();
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   PASS();
 }
 
@@ -69,7 +75,7 @@ TEST test_curl_context_lifecycle(void) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpTransportContext *ctx = NULL;
 
-  http_curl_global_init();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
 
   rc = http_curl_context_init(&ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -79,7 +85,10 @@ TEST test_curl_context_lifecycle(void) {
   /* Double free safety check (should be safe with NULL) */
   http_curl_context_free(NULL);
 
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   PASS();
 }
 
@@ -92,8 +101,8 @@ TEST test_curl_config_application(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig config;
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -120,7 +129,10 @@ TEST test_curl_config_application(void) {
 
   http_config_free(&config);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   PASS();
 }
 
@@ -134,8 +146,8 @@ TEST test_curl_send_connection_failure(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -145,7 +157,7 @@ TEST test_curl_send_connection_failure(void) {
 
   /* Fast timeout for test speed */
   config.timeout_ms = 50;
-  http_curl_config_apply(ctx, &config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   /* Use an invalid port */
   setup_request(&req, 59999);
@@ -167,7 +179,10 @@ TEST test_curl_send_connection_failure(void) {
   http_config_free(&config);
   http_request_free(&req);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   PASS();
 }
 
@@ -177,8 +192,8 @@ TEST test_curl_send_invalid_arguments(void) {
   struct HttpResponse *res = NULL;
   struct HttpRequest req;
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -207,7 +222,10 @@ TEST test_curl_send_invalid_arguments(void) {
 
   http_request_free(&req);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   PASS();
 }
 
@@ -255,15 +273,15 @@ TEST test_curl_send_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_curl_config_apply(ctx, &config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   setup_request(&req, math_mock_server_get_port(server));
 
@@ -292,7 +310,10 @@ TEST test_curl_send_chunked(void) {
   http_config_free(&config);
   http_request_free(&req);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   mock_server_destroy(server);
   PASS();
 }
@@ -310,15 +331,15 @@ TEST test_curl_send_chunked_abort(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_curl_config_apply(ctx, &config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   setup_request(&req, math_mock_server_get_port(server));
 
@@ -337,7 +358,10 @@ TEST test_curl_send_chunked_abort(void) {
   http_config_free(&config);
   http_request_free(&req);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   mock_server_destroy(server);
   PASS();
 }
@@ -380,15 +404,15 @@ TEST test_curl_send_upload_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_curl_config_apply(ctx, &config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   setup_request(&req, math_mock_server_get_port(server));
   req.method = HTTP_POST;
@@ -427,7 +451,10 @@ TEST test_curl_send_upload_chunked(void) {
   http_config_free(&config);
   http_request_free(&req);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   mock_server_destroy(server);
   PASS();
 }
@@ -451,7 +478,10 @@ TEST test_curl_http3_config(void) {
 
   http_config_free(&config);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   PASS();
 }
 
@@ -560,8 +590,8 @@ TEST test_curl_send_write_oom(void) {
   sprintf(url_buf, "http://127.0.0.1:%d", math_mock_server_get_port(server));
 #endif
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
@@ -596,7 +626,10 @@ TEST test_curl_send_write_oom(void) {
   req.url = NULL;
   http_request_free(&req);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
 
   mock_server_destroy(server);
 
@@ -678,7 +711,10 @@ TEST test_curl_unsupported_methods(void) {
   }
 
   req.method = HTTP_DELETE;
-  http_curl_send(ctx, &req, &res);
+  {
+    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
+    (void)rc_send;
+  }
   if (res) {
     http_response_free(res);
     free(res);
@@ -686,7 +722,10 @@ TEST test_curl_unsupported_methods(void) {
   }
 
   req.method = HTTP_HEAD;
-  http_curl_send(ctx, &req, &res);
+  {
+    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
+    (void)rc_send;
+  }
   if (res) {
     http_response_free(res);
     free(res);
@@ -694,7 +733,10 @@ TEST test_curl_unsupported_methods(void) {
   }
 
   req.method = HTTP_PATCH;
-  http_curl_send(ctx, &req, &res);
+  {
+    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
+    (void)rc_send;
+  }
   if (res) {
     http_response_free(res);
     free(res);
@@ -702,7 +744,10 @@ TEST test_curl_unsupported_methods(void) {
   }
 
   req.method = HTTP_PUT;
-  http_curl_send(ctx, &req, &res);
+  {
+    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
+    (void)rc_send;
+  }
   if (res) {
     http_response_free(res);
     free(res);
@@ -710,7 +755,10 @@ TEST test_curl_unsupported_methods(void) {
   }
 
   req.method = HTTP_POST;
-  http_curl_send(ctx, &req, &res);
+  {
+    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
+    (void)rc_send;
+  }
   if (res) {
     http_response_free(res);
     free(res);
@@ -743,7 +791,10 @@ TEST test_curl_payload_methods(void) {
   req.body_len = 4;
 
   req.method = HTTP_PATCH;
-  http_curl_send(ctx, &req, &res);
+  {
+    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
+    (void)rc_send;
+  }
   if (res) {
     http_response_free(res);
     free(res);
@@ -751,7 +802,10 @@ TEST test_curl_payload_methods(void) {
   }
 
   req.method = HTTP_QUERY;
-  http_curl_send(ctx, &req, &res);
+  {
+    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
+    (void)rc_send;
+  }
   if (res) {
     http_response_free(res);
     free(res);
@@ -759,7 +813,10 @@ TEST test_curl_payload_methods(void) {
   }
 
   req.method = HTTP_PUT;
-  http_curl_send(ctx, &req, &res);
+  {
+    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
+    (void)rc_send;
+  }
   if (res) {
     http_response_free(res);
     free(res);
@@ -767,7 +824,10 @@ TEST test_curl_payload_methods(void) {
   }
 
   req.method = HTTP_POST;
-  http_curl_send(ctx, &req, &res);
+  {
+    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
+    (void)rc_send;
+  }
   if (res) {
     http_response_free(res);
     free(res);
@@ -805,8 +865,8 @@ TEST test_curl_send_cookies(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
   port = math_mock_server_get_port(server);
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
@@ -814,9 +874,9 @@ TEST test_curl_send_cookies(void) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_cookie_jar_init(&jar);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
   config.cookie_jar = &jar;
-  http_curl_config_apply(ctx, &config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
@@ -885,7 +945,10 @@ TEST test_curl_send_cookies(void) {
   http_config_free(&config);
   http_cookie_jar_free(&jar);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   mock_server_destroy(server);
   PASS();
 }
@@ -911,8 +974,8 @@ TEST test_curl_send_upload_chunked_abort(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
   port = math_mock_server_get_port(server);
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
@@ -934,7 +997,10 @@ TEST test_curl_send_upload_chunked_abort(void) {
   http_request_free(&req);
 
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   mock_server_destroy(server);
   PASS();
 }
@@ -968,8 +1034,8 @@ TEST test_curl_send_oom(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
   port = math_mock_server_get_port(server);
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
@@ -999,7 +1065,10 @@ TEST test_curl_send_oom(void) {
 
   http_request_free(&req);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   mock_server_destroy(server);
   PASS();
 }
@@ -1021,8 +1090,8 @@ TEST test_curl_send_chunked_methods(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
   port = math_mock_server_get_port(server);
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   /* PUT chunked */
   {
@@ -1168,7 +1237,10 @@ TEST test_curl_send_chunked_methods(void) {
   http_request_free(&req);
 
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   mock_server_destroy(server);
   PASS();
 }
@@ -1189,15 +1261,15 @@ TEST test_curl_send_multi(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
   port = math_mock_server_get_port(server);
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_curl_config_apply(ctx, &config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
@@ -1280,7 +1352,10 @@ TEST test_curl_send_multi(void) {
   http_request_free(&req2);
   http_curl_context_free(ctx);
   http_loop_free(loop);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   mock_server_destroy(server);
   PASS();
 }
@@ -1294,8 +1369,8 @@ TEST test_curl_send_multi_oom(void) {
   struct ModalityEventLoop *loop = NULL;
   int i;
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
@@ -1354,7 +1429,10 @@ TEST test_curl_send_multi_oom(void) {
   future = NULL;
   http_multi_request_free(&multi);
   http_request_free(&req);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
   PASS();
 }
 
@@ -1368,9 +1446,9 @@ TEST test_curl_send_multi_setopt_fail(void) {
   struct ModalityEventLoop *loop = NULL;
   int i;
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
-  http_loop_init(&loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1433,7 +1511,10 @@ TEST test_curl_send_multi_setopt_fail(void) {
   future = NULL;
   http_multi_request_free(&multi);
   http_request_free(&req);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
 #else
   SKIP();
 #endif
@@ -1447,8 +1528,8 @@ TEST test_curl_send_setopt_fail(void) {
   int i;
   int j;
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   for (j = 0; j < 9; j++) {
     {
       enum c_abstract_http_error rc_test = http_config_init(&config);
@@ -1545,7 +1626,10 @@ TEST test_curl_send_setopt_fail(void) {
   }
 
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
 #else
   SKIP();
 #endif
@@ -1564,8 +1648,8 @@ TEST test_curl_send_perform_errors(void) {
       CURLE_FAILED_INIT /* default */
   };
 
-  http_curl_global_init();
-  http_curl_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1576,13 +1660,19 @@ TEST test_curl_send_perform_errors(void) {
 
   for (i = 0; i < 7; i++) {
     g_mock_curl_perform_res = codes[i];
-    http_curl_send(ctx, &req, &res);
+    {
+      c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
+      (void)rc_send;
+    }
   }
   g_mock_curl_perform_res = CURLE_OK;
 
   http_request_free(&req);
   http_curl_context_free(ctx);
-  http_curl_global_cleanup();
+  {
+    c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
+    (void)rc_cleanup;
+  }
 #else
   SKIP();
 #endif
