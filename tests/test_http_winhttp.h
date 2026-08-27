@@ -53,7 +53,7 @@ TEST test_winhttp_lifecycle(void) {
 
   /* Cleanup */
   http_winhttp_context_free(ctx);
-  http_winhttp_global_cleanup();
+  (void)http_winhttp_global_cleanup();
   PASS();
 #else
   SKIPm("WinHTTP not supported on this platform");
@@ -68,7 +68,7 @@ TEST test_winhttp_config_usage(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
 
-  http_winhttp_context_init(&ctx);
+  (void)http_winhttp_context_init(&ctx);
   {
     enum c_abstract_http_error rc_test = http_config_init(&cfg);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -169,7 +169,7 @@ TEST test_winhttp_send_null_checks(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig cfg;
 
-  http_winhttp_context_init(&ctx);
+  (void)http_winhttp_context_init(&ctx);
   {
     enum c_abstract_http_error rc_test = http_config_init(&cfg);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -239,15 +239,15 @@ TEST test_winhttp_send_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
-  http_winhttp_global_init();
-  http_winhttp_context_init(&ctx);
+  (void)http_winhttp_global_init();
+  (void)http_winhttp_context_init(&ctx);
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_winhttp_config_apply(ctx, &config);
+  (void)http_winhttp_config_apply(ctx, &config);
 
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
@@ -288,7 +288,7 @@ TEST test_winhttp_send_chunked(void) {
   http_config_free(&config);
   http_request_free(&req);
   http_winhttp_context_free(ctx);
-  http_winhttp_global_cleanup();
+  (void)http_winhttp_global_cleanup();
   mock_server_destroy(server);
   PASS();
 #else
@@ -312,15 +312,15 @@ TEST test_winhttp_send_chunked_abort(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
-  http_winhttp_global_init();
-  http_winhttp_context_init(&ctx);
+  (void)http_winhttp_global_init();
+  (void)http_winhttp_context_init(&ctx);
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_winhttp_config_apply(ctx, &config);
+  (void)http_winhttp_config_apply(ctx, &config);
 
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
@@ -351,7 +351,7 @@ TEST test_winhttp_send_chunked_abort(void) {
   http_config_free(&config);
   http_request_free(&req);
   http_winhttp_context_free(ctx);
-  http_winhttp_global_cleanup();
+  (void)http_winhttp_global_cleanup();
   mock_server_destroy(server);
   PASS();
 #else
@@ -401,15 +401,15 @@ TEST test_winhttp_send_upload_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
 
-  http_winhttp_global_init();
-  http_winhttp_context_init(&ctx);
+  (void)http_winhttp_global_init();
+  (void)http_winhttp_context_init(&ctx);
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_winhttp_config_apply(ctx, &config);
+  (void)http_winhttp_config_apply(ctx, &config);
 
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
@@ -447,7 +447,7 @@ TEST test_winhttp_send_upload_chunked(void) {
   http_config_free(&config);
   http_request_free(&req);
   http_winhttp_context_free(ctx);
-  http_winhttp_global_cleanup();
+  (void)http_winhttp_global_cleanup();
   mock_server_destroy(server);
   PASS();
 #else
@@ -459,7 +459,7 @@ static void dummy_timeout_cb(struct ModalityEventLoop *loop, int timer_id,
                              void *user_data) {
   (void)timer_id;
   (void)user_data;
-  http_loop_stop(loop);
+  (void)http_loop_stop(loop);
 }
 
 static int setup_request(struct HttpRequest *req, int port) {
@@ -507,25 +507,25 @@ TEST test_winhttp_send_multi(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server2));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server2));
 
-  http_winhttp_global_init();
-  http_winhttp_context_init(&ctx);
+  (void)http_winhttp_global_init();
+  (void)http_winhttp_context_init(&ctx);
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_winhttp_config_apply(ctx, &config);
+  (void)http_winhttp_config_apply(ctx, &config);
 
-  http_loop_init(&loop);
+  (void)http_loop_init(&loop);
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
   }
-  http_future_init(&f1);
-  http_future_init(&f2);
+  (void)http_future_init(&f1);
+  (void)http_future_init(&f2);
 
   setup_request(&req1, math_mock_server_get_port(server1));
   setup_request(&req2, math_mock_server_get_port(server2));
@@ -596,7 +596,7 @@ TEST test_winhttp_send_multi(void) {
   http_request_free(&req2);
   http_config_free(&config);
   http_winhttp_context_free(ctx);
-  http_winhttp_global_cleanup();
+  (void)http_winhttp_global_cleanup();
 
   mock_server_destroy(server1);
   mock_server_destroy(server2);

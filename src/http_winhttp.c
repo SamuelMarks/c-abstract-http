@@ -143,26 +143,26 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
   p = buf;
   for (i = 0; i < headers->count; ++i) {
     size_t written = 0;
-    if (ascii_to_wide(headers->headers[i].key, p, total_wide_chars - (p - buf),
-                      &written) != 0) {
+    if (ascii_to_wide(headers->headers[i].key, p,
+                      total_wide_chars - (size_t)(p - buf), &written) != 0) {
       free(buf);
       return C_ABSTRACT_HTTP_ERR_IO;
     }
     p += written;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    wcscpy_s(p, total_wide_chars - (p - buf), L": ");
+    wcscpy_s(p, total_wide_chars - (size_t)(p - buf), L": ");
 #else
     wcscpy(p, L": ");
 #endif
     p += 2;
     if (ascii_to_wide(headers->headers[i].value, p,
-                      total_wide_chars - (p - buf), &written) != 0) {
+                      total_wide_chars - (size_t)(p - buf), &written) != 0) {
       free(buf);
       return C_ABSTRACT_HTTP_ERR_IO;
     }
     p += written;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    wcscpy_s(p, total_wide_chars - (p - buf), L"\r\n");
+    wcscpy_s(p, total_wide_chars - (size_t)(p - buf), L"\r\n");
 #else
     wcscpy(p, L"\r\n");
 #endif
@@ -260,7 +260,7 @@ enum c_abstract_http_error
 http_winhttp_config_apply(struct HttpTransportContext *ctx,
                           const struct HttpConfig *config) {
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-  DWORD dwResolveTimeout, dwConnectTimeout, dwSendTimeout, dwReceiveTimeout;
+  int dwResolveTimeout, dwConnectTimeout, dwSendTimeout, dwReceiveTimeout;
   LOG_DEBUG("http_winhttp_config_apply: Entering");
   if (!ctx || !ctx->hSession || !config) {
     LOG_DEBUG("http_winhttp_config_apply: Error EINVAL");
@@ -268,17 +268,16 @@ http_winhttp_config_apply(struct HttpTransportContext *ctx,
   }
 
   dwResolveTimeout = (config->connect_timeout_ms > 0)
-                         ? (DWORD)config->connect_timeout_ms
-                         : (DWORD)config->timeout_ms;
+                         ? (int)config->connect_timeout_ms
+                         : (int)config->timeout_ms;
   dwConnectTimeout = (config->connect_timeout_ms > 0)
-                         ? (DWORD)config->connect_timeout_ms
-                         : (DWORD)config->timeout_ms;
-  dwSendTimeout = (config->write_timeout_ms > 0)
-                      ? (DWORD)config->write_timeout_ms
-                      : (DWORD)config->timeout_ms;
+                         ? (int)config->connect_timeout_ms
+                         : (int)config->timeout_ms;
+  dwSendTimeout = (config->write_timeout_ms > 0) ? (int)config->write_timeout_ms
+                                                 : (int)config->timeout_ms;
   dwReceiveTimeout = (config->read_timeout_ms > 0)
-                         ? (DWORD)config->read_timeout_ms
-                         : (DWORD)config->timeout_ms;
+                         ? (int)config->read_timeout_ms
+                         : (int)config->timeout_ms;
 
   if (!WinHttpSetTimeouts(ctx->hSession, dwResolveTimeout, dwConnectTimeout,
                           dwSendTimeout, dwReceiveTimeout)) {
@@ -633,7 +632,14 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
               *eq = '\0';
               if (semi)
                 *semi = '\0';
-              http_cookie_jar_set(ctx->cookie_jar, name, val);
+              {
+                enum c_abstract_http_error rc_cookie =
+                    http_cookie_jar_set(ctx->cookie_jar, name, val);
+                if (rc_cookie != C_ABSTRACT_HTTP_SUCCESS) {
+                  LOG_DEBUG("http_cookie_jar_set failed with code: %d",
+                            (int)rc_cookie);
+                }
+              }
             }
           }
         }
@@ -702,7 +708,12 @@ static DWORD WINAPI winhttp_async_worker(LPVOID lpParam) {
   worker_ctx->future->error_code = rc;
   worker_ctx->future->is_ready = 1;
 
-  http_loop_wakeup(worker_ctx->loop);
+  {
+    enum c_abstract_http_error rc_wake = http_loop_wakeup(worker_ctx->loop);
+    if (rc_wake != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("http_loop_wakeup failed with code: %d", (int)rc_wake);
+    }
+  }
   free(worker_ctx);
   return C_ABSTRACT_HTTP_SUCCESS;
 }

@@ -142,28 +142,28 @@ static int headers_to_wide_block(const struct HttpHeaders *headers,
   for (i = 0; i < headers->count; ++i) {
     size_t written = 0;
     /* Key */
-    if (ascii_to_wide(headers->headers[i].key, p, total_wchars - (p - buf),
-                      &written) != 0) {
+    if (ascii_to_wide(headers->headers[i].key, p,
+                      total_wchars - (size_t)(p - buf), &written) != 0) {
       free(buf);
       return C_ABSTRACT_HTTP_ERR_IO;
     }
     p += written;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    wcscpy_s(p, total_wchars - (p - buf), L": ");
+    wcscpy_s(p, total_wchars - (size_t)(p - buf), L": ");
 #else
     wcscpy(p, L": ");
 #endif
     p += 2;
 
     /* Value */
-    if (ascii_to_wide(headers->headers[i].value, p, total_wchars - (p - buf),
-                      &written) != 0) {
+    if (ascii_to_wide(headers->headers[i].value, p,
+                      total_wchars - (size_t)(p - buf), &written) != 0) {
       free(buf);
       return C_ABSTRACT_HTTP_ERR_IO;
     }
     p += written;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    wcscpy_s(p, total_wchars - (p - buf), L"\r\n");
+    wcscpy_s(p, total_wchars - (size_t)(p - buf), L"\r\n");
 #else
     wcscpy(p, L"\r\n");
 #endif

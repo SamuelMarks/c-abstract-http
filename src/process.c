@@ -23,7 +23,9 @@ extern void c_abstract_http_mock_free(void *ptr);
 #define calloc c_abstract_http_mock_calloc
 #define realloc c_abstract_http_mock_realloc
 #define free c_abstract_http_mock_free
+#ifndef _WIN32
 int g_mock_write_partial = 0;
+#endif
 #if defined(_WIN32)
 #include <io.h>
 #else
@@ -32,20 +34,17 @@ int g_mock_write_partial = 0;
 #ifdef _MSC_VER
 typedef int ssize_t;
 #endif
+#ifndef _WIN32
 static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count) {
   if (g_mock_write_partial) {
     g_mock_write_partial = 0;
     return count > 1 ? (ssize_t)(count - 1) : 0;
   }
 #undef write
-#if defined(_WIN32)
-  return _write(fd, buf, (unsigned int)count);
-#else
   return write(fd, buf, count);
-#endif
-#define write c_abstract_http_mock_write
 }
 #define write c_abstract_http_mock_write
+#endif
 #endif
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)

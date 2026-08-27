@@ -451,7 +451,7 @@ void abstract_http_mock_server_clear_request(MockServerPtr server) {
 
 void abstract_http_mock_server_force_fd(MockServerPtr server, int fd) {
   if (server) {
-    server->server_fd = fd;
+    server->server_fd = (socket_t)fd;
     server->running = 0;
   }
 }
