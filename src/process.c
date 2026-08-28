@@ -10,26 +10,16 @@ extern int g_mock_waitpid_fail;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-#undef malloc
-#undef calloc
-#undef realloc
-#undef free
-#define malloc c_abstract_http_mock_malloc
-extern void *c_abstract_http_mock_malloc(size_t size);
-extern void *c_abstract_http_mock_calloc(size_t count, size_t size);
-extern void *c_abstract_http_mock_realloc(void *ptr, size_t size);
-extern void c_abstract_http_mock_free(void *ptr);
-#define calloc c_abstract_http_mock_calloc
-#define realloc c_abstract_http_mock_realloc
-#define free c_abstract_http_mock_free
-#ifndef _WIN32
-int g_mock_write_partial = 0;
-#endif
+
 #if defined(_WIN32)
 #include <io.h>
 #else
 #include <unistd.h>
+#endif
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#ifndef _WIN32
+int g_mock_write_partial = 0;
 #endif
 #ifdef _MSC_VER
 typedef int ssize_t;

@@ -307,7 +307,7 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
 
-    while (1) {
+    for (;;) {
       UInt8 chunkBuf[8192];
       size_t out_read = 0;
       int cb_rc = req->read_chunk(req->read_chunk_user_data, chunkBuf,

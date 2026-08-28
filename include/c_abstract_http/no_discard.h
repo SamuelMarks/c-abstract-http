@@ -7,13 +7,14 @@ extern "C" {
 
 /* clang-format off */
 #if defined(__GNUC__) || defined(__clang__)
-/* clang-format on */
 #define NO_DISCARD __attribute__((warn_unused_result))
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && _MSC_VER >= 1700
+#include <sal.h>
 #define NO_DISCARD _Check_return_
 #else
 #define NO_DISCARD
 #endif
+/* clang-format on */
 
 #ifdef __cplusplus
 }

@@ -378,7 +378,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     char len_buf[64];
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(len_buf, sizeof(len_buf),
-              "Content-Length: " NUM_FORMAT "\r\n\r\n",
+              "Content-Length: " C_ABSTRACT_HTTP_NUM_FORMAT "\r\n\r\n",
               (unsigned long long)req->body_len);
 #else
     sprintf(len_buf, "Content-Length: %lu\r\n\r\n",
@@ -477,7 +477,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  while (1) {
+  for (;;) {
     int r_rc;
     fd_set fdset;
     struct timeval tv;

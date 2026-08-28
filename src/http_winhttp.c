@@ -9,9 +9,7 @@
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 
 #include "win_compat_sym.h"
-#include <windef.h>
-#include <winnt.h>
-#include <winbase.h>
+#include <winsock2.h>
 #include <winerror.h>
 #include <winhttp.h>
 
@@ -520,7 +518,7 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
       CLEANUP_AND_RET(EIO);
     }
 
-    while (1) {
+    for (;;) {
       char chunkBuf[8192];
       size_t out_read = 0;
       int cb_rc = req->read_chunk(req->read_chunk_user_data, chunkBuf,

@@ -5,25 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <c_abstract_http/http_types.h>
 #include <c89stringutils_string_extras.h>
 
 #include "str.h"
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern void *c_abstract_http_mock_malloc(size_t size);
-extern void *c_abstract_http_mock_calloc(size_t num, size_t size);
-extern void *c_abstract_http_mock_realloc(void *ptr, size_t size);
-extern void c_abstract_http_mock_free(void *ptr);
 
-#define malloc c_abstract_http_mock_malloc
-#define calloc c_abstract_http_mock_calloc
-extern void *c_abstract_http_mock_realloc(void *, size_t);
-#define realloc c_abstract_http_mock_realloc
-#define free c_abstract_http_mock_free
-#endif
-#include <time.h>
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN

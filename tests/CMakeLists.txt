@@ -40,7 +40,7 @@ add_executable(c-abstract-http-test ${TEST_SOURCES})
     if(MSVC)
         target_compile_options(c-abstract-http-test PRIVATE "/W4" "/WX")
     else()
-        target_compile_options(c-abstract-http-test PRIVATE "-Wall" "-Wextra" "" "-pedantic" "-std=c89")
+        target_compile_options(c-abstract-http-test PRIVATE "-Wall" "-Wextra" "-Werror" "-pedantic" "-std=c89")
     endif()
 target_link_libraries(c-abstract-http-test PRIVATE c-abstract-http)
 

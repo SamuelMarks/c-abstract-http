@@ -28,6 +28,25 @@
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
+#ifdef _MSC_VER
+#undef FD_SET
+#define FD_SET(fd, set)                                                        \
+  do {                                                                         \
+    u_int __i;                                                                 \
+    for (__i = 0; __i < ((fd_set FAR *)(set))->fd_count; __i++) {              \
+      if (((fd_set FAR *)(set))->fd_array[__i] == (fd)) {                      \
+        break;                                                                 \
+      }                                                                        \
+    }                                                                          \
+    if (__i == ((fd_set FAR *)(set))->fd_count) {                              \
+      if (((fd_set FAR *)(set))->fd_count < FD_SETSIZE) {                      \
+        ((fd_set FAR *)(set))->fd_array[__i] = (fd);                           \
+        ((fd_set FAR *)(set))->fd_count++;                                     \
+      }                                                                        \
+    }                                                                          \
+  } while ((void)0, 0)
+#endif
+
 /** @brief Internal struct TimerNode */
 struct TimerNode {
   /** @brief expiration (variable) of struct TimerNode */
@@ -151,7 +170,7 @@ static enum c_abstract_http_error timer_heap_up(struct ModalityEventLoop *loop,
 static enum c_abstract_http_error
 timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
   enum c_abstract_http_error rc;
-  while (1) {
+  for (;;) {
     size_t left = 2 * idx + 1;
     size_t right = 2 * idx + 2;
     size_t smallest = idx;

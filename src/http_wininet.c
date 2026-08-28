@@ -9,9 +9,7 @@
 #ifdef _WIN32
 
 #include "win_compat_sym.h"
-#include <windef.h>
-#include <winnt.h>
-#include <winbase.h>
+#include <winsock2.h>
 #include <winerror.h>
 #include <wininet.h>
 
@@ -46,10 +44,9 @@ wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out_len) {
 }
 
 #define CHECK_EINVAL(x)                                                        \
-  do {                                                                         \
-    if (!(x))                                                                  \
-      return C_ABSTRACT_HTTP_ERR_INVAL;                                        \
-  } while (0)
+  if (!(x)) {                                                                  \
+    return C_ABSTRACT_HTTP_ERR_INVAL;                                          \
+  }
 
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
@@ -528,7 +525,7 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
       goto cleanup;
     }
 
-    while (1) {
+    for (;;) {
       char chunkBuf[8192];
       size_t out_read = 0;
       DWORD dwWritten = 0;
@@ -625,7 +622,7 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
     goto cleanup;
   }
 
-  while (1) {
+  for (;;) {
     if (!InternetReadFile(hRequest, readChunk, 4096, &bytesRead)) {
       LOG_DEBUG("http_wininet_send: Error InternetReadFile failed");
       rc = C_ABSTRACT_HTTP_ERR_IO;

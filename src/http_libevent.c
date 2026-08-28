@@ -346,7 +346,7 @@ http_libevent_send(const struct HttpTransportContext *ctx,
       struct evbuffer *evb = evhttp_request_get_output_buffer(req_ev);
       char buf[4096];
       size_t read_bytes = 0;
-      while (1) {
+      for (;;) {
         int r = req->read_chunk(req->read_chunk_user_data, buf, sizeof(buf),
                                 &read_bytes);
         if (r != 0 || read_bytes == 0)

@@ -237,7 +237,7 @@ enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
     size_t out_read;
     GByteArray *byte_array = g_byte_array_new();
 
-    while (1) {
+    for (;;) {
       int chunk_rc = req->read_chunk(req->read_chunk_user_data, buf,
                                      sizeof(buf), &out_read);
       if (chunk_rc != 0) {

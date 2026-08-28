@@ -34,6 +34,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _MSC_VER
+#undef FD_SET
+#define FD_SET(fd, set) do { \
+    u_int __i; \
+    for (__i = 0; __i < ((fd_set FAR *)(set))->fd_count; __i++) { \
+        if (((fd_set FAR *)(set))->fd_array[__i] == (fd)) { \
+            break; \
+        } \
+    } \
+    if (__i == ((fd_set FAR *)(set))->fd_count) { \
+        if (((fd_set FAR *)(set))->fd_count < FD_SETSIZE) { \
+            ((fd_set FAR *)(set))->fd_array[__i] = (fd); \
+            ((fd_set FAR *)(set))->fd_count++; \
+        } \
+    } \
+} while((void)0, 0)
+#endif
+
 #undef g_mock_getsockname_fail
 
 int g_mock_getsockname_fail = 0;
@@ -197,14 +215,7 @@ int *abstract_http_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
 #undef math_get_current_time_ms
 #undef pthread_getspecific
 
-ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
-c_abstract_http_mock_malloc(size_t size);
-ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
-c_abstract_http_mock_calloc(size_t count, size_t size);
-ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
-c_abstract_http_mock_realloc(void *ptr, size_t size);
-ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
-enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
+extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
                                                        char **out);
 
 ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *

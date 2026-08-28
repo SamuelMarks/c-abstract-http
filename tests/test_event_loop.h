@@ -764,8 +764,6 @@ TEST test_event_loop_tick_fd_and_timer(void) {
   close(pipefd[1]);
   PASS();
 }
-#else
-TEST test_event_loop_tick_fd_and_timer(void) { SKIP(); }
 #endif
 
 #if !defined(_WIN32)
@@ -816,8 +814,6 @@ TEST test_event_loop_blocking_cb(void) {
   close(pipefd[0]);
   PASS();
 }
-#else
-TEST test_event_loop_blocking_cb(void) { SKIP(); }
 #endif
 
 #if !defined(_WIN32)
@@ -897,8 +893,6 @@ TEST test_event_loop_run_full(void) {
   close(pipefd[0]);
   PASS();
 }
-#else
-TEST test_event_loop_run_full(void) { SKIP(); }
 #endif
 
 #if !defined(_WIN32)
@@ -958,8 +952,6 @@ TEST test_event_loop_mock_error_fd(void) {
   close(pipefd[1]);
   PASS();
 }
-#else
-TEST test_event_loop_mock_error_fd(void) { SKIP(); }
 #endif
 
 #if !defined(_WIN32)
@@ -1000,8 +992,6 @@ TEST test_event_loop_run_blocking(void) {
   close(pipefd[1]);
   PASS();
 }
-#else
-TEST test_event_loop_run_blocking(void) { SKIP(); }
 #endif
 
 TEST test_event_loop_timeout_underflow(void) {
@@ -1190,11 +1180,13 @@ SUITE(event_loop_suite) {
   RUN_TEST(test_event_loop_fd_edges); /* LCOV_EXCL_BR_LINE */
 #endif
   RUN_TEST(test_event_loop_lazy_timer_cancel); /* LCOV_EXCL_BR_LINE */
+#if !defined(_WIN32)
   RUN_TEST(test_event_loop_tick_fd_and_timer); /* LCOV_EXCL_BR_LINE */
   RUN_TEST(test_event_loop_blocking_cb);       /* LCOV_EXCL_BR_LINE */
   RUN_TEST(test_event_loop_run_full);          /* LCOV_EXCL_BR_LINE */
   RUN_TEST(test_event_loop_mock_error_fd);     /* LCOV_EXCL_BR_LINE */
   RUN_TEST(test_event_loop_run_blocking);      /* LCOV_EXCL_BR_LINE */
+#endif
   RUN_TEST(test_event_loop_timeout_underflow); /* LCOV_EXCL_BR_LINE */
   RUN_TEST(test_event_loop_fd);                /* LCOV_EXCL_BR_LINE */
   RUN_TEST(test_event_loop_run);               /* LCOV_EXCL_BR_LINE */

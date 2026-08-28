@@ -21,7 +21,6 @@
 #define ABSTRACT_HTTP_COND_BROADCAST abstract_http_cond_broadcast
 
 #include <c_abstract_http/thread_pool.h>
-extern void *c_abstract_http_mock_malloc(size_t size);
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
@@ -396,7 +395,7 @@ static ABSTRACT_HTTP_THREAD_FUNC worker_thread(abstract_http_thread_arg_t arg) {
   struct AbstractHttpThreadPool *pool = (struct AbstractHttpThreadPool *)arg;
 
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  while (1) {
+  for (;;) {
     struct TaskNode *task = NULL;
     enum c_abstract_http_error err;
 

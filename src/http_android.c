@@ -249,7 +249,7 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
               if (!body) {
                 rc = C_ABSTRACT_HTTP_ERR_NOMEM;
               } else {
-                while (1) {
+                for (;;) {
                   jint read_len = (*env)->CallIntMethod(env, input_stream,
                                                         is_read, byte_array);
                   if ((*env)->ExceptionCheck(env)) {

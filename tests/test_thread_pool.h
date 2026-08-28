@@ -255,9 +255,9 @@ TEST test_thread_pool_external(void) { /* LCOV_EXCL_LINE */
   PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 
-static int dummy_hook_push(void *ctx,
-                           abstract_http_thread_task_cb cb, /* LCOV_EXCL_LINE */
-                           void *arg) {
+int dummy_hook_push(void *ctx,
+                    abstract_http_thread_task_cb cb, /* LCOV_EXCL_LINE */
+                    void *arg) {
   (void)ctx; /* LCOV_EXCL_LINE */
   (void)cb;  /* LCOV_EXCL_LINE */
   (void)arg; /* LCOV_EXCL_LINE */

@@ -20,7 +20,7 @@ def main():
         print("Failed to build project.")
         sys.exit(1)
 
-    res = subprocess.run(["ctest", "--output-on-failure"], cwd="build", env=env)
+    res = subprocess.run(["ctest", "-C", "Debug", "--output-on-failure"], cwd="build", env=env)
     if res.returncode != 0:
         print("Tests failed.")
         sys.exit(1)

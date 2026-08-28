@@ -31,10 +31,6 @@
 
 #include "../mock_alloc.h"
 
-#define malloc c_abstract_http_mock_malloc
-#define calloc c_abstract_http_mock_calloc
-#define realloc c_abstract_http_mock_realloc
-#define free c_abstract_http_mock_free
 #define getsockname c_abstract_http_mock_getsockname
 
 /* --- Platform Specifics --- */

@@ -195,7 +195,7 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
       goto cleanup;
     }
 
-    while (1) {
+    for (;;) {
       int chunk_rc;
       if (body_len == cap) {
         char *new_buf;
