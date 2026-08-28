@@ -9,18 +9,18 @@ def main():
         env.pop(k, None)
 
     print("--> Building Compilation Database...")
-    res = subprocess.run(["cmake", "-B", "build", "-S", ".", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"], env=env)
+    res = subprocess.run(["cmake", "-B", "build-strict", "-S", ".", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"], env=env)
     if res.returncode != 0:
         print("Failed to configure cmake.")
         sys.exit(1)
 
     print("--> Building and Testing...")
-    res = subprocess.run(["cmake", "--build", "build"], env=env)
+    res = subprocess.run(["cmake", "--build", "build-strict"], env=env)
     if res.returncode != 0:
         print("Failed to build project.")
         sys.exit(1)
 
-    res = subprocess.run(["ctest", "-C", "Debug", "--output-on-failure"], cwd="build", env=env)
+    res = subprocess.run(["ctest", "-C", "Debug", "--output-on-failure"], cwd="build-strict", env=env)
     if res.returncode != 0:
         print("Tests failed.")
         sys.exit(1)

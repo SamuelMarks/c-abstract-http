@@ -730,9 +730,9 @@ endif()
         add_subdirectory(tests)
 
         if(NOT (WIN32 AND BUILD_SHARED_LIBS))
-        target_compile_definitions(c-abstract-http PUBLIC
+            target_compile_definitions(c-abstract-http PUBLIC
             C_ABSTRACT_HTTP_TEST_OOM=1
-            _ACRTIMP= _CRTIMP=
+            _ACRTIMP= _CRTIMP= WINSOCK_API_LINKAGE=
         malloc=c_abstract_http_mock_malloc
             calloc=c_abstract_http_mock_calloc
             realloc=c_abstract_http_mock_realloc
