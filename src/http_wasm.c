@@ -265,7 +265,7 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
   (*res)->status_code = fetch->status;
 
   if (fetch->numBytes > 0) {
-    (*res)->body = malloc(fetch->numBytes);
+    (*res)->body = malloc((size_t)fetch->numBytes);
     if (!(*res)->body) {
       LOG_DEBUG("http_wasm_send: Error ENOMEM ((*res)->body)");
       emscripten_fetch_close(fetch);
@@ -275,8 +275,8 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       goto cleanup;
     }
-    memcpy((*res)->body, fetch->data, fetch->numBytes);
-    (*res)->body_len = fetch->numBytes;
+    memcpy((*res)->body, fetch->data, (size_t)fetch->numBytes);
+    (*res)->body_len = (size_t)fetch->numBytes;
 
     if (req->on_chunk) {
       int chunk_rc = req->on_chunk(req->on_chunk_user_data, (*res)->body,
