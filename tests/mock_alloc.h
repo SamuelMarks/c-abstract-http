@@ -65,11 +65,6 @@ extern int *abstract_http_mock_get_g_mock_getsockname_fail(void);
 #define ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS
 #endif
 
-#if defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable: 4559 4565)
-#endif
-
 ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
 c_abstract_http_mock_malloc(size_t size);
 ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
@@ -77,10 +72,6 @@ c_abstract_http_mock_calloc(size_t count, size_t size);
 ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
 c_abstract_http_mock_realloc(void *ptr, size_t size);
 ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
-
-#if defined(_MSC_VER)
-#pragma warning(pop)
-#endif
 
 size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nmemb,
                                    FILE *stream);
