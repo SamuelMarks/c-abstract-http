@@ -57,7 +57,7 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 #Set C standards
 set(CMAKE_C_STANDARD 90)
 set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -519,7 +519,6 @@ else()
 
     if(MSVC)
         target_compile_options(c-abstract-http PRIVATE "/W4" "/WX")
-        target_compile_definitions(c-abstract-http PRIVATE _CRT_NONSTDC_NO_DEPRECATE)
     else()
         target_compile_options(c-abstract-http PRIVATE "-Wall" "-Wextra" "-Werror" "-pedantic" "-std=c89" "-Wconversion" "-Wshadow" "-Wcast-align" "-Wstrict-prototypes" "-Wmissing-prototypes" "-Wsign-conversion")
         if (CMAKE_C_COMPILER_ID MATCHES "AppleClang")

@@ -220,10 +220,14 @@ TEST test_apple_send_mock_server(void) { /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_request_init(&req));        /* LCOV_EXCL_LINE */
   req.url = (char *)malloc(strlen(url) + 1); /* LCOV_EXCL_LINE */
-  strcpy(req.url, url);                      /* LCOV_EXCL_LINE */
-  req.method = HTTP_POST;                    /* LCOV_EXCL_LINE */
-  req.body = strdup("Hello Apple!");         /* LCOV_EXCL_LINE */
-  req.body_len = strlen("Hello Apple!");     /* LCOV_EXCL_LINE */
+#if defined(_MSC_VER)
+  strcpy_s(req.url, strlen(url) + 1, url);
+#else
+  strcpy(req.url, url); /* LCOV_EXCL_LINE */
+#endif
+  req.method = HTTP_POST;                /* LCOV_EXCL_LINE */
+  req.body = strdup("Hello Apple!");     /* LCOV_EXCL_LINE */
+  req.body_len = strlen("Hello Apple!"); /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_apple_send(ctx, &req, &res)); /* LCOV_EXCL_LINE */
@@ -244,10 +248,14 @@ TEST test_apple_send_mock_server(void) { /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_request_init(&req));        /* LCOV_EXCL_LINE */
   req.url = (char *)malloc(strlen(url) + 1); /* LCOV_EXCL_LINE */
-  strcpy(req.url, url);                      /* LCOV_EXCL_LINE */
-  req.method = HTTP_GET;                     /* LCOV_EXCL_LINE */
-  req.on_chunk = mock_on_chunk_cb;           /* LCOV_EXCL_LINE */
-  req.on_chunk_user_data = &on_chunk_calls;  /* LCOV_EXCL_LINE */
+#if defined(_MSC_VER)
+  strcpy_s(req.url, strlen(url) + 1, url);
+#else
+  strcpy(req.url, url); /* LCOV_EXCL_LINE */
+#endif
+  req.method = HTTP_GET;                    /* LCOV_EXCL_LINE */
+  req.on_chunk = mock_on_chunk_cb;          /* LCOV_EXCL_LINE */
+  req.on_chunk_user_data = &on_chunk_calls; /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_apple_send(ctx, &req, &res)); /* LCOV_EXCL_LINE */
@@ -392,8 +400,12 @@ TEST test_apple_send_all_methods(void) {   /* LCOV_EXCL_LINE */
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_request_init(&req));                     /* LCOV_EXCL_LINE */
     req.url = (char *)malloc(sizeof("http://localhost:1")); /* LCOV_EXCL_LINE */
-    strcpy(req.url, "http://localhost:1");                  /* LCOV_EXCL_LINE */
-    req.method = methods[i];                                /* LCOV_EXCL_LINE */
+#if defined(_MSC_VER)
+    strcpy_s(req.url, sizeof("http://localhost:1"), "http://localhost:1");
+#else
+    strcpy(req.url, "http://localhost:1"); /* LCOV_EXCL_LINE */
+#endif
+    req.method = methods[i]; /* LCOV_EXCL_LINE */
     {
       enum c_abstract_http_error rc_test =
           http_headers_add(&req.headers, "X-Test", "Value");
@@ -469,11 +481,15 @@ TEST test_apple_read_chunk(void) {         /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_request_init(&req));                     /* LCOV_EXCL_LINE */
   req.url = (char *)malloc(sizeof("http://localhost:1")); /* LCOV_EXCL_LINE */
-  strcpy(req.url, "http://localhost:1");                  /* LCOV_EXCL_LINE */
-  req.method = HTTP_POST;                                 /* LCOV_EXCL_LINE */
-  req.read_chunk = mock_read_chunk;                       /* LCOV_EXCL_LINE */
-  req.read_chunk_user_data = &calls;                      /* LCOV_EXCL_LINE */
-  req.expected_body_len = 8;                              /* LCOV_EXCL_LINE */
+#if defined(_MSC_VER)
+  strcpy_s(req.url, sizeof("http://localhost:1"), "http://localhost:1");
+#else
+  strcpy(req.url, "http://localhost:1"); /* LCOV_EXCL_LINE */
+#endif
+  req.method = HTTP_POST;            /* LCOV_EXCL_LINE */
+  req.read_chunk = mock_read_chunk;  /* LCOV_EXCL_LINE */
+  req.read_chunk_user_data = &calls; /* LCOV_EXCL_LINE */
+  req.expected_body_len = 8;         /* LCOV_EXCL_LINE */
 
   /* Will fail to connect but it hits the read_chunk loop */
   {
@@ -493,11 +509,15 @@ TEST test_apple_read_chunk(void) {         /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_request_init(&req));                     /* LCOV_EXCL_LINE */
   req.url = (char *)malloc(sizeof("http://localhost:1")); /* LCOV_EXCL_LINE */
-  strcpy(req.url, "http://localhost:1");                  /* LCOV_EXCL_LINE */
-  req.method = HTTP_POST;                                 /* LCOV_EXCL_LINE */
-  req.read_chunk = mock_read_chunk_fail;                  /* LCOV_EXCL_LINE */
-  req.read_chunk_user_data = NULL;                        /* LCOV_EXCL_LINE */
-  req.expected_body_len = 8;                              /* LCOV_EXCL_LINE */
+#if defined(_MSC_VER)
+  strcpy_s(req.url, sizeof("http://localhost:1"), "http://localhost:1");
+#else
+  strcpy(req.url, "http://localhost:1"); /* LCOV_EXCL_LINE */
+#endif
+  req.method = HTTP_POST;                /* LCOV_EXCL_LINE */
+  req.read_chunk = mock_read_chunk_fail; /* LCOV_EXCL_LINE */
+  req.read_chunk_user_data = NULL;       /* LCOV_EXCL_LINE */
+  req.expected_body_len = 8;             /* LCOV_EXCL_LINE */
 
   /* Will fail with C_ABSTRACT_HTTP_ERR_IO */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
