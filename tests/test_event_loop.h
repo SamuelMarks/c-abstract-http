@@ -19,6 +19,10 @@ extern "C" {
 #include "mock_alloc.h"
 /* clang-format on */
 
+#if defined(_WIN32)
+__declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
+#endif
+
 static void timer_cb_1(struct ModalityEventLoop *loop,
                        int timer_id, /* LCOV_EXCL_LINE */
                        void *user_data) {
@@ -437,7 +441,7 @@ TEST test_event_loop_heap_down(void) {
   /* Run the loop a few times to pop timers */
   /* Wait, they need to expire! But they have timeouts of 10, 20, 30... up to
      200 ms. So we just need to sleep for 200ms and call tick! */
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(_WIN32)
   Sleep(250);
 #else
   {
