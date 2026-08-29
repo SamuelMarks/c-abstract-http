@@ -220,6 +220,11 @@ enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
   size_t j;
   size_t out_size;
   unsigned char *out;
+  uint32_t sextet_a;
+  uint32_t sextet_b;
+  uint32_t sextet_c;
+  uint32_t sextet_d;
+  uint32_t triple;
 
   if (!out_data || !out_len)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -243,7 +248,6 @@ enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   for (i = 0, j = 0; i < in_len;) {
-    uint32_t sextet_a, sextet_b, sextet_c, sextet_d, triple;
     sextet_a = in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
     i++;
     sextet_b = in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
@@ -256,11 +260,11 @@ enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
     triple = (sextet_a << 3 * 6) + (sextet_b << 2 * 6) + (sextet_c << 1 * 6) +
              (sextet_d << 0 * 6);
 
-    out[j++] = (triple >> 2 * 8) & 0xFF;
+    out[j++] = (unsigned char)((triple >> 2 * 8) & 0xFF);
     if (j < out_size)
-      out[j++] = (triple >> 1 * 8) & 0xFF;
+      out[j++] = (unsigned char)((triple >> 1 * 8) & 0xFF);
     if (j < out_size)
-      out[j++] = (triple >> 0 * 8) & 0xFF;
+      out[j++] = (unsigned char)((triple >> 0 * 8) & 0xFF);
   }
 
   *out_data = out;

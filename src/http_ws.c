@@ -1,18 +1,26 @@
 /* clang-format off */
+#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#endif
+
 #include "c_abstract_http/http_ws.h"
 #include "c_abstract_http/thread_pool.h"
 #include "c_abstract_http/log.h"
 #include "ws_internal.h"
+#include "ws_config.h"
 #include "crypto_utils.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <c89stringutils_string_extras.h>
-
-
-
-
+/* clang-format on */
 
 enum c_abstract_http_error ws_generate_key(char out_key[25]) {
   unsigned char random_bytes[16];
@@ -35,15 +43,14 @@ enum c_abstract_http_error ws_generate_key(char out_key[25]) {
   if (res != 0)
     return res;
 
-
-
   c89stringutils_strcpy_s(out_key, 25, base64_str);
   free(base64_str);
 
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error ws_sign_key(const char *client_key, char out_accept[29]) {
+enum c_abstract_http_error ws_sign_key(const char *client_key,
+                                       char out_accept[29]) {
   enum c_abstract_http_error rc;
   const char *magic_guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
   char concatenated[100];
@@ -60,20 +67,24 @@ enum c_abstract_http_error ws_sign_key(const char *client_key, char out_accept[2
 
   c89stringutils_strcpy_s(concatenated, sizeof(concatenated), client_key);
   c89stringutils_strcpy_s(concatenated + len1, sizeof(concatenated) - len1,
-                           magic_guid);
+                          magic_guid);
 
   rc = sha1_init(&ctx);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) { return rc; } /* LCOV_EXCL_BR_LINE */
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  } /* LCOV_EXCL_BR_LINE */
   rc = sha1_update(&ctx, (const unsigned char *)concatenated, len1 + len2);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) { return rc; } /* LCOV_EXCL_BR_LINE */
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  } /* LCOV_EXCL_BR_LINE */
   rc = sha1_final(&ctx, hash);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) { return rc; } /* LCOV_EXCL_BR_LINE */
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  } /* LCOV_EXCL_BR_LINE */
 
   res = base64_encode(hash, 20, &base64_str, &base64_len);
   if (res != 0)
     return res;
-
-
 
   c89stringutils_strcpy_s(out_accept, 29, base64_str);
   free(base64_str);
@@ -81,7 +92,8 @@ enum c_abstract_http_error ws_sign_key(const char *client_key, char out_accept[2
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error ws_verify_accept(const char *client_key, const char *server_accept) {
+enum c_abstract_http_error ws_verify_accept(const char *client_key,
+                                            const char *server_accept) {
   char expected_accept[29];
   int res = ws_sign_key(client_key, expected_accept);
   if (res != 0)
@@ -101,17 +113,22 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
     return -1;
 
   rc = abstract_http_mutex_lock(sctx->mutex);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) { goto ws_read_err; } /* LCOV_EXCL_BR_LINE */
-  while (sctx->queue_len == 0 && !sctx->close_requested) { /* LCOV_EXCL_BR_LINE */
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    goto ws_read_err;
+  } /* LCOV_EXCL_BR_LINE */
+  while (sctx->queue_len == 0 &&
+         !sctx->close_requested) { /* LCOV_EXCL_BR_LINE */
     /* Wait for data or close */
     rc = abstract_http_cond_wait(sctx->cond, sctx->mutex); /* LCOV_EXCL_LINE */
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) { goto ws_read_err; } /* LCOV_EXCL_LINE */
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto ws_read_err;
+    } /* LCOV_EXCL_LINE */
   }
 
   if (sctx->queue_len > 0) { /* LCOV_EXCL_BR_LINE */
     size_t to_copy = sctx->queue_len;
     if (to_copy > buf_len) /* LCOV_EXCL_BR_LINE */
-      to_copy = buf_len; /* LCOV_EXCL_LINE */
+      to_copy = buf_len;   /* LCOV_EXCL_LINE */
     memcpy(buf, sctx->queue, to_copy);
 
     memmove(sctx->queue, sctx->queue + to_copy, sctx->queue_len - to_copy);
@@ -123,24 +140,30 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
   }
 
   rc = abstract_http_mutex_unlock(sctx->mutex);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) { goto ws_read_err; } /* LCOV_EXCL_BR_LINE */
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    goto ws_read_err;
+  } /* LCOV_EXCL_BR_LINE */
   return 0;
 ws_read_err:
-  if (0) return (int)(unsigned long)rc;
+  (void)rc;
   return -1; /* LCOV_EXCL_LINE */
 }
 
 static void ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
   if (!sctx) /* LCOV_EXCL_BR_LINE */
-    return; /* LCOV_EXCL_LINE */
-  if (sctx->mutex) abstract_http_mutex_free(sctx->mutex); /* LCOV_EXCL_BR_LINE */
-  if (sctx->cond) abstract_http_cond_free(sctx->cond); /* LCOV_EXCL_BR_LINE */
-  if (sctx->queue) free(sctx->queue); /* LCOV_EXCL_BR_LINE */
+    return;  /* LCOV_EXCL_LINE */
+  if (sctx->mutex)
+    abstract_http_mutex_free(sctx->mutex); /* LCOV_EXCL_BR_LINE */
+  if (sctx->cond)
+    abstract_http_cond_free(sctx->cond); /* LCOV_EXCL_BR_LINE */
+  if (sctx->queue)
+    free(sctx->queue); /* LCOV_EXCL_BR_LINE */
   free(sctx);
 }
 
-enum c_abstract_http_error c_abstract_http_ws_init(
-    struct HttpRequest *req, const struct c_abstract_http_ws_config *config) {
+enum c_abstract_http_error
+c_abstract_http_ws_init(struct HttpRequest *req,
+                        const struct c_abstract_http_ws_config *config) {
   char key[25] = {0};
   int res;
 
@@ -148,8 +171,10 @@ enum c_abstract_http_error c_abstract_http_ws_init(
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   if (!req->ws_ctx) {
-    struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)calloc(1, sizeof(struct ws_stream_ctx));
-    if (!sctx) return C_ABSTRACT_HTTP_ERR_NOMEM;
+    struct ws_stream_ctx *sctx =
+        (struct ws_stream_ctx *)calloc(1, sizeof(struct ws_stream_ctx));
+    if (!sctx)
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     res = abstract_http_mutex_init(&sctx->mutex);
     if (res != C_ABSTRACT_HTTP_SUCCESS) {
       free(sctx);
@@ -243,7 +268,8 @@ uint16_t math_ws_ntohs(uint16_t netshort) {
 }
 
 uint64_t math_ws_ntohll(uint64_t netqword) {
-  unsigned char p[8]; memcpy(p, &netqword, 8);
+  unsigned char p[8];
+  memcpy(p, &netqword, 8);
   return ((uint64_t)p[0] << 56) | ((uint64_t)p[1] << 48) |
          ((uint64_t)p[2] << 40) | ((uint64_t)p[3] << 32) |
          ((uint64_t)p[4] << 24) | ((uint64_t)p[5] << 16) |
@@ -274,18 +300,23 @@ enum c_abstract_http_error ws_apply_mask(unsigned char *payload, size_t len,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error ws_pack_header_small(unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode, int mask,
-                         size_t len, size_t *out_len) {
+enum c_abstract_http_error
+ws_pack_header_small(unsigned char *buf, int fin,
+                     enum c_abstract_http_ws_opcode opcode, int mask,
+                     size_t len, size_t *out_len) {
   if (!buf || len > 125)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   buf[0] = (unsigned char)((fin ? 0x80 : 0x00) | (opcode & 0x0F));
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | (len & 0x7F));
-  if (out_len) *out_len = 2; /* LCOV_EXCL_BR_LINE */
+  if (out_len)
+    *out_len = 2; /* LCOV_EXCL_BR_LINE */
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode, int mask,
-                          size_t len, size_t *out_len) {
+enum c_abstract_http_error
+ws_pack_header_medium(unsigned char *buf, int fin,
+                      enum c_abstract_http_ws_opcode opcode, int mask,
+                      size_t len, size_t *out_len) {
   uint16_t net_len;
   if (!buf || len <= 125 || len > 65535)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -293,12 +324,15 @@ enum c_abstract_http_error ws_pack_header_medium(unsigned char *buf, int fin, en
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | 126);
   net_len = math_ws_htons((uint16_t)len);
   memcpy(buf + 2, &net_len, 2);
-  if (out_len) *out_len = 4; /* LCOV_EXCL_BR_LINE */
+  if (out_len)
+    *out_len = 4; /* LCOV_EXCL_BR_LINE */
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error ws_pack_header_large(unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode, int mask,
-                         size_t len, size_t *out_len) {
+enum c_abstract_http_error
+ws_pack_header_large(unsigned char *buf, int fin,
+                     enum c_abstract_http_ws_opcode opcode, int mask,
+                     size_t len, size_t *out_len) {
   uint64_t net_len;
   if (!buf || len <= 65535)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -306,12 +340,10 @@ enum c_abstract_http_error ws_pack_header_large(unsigned char *buf, int fin, enu
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | 127);
   net_len = math_ws_htonll((uint64_t)len);
   memcpy(buf + 2, &net_len, 8);
-  if (out_len) *out_len = 10; /* LCOV_EXCL_BR_LINE */
+  if (out_len)
+    *out_len = 10; /* LCOV_EXCL_BR_LINE */
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-
-#include "ws_config.h"
-/* clang-format on */
 
 enum c_abstract_http_error ws_parser_init(struct ws_parser_ctx *ctx,
                                           c_abstract_http_ws_on_message on_msg,

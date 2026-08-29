@@ -57,7 +57,7 @@ extern int *abstract_http_mock_get_g_mock_accept_fail(void);
 extern int *abstract_http_mock_get_g_mock_recv_fail(void);
 extern int *abstract_http_mock_get_g_mock_getsockname_fail(void);
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && (_MSC_VER < 1900)
 #define ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT __declspec(restrict)
 #define ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS __declspec(noalias)
 #else

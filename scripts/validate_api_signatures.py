@@ -4,9 +4,7 @@ import sys
 import re
 
 def main():
-    env = os.environ.copy()
-    for k in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX"]:
-        env.pop(k, None)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
 
     print("--> Building Compilation Database...")
     res = subprocess.run(["cmake", "-B", "build-strict", "-S", ".", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"], env=env)

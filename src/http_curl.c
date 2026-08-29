@@ -890,8 +890,7 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
   return 0; /* CURLM_OK */
 
 timer_error:
-  if (0)
-    return (int)(unsigned long)rc;
+  (void)rc;
   return -1;
 }
 
@@ -938,8 +937,7 @@ static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
   return 0; /* CURLM_OK */
 
 socket_error:
-  if (0)
-    return (int)(unsigned long)rc;
+  (void)rc;
   return -1;
 }
 
