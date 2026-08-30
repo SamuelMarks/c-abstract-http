@@ -118,9 +118,9 @@ int main(int argc, char **argv) {
 
 #if defined(_MSC_VER)
   _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-  _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+  _CrtSetReportFile(_CRT_ASSERT, (_HFILE)(size_t)2);
   _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-  _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+  _CrtSetReportFile(_CRT_ERROR, (_HFILE)(size_t)2);
 #endif
   GREATEST_MAIN_BEGIN(); /* LCOV_EXCL_LINE */
 

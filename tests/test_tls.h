@@ -128,8 +128,9 @@ TEST test_tls_errors(void) {           /* LCOV_EXCL_LINE */
             abstract_http_tls_set(NULL, NULL)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             abstract_http_tls_get(NULL, NULL)); /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,          /* LCOV_EXCL_LINE */
-            abstract_http_tls_get((struct AbstractHttpTlsKey *)1, NULL));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_LINE */
+      abstract_http_tls_get((struct AbstractHttpTlsKey *)(size_t)1, NULL));
   {
     enum c_abstract_http_error rc_test = abstract_http_tls_key_delete(NULL);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {

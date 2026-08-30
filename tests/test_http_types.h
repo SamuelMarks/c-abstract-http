@@ -2615,7 +2615,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     ASSERT_EQ(1, rc); /* LCOV_EXCL_BR_LINE */
 
     c.config.modality = MODALITY_ASYNC;
-    c.loop = (struct ModalityEventLoop *)1;
+    c.loop = (struct ModalityEventLoop *)(size_t)1;
     c.send_multi = dummy_send_multi_ok;
     rc = http_client_send_multi(&c, reqs, 2, futures, NULL, NULL, 1);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc); /* LCOV_EXCL_BR_LINE */
@@ -2711,7 +2711,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     ASSERT_EQ(1, rc); /* LCOV_EXCL_BR_LINE */
 
     c.config.modality = MODALITY_ASYNC;
-    c.loop = (struct ModalityEventLoop *)1;
+    c.loop = (struct ModalityEventLoop *)(size_t)1;
     c.send_multi = dummy_send_multi_ok;
     rc = http_client_send_multi(&c, reqs, 2, futures, NULL, NULL, 1);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc); /* LCOV_EXCL_BR_LINE */

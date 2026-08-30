@@ -316,13 +316,14 @@ TEST test_coroutine_edge_cases(void) {     /* LCOV_EXCL_LINE */
    */
 #if !defined(_WIN32) && !defined(__APPLE__) && !defined(__EMSCRIPTEN__)
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
-            abstract_http_coroutine_init(&co, 0, (abstract_http_coroutine_cb)1,
-                                         NULL));
+            abstract_http_coroutine_init(
+                &co, 0, (abstract_http_coroutine_cb)(size_t)1, NULL));
 #else
   {
     int edge_rc =
         abstract_http_coroutine_init(/* LCOV_EXCL_LINE */
-                                     &co, 65536, (abstract_http_coroutine_cb)1,
+                                     &co, 65536,
+                                     (abstract_http_coroutine_cb)(size_t)1,
                                      NULL);
     if (edge_rc == 0)                            /* LCOV_EXCL_LINE */
       abstract_http_coroutine_free(co);          /* LCOV_EXCL_LINE */

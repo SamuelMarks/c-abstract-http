@@ -58,8 +58,8 @@ static int strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((format(printf, 4, 5)))
 #endif
-static size_t
-sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fmt, ...) {
+static size_t sprintf_s_wrapper(char *buf, size_t start, size_t cap,
+                                const char *fmt, ...) {
   size_t written;
   va_list args;
   va_start(args, fmt);

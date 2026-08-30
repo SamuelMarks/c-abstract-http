@@ -109,7 +109,7 @@ TEST test_actor_spawn_and_message(void) { /* LCOV_EXCL_LINE */
 static int mock_bus_init(struct AbstractHttpMessageBus **bus) { /* LCOV_EXCL_LINE */
   if (!bus) /* LCOV_EXCL_LINE */
     return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_LINE */
-  *bus = (struct AbstractHttpMessageBus *)1; /* LCOV_EXCL_LINE */
+  *bus = (struct AbstractHttpMessageBus *)(size_t)1; /* LCOV_EXCL_LINE */
   return 0; /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 static void mock_bus_free(struct AbstractHttpMessageBus *bus) { (void)bus; } /* LCOV_EXCL_LINE */
@@ -128,7 +128,7 @@ static int mock_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name
     return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_LINE */
   (void)handler; /* LCOV_EXCL_LINE */
   (void)state; /* LCOV_EXCL_LINE */
-  *actor = (struct AbstractHttpActor *)1; /* LCOV_EXCL_LINE */
+  *actor = (struct AbstractHttpActor *)(size_t)1; /* LCOV_EXCL_LINE */
   return 0; /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 static int mock_actor_send(struct AbstractHttpMessageBus *bus, /* LCOV_EXCL_LINE */
@@ -263,10 +263,10 @@ TEST test_actor_getters(void) { /* LCOV_EXCL_LINE */
   (void)bus; /* LCOV_EXCL_LINE */
 
   { enum c_abstract_http_error rc_test = abstract_http_message_bus_init(&bus); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } } /* LCOV_EXCL_LINE */
-  { enum c_abstract_http_error rc_test = abstract_http_actor_spawn(bus, "myactor", dummy_handler, (void *)0x123, &actor); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } } /* LCOV_EXCL_LINE */
+  { enum c_abstract_http_error rc_test = abstract_http_actor_spawn(bus, "myactor", dummy_handler, NULL, &actor); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } } /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_get_state(actor, &state)); /* LCOV_EXCL_LINE */
-  ASSERT_EQ((void *)0x123, state); /* LCOV_EXCL_LINE */
+  ASSERT_EQ(NULL, state); /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_get_name(actor, &name)); /* LCOV_EXCL_LINE */
   ASSERT_STR_EQ("myactor", name); /* LCOV_EXCL_LINE */
@@ -449,23 +449,23 @@ TEST test_actor_mock_nulls(void) {           /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_LINE */
             mock_actor_spawn(NULL, "test", NULL, NULL, &actor));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_LINE */
-            mock_actor_spawn((struct AbstractHttpMessageBus *)1, NULL, NULL,
-                             NULL, &actor));
+            mock_actor_spawn((struct AbstractHttpMessageBus *)(size_t)1, NULL,
+                             NULL, NULL, &actor));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_LINE */
-            mock_actor_spawn((struct AbstractHttpMessageBus *)1, "test", NULL,
-                             NULL, NULL));
+            mock_actor_spawn((struct AbstractHttpMessageBus *)(size_t)1, "test",
+                             NULL, NULL, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             mock_actor_send(NULL, NULL)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,    /* LCOV_EXCL_LINE */
-            mock_actor_send((struct AbstractHttpMessageBus *)1, NULL));
+            mock_actor_send((struct AbstractHttpMessageBus *)(size_t)1, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             mock_actor_get_state(NULL, &state)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,           /* LCOV_EXCL_LINE */
-            mock_actor_get_state((struct AbstractHttpActor *)1, NULL));
+            mock_actor_get_state((struct AbstractHttpActor *)(size_t)1, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             mock_actor_get_name(NULL, &name)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,         /* LCOV_EXCL_LINE */
-            mock_actor_get_name((struct AbstractHttpActor *)1, NULL));
+            mock_actor_get_name((struct AbstractHttpActor *)(size_t)1, NULL));
 
   {
     struct AbstractHttpMessage msg;

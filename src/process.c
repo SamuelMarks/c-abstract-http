@@ -742,7 +742,7 @@ enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void) {
   if (p) {
     enum c_abstract_http_error rc;
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-    p->hProcess = (HANDLE)123;
+    p->hProcess = (HANDLE)(INT_PTR)123;
 #else
     p->pid = 123;
 #endif
@@ -765,7 +765,7 @@ enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void) {
     int exit_code;
     enum c_abstract_http_error rc;
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-    p->hProcess = (HANDLE)123;
+    p->hProcess = (HANDLE)(INT_PTR)123;
 #else
     p->pid = 123;
 #endif

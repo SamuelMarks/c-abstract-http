@@ -336,12 +336,12 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
               path, host);
 #else
 #if defined(_MSC_VER)
-    sprintf_s(request_buf, req_cap, \"%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\", method_str, path, host);
+    sprintf_s(request_buf, req_cap,
+              "%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n", method_str,
+              path, host);
 #else
-    sprintf(
-        request_buf, \"%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\",
-        method_str,
-        path, host);
+    sprintf(request_buf, "%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n",
+            method_str, path, host);
 #endif
 #endif
     req_len = strlen(request_buf);
@@ -374,12 +374,11 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
                 req->headers.headers[i].key, req->headers.headers[i].value);
 #else
 #if defined(_MSC_VER)
-      sprintf_s(request_buf + req_len, req_cap - req_len, \"%s: %s\r\n\", req->headers.headers[i].key, req->headers.headers[i].value);
+      sprintf_s(request_buf + req_len, req_cap - req_len, "%s: %s\r\n",
+                req->headers.headers[i].key, req->headers.headers[i].value);
 #else
-      sprintf(
-          request_buf + req_len, \"%s: %s\r\n\", req->headers.headers[i].key,
-                                 req->headers.headers[i]
-                                     .value);
+      sprintf(request_buf + req_len, "%s: %s\r\n", req->headers.headers[i].key,
+              req->headers.headers[i].value);
 #endif
 #endif
       req_len += strlen(request_buf + req_len);
@@ -427,9 +426,9 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     strcat_s(request_buf, sizeof(request_buf), "\r\n");
 #else
 #if defined(_MSC_VER)
-  strcat_s(request_buf, req_cap, \"\r\n\");
+    strcat_s(request_buf, req_cap, "\r\n");
 #else
-  strcat(request_buf, \"\r\n\");
+    strcat(request_buf, "\r\n");
 #endif
 #endif
     req_len += 2;

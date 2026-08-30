@@ -536,9 +536,9 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   sprintf_s(port_str, sizeof(port_str), "%d", port);
 #else
 #if defined(_MSC_VER)
-  sprintf_s(port_str, sizeof(port_str), \"%d\", port);
+  sprintf_s(port_str, sizeof(port_str), "%d", port);
 #else
-  sprintf(port_str, \"%d\", port);
+  sprintf(port_str, "%d", port);
 #endif
 #endif
 #endif
@@ -624,9 +624,10 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
       sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len, "\r\n");
 #else
 #if defined(_MSC_VER)
-  state.req_len += sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len, \"\r\n\");
+  state.req_len +=
+      sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len, "\r\n");
 #else
-  state.req_len += sprintf(state.req_buf + state.req_len, \"\r\n\");
+  state.req_len += sprintf(state.req_buf + state.req_len, "\r\n");
 #endif
 #endif
 

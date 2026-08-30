@@ -165,7 +165,7 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
 
   current_fiber = GetCurrentFiber();
   /* If thread is not a fiber yet, convert it */
-  if (current_fiber == (LPVOID)0x1e00 || current_fiber == NULL) {
+  if (current_fiber == ((LPVOID)(uintptr_t)0x1e00) || current_fiber == NULL) {
     current_fiber = ConvertThreadToFiber(NULL);
     if (!current_fiber) {
       LOG_DEBUG("abstract_http_coroutine_resume: Error EIO "
