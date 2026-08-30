@@ -22,6 +22,10 @@
 #include <c_abstract_http/c_abstract_http.h>
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#undef __STDC_VERSION__
+#undef _MSC_VER
+#endif
 #include "greatest.h"
 #include "mock_alloc.h"
 
@@ -69,7 +73,7 @@
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
 #include "test_http_fetch.h"
 
-#elif defined(_WIN32) && !defined(MINGW_TEST_CURL)
+#elif (defined(_WIN32) || defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(C_ABSTRACT_HTTP_USE_WININET)) && !defined(MINGW_TEST_CURL)
 #if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
 #include "test_http_winhttp.h"
 #endif
@@ -156,7 +160,9 @@ int main(int argc, char **argv) {
   RUN_SUITE(http_libevent_suite);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   RUN_SUITE(http_fetch_suite);
-#elif defined(_WIN32) && !defined(MINGW_TEST_CURL)
+#elif (defined(_WIN32) || defined(C_ABSTRACT_HTTP_USE_WINHTTP) ||              \
+       defined(C_ABSTRACT_HTTP_USE_WININET)) &&                                \
+    !defined(MINGW_TEST_CURL)
 #if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
   RUN_SUITE(http_winhttp_suite);
 #endif

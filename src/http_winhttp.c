@@ -9,6 +9,10 @@
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 
 #include "win_compat_sym.h"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #include <winsock2.h>
 #include <winerror.h>
 #include <winhttp.h>
@@ -22,6 +26,7 @@
 #include "str.h"
 /* clang-format on */
 
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 static enum c_abstract_http_error
 ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out_len) {
   cfs_size_t written = 0;
@@ -41,6 +46,7 @@ wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out_len) {
   *out_len = (size_t)(written - 1);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+#endif
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)

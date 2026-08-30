@@ -16,6 +16,15 @@
 #undef accept
 #undef recv
 #undef select
+#ifndef __cplusplus
+#if !defined(inline)
+#if defined(_MSC_VER)
+#define inline __inline
+#elif defined(__GNUC__) || defined(__clang__)
+#define inline __inline__
+#endif
+#endif
+#endif
 #include <winsock2.h>
 #pragma pop_macro("select")
 #pragma pop_macro("recv")

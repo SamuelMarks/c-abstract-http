@@ -54,10 +54,10 @@ list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP ON CACHE BOOL "Skip system libs" FORCE)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-#Set C standards
-set(CMAKE_C_STANDARD 90)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)
+#Set C standards only for our targets later
+#set(CMAKE_C_STANDARD 90)
+#set(CMAKE_C_STANDARD_REQUIRED ON)
+#set(CMAKE_C_EXTENSIONS OFF)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -85,6 +85,12 @@ endif()
 
 if(C_ABSTRACT_HTTP_THREADING STREQUAL "Single-threaded")
     add_compile_definitions(C_ABSTRACT_HTTP_SINGLE_THREADED=1)
+endif()
+
+if (CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+    add_compile_definitions(inline=__inline__)
+    add_compile_definitions(_Bool=int)
+    add_compile_definitions(__forceinline=__inline__)
 endif()
 
 option(C_ABSTRACT_HTTP_USE_LSQUIC "Use lsquic instead of libcurl" OFF)
@@ -517,12 +523,17 @@ else()
     target_include_directories(c-abstract-http SYSTEM PUBLIC include)
     target_include_directories(c-abstract-http PRIVATE src)
 
+    set_target_properties(c-abstract-http PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+
     if(MSVC)
         target_compile_options(c-abstract-http PRIVATE "/W4" "/WX")
     else()
         target_compile_options(c-abstract-http PRIVATE "-Wall" "-Wextra" "-Werror" "-pedantic" "-std=c89" "-Wconversion" "-Wshadow" "-Wcast-align" "-Wstrict-prototypes" "-Wmissing-prototypes" "-Wsign-conversion")
         if (CMAKE_C_COMPILER_ID MATCHES "AppleClang")
             target_compile_options(c-abstract-http PRIVATE "-Wshorten-64-to-32")
+        endif()
+        if (WIN32 AND CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+            target_compile_definitions(c-abstract-http PUBLIC "inline=__inline__")
         endif()
     endif()
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)

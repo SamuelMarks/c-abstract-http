@@ -388,17 +388,12 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 
   if (req->body && req->body_len > 0) {
     char len_buf[64];
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    sprintf_s(len_buf, sizeof(len_buf),
-              "Content-Length: " C_ABSTRACT_HTTP_NUM_FORMAT "\r\n\r\n",
-              (unsigned long long)req->body_len);
-#else
 #if defined(_MSC_VER)
-    sprintf_s(len_buf, sizeof(len_buf), \"Content-Length: %lu\r\n\r\n\", (unsigned long)req->body_len);
+    sprintf_s(len_buf, sizeof(len_buf), "Content-Length: %lu\r\n\r\n",
+              (unsigned long)req->body_len);
 #else
-    sprintf(len_buf, \"Content-Length: %lu\r\n\r\n\",
-                     (unsigned long)req->body_len);
-#endif
+    sprintf(len_buf, "Content-Length: %lu\r\n\r\n",
+            (unsigned long)req->body_len);
 #endif
     if (req_len + strlen(len_buf) + req->body_len >= req_cap) {
       char *new_buf;
@@ -419,7 +414,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     strcat_s(request_buf, sizeof(request_buf), len_buf);
 #else
 #if defined(_MSC_VER)
-  strcat_s(request_buf, req_cap, len_buf);
+    strcat_s(request_buf, req_cap, len_buf);
 #else
     strcat(request_buf, len_buf);
 #endif

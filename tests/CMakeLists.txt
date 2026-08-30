@@ -36,6 +36,7 @@ else()
 endif()
 
 add_executable(c-abstract-http-test ${TEST_SOURCES})
+set_target_properties(c-abstract-http-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 
     if(MSVC)
         target_compile_options(c-abstract-http-test PRIVATE "/W4" "/WX")
@@ -65,6 +66,7 @@ add_test(NAME c-abstract-http-tests COMMAND c-abstract-http-test)
 
 if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
     add_executable(c-abstract-http-test-ws test_ws.c ${EXTRA_TEST_SOURCES})
+    set_target_properties(c-abstract-http-test-ws PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
     target_link_libraries(c-abstract-http-test-ws PRIVATE c-abstract-http)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         target_link_libraries(c-abstract-http-test-ws PRIVATE Threads::Threads)
@@ -82,6 +84,7 @@ endif()
 
 if(C_ABSTRACT_HTTP_ENABLE_SSE)
     add_executable(c-abstract-http-test-sse test_sse.c ${EXTRA_TEST_SOURCES})
+    set_target_properties(c-abstract-http-test-sse PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
     target_link_libraries(c-abstract-http-test-sse PRIVATE c-abstract-http)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         target_link_libraries(c-abstract-http-test-sse PRIVATE Threads::Threads)

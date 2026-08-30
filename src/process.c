@@ -38,6 +38,15 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 #endif
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#ifndef __cplusplus
+#if !defined(inline)
+#if defined(_MSC_VER)
+#define inline __inline
+#elif defined(__GNUC__) || defined(__clang__)
+#define inline __inline__
+#endif
+#endif
+#endif
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif

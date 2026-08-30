@@ -9,6 +9,10 @@
 #ifdef _WIN32
 
 #include "win_compat_sym.h"
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #include <winsock2.h>
 #include <winerror.h>
 #include <wininet.h>
@@ -23,6 +27,7 @@
 #include "str.h"
 /* clang-format on */
 
+#ifdef _WIN32
 static enum c_abstract_http_error
 ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out_len) {
   cfs_size_t written = 0;
@@ -42,12 +47,14 @@ wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out_len) {
   *out_len = (size_t)(written - 1);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+#endif
 
 #define CHECK_EINVAL(x)                                                        \
   if (!(x)) {                                                                  \
     return C_ABSTRACT_HTTP_ERR_INVAL;                                          \
   }
 
+#ifdef _WIN32
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
   /** @brief hInternet (variable) of struct HttpTransportContext */
@@ -62,6 +69,12 @@ struct HttpTransportContext {
   struct HttpCookieJar *cookie_jar;
   struct HttpConfig config;
 };
+#else
+struct HttpTransportContext {
+  /** @brief Documented */
+  int dummy;
+};
+#endif
 
 /* --- Internal Helpers --- */
 
@@ -228,7 +241,12 @@ http_wininet_context_init(struct HttpTransportContext **ctx) {
   LOG_DEBUG("http_wininet_context_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 #else
-  return C_ABSTRACT_HTTP_SUCCESS;
+  (void)ctx;
+#ifdef ENOTSUP
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+#else
+  return C_ABSTRACT_HTTP_ERR_INVAL;
+#endif
 #endif
 }
 
@@ -248,6 +266,8 @@ void http_wininet_context_free(struct HttpTransportContext *ctx) {
       free((void *)ctx->config.proxy_url);
     free(ctx);
   }
+#else
+  (void)ctx;
 #endif
   LOG_DEBUG("http_wininet_context_free: Exiting");
 }
@@ -339,6 +359,14 @@ http_wininet_config_apply(struct HttpTransportContext *ctx,
 
   LOG_DEBUG("http_wininet_config_apply: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
+#else
+  (void)ctx;
+  (void)config;
+#ifdef ENOTSUP
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+#else
+  return C_ABSTRACT_HTTP_ERR_INVAL;
+#endif
 #endif
 }
 
@@ -695,5 +723,14 @@ cleanup:
     LOG_DEBUG("http_wininet_send: Error returning %d", rc);
   }
   return rc;
+#else
+  (void)ctx;
+  (void)req;
+  (void)res;
+#ifdef ENOTSUP
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+#else
+  return C_ABSTRACT_HTTP_ERR_INVAL;
+#endif
 #endif
 }

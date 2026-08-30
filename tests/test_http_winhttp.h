@@ -209,6 +209,7 @@ struct winhttp_TestChunkState {
   int abort_on_call;
 };
 
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 static int winhttp_mock_chunk_cb(void *user_data, const void *chunk,
                                  size_t chunk_len) {
   struct winhttp_TestChunkState *state =
@@ -221,6 +222,7 @@ static int winhttp_mock_chunk_cb(void *user_data, const void *chunk,
   }
   return 0;
 }
+#endif
 
 /** @brief Documented */
 TEST test_winhttp_send_chunked(void) {
@@ -369,6 +371,7 @@ struct winhttp_TestUploadState {
   size_t pos;
 };
 
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 static int winhttp_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
                                   size_t *out_read) {
   struct winhttp_TestUploadState *state =
@@ -383,6 +386,7 @@ static int winhttp_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
   *out_read = to_copy;
   return 0;
 }
+#endif
 
 /** @brief Documented */
 TEST test_winhttp_send_upload_chunked(void) {
@@ -455,6 +459,7 @@ TEST test_winhttp_send_upload_chunked(void) {
 #endif
 }
 
+#if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 static void dummy_timeout_cb(struct ModalityEventLoop *loop, int timer_id,
                              void *user_data) {
   (void)timer_id;
@@ -476,16 +481,18 @@ static int setup_request(struct HttpRequest *req, int port) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #else
+#if defined(_MSC_VER)
+  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
+#else
   sprintf(url, "http://127.0.0.1:%d/test", port);
 #endif
-
-  req->url = (c_abstract_http_mock_strdup(url, &_ast_strdup_0), _ast_strdup_0);
-  if (!req->url) {
-    http_request_free(req);
-    return C_ABSTRACT_HTTP_ERR_NOMEM;
-  }
-  return 0;
+#endif
+  c_abstract_http_strdup(url, &_ast_strdup_0);
+  req->url = _ast_strdup_0;
+  req->method = HTTP_GET;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
+#endif
 
 /** @brief Documented */
 TEST test_winhttp_send_multi(void) {

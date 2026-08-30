@@ -16,6 +16,24 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#ifndef __cplusplus
+#if !defined(inline)
+#if defined(_MSC_VER)
+#define inline __inline
+#elif defined(__GNUC__) || defined(__clang__)
+#define inline __inline__
+#endif
+#endif
+#if defined(__GNUC__) || defined(__clang__)
+#ifndef _Bool
+#define _Bool int
+#endif
+#ifndef __forceinline
+#define __forceinline __inline__
+#endif
+#endif
+#endif
+
 #include <errno.h>
 #include <stddef.h>
 
