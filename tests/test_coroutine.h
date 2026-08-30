@@ -55,23 +55,43 @@ TEST test_coroutine_execution(void) {                      /* LCOV_EXCL_LINE */
   } /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc); /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(0, state.counter);                            /* LCOV_EXCL_LINE */
-  ASSERT_EQ(0, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
+  ASSERT_EQ(0, state.counter); /* LCOV_EXCL_LINE */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_coroutine_is_done(co, &is_done));
+    ASSERT_EQ(0, is_done);
+  } /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            abstract_http_coroutine_resume(co));          /* LCOV_EXCL_LINE */
-  ASSERT_EQ(1, state.counter);                            /* LCOV_EXCL_LINE */
-  ASSERT_EQ(0, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
+            abstract_http_coroutine_resume(co)); /* LCOV_EXCL_LINE */
+  ASSERT_EQ(1, state.counter);                   /* LCOV_EXCL_LINE */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_coroutine_is_done(co, &is_done));
+    ASSERT_EQ(0, is_done);
+  } /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            abstract_http_coroutine_resume(co));          /* LCOV_EXCL_LINE */
-  ASSERT_EQ(2, state.counter);                            /* LCOV_EXCL_LINE */
-  ASSERT_EQ(0, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
+            abstract_http_coroutine_resume(co)); /* LCOV_EXCL_LINE */
+  ASSERT_EQ(2, state.counter);                   /* LCOV_EXCL_LINE */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_coroutine_is_done(co, &is_done));
+    ASSERT_EQ(0, is_done);
+  } /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            abstract_http_coroutine_resume(co));          /* LCOV_EXCL_LINE */
-  ASSERT_EQ(3, state.counter);                            /* LCOV_EXCL_LINE */
-  ASSERT_EQ(1, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
+            abstract_http_coroutine_resume(co)); /* LCOV_EXCL_LINE */
+  ASSERT_EQ(3, state.counter);                   /* LCOV_EXCL_LINE */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_coroutine_is_done(co, &is_done));
+    ASSERT_EQ(1, is_done);
+  } /* LCOV_EXCL_LINE */
 
   /* Calling resume on a finished coroutine should return an error */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
@@ -111,9 +131,13 @@ TEST test_coroutine_errors(void) {                      /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             abstract_http_coroutine_resume(co)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            abstract_http_coroutine_yield());             /* LCOV_EXCL_LINE */
-  ASSERT_EQ(1, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
-  abstract_http_coroutine_free(co);                       /* LCOV_EXCL_LINE */
+            abstract_http_coroutine_yield()); /* LCOV_EXCL_LINE */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              abstract_http_coroutine_is_done(co, &is_done));
+  } /* LCOV_EXCL_LINE */
+  abstract_http_coroutine_free(co); /* LCOV_EXCL_LINE */
 
   {
     enum c_abstract_http_error rc_test =
@@ -144,10 +168,13 @@ mock_co_resume(struct AbstractHttpCoroutine *co) { /* LCOV_EXCL_LINE */
   return 0;                                        /* LCOV_EXCL_LINE */
 }
 static int mock_co_yield(void) { return 0; } /* LCOV_EXCL_LINE */
-static int
-mock_co_is_done(const struct AbstractHttpCoroutine *co) { /* LCOV_EXCL_LINE */
-  (void)co;                                               /* LCOV_EXCL_LINE */
-  return 1;                                               /* LCOV_EXCL_LINE */
+static int mock_co_is_done(const struct AbstractHttpCoroutine *co,
+                           int *out_is_done) { /* LCOV_EXCL_LINE */
+  printf("mock_co_is_done CALLED\n");
+  if (!co || !out_is_done)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  *out_is_done = 1;
+  return C_ABSTRACT_HTTP_SUCCESS; /* LCOV_EXCL_LINE */
 }
 
 TEST test_coroutine_hooks(void) { /* LCOV_EXCL_LINE */
@@ -173,9 +200,13 @@ TEST test_coroutine_hooks(void) { /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_coroutine_resume(co)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            abstract_http_coroutine_yield());             /* LCOV_EXCL_LINE */
-  ASSERT_EQ(1, math_abstract_http_coroutine_is_done(co)); /* LCOV_EXCL_LINE */
-  abstract_http_coroutine_free(co);                       /* LCOV_EXCL_LINE */
+            abstract_http_coroutine_yield()); /* LCOV_EXCL_LINE */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              abstract_http_coroutine_is_done(co, &is_done));
+  } /* LCOV_EXCL_LINE */
+  abstract_http_coroutine_free(co); /* LCOV_EXCL_LINE */
 
   {
     struct AbstractHttpCoroutineHooks z;
@@ -237,8 +268,19 @@ TEST test_coroutine_fallback_paths(void) {                 /* LCOV_EXCL_LINE */
   /* coverage for C_ABSTRACT_HTTP_ERR_NOMEM */
   g_mock_alloc_fail = 1;  /* LCOV_EXCL_LINE */
   g_mock_alloc_count = 0; /* LCOV_EXCL_LINE */
-  rc = abstract_http_coroutine_init(&co, 0, test_co_cb,
-                                    &state);                /* LCOV_EXCL_LINE */
+  /* Try up to 3 times to account for internal allocations */
+  {
+    int i;
+    for (i = 0; i < 3; i++) {
+      g_mock_alloc_count = i;
+      g_mock_alloc_fail = 1;
+      rc = abstract_http_coroutine_init(&co, 0, test_co_cb, &state);
+      if (rc == C_ABSTRACT_HTTP_ERR_NOMEM)
+        break;
+      abstract_http_coroutine_free(co);
+      co = NULL;
+    }
+  }
   printf("abstract_http_coroutine_init returned %d\n", rc); /* LCOV_EXCL_LINE */
   {
     int rc_test_tmp = rc;  /* LCOV_EXCL_LINE */

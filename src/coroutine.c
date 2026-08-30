@@ -85,7 +85,6 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
                              size_t stack_size, abstract_http_coroutine_cb cb,
                              void *arg) {
   struct AbstractHttpCoroutine *c;
-  printf("abstract_http_coroutine_init CALLED\n");
 
   LOG_DEBUG("abstract_http_coroutine_init: Entering");
   if (g_coroutine_hooks.init) {
@@ -207,16 +206,18 @@ enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   LOG_DEBUG("abstract_http_coroutine_yield: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-
-int math_abstract_http_coroutine_is_done(
-    const struct AbstractHttpCoroutine *co) {
+enum c_abstract_http_error
+abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
+                                int *out_is_done) {
   if (g_coroutine_hooks.is_done) {
-    return g_coroutine_hooks.is_done(co);
+    return g_coroutine_hooks.is_done(co, out_is_done);
   }
+  if (!co || !out_is_done)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
-  return co ? co->is_done : 1;
+  *out_is_done = co->is_done;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
-
 #elif !defined(ABSTRACT_HTTP_NO_UCONTEXT) /* POSIX ucontext */
 
 /** @brief Internal struct AbstractHttpCoroutine */
@@ -263,7 +264,6 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
                              size_t stack_size, abstract_http_coroutine_cb cb,
                              void *arg) {
   struct AbstractHttpCoroutine *c;
-  printf("abstract_http_coroutine_init CALLED\n");
 
   LOG_DEBUG("abstract_http_coroutine_init: Entering");
   if (g_coroutine_hooks.init) {
@@ -375,16 +375,18 @@ enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   LOG_DEBUG("abstract_http_coroutine_yield: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-
-int math_abstract_http_coroutine_is_done(
-    const struct AbstractHttpCoroutine *co) {
+enum c_abstract_http_error
+abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
+                                int *out_is_done) {
   if (g_coroutine_hooks.is_done) {
-    return g_coroutine_hooks.is_done(co);
+    return g_coroutine_hooks.is_done(co, out_is_done);
   }
+  if (!co || !out_is_done)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
-  return co ? co->is_done : 1;
+  *out_is_done = co->is_done;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
-
 #else
 
 /** @brief Internal struct AbstractHttpCoroutine */
@@ -440,7 +442,7 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
                              size_t stack_size, abstract_http_coroutine_cb cb,
                              void *arg) {
   struct AbstractHttpCoroutine *c;
-  printf("abstract_http_coroutine_init CALLED\n");
+
   (void)stack_size;
   init_fallback_key();
 
@@ -569,17 +571,17 @@ enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   pthread_mutex_unlock(&co->mutex);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-
-int math_abstract_http_coroutine_is_done(
-    const struct AbstractHttpCoroutine *co) {
+enum c_abstract_http_error
+abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
+                                int *out_is_done) {
   if (g_coroutine_hooks.is_done) {
-    return g_coroutine_hooks.is_done(co);
+    return g_coroutine_hooks.is_done(co, out_is_done);
   }
-  if (!co)
-    return 1;
+  if (!co || !out_is_done)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
-  /* We check safely */
-  return co->is_done;
+  *out_is_done = co->is_done;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #endif

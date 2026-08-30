@@ -74,8 +74,13 @@ TEST test_actor_spawn_and_message(void) { /* LCOV_EXCL_LINE */
   /* Nothing processed yet */
   ASSERT_EQ(0, state2.received_messages); /* LCOV_EXCL_LINE */
 
-  /* Process */
-  ASSERT_EQ(1, abstract_http_message_bus_process(bus)); /* LCOV_EXCL_LINE */
+  {
+    int processed_count = 0; /* LCOV_EXCL_LINE */
+
+    /* Process */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_process(bus, &processed_count)); /* LCOV_EXCL_LINE */
+    ASSERT_EQ(1, processed_count); /* LCOV_EXCL_LINE */
+  }
 
   /* Actor 2 should have received it */
   ASSERT_EQ(1, state2.received_messages); /* LCOV_EXCL_LINE */
@@ -89,7 +94,11 @@ TEST test_actor_spawn_and_message(void) { /* LCOV_EXCL_LINE */
   msg.receiver = actor1; /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_send(bus, &msg)); /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(2, abstract_http_message_bus_process(bus)); /* LCOV_EXCL_LINE */
+  {
+    int processed_count = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_process(bus, &processed_count)); /* LCOV_EXCL_LINE */
+    ASSERT_EQ(2, processed_count); /* LCOV_EXCL_LINE */
+  }
   ASSERT_EQ(1, state1.shutdown); /* LCOV_EXCL_LINE */
 
   abstract_http_message_bus_free(bus); /* LCOV_EXCL_LINE */
@@ -104,10 +113,11 @@ static int mock_bus_init(struct AbstractHttpMessageBus **bus) { /* LCOV_EXCL_LIN
   return 0; /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 static void mock_bus_free(struct AbstractHttpMessageBus *bus) { (void)bus; } /* LCOV_EXCL_LINE */
-static int mock_bus_process(struct AbstractHttpMessageBus *bus) { /* LCOV_EXCL_LINE */
+static int mock_bus_process(struct AbstractHttpMessageBus *bus, int *out_processed) { /* LCOV_EXCL_LINE */
 
-  if (!bus) /* LCOV_EXCL_LINE */
+  if (!bus || !out_processed) /* LCOV_EXCL_LINE */
     return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_LINE */
+  *out_processed = 0; /* LCOV_EXCL_LINE */
   return 0; /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */
 static int mock_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name, /* LCOV_EXCL_LINE */
@@ -165,8 +175,11 @@ TEST test_actor_hooks(void) { /* LCOV_EXCL_LINE */
 
   { enum c_abstract_http_error rc_test = abstract_http_actor_set_hooks(&hooks); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } } /* LCOV_EXCL_LINE */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_init(&bus)); /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_process(bus)); /* LCOV_EXCL_LINE */
+  {
+    int out_processed = 0; /* LCOV_EXCL_LINE */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_init(&bus)); /* LCOV_EXCL_LINE */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_process(bus, &out_processed)); /* LCOV_EXCL_LINE */
+  }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_spawn(bus, "mock", NULL, NULL, &actor)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_send(bus, &msg)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_get_state(actor, &state)); /* LCOV_EXCL_LINE */
@@ -190,7 +203,10 @@ TEST test_actor_errors(void) { /* LCOV_EXCL_LINE */
   memset(&msg, 0, sizeof(msg)); /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_message_bus_init(NULL)); /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_message_bus_process(NULL)); /* LCOV_EXCL_LINE */
+  {
+    int out_processed = 0; /* LCOV_EXCL_LINE */
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_message_bus_process(NULL, &out_processed)); /* LCOV_EXCL_LINE */
+  }
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_actor_spawn(NULL, "test", NULL, NULL, &actor)); /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_actor_send(NULL, &msg)); /* LCOV_EXCL_LINE */
 
@@ -425,8 +441,11 @@ TEST test_actor_mock_nulls(void) {           /* LCOV_EXCL_LINE */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             mock_bus_init(NULL)); /* LCOV_EXCL_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            mock_bus_process(NULL));   /* LCOV_EXCL_LINE */
+  {
+    int out_processed = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              mock_bus_process(NULL, &out_processed)); /* LCOV_EXCL_LINE */
+  }
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_LINE */
             mock_actor_spawn(NULL, "test", NULL, NULL, &actor));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_LINE */

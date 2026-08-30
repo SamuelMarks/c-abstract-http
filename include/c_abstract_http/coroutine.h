@@ -43,8 +43,8 @@ struct AbstractHttpCoroutineHooks {
   int (*resume)(
       struct AbstractHttpCoroutine *co); /**< Hook for resuming execution */
   int (*yield)(void);                    /**< Hook for yielding execution */
-  int (*is_done)(
-      const struct AbstractHttpCoroutine *co); /**< Hook for checking status */
+  int (*is_done)(const struct AbstractHttpCoroutine *co,
+                 int *out_is_done); /**< Hook for checking status */
 };
 
 /**
@@ -97,10 +97,12 @@ abstract_http_coroutine_yield(void);
 /**
  * @brief Check if the coroutine has finished executing.
  * @param[in] co The coroutine handle.
- * @return 1 if finished, 0 if still active.
+ * @param[out] out_is_done Pointer to store 1 if finished, 0 if still active.
+ * @return Error enum.
  */
-C_ABSTRACT_HTTP_API int
-math_abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
+                                int *out_is_done);
 
 #ifdef __cplusplus
 }

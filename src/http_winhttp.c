@@ -492,11 +492,12 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
                 ctx->cookie_jar->cookies[i].value);
 #else
 #if defined(_MSC_VER)
-      sprintf_s(cbuf, sizeof(cbuf), \"Cookie: %s=%s\r\n\", ctx->cookie_jar->cookies[i].name, ctx->cookie_jar->cookies[i].value);
+      sprintf_s(cbuf, sizeof(cbuf), "Cookie: %s=%s\r\n",
+                ctx->cookie_jar->cookies[i].name,
+                ctx->cookie_jar->cookies[i].value);
 #else
-      sprintf(cbuf, \"Cookie: %s=%s\r\n\", ctx->cookie_jar->cookies[i].name,
-                    ctx->cookie_jar->cookies[i]
-                        .value);
+      sprintf(cbuf, "Cookie: %s=%s\r\n", ctx->cookie_jar->cookies[i].name,
+              ctx->cookie_jar->cookies[i].value);
 #endif
 #endif
 

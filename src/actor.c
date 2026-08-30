@@ -148,17 +148,18 @@ void abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus) {
 }
 
 enum c_abstract_http_error
-abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus) {
+abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus,
+                                  int *out_processed) {
   int count = 0;
   struct MessageNode *node;
 
   LOG_DEBUG("abstract_http_message_bus_process: Entering");
   if (g_actor_hooks.bus_process) {
     LOG_DEBUG("abstract_http_message_bus_process: Hooking");
-    return g_actor_hooks.bus_process(bus);
+    return g_actor_hooks.bus_process(bus, out_processed);
   }
 
-  if (!bus) {
+  if (!bus || !out_processed) {
     LOG_DEBUG("abstract_http_message_bus_process: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -176,8 +177,9 @@ abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus) {
     count++;
   }
 
+  *out_processed = count;
   LOG_DEBUG("abstract_http_message_bus_process: Success (%d processed)", count);
-  return count;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error

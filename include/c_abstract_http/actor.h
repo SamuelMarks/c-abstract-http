@@ -67,8 +67,8 @@ struct AbstractHttpActorHooks {
       struct AbstractHttpMessageBus **bus); /**< Hook for bus initialization */
   void (*bus_free)(
       struct AbstractHttpMessageBus *bus); /**< Hook for bus destruction */
-  int (*bus_process)(
-      struct AbstractHttpMessageBus *bus); /**< Hook to process messages */
+  int (*bus_process)(struct AbstractHttpMessageBus *bus,
+                     int *out_processed); /**< Hook to process messages */
   int (*actor_spawn)(
       struct AbstractHttpMessageBus *bus, const char *name,
       abstract_http_actor_handler_cb handler, void *state,
@@ -109,10 +109,12 @@ abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus);
  * Non-blocking if the queue is empty unless blocked explicitly by the
  * implementation.
  * @param[in] bus The bus handle.
- * @return Number of messages processed, or error code.
+ * @param[out] out_processed Pointer to store the number of messages processed.
+ * @return Error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
-abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus);
+abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus,
+                                  int *out_processed);
 
 /**
  * @brief Spawn a new Actor and register it to the bus.
