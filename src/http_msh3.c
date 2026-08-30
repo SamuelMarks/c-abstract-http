@@ -334,7 +334,11 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 #if defined(_MSC_VER)
       strcpy_s(*port, 4, "443");
 #else
-      strcpy(*port, "443");
+#if defined(_MSC_VER)
+      strcpy_s(*port, 4, \"443\");
+#else
+      strcpy(*port, \"443\");
+#endif
 #endif
 #endif
     } else {
@@ -345,7 +349,11 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 #if defined(_MSC_VER)
       strcpy_s(*port, 4, "80");
 #else
-      strcpy(*port, "80");
+#if defined(_MSC_VER)
+      strcpy_s(*port, 3, \"80\");
+#else
+      strcpy(*port, \"80\");
+#endif
 #endif
 #endif
     }
@@ -360,7 +368,11 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 #if defined(_MSC_VER)
     strcpy_s(*path, strlen(slash) + 1, slash);
 #else
+#if defined(_MSC_VER)
+    strcpy_s(*path, strlen(slash) + 1, slash);
+#else
     strcpy(*path, slash);
+#endif
 #endif
 #endif
   } else {
@@ -371,7 +383,11 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 #if defined(_MSC_VER)
     strcpy_s(*path, 2, "/");
 #else
-    strcpy(*path, "/");
+#if defined(_MSC_VER)
+    strcpy_s(*path, 2, \"/\");
+#else
+    strcpy(*path, \"/\");
+#endif
 #endif
 #endif
   }
@@ -410,7 +426,11 @@ http_msh3_send(const struct HttpTransportContext *ctx,
 #if defined(_MSC_VER)
   sprintf_s(authority, sizeof(authority), "%s:%s", host, port_str);
 #else
-  sprintf(authority, "%s:%s", host, port_str);
+#if defined(_MSC_VER)
+  sprintf_s(authority, sizeof(authority), \"%s:%s\", host, port_str);
+#else
+  sprintf(authority, \"%s:%s\", host, port_str);
+#endif
 #endif
 #endif
 

@@ -58,8 +58,8 @@ static int strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((format(printf, 4, 5)))
 #endif
-static size_t
-sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fmt, ...) {
+static size_t sprintf_s_wrapper(char *buf, size_t start, size_t cap,
+                                const char *fmt, ...) {
   size_t written;
   va_list args;
   va_start(args, fmt);
@@ -338,7 +338,11 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
   sprintf_s(boundary, sizeof(boundary), "------------------------cddbound%08x",
             rand());
 #else
-  sprintf(boundary, "------------------------cddbound%08x", rand());
+#if defined(_MSC_VER)
+  sprintf_s(boundary, sizeof(boundary), \"------------------------cddbound%08x\", rand());
+#else
+  sprintf(boundary, \"------------------------cddbound%08x\", rand());
+#endif
 #endif
 #endif
 
@@ -464,7 +468,11 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
 #if defined(_MSC_VER)
     sprintf_s(ct, sizeof(ct), "multipart/form-data; boundary=%s", boundary);
 #else
-    sprintf(ct, "multipart/form-data; boundary=%s", boundary);
+#if defined(_MSC_VER)
+    sprintf_s(ct, sizeof(ct), \"multipart/form-data; boundary=%s\", boundary);
+#else
+    sprintf(ct, \"multipart/form-data; boundary=%s\", boundary);
+#endif
 #endif
 #endif
     /* If header exists, this adds a duplicate. Typically client code shouldn't
@@ -798,7 +806,11 @@ enum c_abstract_http_error http_request_set_auth_bearer(struct HttpRequest *req,
 #if defined(_MSC_VER)
   sprintf_s(val, sizeof(val), "Bearer %s", token);
 #else
-  sprintf(val, "Bearer %s", token);
+#if defined(_MSC_VER)
+  sprintf_s(val, len, \"Bearer %s\", token);
+#else
+  sprintf(val, \"Bearer %s\", token);
+#endif
 #endif
 #endif
 
@@ -832,7 +844,11 @@ enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req,
 #if defined(_MSC_VER)
   sprintf_s(val, sizeof(val), "Basic %s", token);
 #else
-  sprintf(val, "Basic %s", token);
+#if defined(_MSC_VER)
+  sprintf_s(val, len, \"Basic %s\", token);
+#else
+  sprintf(val, \"Basic %s\", token);
+#endif
 #endif
 #endif
 
@@ -901,7 +917,11 @@ enum c_abstract_http_error http_request_set_auth_basic_userpwd(
 #if defined(_MSC_VER)
   sprintf_s(raw, sizeof(raw), "%s:%s", username, password);
 #else
-  sprintf(raw, "%s:%s", username, password);
+#if defined(_MSC_VER)
+  sprintf_s(raw, len, \"%s:%s\", username, password);
+#else
+  sprintf(raw, \"%s:%s\", username, password);
+#endif
 #endif
 #endif
 

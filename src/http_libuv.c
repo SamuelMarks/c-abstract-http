@@ -535,7 +535,11 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
 #if defined(_MSC_VER)
   sprintf_s(port_str, sizeof(port_str), "%d", port);
 #else
-  sprintf(port_str, "%d", port);
+#if defined(_MSC_VER)
+  sprintf_s(port_str, sizeof(port_str), \"%d\", port);
+#else
+  sprintf(port_str, \"%d\", port);
+#endif
 #endif
 #endif
 
@@ -619,7 +623,11 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   state.req_len +=
       sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len, "\r\n");
 #else
-  state.req_len += sprintf(state.req_buf + state.req_len, "\r\n");
+#if defined(_MSC_VER)
+  state.req_len += sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len, \"\r\n\");
+#else
+  state.req_len += sprintf(state.req_buf + state.req_len, \"\r\n\");
+#endif
 #endif
 
   /* Append body if not chunked */
