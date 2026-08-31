@@ -28,6 +28,7 @@
 #endif
 #include "greatest.h"
 #include "mock_alloc.h"
+#include "../src/str.h"
 
 /* Include test suites */
 

@@ -641,19 +641,19 @@ int g_mock_timer_heap_swap_fail = 0;
 
 #ifdef __MINGW32__
 void (*__imp_c_abstract_http_mock_select)(void) =
-    (void (*)(void))&c_abstract_http_mock_select;
+    (void (*)(void)) & c_abstract_http_mock_select;
 void (*__imp_c_abstract_http_mock_socket)(void) =
-    (void (*)(void))&c_abstract_http_mock_socket;
+    (void (*)(void)) & c_abstract_http_mock_socket;
 void (*__imp_c_abstract_http_mock_bind)(void) =
-    (void (*)(void))&c_abstract_http_mock_bind;
+    (void (*)(void)) & c_abstract_http_mock_bind;
 void (*__imp_c_abstract_http_mock_listen)(void) =
-    (void (*)(void))&c_abstract_http_mock_listen;
+    (void (*)(void)) & c_abstract_http_mock_listen;
 void (*__imp_c_abstract_http_mock_accept)(void) =
-    (void (*)(void))&c_abstract_http_mock_accept;
+    (void (*)(void)) & c_abstract_http_mock_accept;
 void (*__imp_c_abstract_http_mock_getsockname)(void) =
-    (void (*)(void))&c_abstract_http_mock_getsockname;
+    (void (*)(void)) & c_abstract_http_mock_getsockname;
 void (*__imp_c_abstract_http_mock_recv)(void) =
-    (void (*)(void))&c_abstract_http_mock_recv;
+    (void (*)(void)) & c_abstract_http_mock_recv;
 #endif
 struct curl_slist;
 struct curl_slist *g_mock_curl_cookies = 0;
