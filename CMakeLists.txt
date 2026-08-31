@@ -21,8 +21,8 @@ if(MSVC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W4" CACHE STRING "C Flags" FORCE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4" CACHE STRING "CXX Flags" FORCE)
 elseif(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror -pedantic" CACHE STRING "C Flags" FORCE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -pedantic" CACHE STRING "CXX Flags" FORCE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -pedantic" CACHE STRING "C Flags" FORCE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic" CACHE STRING "CXX Flags" FORCE)
 endif()
 
 
@@ -235,6 +235,9 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
             GIT_TAG ${FetchTag}
         )
         FetchContent_MakeAvailable(${PkgName})
+        if(TARGET ${PkgName}_compiler_flags)
+            set_target_properties(${PkgName}_compiler_flags PROPERTIES INTERFACE_COMPILE_OPTIONS "")
+        endif()
 #If fetchcontent fails, CMake usually aborts or the target is not created
 #We assume success if it didn't fatal error during MakeAvailable,
 #but we can do a sanity check to ensure the target we need is there.

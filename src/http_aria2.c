@@ -98,27 +98,14 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
             "aria2c -q --allow-overwrite=true -d . -o %s " % s\"", tmp_filename,
             req->url);
 #else
-#if defined(_MSC_VER)
-  sprintf_s(tmp_filename, sizeof(tmp_filename), "aria2c_tmp_%p.bin",
-            (void *)req);
-  sprintf_s(cmd, sizeof(cmd),
-            "aria2c -q --allow-overwrite=true -d . -o %s " % s\"", tmp_filename,
-            req->url);
-#else
-#if defined(_MSC_VER)
-  sprintf_s(tmp_filename, sizeof(tmp_filename), "aria2c_tmp_%p.bin",
-            (void *)req);
-#else
   sprintf(tmp_filename, "aria2c_tmp_%p.bin", (void *)req);
-#endif
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(cmd, sizeof(cmd),
             "aria2c -q --allow-overwrite=true -d . -o %s \\" % s\\"",
             tmp_filename, req->url);
 #else
   sprintf(cmd, "aria2c -q --allow-overwrite=true -d . -o %s \\" % s\\"",
           tmp_filename, req->url);
-#endif
 #endif
 #endif
 

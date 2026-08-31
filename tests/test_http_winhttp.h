@@ -481,11 +481,7 @@ static int setup_request(struct HttpRequest *req, int port) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #else
-#if defined(_MSC_VER)
-  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
-#else
   sprintf(url, "http://127.0.0.1:%d/test", port);
-#endif
 #endif
   c_abstract_http_strdup(url, &_ast_strdup_0);
   req->url = _ast_strdup_0;

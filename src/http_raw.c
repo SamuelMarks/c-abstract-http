@@ -177,7 +177,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
       free(*host);
       return -1;
     }
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     strcpy_s(*path, 2, "/");
 #else
     strcpy(*path, "/");
@@ -335,14 +335,8 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
               "%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n", method_str,
               path, host);
 #else
-#if defined(_MSC_VER)
-    sprintf_s(request_buf, req_cap,
-              "%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n", method_str,
-              path, host);
-#else
     sprintf(request_buf, "%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n",
             method_str, path, host);
-#endif
 #endif
     req_len = strlen(request_buf);
   }
@@ -373,13 +367,8 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
       sprintf_s(request_buf + req_len, req_cap - req_len, "%s: %s\r\n",
                 req->headers.headers[i].key, req->headers.headers[i].value);
 #else
-#if defined(_MSC_VER)
-      sprintf_s(request_buf + req_len, req_cap - req_len, "%s: %s\r\n",
-                req->headers.headers[i].key, req->headers.headers[i].value);
-#else
       sprintf(request_buf + req_len, "%s: %s\r\n", req->headers.headers[i].key,
               req->headers.headers[i].value);
-#endif
 #endif
       req_len += strlen(request_buf + req_len);
     }
@@ -387,7 +376,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 
   if (req->body && req->body_len > 0) {
     char len_buf[64];
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(len_buf, sizeof(len_buf), "Content-Length: %lu\r\n\r\n",
               (unsigned long)req->body_len);
 #else
@@ -409,27 +398,19 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
       }
       request_buf = new_buf;
     }
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     strcat_s(request_buf, sizeof(request_buf), len_buf);
 #else
-#if defined(_MSC_VER)
-    strcat_s(request_buf, req_cap, len_buf);
-#else
     strcat(request_buf, len_buf);
-#endif
 #endif
     req_len += strlen(len_buf);
     memcpy(request_buf + req_len, req->body, req->body_len);
     req_len += req->body_len;
   } else {
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     strcat_s(request_buf, sizeof(request_buf), "\r\n");
 #else
-#if defined(_MSC_VER)
-    strcat_s(request_buf, req_cap, "\r\n");
-#else
     strcat(request_buf, "\r\n");
-#endif
 #endif
     req_len += 2;
   }

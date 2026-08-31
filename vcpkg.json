@@ -71,5 +71,6 @@
     "schannel": {
       "description": "Use Schannel for cryptography (Windows Native)"
     }
-  }
+  },
+  "builtin-baseline": "e9e4a50bbf71efc82d2f13570af67a9b1938d359"
 }

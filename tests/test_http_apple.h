@@ -220,7 +220,7 @@ TEST test_apple_send_mock_server(void) { /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_request_init(&req));        /* LCOV_EXCL_LINE */
   req.url = (char *)malloc(strlen(url) + 1); /* LCOV_EXCL_LINE */
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(req.url, strlen(url) + 1, url);
 #else
   strcpy(req.url, url); /* LCOV_EXCL_LINE */
@@ -248,7 +248,7 @@ TEST test_apple_send_mock_server(void) { /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_request_init(&req));        /* LCOV_EXCL_LINE */
   req.url = (char *)malloc(strlen(url) + 1); /* LCOV_EXCL_LINE */
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(req.url, strlen(url) + 1, url);
 #else
   strcpy(req.url, url); /* LCOV_EXCL_LINE */
@@ -400,7 +400,7 @@ TEST test_apple_send_all_methods(void) {   /* LCOV_EXCL_LINE */
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_request_init(&req));                     /* LCOV_EXCL_LINE */
     req.url = (char *)malloc(sizeof("http://localhost:1")); /* LCOV_EXCL_LINE */
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     strcpy_s(req.url, sizeof("http://localhost:1"), "http://localhost:1");
 #else
     strcpy(req.url, "http://localhost:1"); /* LCOV_EXCL_LINE */
@@ -481,7 +481,7 @@ TEST test_apple_read_chunk(void) {         /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_request_init(&req));                     /* LCOV_EXCL_LINE */
   req.url = (char *)malloc(sizeof("http://localhost:1")); /* LCOV_EXCL_LINE */
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(req.url, sizeof("http://localhost:1"), "http://localhost:1");
 #else
   strcpy(req.url, "http://localhost:1"); /* LCOV_EXCL_LINE */
@@ -509,7 +509,7 @@ TEST test_apple_read_chunk(void) {         /* LCOV_EXCL_LINE */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_request_init(&req));                     /* LCOV_EXCL_LINE */
   req.url = (char *)malloc(sizeof("http://localhost:1")); /* LCOV_EXCL_LINE */
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(req.url, sizeof("http://localhost:1"), "http://localhost:1");
 #else
   strcpy(req.url, "http://localhost:1"); /* LCOV_EXCL_LINE */

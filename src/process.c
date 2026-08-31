@@ -40,7 +40,7 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #ifndef __cplusplus
 #if !defined(inline)
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #define inline __inline
 #elif defined(__GNUC__) || defined(__clang__)
 #define inline __inline__
@@ -175,11 +175,7 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcat_s(szCmdline, MAX_PATH, " --test-worker");
 #else
-#if defined(_MSC_VER)
-  strcat_s(szCmdline, 1024, " --test-worker");
-#else
   strcat(szCmdline, " --test-worker");
-#endif
 #endif
 
   bSuccess = CreateProcessA(NULL, szCmdline, NULL, NULL, TRUE, 0, NULL, NULL,

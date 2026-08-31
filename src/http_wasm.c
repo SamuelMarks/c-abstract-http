@@ -157,15 +157,7 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(attr.requestMethod, sizeof(attr.requestMethod), method_str);
 #else
-#if defined(_MSC_VER)
-  strcpy_s(attr.requestMethod, sizeof(attr.requestMethod), method_str);
-#else
-#if defined(_MSC_VER)
-  strcpy_s(attr.requestMethod, sizeof(attr.requestMethod), method_str);
-#else
   strcpy(attr.requestMethod, method_str);
-#endif
-#endif
 #endif
   attr.attributes = EMSCRIPTEN_FETCH_SYNCHRONOUS;
 

@@ -208,15 +208,7 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FORMAT_HEADER(const char *key,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(buf, len, "%s: %s", key, value);
 #else
-#if defined(_MSC_VER)
-    sprintf_s(buf, sizeof(buf), "%s: %s", key, value);
-#else
-#if defined(_MSC_VER)
-    sprintf_s(buf, sizeof(buf), "%s: %s", key, value);
-#else
     sprintf(buf, "%s: %s", key, value);
-#endif
-#endif
 #endif
   }
   {

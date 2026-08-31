@@ -465,11 +465,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strncpy_s(*host, host_len + 1, host_start, host_len);
 #else
-#if defined(_MSC_VER)
-  strncpy_s(*host, host_len + 1, host_start, host_len);
-#else
   strncpy(*host, host_start, host_len);
-#endif
 #endif
   (*host)[host_len] = '\0';
 
@@ -532,15 +528,7 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(port_str, sizeof(port_str), "%d", port);
 #else
-#if defined(_MSC_VER)
-  sprintf_s(port_str, sizeof(port_str), "%d", port);
-#else
-#if defined(_MSC_VER)
-  sprintf_s(port_str, sizeof(port_str), "%d", port);
-#else
   sprintf(port_str, "%d", port);
-#endif
-#endif
 #endif
 
   get_method_str(req->method, &method_str);
@@ -623,12 +611,7 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   state.req_len +=
       sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len, "\r\n");
 #else
-#if defined(_MSC_VER)
-  state.req_len +=
-      sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len, "\r\n");
-#else
   state.req_len += sprintf(state.req_buf + state.req_len, "\r\n");
-#endif
 #endif
 
   /* Append body if not chunked */
