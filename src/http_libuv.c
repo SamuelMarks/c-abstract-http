@@ -526,8 +526,10 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  /* MSVC Safe Path */
   sprintf_s(port_str, sizeof(port_str), "%d", port);
 #else
+  /* Standard POSIX / GCC Path */
   sprintf(port_str, "%d", port);
 #endif
 
@@ -542,11 +544,13 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  /* MSVC Safe Path */
   state.req_len =
       sprintf_s(state.req_buf, req_cap,
                 "%s %s HTTP/1.1\r\nHost: %s:%d\r\nConnection: close\r\n",
                 method_str, path, host, port);
 #else
+  /* Standard POSIX / GCC Path */
   state.req_len = sprintf(
       state.req_buf, "%s %s HTTP/1.1\r\nHost: %s:%d\r\nConnection: close\r\n",
       method_str, path, host, port);
@@ -570,10 +574,12 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
       state.req_buf = new_buf;
     }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    /* MSVC Safe Path */
     state.req_len += sprintf_s(
         state.req_buf + state.req_len, req_cap - state.req_len, "%s: %s\r\n",
         req->headers.headers[i].key, req->headers.headers[i].value);
 #else
+    /* Standard POSIX / GCC Path */
     state.req_len +=
         sprintf(state.req_buf + state.req_len, "%s: %s\r\n",
                 req->headers.headers[i].key, req->headers.headers[i].value);
@@ -583,11 +589,13 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   /* Body length */
   if (req->read_chunk && req->expected_body_len > 0) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    /* MSVC Safe Path */
     state.req_len +=
         sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len,
                   "Content-Length: " C_ABSTRACT_HTTP_NUM_FORMAT "\r\n",
                   (abstract_http_int64_t)req->expected_body_len);
 #else
+    /* Standard POSIX / GCC Path */
     state.req_len +=
         sprintf(state.req_buf + state.req_len,
                 "Content-Length: " C_ABSTRACT_HTTP_NUM_FORMAT "\r\n",
@@ -595,11 +603,13 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
 #endif
   } else if (req->body_len > 0) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    /* MSVC Safe Path */
     state.req_len +=
         sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len,
                   "Content-Length: " C_ABSTRACT_HTTP_NUM_FORMAT "\r\n",
                   (abstract_http_int64_t)req->body_len);
 #else
+    /* Standard POSIX / GCC Path */
     state.req_len +=
         sprintf(state.req_buf + state.req_len,
                 "Content-Length: " C_ABSTRACT_HTTP_NUM_FORMAT "\r\n",
@@ -608,9 +618,11 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  /* MSVC Safe Path */
   state.req_len +=
       sprintf_s(state.req_buf + state.req_len, req_cap - state.req_len, "\r\n");
 #else
+  /* Standard POSIX / GCC Path */
   state.req_len += sprintf(state.req_buf + state.req_len, "\r\n");
 #endif
 

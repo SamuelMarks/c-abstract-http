@@ -178,8 +178,10 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
       return -1;
     }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    /* MSVC Safe Path */
     strcpy_s(*path, 2, "/");
 #else
+    /* Standard POSIX / GCC Path */
     strcpy(*path, "/");
 #endif
   }
@@ -331,10 +333,12 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
       method_str = "OPTIONS";
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    /* MSVC Safe Path */
     sprintf_s(request_buf, req_cap,
               "%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n", method_str,
               path, host);
 #else
+    /* Standard POSIX / GCC Path */
     sprintf(request_buf, "%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n",
             method_str, path, host);
 #endif
@@ -364,9 +368,11 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
         request_buf = new_buf;
       }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      /* MSVC Safe Path */
       sprintf_s(request_buf + req_len, req_cap - req_len, "%s: %s\r\n",
                 req->headers.headers[i].key, req->headers.headers[i].value);
 #else
+      /* Standard POSIX / GCC Path */
       sprintf(request_buf + req_len, "%s: %s\r\n", req->headers.headers[i].key,
               req->headers.headers[i].value);
 #endif
@@ -377,9 +383,11 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   if (req->body && req->body_len > 0) {
     char len_buf[64];
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    /* MSVC Safe Path */
     sprintf_s(len_buf, sizeof(len_buf), "Content-Length: %lu\r\n\r\n",
               (unsigned long)req->body_len);
 #else
+    /* Standard POSIX / GCC Path */
     sprintf(len_buf, "Content-Length: %lu\r\n\r\n",
             (unsigned long)req->body_len);
 #endif
@@ -399,8 +407,10 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
       request_buf = new_buf;
     }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    strcat_s(request_buf, sizeof(request_buf), len_buf);
+    /* MSVC Safe Path */
+    strcat_s(request_buf, req_cap, len_buf);
 #else
+    /* Standard POSIX / GCC Path */
     strcat(request_buf, len_buf);
 #endif
     req_len += strlen(len_buf);
@@ -408,8 +418,10 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     req_len += req->body_len;
   } else {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    strcat_s(request_buf, sizeof(request_buf), "\r\n");
+    /* MSVC Safe Path */
+    strcat_s(request_buf, req_cap, "\r\n");
 #else
+    /* Standard POSIX / GCC Path */
     strcat(request_buf, "\r\n");
 #endif
     req_len += 2;

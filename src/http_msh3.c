@@ -56,7 +56,14 @@ enum c_abstract_http_error http_msh3_global_init(void) {
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
-  abstract_http_mutex_unlock(g_msh3_mutex);
+  {
+    enum c_abstract_http_error unlock_rc =
+        abstract_http_mutex_unlock(g_msh3_mutex);
+    if (rc == C_ABSTRACT_HTTP_SUCCESS &&
+        unlock_rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
+      rc = unlock_rc;                           /* LCOV_EXCL_LINE */
+    }
+  }
   return rc;
 }
 
@@ -74,8 +81,7 @@ enum c_abstract_http_error http_msh3_global_cleanup(void) {
     WSACleanup();
 #endif
   }
-  abstract_http_mutex_unlock(g_msh3_mutex);
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return abstract_http_mutex_unlock(g_msh3_mutex);
 }
 
 enum c_abstract_http_error
@@ -329,15 +335,19 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
     if (strcmp(*scheme, "https") == 0) {
       *port = (char *)malloc(4);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      /* MSVC Safe Path */
       strcpy_s(*port, 4, "443");
 #else
+      /* Standard POSIX / GCC Path */
       strcpy(*port, "443");
 #endif
     } else {
       *port = (char *)malloc(3);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      /* MSVC Safe Path */
       strcpy_s(*port, 3, "80");
 #else
+      /* Standard POSIX / GCC Path */
       strcpy(*port, "80");
 #endif
     }
@@ -347,15 +357,19 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
     size_t path_len = strlen(slash);
     *path = (char *)malloc(path_len + 1);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    /* MSVC Safe Path */
     strcpy_s(*path, path_len + 1, slash);
 #else
+    /* Standard POSIX / GCC Path */
     strcpy(*path, slash);
 #endif
   } else {
     *path = (char *)malloc(2);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    /* MSVC Safe Path */
     strcpy_s(*path, 2, "/");
 #else
+    /* Standard POSIX / GCC Path */
     strcpy(*path, "/");
 #endif
   }
@@ -389,8 +403,10 @@ http_msh3_send(const struct HttpTransportContext *ctx,
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  /* MSVC Safe Path */
   sprintf_s(authority, sizeof(authority), "%s:%s", host, port_str);
 #else
+  /* Standard POSIX / GCC Path */
   sprintf(authority, "%s:%s", host, port_str);
 #endif
 

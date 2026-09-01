@@ -49,6 +49,38 @@ CURLcode g_mock_curl_perform_res = CURLE_OK;
 int g_mock_curl_setopt_fail = 0;
 int g_mock_curl_setopt_count = 0;
 int g_mock_curl_init_fail = 0;
+int g_mock_http_response_init_fail = 0;
+int g_mock_http_loop_fail = 0;
+
+#undef http_response_init
+#define http_response_init(res)                                                \
+  (g_mock_http_response_init_fail ? C_ABSTRACT_HTTP_ERR_INVAL                  \
+                                  : (http_response_init)(res))
+
+#undef http_loop_cancel_timer
+#define http_loop_cancel_timer(loop, id)                                       \
+  (g_mock_http_loop_fail ? C_ABSTRACT_HTTP_ERR_NOMEM                           \
+                         : (http_loop_cancel_timer)(loop, id))
+
+#undef http_loop_add_timer
+#define http_loop_add_timer(loop, ms, cb, u, id)                               \
+  (g_mock_http_loop_fail ? C_ABSTRACT_HTTP_ERR_NOMEM                           \
+                         : (http_loop_add_timer)(loop, ms, cb, u, id))
+
+#undef ABSTRACT_HTTP_HTTP_LOOP_REMOVE_FD
+#define ABSTRACT_HTTP_HTTP_LOOP_REMOVE_FD(loop, fd)                            \
+  (g_mock_http_loop_fail ? C_ABSTRACT_HTTP_ERR_NOMEM                           \
+                         : (http_loop_remove_fd)(loop, fd))
+
+#undef ABSTRACT_HTTP_HTTP_LOOP_ADD_FD
+#define ABSTRACT_HTTP_HTTP_LOOP_ADD_FD(loop, fd, ev, cb, u)                    \
+  (g_mock_http_loop_fail ? C_ABSTRACT_HTTP_ERR_NOMEM                           \
+                         : (http_loop_add_fd)(loop, fd, ev, cb, u))
+
+#undef ABSTRACT_HTTP_HTTP_LOOP_MOD_FD
+#define ABSTRACT_HTTP_HTTP_LOOP_MOD_FD(loop, fd, ev)                           \
+  (g_mock_http_loop_fail ? C_ABSTRACT_HTTP_ERR_NOMEM                           \
+                         : (http_loop_mod_fd)(loop, fd, ev))
 
 #undef ABSTRACT_HTTP_CURL_GLOBAL_INIT
 #define ABSTRACT_HTTP_CURL_GLOBAL_INIT(flags)                                  \
@@ -206,8 +238,10 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FORMAT_HEADER(const char *key,
   char *buf = (char *)malloc(len);
   if (buf) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    /* MSVC Safe Path */
     sprintf_s(buf, len, "%s: %s", key, value);
 #else
+    /* Standard POSIX / GCC Path */
     sprintf(buf, "%s: %s", key, value);
 #endif
   }
@@ -886,7 +920,7 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
   return 0; /* CURLM_OK */
 
 timer_error:
-  (void)rc;
+  LOG_DEBUG("multi_timer_function: returning -1 due to internal error %d", rc);
   return -1;
 }
 
@@ -933,7 +967,7 @@ static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
   return 0; /* CURLM_OK */
 
 socket_error:
-  (void)rc;
+  LOG_DEBUG("multi_socket_function: returning -1 due to internal error %d", rc);
   return -1;
 }
 

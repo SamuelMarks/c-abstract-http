@@ -331,9 +331,11 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
 
   srand((unsigned int)time(NULL));
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  /* MSVC Safe Path */
   sprintf_s(boundary, sizeof(boundary), "------------------------cddbound%08x",
             rand());
 #else
+  /* Standard POSIX / GCC Path */
   sprintf(boundary, "------------------------cddbound%08x", rand());
 #endif
 
@@ -454,8 +456,10 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
     char ct[128];
     int hdr_rc;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    /* MSVC Safe Path */
     sprintf_s(ct, sizeof(ct), "multipart/form-data; boundary=%s", boundary);
 #else
+    /* Standard POSIX / GCC Path */
     sprintf(ct, "multipart/form-data; boundary=%s", boundary);
 #endif
     /* If header exists, this adds a duplicate. Typically client code shouldn't
@@ -784,8 +788,10 @@ enum c_abstract_http_error http_request_set_auth_bearer(struct HttpRequest *req,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  /* MSVC Safe Path */
   sprintf_s(val, len, "Bearer %s", token);
 #else
+  /* Standard POSIX / GCC Path */
   sprintf(val, "Bearer %s", token);
 #endif
 
@@ -814,8 +820,10 @@ enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  /* MSVC Safe Path */
   sprintf_s(val, len, "Basic %s", token);
 #else
+  /* Standard POSIX / GCC Path */
   sprintf(val, "Basic %s", token);
 #endif
 
@@ -879,8 +887,10 @@ enum c_abstract_http_error http_request_set_auth_basic_userpwd(
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  /* MSVC Safe Path */
   sprintf_s(raw, len, "%s:%s", username, password);
 #else
+  /* Standard POSIX / GCC Path */
   sprintf(raw, "%s:%s", username, password);
 #endif
 
@@ -1903,9 +1913,10 @@ http_response_save_to_file(const struct HttpResponse *res, const char *path) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  if (fopen_s(&f, path, "wb") != 0)
-    f = NULL;
+  /* MSVC Safe Path */
+  fopen_s(&f, path, "wb");
 #else
+  /* Standard POSIX / GCC Path */
   f = fopen(path, "wb");
 #endif
   if (!f)

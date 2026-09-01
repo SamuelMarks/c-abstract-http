@@ -33,6 +33,19 @@ extern "C" {
 #include "abstract_http_test_helpers/mock_server.h"
 /* clang-format on */
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern struct curl_slist *g_mock_curl_cookies;
+extern int g_mock_curl_init_fail;
+extern void abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop,
+                                               int fd, int events,
+                                               void *user_data);
+extern int g_mock_curl_setopt_fail;
+extern int g_mock_curl_setopt_count;
+extern CURLcode g_mock_curl_perform_res;
+extern int g_mock_http_response_init_fail;
+extern int g_mock_http_loop_fail;
+#endif
+
 static int setup_request(struct HttpRequest *req, int port) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   char *_ast_strdup_0 = NULL;
@@ -307,6 +320,15 @@ TEST test_curl_send_chunked(void) {
 
   http_response_free(res);
   free(res);
+  res = NULL;
+
+  g_mock_http_response_init_fail = 1;
+  {
+    int debug_rc = http_curl_send(ctx, &req, &res);
+    g_mock_http_response_init_fail = 0;
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_INVAL, debug_rc, "%d");
+  }
+
   http_config_free(&config);
   http_request_free(&req);
   http_curl_context_free(ctx);
@@ -849,6 +871,8 @@ extern void abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop,
 extern int g_mock_curl_setopt_fail;
 extern int g_mock_curl_setopt_count;
 extern CURLcode g_mock_curl_perform_res;
+extern int g_mock_http_response_init_fail;
+extern int g_mock_http_loop_fail;
 #endif
 
 TEST test_curl_send_cookies(void) {
@@ -1423,6 +1447,16 @@ TEST test_curl_send_multi_oom(void) {
     }
   }
 
+  {
+    extern int g_mock_http_loop_fail;
+    g_mock_http_loop_fail = 1;
+    /* Force timer functions to fail during a multi_socket callback by directly
+     * invoking it */
+    abstract_http_test_multi_socket_cb(loop, 1, HTTP_LOOP_READ, ctx);
+    abstract_http_test_multi_socket_cb(loop, 1, CURL_POLL_REMOVE, ctx);
+    g_mock_http_loop_fail = 0;
+  }
+
   http_curl_context_free(ctx);
   http_loop_free(loop);
   free(future);
@@ -1622,6 +1656,15 @@ TEST test_curl_send_setopt_fail(void) {
       }
       g_mock_curl_setopt_fail = 0;
     }
+
+    /* Cleanup previous runs before the OOM check */
+    if (res) {
+      http_response_free(res);
+      c_abstract_http_mock_free(res);
+      res = NULL;
+    }
+
+    req.url = NULL;
     http_request_free(&req);
   }
 

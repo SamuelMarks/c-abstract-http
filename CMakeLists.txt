@@ -797,16 +797,3 @@ if(C_ABSTRACT_HTTP_USE_TSAN)
     add_link_options(-fsanitize=thread)
   endif()
 endif()
-
-if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-sign-conversion -Wno-cast-qual -Wno-sign-compare -Wno-conversion")
-endif()
-
-if(MSVC)
-    target_compile_options(c-abstract-http PRIVATE "/wd4244" "/wd4996")
-endif()
-
-
-if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-sign-conversion -Wno-cast-qual -Wno-sign-compare -Wno-conversion")
-endif()

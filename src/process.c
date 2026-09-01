@@ -367,8 +367,9 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
     close((int)(size_t)parent_to_child->read_handle);
     close((int)(size_t)child_to_parent->write_handle);
 
-    (void)execv("/proc/self/exe", argv);
-    _exit(1);
+    if (execv("/proc/self/exe", argv) == -1) { /* LCOV_EXCL_BR_LINE */
+      _exit(1);                                /* LCOV_EXCL_LINE */
+    }
   } else {
     close((int)(size_t)parent_to_child->read_handle);
     parent_to_child->read_handle = NULL;
@@ -744,8 +745,8 @@ enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void) {
 #endif
     g_mock_waitpid_fail = 1;
     rc = abstract_http_process_wait_and_free(p, NULL);
-    (void)rc;
     g_mock_waitpid_fail = 0;
+    return rc;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -767,8 +768,8 @@ enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void) {
 #endif
     g_mock_waitpid_fail = 2;
     rc = abstract_http_process_wait_and_free(p, &exit_code);
-    (void)rc;
     g_mock_waitpid_fail = 0;
+    return rc;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }

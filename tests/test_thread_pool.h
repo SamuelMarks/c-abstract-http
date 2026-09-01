@@ -264,7 +264,8 @@ int dummy_hook_push(void *ctx,
   return 0;  /* LCOV_EXCL_LINE */
 }
 
-extern void abstract_http_thread_pool_test_free_with_tasks(void);
+extern enum c_abstract_http_error
+abstract_http_thread_pool_test_free_with_tasks(void);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_thread_pool_edge_cases(void) { /* LCOV_EXCL_LINE */
   struct AbstractHttpThreadPool *pool;
@@ -313,7 +314,11 @@ TEST test_thread_pool_edge_cases(void) { /* LCOV_EXCL_LINE */
   } /* LCOV_EXCL_LINE */
 
   /* I can create a fake pool to free! */
-  { abstract_http_thread_pool_test_free_with_tasks(); /* LCOV_EXCL_LINE */ }
+  {
+    enum c_abstract_http_error err =
+        abstract_http_thread_pool_test_free_with_tasks(); /* LCOV_EXCL_LINE */
+    ASSERT_EQ(err, C_ABSTRACT_HTTP_SUCCESS);              /* LCOV_EXCL_LINE */
+  }
 
   PASS(); /* LCOV_EXCL_LINE */
 } /* LCOV_EXCL_LINE */

@@ -92,21 +92,17 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  /* MSVC Safe Path */
   sprintf_s(tmp_filename, sizeof(tmp_filename), "aria2c_tmp_%p.bin",
             (void *)req);
   sprintf_s(cmd, sizeof(cmd),
-            "aria2c -q --allow-overwrite=true -d . -o %s " % s\"", tmp_filename,
+            "aria2c -q --allow-overwrite=true -d . -o %s \"%s\"", tmp_filename,
             req->url);
 #else
+  /* Standard POSIX / GCC Path */
   sprintf(tmp_filename, "aria2c_tmp_%p.bin", (void *)req);
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  sprintf_s(cmd, sizeof(cmd),
-            "aria2c -q --allow-overwrite=true -d . -o %s \\" % s\\"",
-            tmp_filename, req->url);
-#else
-  sprintf(cmd, "aria2c -q --allow-overwrite=true -d . -o %s \\" % s\\"",
+  sprintf(cmd, "aria2c -q --allow-overwrite=true -d . -o %s \"%s\"",
           tmp_filename, req->url);
-#endif
 #endif
 
   rc = system(cmd);
@@ -134,10 +130,10 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
   new_res->status_code = 200;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  if (fopen_s(&f, tmp_filename, "rb") != 0) {
-    f = NULL;
-  }
+  /* MSVC Safe Path */
+  fopen_s(&f, tmp_filename, "rb");
 #else
+  /* Standard POSIX / GCC Path */
   f = fopen(tmp_filename, "rb");
 #endif
 

@@ -145,7 +145,7 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
   } /* LCOV_EXCL_BR_LINE */
   return 0;
 ws_read_err:
-  (void)rc;
+  LOG_DEBUG("ws_read_chunk_cb: returning -1 due to internal error %d", rc);
   return -1; /* LCOV_EXCL_LINE */
 }
 
