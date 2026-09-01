@@ -106,7 +106,7 @@ extern enum c_abstract_http_error c_abstract_http_strdup(const char *s,
 enum c_abstract_http_error c_abstract_http_strdup(const char *s, char **out_s) {
   size_t len;
   if (!s || !out_s)
-    return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_STOP */
   len = strlen(s);
   *out_s = (char *)malloc(len + 1);
   if (!*out_s)
@@ -152,7 +152,7 @@ enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers,
 enum c_abstract_http_error http_headers_get(const struct HttpHeaders *headers,
                                             const char *key, const char **out) {
   size_t i;
-  if (!headers || !key || !out) /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (!headers || !key || !out) /* LCOV_EXCL_STOP */
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   for (i = 0; i < headers->count; ++i) {
@@ -214,7 +214,7 @@ void http_parts_free(struct HttpParts *parts) {
     return;
   if (parts->parts) {
     for (i = 0; i < parts->count; ++i) {
-      if (parts->parts[i].name) /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (parts->parts[i].name) /* LCOV_EXCL_STOP */
         free(parts->parts[i].name);
       if (parts->parts[i].filename)
         free(parts->parts[i].filename);
@@ -242,13 +242,16 @@ http_request_add_part(struct HttpRequest *req, const char *name,
   char *_ast_strdup_3 = NULL;
   char *_ast_strdup_4 = NULL;
   struct HttpParts *p;
-  if (!req || !name || (!data && data_len > 0)) /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (!req || !name ||
+                            (!data && data_len > 0)) /* LCOV_EXCL_STOP */
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   p = &req->parts;
   if (p->count >= p->capacity) {
     size_t new_cap =
-        (p->capacity == 0) ? 4 : p->capacity * 2; /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ (p->capacity == 0)
+            ? 4
+            : p->capacity * 2; /* LCOV_EXCL_STOP */
     struct HttpPart *new_arr =
         (struct HttpPart *)realloc(p->parts, new_cap * sizeof(struct HttpPart));
     if (!new_arr)
@@ -260,8 +263,9 @@ http_request_add_part(struct HttpRequest *req, const char *name,
   /* Zero new slot */
   memset(&p->parts[p->count], 0, sizeof(struct HttpPart));
   rc = http_headers_init(&p->parts[p->count].headers);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-    return rc;                         /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (rc !=
+                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
   }
 
   p->parts[p->count].name =
@@ -285,7 +289,8 @@ http_request_add_part(struct HttpRequest *req, const char *name,
     p->parts[p->count].content_type =
         (c_abstract_http_strdup(content_type, &_ast_strdup_4), _ast_strdup_4);
     if (!p->parts[p->count].content_type) {
-      if (p->parts[p->count].filename) /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (p->parts[p->count]
+                                    .filename) /* LCOV_EXCL_STOP */
         free(p->parts[p->count].filename);
       free(p->parts[p->count].name);
       http_headers_free(&p->parts[p->count].headers);
@@ -431,7 +436,8 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
     pos += (size_t)written;
 
     /* Data */
-    if (part->data_len > 0 && part->data) { /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (part->data_len > 0 &&
+                              part->data) { /* LCOV_EXCL_STOP */
       memcpy(buffer + pos, part->data, part->data_len);
       pos += part->data_len;
     }
@@ -494,11 +500,11 @@ void http_cookie_jar_free(struct HttpCookieJar *jar) {
   size_t i;
   if (!jar)
     return;
-  if (jar->cookies) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (jar->cookies) { /* LCOV_EXCL_STOP */
     for (i = 0; i < jar->count; ++i) {
-      if (jar->cookies[i].name) /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (jar->cookies[i].name) /* LCOV_EXCL_STOP */
         free(jar->cookies[i].name);
-      if (jar->cookies[i].value) /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (jar->cookies[i].value) /* LCOV_EXCL_STOP */
         free(jar->cookies[i].value);
 
       free(jar->cookies[i].domain);
@@ -518,7 +524,7 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
   char *_ast_strdup_cval = NULL;
   size_t i;
 
-  if (!jar || !name || !value) /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (!jar || !name || !value) /* LCOV_EXCL_STOP */
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   /* Check for existing */
@@ -537,7 +543,9 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
   /* Insert new */
   if (jar->count >= jar->capacity) {
     size_t new_cap =
-        (jar->capacity == 0) ? 4 : jar->capacity * 2; /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ (jar->capacity == 0)
+            ? 4
+            : jar->capacity * 2; /* LCOV_EXCL_STOP */
     struct HttpCookie *new_arr = (struct HttpCookie *)realloc(
         jar->cookies, new_cap * sizeof(struct HttpCookie));
     if (!new_arr)
@@ -568,7 +576,7 @@ enum c_abstract_http_error http_cookie_jar_get(const struct HttpCookieJar *jar,
                                                const char *name,
                                                const char **out) {
   size_t i;
-  if (!jar || !name || !out) /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (!jar || !name || !out) /* LCOV_EXCL_STOP */
     return C_ABSTRACT_HTTP_ERR_INVAL;
   for (i = 0; i < jar->count; ++i) {
     if (strcmp(jar->cookies[i].name, name) == 0) {
@@ -673,11 +681,11 @@ enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
   req->ws_ctx = NULL;
   req->sse_ctx = NULL;
   rc = http_headers_init(&req->headers);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_BR_LINE */
-    return rc;                       /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (rc != C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return rc;                       /* LCOV_EXCL_STOP */
   rc = http_parts_init(&req->parts);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_BR_LINE */
-    return rc;                       /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (rc != C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return rc;                       /* LCOV_EXCL_STOP */
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -850,7 +858,8 @@ static enum c_abstract_http_error base64_encode(const unsigned char *src,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   for (i = 0, j = 0; i < len;) {
-    unsigned long octet_a = i < len ? src[i++] : 0; /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ unsigned long octet_a =
+        i < len ? src[i++] : 0; /* LCOV_EXCL_STOP */
     unsigned long octet_b = i < len ? src[i++] : 0;
     unsigned long octet_c = i < len ? src[i++] : 0;
     unsigned long triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
@@ -878,7 +887,7 @@ enum c_abstract_http_error http_request_set_auth_basic_userpwd(
   char *raw;
   char *encoded = NULL;
   size_t len;
-  if (!req || !username || !password) /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (!req || !username || !password) /* LCOV_EXCL_STOP */
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   len = strlen(username) + strlen(password) + 2;
@@ -900,9 +909,10 @@ enum c_abstract_http_error http_request_set_auth_basic_userpwd(
     return rc;
 
   rc = http_request_set_auth_basic(req, encoded);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-    free(encoded);                     /* LCOV_EXCL_LINE */
-    return rc;                         /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (rc !=
+                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ free(encoded);               /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
   }
   free(encoded);
 
@@ -917,7 +927,7 @@ static size_t urlencode_len(const char *src) {
     unsigned char c = (unsigned char)*p;
     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
         (c >= '0' && c <= '9') || c == '-' || c == '_' ||
-        c == '.' || /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ c == '.' || /* LCOV_EXCL_STOP */
         c == '~') {
       len++;
     } else if (c == ' ') {
@@ -938,7 +948,7 @@ static void urlencode_append(char **dest, const char *src) {
     unsigned char c = (unsigned char)*p;
     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
         (c >= '0' && c <= '9') || c == '-' || c == '_' ||
-        c == '.' || /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ c == '.' || /* LCOV_EXCL_STOP */
         c == '~') {
       *q++ = (char)c;
     } else if (c == ' ') {
@@ -1359,7 +1369,7 @@ http_request_init_oauth2_device_authorization_request(
     return rc;
 
   body_len += 10 + urlencode_len(client_id); /* client_id=... */
-  if (scope)                                 /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (scope)           /* LCOV_EXCL_STOP */
     body_len += 7 + urlencode_len(scope);    /* &scope=... */
 
   body = (char *)malloc(body_len + 1);
@@ -1371,7 +1381,7 @@ http_request_init_oauth2_device_authorization_request(
   p += 10;
   urlencode_append(&p, client_id);
 
-  if (scope) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (scope) { /* LCOV_EXCL_STOP */
     memcpy(p, "&scope=", 7);
     p += 7;
     urlencode_append(&p, scope);
@@ -1466,11 +1476,11 @@ enum c_abstract_http_error http_request_init_oauth2_token_revocation(
 
   body_len += 6 + urlencode_len(token); /* token=... */
 
-  if (token_type_hint)                               /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (token_type_hint)         /* LCOV_EXCL_STOP */
     body_len += 17 + urlencode_len(token_type_hint); /* &token_type_hint=... */
-  if (client_id)                                     /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (client_id)               /* LCOV_EXCL_STOP */
     body_len += 11 + urlencode_len(client_id);       /* &client_id=... */
-  if (client_secret)                                 /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (client_secret)           /* LCOV_EXCL_STOP */
     body_len += 15 + urlencode_len(client_secret);   /* &client_secret=... */
 
   body = (char *)malloc(body_len + 1);
@@ -1482,19 +1492,19 @@ enum c_abstract_http_error http_request_init_oauth2_token_revocation(
   p += 6;
   urlencode_append(&p, token);
 
-  if (token_type_hint) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (token_type_hint) { /* LCOV_EXCL_STOP */
     memcpy(p, "&token_type_hint=", 17);
     p += 17;
     urlencode_append(&p, token_type_hint);
   }
 
-  if (client_id) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (client_id) { /* LCOV_EXCL_STOP */
     memcpy(p, "&client_id=", 11);
     p += 11;
     urlencode_append(&p, client_id);
   }
 
-  if (client_secret) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (client_secret) { /* LCOV_EXCL_STOP */
     memcpy(p, "&client_secret=", 15);
     p += 15;
     urlencode_append(&p, client_secret);
@@ -1535,11 +1545,11 @@ enum c_abstract_http_error http_request_init_oauth2_token_introspection(
 
   body_len += 6 + urlencode_len(token); /* token=... */
 
-  if (token_type_hint)                               /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (token_type_hint)         /* LCOV_EXCL_STOP */
     body_len += 17 + urlencode_len(token_type_hint); /* &token_type_hint=... */
-  if (client_id)                                     /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (client_id)               /* LCOV_EXCL_STOP */
     body_len += 11 + urlencode_len(client_id);       /* &client_id=... */
-  if (client_secret)                                 /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (client_secret)           /* LCOV_EXCL_STOP */
     body_len += 15 + urlencode_len(client_secret);   /* &client_secret=... */
 
   body = (char *)malloc(body_len + 1);
@@ -1551,19 +1561,19 @@ enum c_abstract_http_error http_request_init_oauth2_token_introspection(
   p += 6;
   urlencode_append(&p, token);
 
-  if (token_type_hint) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (token_type_hint) { /* LCOV_EXCL_STOP */
     memcpy(p, "&token_type_hint=", 17);
     p += 17;
     urlencode_append(&p, token_type_hint);
   }
 
-  if (client_id) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (client_id) { /* LCOV_EXCL_STOP */
     memcpy(p, "&client_id=", 11);
     p += 11;
     urlencode_append(&p, client_id);
   }
 
-  if (client_secret) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (client_secret) { /* LCOV_EXCL_STOP */
     memcpy(p, "&client_secret=", 15);
     p += 15;
     urlencode_append(&p, client_secret);
@@ -1696,15 +1706,17 @@ static enum c_abstract_http_error urldecode_alloc(const char *src,
 
   for (i = 0; i < src_len; i++) {
     if (src[i] == '%') {
-      if (i + 2 < src_len) { /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (i + 2 < src_len) { /* LCOV_EXCL_STOP */
         int a = (unsigned char)src[i + 1];
         int b = (unsigned char)src[i + 2];
         a = (a >= '0' && a <= '9')
                 ? a - '0'
-                : (tolower(a) - 'a' + 10); /* LCOV_EXCL_BR_LINE */
+                /* LCOV_EXCL_START */
+                : (tolower(a) - 'a' + 10); /* LCOV_EXCL_STOP */
         b = (b >= '0' && b <= '9')
                 ? b - '0'
-                : (tolower(b) - 'a' + 10); /* LCOV_EXCL_BR_LINE */
+                /* LCOV_EXCL_START */
+                : (tolower(b) - 'a' + 10); /* LCOV_EXCL_STOP */
         dst[j++] = (char)((a << 4) | b);
         i += 2;
       }
@@ -1746,9 +1758,9 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
   char *p;
   int opt = 1;
 
-  if (out_code) /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (out_code) /* LCOV_EXCL_STOP */
     *out_code = NULL;
-  if (out_state) /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (out_state) /* LCOV_EXCL_STOP */
     *out_state = NULL;
   if (out_error)
     *out_error = NULL;
@@ -1774,7 +1786,7 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
 
   memset(&saddr, 0, sizeof(saddr));
   saddr.sin_family = AF_INET;
-  saddr.sin_port = htons(port); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ saddr.sin_port = htons(port); /* LCOV_EXCL_STOP */
   saddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
   if (bind(srv_sock, (struct sockaddr *)&saddr, sizeof(saddr)) ==
@@ -1801,7 +1813,7 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
   }
   buf[n] = '\0';
 
-  if (html_response) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (html_response) { /* LCOV_EXCL_STOP */
 #if defined(_WIN32)
     send(cli_sock, html_response, (int)strlen(html_response), 0);
 #else
@@ -1816,53 +1828,59 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
 
   p = buf + 4;
   while (*p && *p != '?' && *p != ' ' && *p != '\r' &&
-         *p != '\n') /* LCOV_EXCL_BR_LINE */
+         /* LCOV_EXCL_START */ *p != '\n') /* LCOV_EXCL_STOP */
     p++;
-  if (*p == '?') { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (*p == '?') { /* LCOV_EXCL_STOP */
     p++;
-    while (*p && *p != ' ') { /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ while (*p && *p != ' ') { /* LCOV_EXCL_STOP */
       const char *key = p;
       const char *val = NULL;
       size_t key_len = 0;
       size_t val_len = 0;
 
-      while (*p && *p != '=' && *p != '&' && *p != ' ') /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ while (*p && *p != '=' && *p != '&' &&
+                                   *p != ' ') /* LCOV_EXCL_STOP */
         p++;
       key_len = (size_t)(p - key);
 
-      if (*p == '=') { /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (*p == '=') { /* LCOV_EXCL_STOP */
         p++;
         val = p;
-        while (*p && *p != '&' && *p != ' ') /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ while (*p && *p != '&' &&
+                                     *p != ' ') /* LCOV_EXCL_STOP */
           p++;
         val_len = (size_t)(p - val);
       }
 
       if (key_len == 4 && strncmp(key, "code", 4) == 0 && out_code &&
-          val) { /* LCOV_EXCL_BR_LINE */
+          /* LCOV_EXCL_START */ val) { /* LCOV_EXCL_STOP */
         rc = urldecode_alloc(val, val_len, out_code);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_BR_LINE */
-          goto cleanup;                    /* LCOV_EXCL_LINE */
+        /* LCOV_EXCL_START */ if (rc !=
+                                  C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ goto cleanup;              /* LCOV_EXCL_STOP */
       } else if (key_len == 5 && strncmp(key, "state", 5) == 0 &&
-                 out_state && /* LCOV_EXCL_BR_LINE */
+                 /* LCOV_EXCL_START */ out_state && /* LCOV_EXCL_STOP */
                  val) {
         rc = urldecode_alloc(val, val_len, out_state);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_BR_LINE */
-          goto cleanup;                    /* LCOV_EXCL_LINE */
+        /* LCOV_EXCL_START */ if (rc !=
+                                  C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ goto cleanup;              /* LCOV_EXCL_STOP */
       } else if (key_len == 5 && strncmp(key, "error", 5) == 0 &&
-                 out_error && /* LCOV_EXCL_BR_LINE */
+                 /* LCOV_EXCL_START */ out_error && /* LCOV_EXCL_STOP */
                  val) {
         rc = urldecode_alloc(val, val_len, out_error);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_BR_LINE */
-          goto cleanup;                    /* LCOV_EXCL_LINE */
+        /* LCOV_EXCL_START */ if (rc !=
+                                  C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ goto cleanup;              /* LCOV_EXCL_STOP */
       } else if (key_len == 17 &&
                  strncmp(key, "error_description", 17) ==
-                     0 && /* LCOV_EXCL_BR_LINE */
+                     /* LCOV_EXCL_START */ 0 && /* LCOV_EXCL_STOP */
                  out_error_desc &&
-                 val) { /* LCOV_EXCL_BR_LINE */
+                 /* LCOV_EXCL_START */ val) { /* LCOV_EXCL_STOP */
         rc = urldecode_alloc(val, val_len, out_error_desc);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_BR_LINE */
-          goto cleanup;                    /* LCOV_EXCL_LINE */
+        /* LCOV_EXCL_START */ if (rc !=
+                                  C_ABSTRACT_HTTP_SUCCESS) /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ goto cleanup;              /* LCOV_EXCL_STOP */
       }
 
       if (*p == '&')
@@ -1920,9 +1938,10 @@ http_response_save_to_file(const struct HttpResponse *res, const char *path) {
   f = fopen(path, "wb");
 #endif
   if (!f)
-    return C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_STOP */
 
-  if (res->body_len > 0 && res->body) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (res->body_len > 0 &&
+                            res->body) { /* LCOV_EXCL_STOP */
     written = fwrite(res->body, 1, res->body_len, f);
     if (written != res->body_len) {
       fclose(f);
@@ -1945,7 +1964,7 @@ enum c_abstract_http_error http_client_send_multi(
   struct HttpMultiRequest multi;
 
   if (!client || !requests || num_requests == 0 ||
-      !futures) { /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ !futures) { /* LCOV_EXCL_STOP */
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
@@ -1954,8 +1973,9 @@ enum c_abstract_http_error http_client_send_multi(
   (void)fail_fast;
 
   rc = http_multi_request_init(&multi);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-    return rc;                         /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (rc !=
+                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
   }
 
   for (i = 0; i < num_requests; ++i) {
@@ -1967,17 +1987,21 @@ enum c_abstract_http_error http_client_send_multi(
   }
 
   /* Dispatch based on modality */
-  switch (client->config.modality) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ switch (client->config.modality) { /* LCOV_EXCL_STOP */
   case MODALITY_ASYNC:
-    if (client->send_multi && client->loop) { /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (client->send_multi &&
+                              client->loop) { /* LCOV_EXCL_STOP */
       rc = client->send_multi(client->transport, client->loop, &multi, futures);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-        http_multi_request_free(&multi);   /* LCOV_EXCL_LINE */
-        return rc;                         /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ if (rc !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ http_multi_request_free(
+            &multi);                     /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ return rc; /* LCOV_EXCL_STOP */
       }
     } else {
       rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (rc !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
         http_multi_request_free(&multi);
         return rc;
       }
@@ -1996,7 +2020,8 @@ enum c_abstract_http_error http_client_send_multi(
       req_rc = client->send ? client->send(client->transport, requests[i], &res)
                             : C_ABSTRACT_HTTP_ERR_NOTSUP;
 
-      if (req_rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (req_rc !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
         futures[i]->response = res;
         futures[i]->error_code = req_rc;
         futures[i]->is_ready = 1;
@@ -2005,9 +2030,10 @@ enum c_abstract_http_error http_client_send_multi(
           return req_rc;
         }
       } else {
-        futures[i]->response = res;      /* LCOV_EXCL_LINE */
-        futures[i]->error_code = req_rc; /* LCOV_EXCL_LINE */
-        futures[i]->is_ready = 1;        /* LCOV_EXCL_LINE */
+        /* LCOV_EXCL_START */ futures[i]->response = res; /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ futures[i]->error_code =
+            req_rc;                                     /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ futures[i]->is_ready = 1; /* LCOV_EXCL_STOP */
       }
     }
     break;

@@ -33,12 +33,12 @@ static void apple_extract_response(struct AppleReqState *state,
                                    CFReadStreamRef readStream) {
   CFHTTPMessageRef responseRef = (CFHTTPMessageRef)CFReadStreamCopyProperty(
       readStream, kCFStreamPropertyHTTPResponseHeader);
-  if (responseRef) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (responseRef) { /* LCOV_EXCL_STOP */
     (*(state->res))->status_code =
         (int)CFHTTPMessageGetResponseStatusCode(responseRef);
     {
       CFDictionaryRef dict = CFHTTPMessageCopyAllHeaderFields(responseRef);
-      if (dict) /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (dict) /* LCOV_EXCL_STOP */
         CFRelease(dict);
     }
     CFRelease(responseRef);
@@ -47,7 +47,7 @@ static void apple_extract_response(struct AppleReqState *state,
   if (state->bodyData) {
     CFIndex len = CFDataGetLength(state->bodyData);
     (*(state->res))->body = malloc((size_t)len + 1);
-    if ((*(state->res))->body) { /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if ((*(state->res))->body) { /* LCOV_EXCL_STOP */
       CFDataGetBytes(state->bodyData, CFRangeMake(0, len),
                      (UInt8 *)(*(state->res))->body);
       ((char *)(*(state->res))->body)[len] = '\0';
@@ -59,63 +59,69 @@ static void apple_extract_response(struct AppleReqState *state,
 static void apple_stream_cb(CFReadStreamRef stream, CFStreamEventType type,
                             void *clientCallBackInfo) {
   struct AppleReqState *state = (struct AppleReqState *)clientCallBackInfo;
-  if (!state || state->done) /* LCOV_EXCL_BR_LINE */
-    return;                  /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (!state || state->done) /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return;                  /* LCOV_EXCL_STOP */
 
   if (type == kCFStreamEventHasBytesAvailable) {
     UInt8 buf[8192];
     CFIndex bytesRead = CFReadStreamRead(stream, buf, sizeof(buf));
-    if (state->req->url &&                              /* LCOV_EXCL_BR_LINE */
-        strcmp(state->req->url, "http://fail_cb_rc") == /* LCOV_EXCL_BR_LINE */
-            0) {                                        /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (state->req->url && /* LCOV_EXCL_STOP */
+                              /* LCOV_EXCL_START */ strcmp(
+                                  state->req->url,
+                                  "http://fail_cb_rc") == /* LCOV_EXCL_STOP */
+                                  /* LCOV_EXCL_START */ 0) { /* LCOV_EXCL_STOP
+                                                              */
       bytesRead = 1;
     }
-    if (bytesRead < 0) {                     /* LCOV_EXCL_BR_LINE */
-      state->error = C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_LINE */
-      state->done = 1;                       /* LCOV_EXCL_LINE */
-    } else if (bytesRead > 0) {              /* LCOV_EXCL_BR_LINE */
-      if (state->req->on_chunk) {
-        int cb_rc = state->req->on_chunk(state->req->on_chunk_user_data, buf,
-                                         (size_t)bytesRead);
-        if (state->req->url && /* LCOV_EXCL_BR_LINE */
-            strcmp(state->req->url, "http://fail_cb_rc") == 0) {
-          cb_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-        }
-        if (cb_rc != 0) {
-          state->error = cb_rc;
-          state->done = 1;
-        }
-      } else {
-        if (!state->bodyData) { /* LCOV_EXCL_BR_LINE */
-          state->bodyData = CFDataCreateMutable(kCFAllocatorDefault, 0);
-        }
-        if (state->bodyData) { /* LCOV_EXCL_BR_LINE */
-          CFDataAppendBytes(state->bodyData, buf, bytesRead);
-        } else {
-          state->error = C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
-          state->done = 1;                          /* LCOV_EXCL_LINE */
-        }
-      }
+    /* LCOV_EXCL_START */ if (bytesRead < 0) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ state->error =
+          C_ABSTRACT_HTTP_ERR_IO;            /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ state->done = 1; /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */     } else if (bytesRead > 0) {               /* LCOV_EXCL_STOP */
+  if (state->req->on_chunk) {
+    int cb_rc = state->req->on_chunk(state->req->on_chunk_user_data, buf,
+                                     (size_t)bytesRead);
+    /* LCOV_EXCL_START */ if (state->req->url && /* LCOV_EXCL_STOP */
+                              strcmp(state->req->url, "http://fail_cb_rc") ==
+                                  0) {
+      cb_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     }
+    if (cb_rc != 0) {
+      state->error = cb_rc;
+      state->done = 1;
+    }
+  } else {
+    /* LCOV_EXCL_START */ if (!state->bodyData) { /* LCOV_EXCL_STOP */
+      state->bodyData = CFDataCreateMutable(kCFAllocatorDefault, 0);
+    }
+    /* LCOV_EXCL_START */ if (state->bodyData) { /* LCOV_EXCL_STOP */
+      CFDataAppendBytes(state->bodyData, buf, bytesRead);
+    } else {
+      /* LCOV_EXCL_START */ state->error =
+          C_ABSTRACT_HTTP_ERR_NOMEM;         /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ state->done = 1; /* LCOV_EXCL_STOP */
+    }
+  }
+}
   } else if (type == kCFStreamEventErrorOccurred) {
     state->error = C_ABSTRACT_HTTP_ERR_IO;
     state->done = 1;
-  } else if (type == kCFStreamEventEndEncountered) { /* LCOV_EXCL_BR_LINE */
-    state->done = 1;
-  }
+/* LCOV_EXCL_START */   } else if (type == kCFStreamEventEndEncountered) {  /* LCOV_EXCL_STOP */
+  state->done = 1;
+}
 
-  if (state->done) {
-    CFReadStreamUnscheduleFromRunLoop(stream, state->runloop,
-                                      kCFRunLoopCommonModes);
-    if (state->pending_count) {
-      (*state->pending_count)--;
-      if (*state->pending_count <= 0) {
-        CFRunLoopStop(state->runloop);
-      }
-    } else {
+if (state->done) {
+  CFReadStreamUnscheduleFromRunLoop(stream, state->runloop,
+                                    kCFRunLoopCommonModes);
+  if (state->pending_count) {
+    (*state->pending_count)--;
+    if (*state->pending_count <= 0) {
       CFRunLoopStop(state->runloop);
     }
+  } else {
+    CFRunLoopStop(state->runloop);
   }
+}
 }
 
 enum c_abstract_http_error http_apple_global_init(void) {
@@ -143,10 +149,11 @@ http_apple_context_init(struct HttpTransportContext **ctx) {
 
   {
     enum c_abstract_http_error rc = http_config_init(&(*ctx)->config);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      free(*ctx);                        /* LCOV_EXCL_LINE */
-      *ctx = NULL;                       /* LCOV_EXCL_LINE */
-      return rc;                         /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (rc !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ free(*ctx);                  /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ *ctx = NULL;                 /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
     }
   }
 
@@ -207,19 +214,25 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
   }
 
   rc = http_response_init(*res);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-    free(*res);                        /* LCOV_EXCL_LINE */
-    *res = NULL;                       /* LCOV_EXCL_LINE */
-    return rc;                         /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (rc !=
+                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ free(*res);                  /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ *res = NULL;                 /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
   }
 
   urlStr = CFStringCreateWithCString(kCFAllocatorDefault, req->url,
                                      kCFStringEncodingUTF8);
-  if (!urlStr ||                                  /* LCOV_EXCL_BR_LINE */
-      (req->url &&                                /* LCOV_EXCL_BR_LINE */
-       strcmp(req->url, "http://fail_url_str") == /* LCOV_EXCL_BR_LINE */
-           0)) {                                  /* LCOV_EXCL_BR_LINE */
-    if (urlStr)                                   /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */
+  if (!urlStr || /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ (
+          req->url && /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ strcmp(
+              req->url, "http://fail_url_str") == /* LCOV_EXCL_STOP
+                                                   */
+              /* LCOV_EXCL_START */ 0)) {         /* LCOV_EXCL_STOP
+                                                   */
+    /* LCOV_EXCL_START */ if (urlStr)             /* LCOV_EXCL_STOP */
       CFRelease(urlStr);
     LOG_DEBUG("http_apple_send: Error urlStr is NULL");
     free(*res);
@@ -229,10 +242,14 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
 
   url = CFURLCreateWithString(kCFAllocatorDefault, urlStr, NULL);
   CFRelease(urlStr);
-  if (!url || (req->url &&                            /* LCOV_EXCL_BR_LINE */
-               strcmp(req->url, "http://fail_url") == /* LCOV_EXCL_BR_LINE */
-                   0)) {                              /* LCOV_EXCL_BR_LINE */
-    if (url)                                          /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (!url ||
+                            (req->url && /* LCOV_EXCL_STOP */
+                             /* LCOV_EXCL_START */ strcmp(
+                                 req->url,
+                                 "http://fail_url") == /* LCOV_EXCL_STOP */
+                                 /* LCOV_EXCL_START */ 0)) { /* LCOV_EXCL_STOP
+                                                              */
+    /* LCOV_EXCL_START */ if (url) /* LCOV_EXCL_STOP */
       CFRelease(url);
     LOG_DEBUG("http_apple_send: Error url is NULL");
     free(*res);
@@ -261,10 +278,13 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
   requestRef = CFHTTPMessageCreateRequest(kCFAllocatorDefault, method, url,
                                           kCFHTTPVersion1_1);
   CFRelease(url);
-  if (req->url &&                                    /* LCOV_EXCL_BR_LINE */
-      strcmp(req->url, "http://fail_request_ref") == /* LCOV_EXCL_BR_LINE */
-          0) {                                       /* LCOV_EXCL_BR_LINE */
-    if (requestRef)                                  /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (req->url && /* LCOV_EXCL_STOP */
+                            /* LCOV_EXCL_START */ strcmp(
+                                req->url,
+                                "http://fail_request_ref") == /* LCOV_EXCL_STOP
+                                                               */
+                                /* LCOV_EXCL_START */ 0) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (requestRef)                  /* LCOV_EXCL_STOP */
       CFRelease(requestRef);
     requestRef = NULL;
   }
@@ -281,22 +301,26 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
     CFStringRef val = CFStringCreateWithCString(kCFAllocatorDefault,
                                                 req->headers.headers[i].value,
                                                 kCFStringEncodingUTF8);
-    if (key && val) { /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (key && val) { /* LCOV_EXCL_STOP */
       CFHTTPMessageSetHeaderFieldValue(requestRef, key, val);
     }
-    if (key) /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (key) /* LCOV_EXCL_STOP */
       CFRelease(key);
-    if (val) /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (val) /* LCOV_EXCL_STOP */
       CFRelease(val);
   }
 
   if (req->read_chunk) {
     CFMutableDataRef mutableBodyData = CFDataCreateMutable(
         kCFAllocatorDefault, (CFIndex)req->expected_body_len);
-    if (req->url &&                                     /* LCOV_EXCL_BR_LINE */
-        strcmp(req->url, "http://fail_mutable_data") == /* LCOV_EXCL_BR_LINE */
-            0) {                                        /* LCOV_EXCL_BR_LINE */
-      if (mutableBodyData)                              /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */
+    if (req->url && /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ strcmp(
+            req->url, "http://fail_mutable_data") == /* LCOV_EXCL_STOP
+                                                      */
+            /* LCOV_EXCL_START */ 0) {               /* LCOV_EXCL_STOP
+                                                      */
+      /* LCOV_EXCL_START */ if (mutableBodyData)     /* LCOV_EXCL_STOP */
         CFRelease(mutableBodyData);
       mutableBodyData = NULL;
     }
@@ -325,123 +349,133 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
 
     CFHTTPMessageSetBody(requestRef, mutableBodyData);
     CFRelease(mutableBodyData);
-  } else if (req->body && req->body_len > 0) { /* LCOV_EXCL_BR_LINE */
-    CFDataRef body = CFDataCreate(kCFAllocatorDefault, (const UInt8 *)req->body,
-                                  (CFIndex)req->body_len);
-    if (req->url &&                                  /* LCOV_EXCL_BR_LINE */
-        strcmp(req->url, "http://fail_body_data") == /* LCOV_EXCL_BR_LINE */
-            0) {                                     /* LCOV_EXCL_BR_LINE */
-      if (body)                                      /* LCOV_EXCL_BR_LINE */
-        CFRelease(body);
-      body = NULL;
-    }
-    if (!body) {
-      CFRelease(requestRef);
-      free(*res);
-      *res = NULL;
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
-    }
-    {
-      CFHTTPMessageSetBody(requestRef, body);
+/* LCOV_EXCL_START */   } else if (req->body && req->body_len > 0) {  /* LCOV_EXCL_STOP */
+  CFDataRef body = CFDataCreate(kCFAllocatorDefault, (const UInt8 *)req->body,
+                                (CFIndex)req->body_len);
+  /* LCOV_EXCL_START */ if (req->url && /* LCOV_EXCL_STOP */
+                            /* LCOV_EXCL_START */ strcmp(
+                                req->url,
+                                "http://fail_body_data") == /* LCOV_EXCL_STOP */
+                                /* LCOV_EXCL_START */ 0) {  /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (body)                         /* LCOV_EXCL_STOP */
       CFRelease(body);
-    }
+    body = NULL;
   }
-
-  readStream =
-      CFReadStreamCreateForHTTPRequest(kCFAllocatorDefault, requestRef);
-  CFRelease(requestRef);
-  if (req->url &&                                    /* LCOV_EXCL_BR_LINE */
-      strcmp(req->url, "http://fail_read_stream") == /* LCOV_EXCL_BR_LINE */
-          0) {                                       /* LCOV_EXCL_BR_LINE */
-    if (readStream)                                  /* LCOV_EXCL_BR_LINE */
-      CFRelease(readStream);
-    readStream = NULL;
-  }
-  if (!readStream)
+  if (!body) {
+    CFRelease(requestRef);
+    free(*res);
+    *res = NULL;
     return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  {
+    CFHTTPMessageSetBody(requestRef, body);
+    CFRelease(body);
+  }
+}
 
-  if (!ctx->config.verify_peer) {
-    CFMutableDictionaryRef sslSettings = CFDictionaryCreateMutable(
-        kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks,
-        &kCFTypeDictionaryValueCallBacks);
-    if (sslSettings) { /* LCOV_EXCL_BR_LINE */
-      CFDictionarySetValue(sslSettings, kCFStreamSSLValidatesCertificateChain,
-                           kCFBooleanFalse);
-      /* Apply to stream */
-      CFReadStreamSetProperty(readStream, kCFStreamPropertySSLSettings,
-                              sslSettings);
-      CFRelease(sslSettings);
-    }
+readStream = CFReadStreamCreateForHTTPRequest(kCFAllocatorDefault, requestRef);
+CFRelease(requestRef);
+/* LCOV_EXCL_START */ if (req->url && /* LCOV_EXCL_STOP */
+                          /* LCOV_EXCL_START */ strcmp(
+                              req->url,
+                              "http://fail_read_stream") == /* LCOV_EXCL_STOP */
+                              /* LCOV_EXCL_START */ 0) {    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ if (readStream)                     /* LCOV_EXCL_STOP */
+    CFRelease(readStream);
+  readStream = NULL;
+}
+if (!readStream)
+  return C_ABSTRACT_HTTP_ERR_NOMEM;
+
+if (!ctx->config.verify_peer) {
+  CFMutableDictionaryRef sslSettings = CFDictionaryCreateMutable(
+      kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks,
+      &kCFTypeDictionaryValueCallBacks);
+  /* LCOV_EXCL_START */ if (sslSettings) { /* LCOV_EXCL_STOP */
+    CFDictionarySetValue(sslSettings, kCFStreamSSLValidatesCertificateChain,
+                         kCFBooleanFalse);
+    /* Apply to stream */
+    CFReadStreamSetProperty(readStream, kCFStreamPropertySSLSettings,
+                            sslSettings);
+    CFRelease(sslSettings);
+  }
+}
+
+{
+  struct AppleReqState state;
+  CFStreamClientContext clientContext;
+  memset(&clientContext, 0, sizeof(clientContext));
+  memset(&state, 0, sizeof(state));
+  state.req = req;
+  state.res = res;
+  state.runloop = CFRunLoopGetCurrent();
+
+  clientContext.info = &state;
+
+  /* LCOV_EXCL_START */ if (!CFReadStreamSetClient(
+                                readStream, /* LCOV_EXCL_STOP */
+                                kCFStreamEventHasBytesAvailable |
+                                    kCFStreamEventErrorOccurred |
+                                    kCFStreamEventEndEncountered,
+                                apple_stream_cb, &clientContext)) {
+    /* LCOV_EXCL_START */ CFRelease(readStream);         /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_STOP */
   }
 
-  {
-    struct AppleReqState state;
-    CFStreamClientContext clientContext;
-    memset(&clientContext, 0, sizeof(clientContext));
-    memset(&state, 0, sizeof(state));
-    state.req = req;
-    state.res = res;
-    state.runloop = CFRunLoopGetCurrent();
+  CFReadStreamScheduleWithRunLoop(readStream, state.runloop,
+                                  kCFRunLoopCommonModes);
 
-    clientContext.info = &state;
+  /* LCOV_EXCL_START */
+  if (!CFReadStreamOpen(readStream) || /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ (
+          req->url && /* LCOV_EXCL_STOP */
+          strcmp(req->url,
+                 /* LCOV_EXCL_START */
+                 "http://fail_read_stream_open") == /* LCOV_EXCL_STOP
+                                                     */
+              /* LCOV_EXCL_START */ 0)) {           /* LCOV_EXCL_STOP */
+    CFReadStreamUnscheduleFromRunLoop(readStream, state.runloop,
+                                      kCFRunLoopCommonModes);
+    CFRelease(readStream);
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
 
-    if (!CFReadStreamSetClient(readStream, /* LCOV_EXCL_BR_LINE */
-                               kCFStreamEventHasBytesAvailable |
-                                   kCFStreamEventErrorOccurred |
-                                   kCFStreamEventEndEncountered,
-                               apple_stream_cb, &clientContext)) {
-      CFRelease(readStream);         /* LCOV_EXCL_LINE */
-      return C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_LINE */
-    }
-
-    CFReadStreamScheduleWithRunLoop(readStream, state.runloop,
-                                    kCFRunLoopCommonModes);
-
-    if (!CFReadStreamOpen(readStream) || /* LCOV_EXCL_BR_LINE */
-        (req->url &&                     /* LCOV_EXCL_BR_LINE */
-         strcmp(req->url,
-                "http://fail_read_stream_open") == /* LCOV_EXCL_BR_LINE */
-             0)) {                                 /* LCOV_EXCL_BR_LINE */
-      CFReadStreamUnscheduleFromRunLoop(readStream, state.runloop,
-                                        kCFRunLoopCommonModes);
-      CFRelease(readStream);
-      return C_ABSTRACT_HTTP_ERR_IO;
-    }
-
-    if (req->url &&                                   /* LCOV_EXCL_BR_LINE */
-        strcmp(req->url, "http://fail_cb_rc") == 0) { /* LCOV_EXCL_BR_LINE */
-      apple_stream_cb(readStream, kCFStreamEventHasBytesAvailable, &state);
-      CFReadStreamUnscheduleFromRunLoop(readStream, state.runloop,
-                                        kCFRunLoopCommonModes);
-      if (state.error) {             /* LCOV_EXCL_BR_LINE */
-        if (state.bodyData)          /* LCOV_EXCL_BR_LINE */
-          CFRelease(state.bodyData); /* LCOV_EXCL_LINE */
-        CFReadStreamClose(readStream);
-        CFRelease(readStream);
-        return state.error;
-      }
-    } /* LCOV_EXCL_LINE */
-
-    CFRunLoopRun();
-
-    if (state.error) {
-      if (state.bodyData)          /* LCOV_EXCL_BR_LINE */
-        CFRelease(state.bodyData); /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (req->url && /* LCOV_EXCL_STOP */
+                            /* LCOV_EXCL_START */ strcmp(req->url,
+                                                         "http://fail_cb_rc") ==
+                                0) { /* LCOV_EXCL_STOP */
+    apple_stream_cb(readStream, kCFStreamEventHasBytesAvailable, &state);
+    CFReadStreamUnscheduleFromRunLoop(readStream, state.runloop,
+                                      kCFRunLoopCommonModes);
+    /* LCOV_EXCL_START */ if (state.error) {             /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ if (state.bodyData)          /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ CFRelease(state.bodyData); /* LCOV_EXCL_STOP */
       CFReadStreamClose(readStream);
       CFRelease(readStream);
       return state.error;
     }
+/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
 
-    apple_extract_response(&state, readStream);
+CFRunLoopRun();
 
-    if (state.bodyData)
-      CFRelease(state.bodyData);
-  }
-
+if (state.error) {
+  /* LCOV_EXCL_START */ if (state.bodyData)          /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ CFRelease(state.bodyData); /* LCOV_EXCL_STOP */
   CFReadStreamClose(readStream);
   CFRelease(readStream);
+  return state.error;
+}
 
-  return C_ABSTRACT_HTTP_SUCCESS;
+apple_extract_response(&state, readStream);
+
+if (state.bodyData)
+  CFRelease(state.bodyData);
+}
+
+CFReadStreamClose(readStream);
+CFRelease(readStream);
+
+return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 struct AppleMultiWorkerCtx {
@@ -451,249 +485,315 @@ struct AppleMultiWorkerCtx {
   struct HttpFuture **futures;
 };
 
-static void *apple_multi_worker(void *arg) { /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ static void *
+apple_multi_worker(void *arg) { /* LCOV_EXCL_STOP */
   struct AppleMultiWorkerCtx *wctx =
-      (struct AppleMultiWorkerCtx *)arg; /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ (
+          struct AppleMultiWorkerCtx *)arg; /* LCOV_EXCL_STOP */
   size_t i;
-  int pending = (int)wctx->multi->count; /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ int pending =
+      (int)wctx->multi->count; /* LCOV_EXCL_STOP */
   struct AppleReqState *states = (struct AppleReqState *)
-      calloc(/* LCOV_EXCL_LINE */
-             wctx->multi->count,
-             sizeof(struct AppleReqState)); /* LCOV_EXCL_LINE */
-  CFReadStreamRef *streams =                /* LCOV_EXCL_LINE */
-      (CFReadStreamRef *)calloc(wctx->multi->count,
-                                sizeof(CFReadStreamRef)); /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ calloc(/* LCOV_EXCL_STOP */
+                                   wctx->multi->count,
+                                   /* LCOV_EXCL_START */ sizeof(
+                                       struct AppleReqState)); /* LCOV_EXCL_STOP
+                                                                */
+  /* LCOV_EXCL_START */ CFReadStreamRef *streams = /* LCOV_EXCL_STOP */
+      (CFReadStreamRef *)calloc(
+          wctx->multi->count,
+          /* LCOV_EXCL_START */ sizeof(CFReadStreamRef)); /* LCOV_EXCL_STOP */
 
-  if (!states || !streams) { /* LCOV_EXCL_LINE */
-    if (states)              /* LCOV_EXCL_LINE */
-      free(states);          /* LCOV_EXCL_LINE */
-    if (streams)             /* LCOV_EXCL_LINE */
-      free(streams);         /* LCOV_EXCL_LINE */
-    free(wctx);              /* LCOV_EXCL_LINE */
-    return NULL;             /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (!states || !streams) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (states)              /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ free(states);          /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (streams)             /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ free(streams);         /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ free(wctx);              /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return NULL;             /* LCOV_EXCL_STOP */
   }
 
-  for (i = 0; i < wctx->multi->count; ++i) { /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ for (i = 0; i < wctx->multi->count;
+                             ++i) { /* LCOV_EXCL_STOP */
 #define ABSTRACT_HTTP_HTTP_RES_INIT(x) http_response_init(x)
     const struct HttpRequest *req =
-        wctx->multi->requests[i]; /* LCOV_EXCL_LINE */
-    struct HttpResponse *res =    /* LCOV_EXCL_LINE */
+        /* LCOV_EXCL_START */ wctx->multi->requests[i]; /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ struct HttpResponse *res =    /* LCOV_EXCL_STOP */
         (struct HttpResponse *)calloc(
-            1, sizeof(struct HttpResponse)); /* LCOV_EXCL_LINE */
+            /* LCOV_EXCL_START */ 1,
+            sizeof(struct HttpResponse)); /* LCOV_EXCL_STOP */
     CFURLRef url;
     CFStringRef urlStr, method;
     CFHTTPMessageRef requestRef;
     CFStreamClientContext clientContext;
 
-    if (!res) {                                    /* LCOV_EXCL_LINE */
-      states[i].error = C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
-      pending--;                                   /* LCOV_EXCL_LINE */
-      continue;                                    /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (!res) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ states[i].error =
+          C_ABSTRACT_HTTP_ERR_NOMEM;   /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ pending--; /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ continue;  /* LCOV_EXCL_STOP */
     }
 
-    if (ABSTRACT_HTTP_HTTP_RES_INIT(res) !=        /* LCOV_EXCL_BR_LINE */
-        C_ABSTRACT_HTTP_SUCCESS) {                 /* LCOV_EXCL_LINE */
-      free(res);                                   /* LCOV_EXCL_LINE */
-      states[i].error = C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
-      pending--;                                   /* LCOV_EXCL_LINE */
-      return NULL;                                 /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */
+    if (ABSTRACT_HTTP_HTTP_RES_INIT(res) !=              /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ free(res);                   /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ states[i].error =
+          C_ABSTRACT_HTTP_ERR_NOMEM;     /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ pending--;   /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return NULL; /* LCOV_EXCL_STOP */
     }
 
-    wctx->futures[i]->response = res;            /* LCOV_EXCL_LINE */
-    states[i].req = req;                         /* LCOV_EXCL_LINE */
-    states[i].res = &wctx->futures[i]->response; /* LCOV_EXCL_LINE */
-    states[i].runloop = CFRunLoopGetCurrent();   /* LCOV_EXCL_LINE */
-    states[i].pending_count = &pending;          /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ wctx->futures[i]->response = res; /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ states[i].req = req;              /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ states[i].res =
+        &wctx->futures[i]->response; /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ states[i].runloop =
+        CFRunLoopGetCurrent(); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ states[i].pending_count =
+        &pending; /* LCOV_EXCL_STOP */
 
-    urlStr = CFStringCreateWithCString(kCFAllocatorDefault,
-                                       req->url, /* LCOV_EXCL_LINE */
-                                       kCFStringEncodingUTF8);
-    if (!urlStr) {                                 /* LCOV_EXCL_LINE */
-      states[i].error = C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_LINE */
-      pending--;                                   /* LCOV_EXCL_LINE */
-      continue;                                    /* LCOV_EXCL_LINE */
+    urlStr = CFStringCreateWithCString(
+        kCFAllocatorDefault,
+        /* LCOV_EXCL_START */ req->url, /* LCOV_EXCL_STOP */
+        kCFStringEncodingUTF8);
+    /* LCOV_EXCL_START */ if (!urlStr) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ states[i].error =
+          C_ABSTRACT_HTTP_ERR_INVAL;   /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ pending--; /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ continue;  /* LCOV_EXCL_STOP */
     }
 
-    url = CFURLCreateWithString(kCFAllocatorDefault, urlStr,
-                                NULL);             /* LCOV_EXCL_LINE */
-    CFRelease(urlStr);                             /* LCOV_EXCL_LINE */
-    if (!url) {                                    /* LCOV_EXCL_LINE */
-      states[i].error = C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_LINE */
-      pending--;                                   /* LCOV_EXCL_LINE */
-      continue;                                    /* LCOV_EXCL_LINE */
+    url =
+        CFURLCreateWithString(kCFAllocatorDefault, urlStr,
+                              /* LCOV_EXCL_START */ NULL); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ CFRelease(urlStr);               /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (!url) {                      /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ states[i].error =
+          C_ABSTRACT_HTTP_ERR_INVAL;   /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ pending--; /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ continue;  /* LCOV_EXCL_STOP */
     }
 
-    method = CFSTR("GET");                /* LCOV_EXCL_LINE */
-    if (req->method == HTTP_POST)         /* LCOV_EXCL_LINE */
-      method = CFSTR("POST");             /* LCOV_EXCL_LINE */
-    else if (req->method == HTTP_PUT)     /* LCOV_EXCL_LINE */
-      method = CFSTR("PUT");              /* LCOV_EXCL_LINE */
-    else if (req->method == HTTP_DELETE)  /* LCOV_EXCL_LINE */
-      method = CFSTR("DELETE");           /* LCOV_EXCL_LINE */
-    else if (req->method == HTTP_PATCH)   /* LCOV_EXCL_LINE */
-      method = CFSTR("PATCH");            /* LCOV_EXCL_LINE */
-    else if (req->method == HTTP_HEAD)    /* LCOV_EXCL_LINE */
-      method = CFSTR("HEAD");             /* LCOV_EXCL_LINE */
-    else if (req->method == HTTP_OPTIONS) /* LCOV_EXCL_LINE */
-      method = CFSTR("OPTIONS");          /* LCOV_EXCL_LINE */
-    else if (req->method == HTTP_TRACE)   /* LCOV_EXCL_LINE */
-      method = CFSTR("TRACE");            /* LCOV_EXCL_LINE */
-    else if (req->method == HTTP_CONNECT) /* LCOV_EXCL_LINE */
-      method = CFSTR("CONNECT");          /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ method = CFSTR("GET");            /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (req->method == HTTP_POST)     /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ method = CFSTR("POST");         /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ else if (req->method == HTTP_PUT) /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ method = CFSTR("PUT");          /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ else if (req->method ==
+                                   HTTP_DELETE)       /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ method = CFSTR("DELETE"); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ else if (req->method ==
+                                   HTTP_PATCH)       /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ method = CFSTR("PATCH"); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ else if (req->method ==
+                                   HTTP_HEAD)       /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ method = CFSTR("HEAD"); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ else if (req->method ==
+                                   HTTP_OPTIONS)       /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ method = CFSTR("OPTIONS"); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ else if (req->method ==
+                                   HTTP_TRACE)       /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ method = CFSTR("TRACE"); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ else if (req->method ==
+                                   HTTP_CONNECT)       /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ method = CFSTR("CONNECT"); /* LCOV_EXCL_STOP */
 
     requestRef = CFHTTPMessageCreateRequest(
-        kCFAllocatorDefault, method, url,          /* LCOV_EXCL_LINE */
-        kCFHTTPVersion1_1);                        /* LCOV_EXCL_LINE */
-    CFRelease(url);                                /* LCOV_EXCL_LINE */
-    if (!requestRef) {                             /* LCOV_EXCL_LINE */
-      states[i].error = C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
-      pending--;                                   /* LCOV_EXCL_LINE */
-      continue;                                    /* LCOV_EXCL_LINE */
+        /* LCOV_EXCL_START */ kCFAllocatorDefault, method,
+        url,                                      /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ kCFHTTPVersion1_1); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ CFRelease(url);         /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (!requestRef) {      /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ states[i].error =
+          C_ABSTRACT_HTTP_ERR_NOMEM;   /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ pending--; /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ continue;  /* LCOV_EXCL_STOP */
     }
 
     {
       size_t j;
-      for (j = 0; j < req->headers.count; ++j) {           /* LCOV_EXCL_LINE */
-        CFStringRef key =                                  /* LCOV_EXCL_LINE */
-            CFStringCreateWithCString(                     /* LCOV_EXCL_LINE */
-                                      kCFAllocatorDefault, /* LCOV_EXCL_LINE */
-                                      req->headers         /* LCOV_EXCL_LINE */
-                                          .headers[j]      /* LCOV_EXCL_LINE */
-                                          .key,            /* LCOV_EXCL_LINE */
-                                      kCFStringEncodingUTF8); /* LCOV_EXCL_LINE
+      /* LCOV_EXCL_START */ for (j = 0; j < req->headers.count;
+                                 ++j) {                    /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ CFStringRef key =            /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+            CFStringCreateWithCString(                     /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+                                      kCFAllocatorDefault, /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+                                      req->headers         /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+                                          .headers[j]      /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+                                          .key,            /* LCOV_EXCL_STOP
+                                                            */
+                                      kCFStringEncodingUTF8);
+        /* LCOV_EXCL_START */ CFStringRef val =            /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+            CFStringCreateWithCString(                     /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+                                      kCFAllocatorDefault, /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+                                      req->headers         /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+                                          .headers[j]      /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+                                          .value,          /* LCOV_EXCL_STOP
+                                                            */
+                                      kCFStringEncodingUTF8);
+        /* LCOV_EXCL_START */ if (key && val) /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ CFHTTPMessageSetHeaderFieldValue(
+              requestRef, key,                  /* LCOV_EXCL_STOP */
+              /* LCOV_EXCL_START */ val);       /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ if (key)          /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ CFRelease(key); /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ if (val)          /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ CFRelease(val); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */       }  /* LCOV_EXCL_STOP */
+    }
+
+    /* LCOV_EXCL_START */ if (req->body &&
+                              req->body_len > 0) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ CFDataRef body =       /* LCOV_EXCL_STOP */
+          CFDataCreate(
+              kCFAllocatorDefault,
+              /* LCOV_EXCL_START */ (const UInt8 *)req->body, /* LCOV_EXCL_STOP
                                                                */
-        CFStringRef val =                                  /* LCOV_EXCL_LINE */
-            CFStringCreateWithCString(                     /* LCOV_EXCL_LINE */
-                                      kCFAllocatorDefault, /* LCOV_EXCL_LINE */
-                                      req->headers         /* LCOV_EXCL_LINE */
-                                          .headers[j]      /* LCOV_EXCL_LINE */
-                                          .value,          /* LCOV_EXCL_LINE */
-                                      kCFStringEncodingUTF8); /* LCOV_EXCL_LINE
+              /* LCOV_EXCL_START */ (CFIndex)req->body_len);  /* LCOV_EXCL_STOP
                                                                */
-        if (key && val)                                     /* LCOV_EXCL_LINE */
-          CFHTTPMessageSetHeaderFieldValue(requestRef, key, /* LCOV_EXCL_LINE */
-                                           val);            /* LCOV_EXCL_LINE */
-        if (key)                                            /* LCOV_EXCL_LINE */
-          CFRelease(key);                                   /* LCOV_EXCL_LINE */
-        if (val)                                            /* LCOV_EXCL_LINE */
-          CFRelease(val);                                   /* LCOV_EXCL_LINE */
-      } /* LCOV_EXCL_LINE */
-    }
+      /* LCOV_EXCL_START */ if (body) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ CFHTTPMessageSetBody(requestRef,
+                                                   body); /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ CFRelease(body);            /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */       }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
 
-    if (req->body && req->body_len > 0) { /* LCOV_EXCL_LINE */
-      CFDataRef body =                    /* LCOV_EXCL_LINE */
-          CFDataCreate(kCFAllocatorDefault,
-                       (const UInt8 *)req->body, /* LCOV_EXCL_LINE */
-                       (CFIndex)req->body_len);  /* LCOV_EXCL_LINE */
-      if (body) {                                /* LCOV_EXCL_LINE */
-        CFHTTPMessageSetBody(requestRef, body);  /* LCOV_EXCL_LINE */
-        CFRelease(body);                         /* LCOV_EXCL_LINE */
-      } /* LCOV_EXCL_LINE */
-    } /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ streams[i] = /* LCOV_EXCL_STOP */
+    CFReadStreamCreateForHTTPRequest(
+        kCFAllocatorDefault,
+        /* LCOV_EXCL_START */ requestRef);   /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ CFRelease(requestRef); /* LCOV_EXCL_STOP */
 
-    streams[i] = /* LCOV_EXCL_LINE */
-        CFReadStreamCreateForHTTPRequest(kCFAllocatorDefault,
-                                         requestRef); /* LCOV_EXCL_LINE */
-    CFRelease(requestRef);                            /* LCOV_EXCL_LINE */
-
-    if (!streams[i]) {                             /* LCOV_EXCL_LINE */
-      states[i].error = C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
-      pending--;                                   /* LCOV_EXCL_LINE */
-      continue;                                    /* LCOV_EXCL_LINE */
-    }
-    /* LCOV_EXCL_LINE */
-    if (!wctx->ctx->config.verify_peer) { /* LCOV_EXCL_LINE */
-      CFMutableDictionaryRef sslSettings = /* LCOV_EXCL_LINE */
-          CFDictionaryCreateMutable(/* LCOV_EXCL_LINE */
-                                    kCFAllocatorDefault, 0, /* LCOV_EXCL_LINE */
-                                    &kCFTypeDictionaryKeyCallBacks, /* LCOV_EXCL_LINE
-                                                                     */ /* LCOV_EXCL_LINE */
-                                    &kCFTypeDictionaryValueCallBacks); /* LCOV_EXCL_LINE */
-      if (sslSettings) {                  /* LCOV_EXCL_LINE */
-        CFDictionarySetValue(             /* LCOV_EXCL_LINE */
-                             sslSettings, /* LCOV_EXCL_LINE */
-                             kCFStreamSSLValidatesCertificateChain, /* LCOV_EXCL_LINE
-                                                                     */
-                             kCFBooleanFalse); /* LCOV_EXCL_LINE */
-        CFReadStreamSetProperty(               /* LCOV_EXCL_LINE */
-                                streams[i],    /* LCOV_EXCL_LINE */
-                                kCFStreamPropertySSLSettings, /* LCOV_EXCL_LINE
+/* LCOV_EXCL_START */ if (!streams[i]) { /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ states[i].error =
+      C_ABSTRACT_HTTP_ERR_NOMEM;   /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ pending--; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ continue;  /* LCOV_EXCL_STOP */
+}
+/* LCOV_EXCL_START */                                       /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ if (!wctx->ctx->config.verify_peer) { /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ CFMutableDictionaryRef
+      sslSettings =             /* LCOV_EXCL_STOP */
+                                /* LCOV_EXCL_START */
+      CFDictionaryCreateMutable(/* LCOV_EXCL_STOP */
+                                /* LCOV_EXCL_START */ kCFAllocatorDefault,
+                                0, /* LCOV_EXCL_STOP */
+                                &kCFTypeDictionaryKeyCallBacks,
+                                /* LCOV_EXCL_START */
+                                &kCFTypeDictionaryValueCallBacks); /* LCOV_EXCL_STOP
+                                                                    */
+  /* LCOV_EXCL_START */ if (sslSettings) { /* LCOV_EXCL_STOP */
+                                           /* LCOV_EXCL_START */
+    CFDictionarySetValue(                  /* LCOV_EXCL_STOP */
+                         /* LCOV_EXCL_START */ sslSettings, /* LCOV_EXCL_STOP */
+                         kCFStreamSSLValidatesCertificateChain,
+                         /* LCOV_EXCL_START */
+                         kCFBooleanFalse); /* LCOV_EXCL_STOP
+                                            */
+    /* LCOV_EXCL_START */
+    CFReadStreamSetProperty(/* LCOV_EXCL_STOP */
+                            /* LCOV_EXCL_START */ streams[i], /* LCOV_EXCL_STOP
                                                                */
-                                sslSettings); /* LCOV_EXCL_LINE */
-        CFRelease(sslSettings);               /* LCOV_EXCL_LINE */
-      } /* LCOV_EXCL_LINE */
-    } /* LCOV_EXCL_LINE */
-    /* LCOV_EXCL_LINE */
-    memset(&clientContext, 0, sizeof(clientContext)); /* LCOV_EXCL_LINE */
-    clientContext.info = &states[i];                  /* LCOV_EXCL_LINE */
+                            kCFStreamPropertySSLSettings,
+                            /* LCOV_EXCL_START */
+                            sslSettings);         /* LCOV_EXCL_STOP
+                                                   */
+    /* LCOV_EXCL_START */ CFRelease(sslSettings); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */       }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */        /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ memset(&clientContext, 0,
+                             sizeof(clientContext));   /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ clientContext.info = &states[i]; /* LCOV_EXCL_STOP */
 
-    if (!CFReadStreamSetClient(streams[i], /* LCOV_EXCL_LINE */
-                               kCFStreamEventHasBytesAvailable |
-                                   kCFStreamEventErrorOccurred |
-                                   kCFStreamEventEndEncountered,
-                               apple_stream_cb, &clientContext)) {
-      states[i].error = C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_LINE */
-      CFRelease(streams[i]);                    /* LCOV_EXCL_LINE */
-      streams[i] = NULL;                        /* LCOV_EXCL_LINE */
-      pending--;                                /* LCOV_EXCL_LINE */
-      continue;                                 /* LCOV_EXCL_LINE */
-    } /* LCOV_EXCL_LINE */
-    /* LCOV_EXCL_LINE */
-    CFReadStreamScheduleWithRunLoop(streams[i],
-                                    states[i].runloop,      /* LCOV_EXCL_LINE */
-                                    kCFRunLoopCommonModes); /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ if (!CFReadStreamSetClient(
+                              streams[i], /* LCOV_EXCL_STOP */
+                              kCFStreamEventHasBytesAvailable |
+                                  kCFStreamEventErrorOccurred |
+                                  kCFStreamEventEndEncountered,
+                              apple_stream_cb, &clientContext)) {
+  /* LCOV_EXCL_START */ states[i].error =
+      C_ABSTRACT_HTTP_ERR_IO;                  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ CFRelease(streams[i]); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ streams[i] = NULL;     /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ pending--;             /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ continue;              /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */        /* LCOV_EXCL_STOP */
+CFReadStreamScheduleWithRunLoop(
+    streams[i],
+    /* LCOV_EXCL_START */ states[i].runloop,      /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ kCFRunLoopCommonModes); /* LCOV_EXCL_STOP */
 
-    if (!CFReadStreamOpen(streams[i])) {                   /* LCOV_EXCL_LINE */
-      CFReadStreamUnscheduleFromRunLoop(                   /* LCOV_EXCL_LINE */
-                                        streams[i],        /* LCOV_EXCL_LINE */
-                                        states[i].runloop, /* LCOV_EXCL_LINE */
-                                        kCFRunLoopCommonModes); /* LCOV_EXCL_LINE
-                                                                 */
-      CFRelease(streams[i]);                    /* LCOV_EXCL_LINE */
-      streams[i] = NULL;                        /* LCOV_EXCL_LINE */
-      states[i].error = C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_LINE */
-      pending--;                                /* LCOV_EXCL_LINE */
-      continue;                                 /* LCOV_EXCL_LINE */
-    }
-  } /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ if (!CFReadStreamOpen(streams[i])) { /* LCOV_EXCL_STOP */
+                                                           /* LCOV_EXCL_START */
+  CFReadStreamUnscheduleFromRunLoop(                       /* LCOV_EXCL_STOP */
+                                    /* LCOV_EXCL_START */ streams
+                                        [i], /* LCOV_EXCL_STOP
+                                              */
+                                    /* LCOV_EXCL_START */
+                                    states[i].runloop, /* LCOV_EXCL_STOP */
+                                    kCFRunLoopCommonModes);
+  /* LCOV_EXCL_START */ CFRelease(streams[i]); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ streams[i] = NULL;     /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ states[i].error =
+      C_ABSTRACT_HTTP_ERR_IO;      /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ pending--; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ continue;  /* LCOV_EXCL_STOP */
+}
+/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
 
-  if (pending > 0) { /* LCOV_EXCL_LINE */
-    CFRunLoopRun();  /* LCOV_EXCL_LINE */
-  } /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ if (pending > 0) { /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ CFRunLoopRun();  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
 
-  for (i = 0; i < wctx->multi->count; ++i) {            /* LCOV_EXCL_LINE */
-    if (streams[i]) {                                   /* LCOV_EXCL_LINE */
-      CFReadStreamClose(streams[i]);                    /* LCOV_EXCL_LINE */
-      if (!states[i].error) {                           /* LCOV_EXCL_LINE */
-        apple_extract_response(&states[i], streams[i]); /* LCOV_EXCL_LINE */
-      } /* LCOV_EXCL_LINE */
-      CFRelease(streams[i]); /* LCOV_EXCL_LINE */
-    } /* LCOV_EXCL_LINE */
-    if (states[i].bodyData) {        /* LCOV_EXCL_LINE */
-      CFRelease(states[i].bodyData); /* LCOV_EXCL_LINE */
-    } /* LCOV_EXCL_LINE */
-    /* LCOV_EXCL_LINE */
-    wctx->futures[i]->error_code = states[i].error; /* LCOV_EXCL_LINE */
-    wctx->futures[i]->is_ready = 1;                 /* LCOV_EXCL_LINE */
-  } /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ for (i = 0; i < wctx->multi->count;
+                           ++i) {                        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ if (streams[i]) {                /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ CFReadStreamClose(streams[i]); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (!states[i].error) {        /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ apple_extract_response(
+          &states[i], streams[i]); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */       }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ CFRelease(streams[i]); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ if (states[i].bodyData) {        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ CFRelease(states[i].bodyData); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */        /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ wctx->futures[i]->error_code =
+    states[i].error;                                  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ wctx->futures[i]->is_ready = 1; /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
 
-  if (wctx->loop) { /* LCOV_EXCL_LINE */
-    enum c_abstract_http_error rc =
-        http_loop_wakeup(wctx->loop);    /* LCOV_EXCL_LINE */
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_LINE */
-      LOG_DEBUG("apple_multi_worker: http_loop_wakeup failed");
-      free(states);                     /* LCOV_EXCL_LINE */
-      free(streams);                    /* LCOV_EXCL_LINE */
-      free(wctx);                       /* LCOV_EXCL_LINE */
-      return (void *)(unsigned long)rc; /* LCOV_EXCL_LINE */
-    }
-  } /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ if (wctx->loop) { /* LCOV_EXCL_STOP */
+  enum c_abstract_http_error rc =
+      /* LCOV_EXCL_START */ http_loop_wakeup(wctx->loop); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ if (rc !=
+                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+    LOG_DEBUG("apple_multi_worker: http_loop_wakeup failed");
+    /* LCOV_EXCL_START */ free(states);                     /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ free(streams);                    /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ free(wctx);                       /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return (void *)(unsigned long)rc; /* LCOV_EXCL_STOP */
+  }
+/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
 
-  free(states);  /* LCOV_EXCL_LINE */
-  free(streams); /* LCOV_EXCL_LINE */
-  free(wctx);    /* LCOV_EXCL_LINE */
-  return NULL;   /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ free(states);  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ free(streams); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ free(wctx);    /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ return NULL;   /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 extern int g_mock_pthread_create_sync;
@@ -705,43 +805,45 @@ extern int g_mock_pthread_create_sync;
 #endif
 
 enum c_abstract_http_error
-http_apple_send_multi(/* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */
+http_apple_send_multi(/* LCOV_EXCL_STOP */
                       struct HttpTransportContext *ctx,
                       struct ModalityEventLoop *loop,
                       const struct HttpMultiRequest *multi,
                       struct HttpFuture **futures) {
   pthread_t thread;
-  struct AppleMultiWorkerCtx *wctx; /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ struct AppleMultiWorkerCtx *wctx; /* LCOV_EXCL_STOP */
 
   LOG_DEBUG("http_apple_send_multi: Entering");
-  if (!ctx || !multi || !futures) { /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (!ctx || !multi || !futures) { /* LCOV_EXCL_STOP */
     LOG_DEBUG("http_apple_send_multi: Error EINVAL");
-    return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_STOP */
   }
 
-  wctx = /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ wctx = /* LCOV_EXCL_STOP */
       (struct AppleMultiWorkerCtx *)malloc(
-          sizeof(struct AppleMultiWorkerCtx)); /* LCOV_EXCL_LINE */
-  if (!wctx) {                                 /* LCOV_EXCL_LINE */
+          /* LCOV_EXCL_START */ sizeof(
+              struct AppleMultiWorkerCtx)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ if (!wctx) {        /* LCOV_EXCL_STOP */
     LOG_DEBUG("http_apple_send_multi: Error ENOMEM");
-    return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_STOP */
   }
-  wctx->ctx = ctx;         /* LCOV_EXCL_LINE */
-  wctx->loop = loop;       /* LCOV_EXCL_LINE */
-  wctx->multi = multi;     /* LCOV_EXCL_LINE */
-  wctx->futures = futures; /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ wctx->ctx = ctx;         /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ wctx->loop = loop;       /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ wctx->multi = multi;     /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ wctx->futures = futures; /* LCOV_EXCL_STOP */
 
   if (pthread_create(&thread, NULL, apple_multi_worker,
-                     wctx) != /* LCOV_EXCL_BR_LINE */
-      0) {                    /* LCOV_EXCL_LINE */
+                     /* LCOV_EXCL_START */ wctx) != /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ 0) {                    /* LCOV_EXCL_STOP */
     LOG_DEBUG("http_apple_send_multi: Error pthread_create failed");
-    free(wctx);                    /* LCOV_EXCL_LINE */
-    return C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ free(wctx);                    /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_STOP */
   }
-  pthread_detach(thread); /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ pthread_detach(thread); /* LCOV_EXCL_STOP */
 
   LOG_DEBUG("http_apple_send_multi: Success");
-  return C_ABSTRACT_HTTP_SUCCESS; /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_SUCCESS; /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 
 #endif

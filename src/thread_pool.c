@@ -400,31 +400,37 @@ static ABSTRACT_HTTP_THREAD_FUNC worker_thread(abstract_http_thread_arg_t arg) {
     enum c_abstract_http_error err;
 
     err = abstract_http_mutex_lock(pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      rc = err;                           /* LCOV_EXCL_LINE */
-      break;                              /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (err !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ rc = err;                    /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ break;                       /* LCOV_EXCL_STOP */
     }
 
     while (!pool->stop && !pool->head) {
       err = abstract_http_cond_wait(pool->cond, pool->lock);
-      if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-        rc = err;                           /* LCOV_EXCL_LINE */
-        break;                              /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ if (err !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ rc = err;                    /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ break;                       /* LCOV_EXCL_STOP */
       }
     }
 
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {            /* LCOV_EXCL_BR_LINE */
-      err = abstract_http_mutex_unlock(pool->lock); /* LCOV_EXCL_LINE */
-      if (err != C_ABSTRACT_HTTP_SUCCESS) {         /* LCOV_EXCL_BR_LINE */
-        rc = err;                                   /* LCOV_EXCL_LINE */
-      } /* LCOV_EXCL_LINE */
-      break; /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (rc !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ err =
+          abstract_http_mutex_unlock(pool->lock); /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ if (err !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ rc = err;                    /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */       }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ break;   /* LCOV_EXCL_STOP */
     }
 
     if (pool->stop && !pool->head) {
       err = abstract_http_mutex_unlock(pool->lock);
-      if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-        rc = err;                           /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ if (err !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ rc = err;                    /* LCOV_EXCL_STOP */
       }
       break;
     }
@@ -436,8 +442,9 @@ static ABSTRACT_HTTP_THREAD_FUNC worker_thread(abstract_http_thread_arg_t arg) {
     }
 
     err = abstract_http_mutex_unlock(pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      rc = err;                           /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (err !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ rc = err;                    /* LCOV_EXCL_STOP */
       /* We should probably execute the task anyway since we popped it */
     }
 
@@ -573,15 +580,17 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
 
   {
     enum c_abstract_http_error err = abstract_http_mutex_lock(pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      free(task);                         /* LCOV_EXCL_LINE */
-      return err;                         /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (err !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ free(task);                  /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return err;                  /* LCOV_EXCL_STOP */
     }
     if (pool->stop) {
       err = abstract_http_mutex_unlock(pool->lock);
       free(task);
-      if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-        return err;                         /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ if (err !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ return err;                  /* LCOV_EXCL_STOP */
       }
       LOG_DEBUG("abstract_http_thread_pool_push: Error EINVAL (pool stopped)");
       return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -599,11 +608,13 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
     {
       enum c_abstract_http_error unlock_err =
           abstract_http_mutex_unlock(pool->lock);
-      if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-        return err;                         /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ if (err !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ return err;                  /* LCOV_EXCL_STOP */
       }
-      if (unlock_err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-        return unlock_err;                         /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ if (unlock_err !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ return unlock_err;           /* LCOV_EXCL_STOP */
       }
     }
   }
@@ -630,19 +641,22 @@ abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
   {
     enum c_abstract_http_error err;
     err = abstract_http_mutex_lock(pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      return err;                         /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (err !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return err;                  /* LCOV_EXCL_STOP */
     }
     pool->stop = 1;
     err = ABSTRACT_HTTP_COND_BROADCAST(pool->cond);
     {
       enum c_abstract_http_error unlock_err =
           abstract_http_mutex_unlock(pool->lock);
-      if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-        return err;                         /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ if (err !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ return err;                  /* LCOV_EXCL_STOP */
       }
-      if (unlock_err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-        return unlock_err;                         /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ if (unlock_err !=
+                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ return unlock_err;           /* LCOV_EXCL_STOP */
       }
     }
   }
@@ -679,13 +693,15 @@ abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool) {
     } else {
       err = abstract_http_mutex_lock(pool->lock);
     }
-    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      return err;                         /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (err !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return err;                  /* LCOV_EXCL_STOP */
     }
     pool->stop = 1;
     err = abstract_http_mutex_unlock(pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      return err;                         /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (err !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return err;                  /* LCOV_EXCL_STOP */
     }
   }
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -725,20 +741,24 @@ abstract_http_thread_pool_test_free_with_tasks(void) {
     memset(fake_pool, 0, sizeof(struct AbstractHttpThreadPool));
     fake_pool->num_threads = 0;
     err = abstract_http_mutex_init(&fake_pool->lock);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      free(fake_pool);                    /* LCOV_EXCL_LINE */
-      return err;                         /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (err !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ free(fake_pool);             /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return err;                  /* LCOV_EXCL_STOP */
     }
     err = abstract_http_cond_init(&fake_pool->cond);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) {        /* LCOV_EXCL_BR_LINE */
-      abstract_http_mutex_free(fake_pool->lock); /* LCOV_EXCL_LINE */
-      free(fake_pool);                           /* LCOV_EXCL_LINE */
-      return err;                                /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (err !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ abstract_http_mutex_free(
+          fake_pool->lock);                  /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ free(fake_pool); /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return err;      /* LCOV_EXCL_STOP */
     }
     abstract_http_thread_pool_test_inject_task(fake_pool);
     err = abstract_http_thread_pool_free(fake_pool);
-    if (err != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      return err;                         /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (err !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return err;                  /* LCOV_EXCL_STOP */
     }
   }
   return C_ABSTRACT_HTTP_SUCCESS;

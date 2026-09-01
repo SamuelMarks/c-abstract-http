@@ -54,13 +54,13 @@ static int test_sse_on_event(const struct c_abstract_http_sse_event *ev,
     strncpy(ctx->last_event, ev->event, sizeof(ctx->last_event) - 1);
 #endif
   } else {
-    ctx->last_event[0] = '\0'; /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ ctx->last_event[0] = '\0'; /* LCOV_EXCL_STOP */
   }
   if (ev->data) {
     memcpy(ctx->last_data, ev->data, ev->data_len);
     ctx->last_data[ev->data_len] = '\0';
   } else {
-    ctx->last_data[0] = '\0'; /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ ctx->last_data[0] = '\0'; /* LCOV_EXCL_STOP */
   }
   return 0;
 }
@@ -1052,8 +1052,8 @@ TEST test_sse_sync_loop_oom_branches(void) {
         &client, &req, test_sse_on_event, NULL, test_sse_on_close, &ctx, NULL);
     g_mock_alloc_fail = 0;
     if (rc == 0) {
-      http_request_free(&req); /* LCOV_EXCL_LINE */
-      break;                   /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ http_request_free(&req); /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ break;                   /* LCOV_EXCL_STOP */
     }
     http_request_free(&req);
   }
@@ -1068,8 +1068,8 @@ TEST test_sse_sync_loop_oom_branches(void) {
                                             test_sse_on_close, &ctx, NULL);
     g_mock_alloc_fail = 0;
     if (rc == 0) {
-      http_request_free(&req); /* LCOV_EXCL_LINE */
-      break;                   /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ http_request_free(&req); /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ break;                   /* LCOV_EXCL_STOP */
     }
     http_request_free(&req);
   }
@@ -1083,8 +1083,8 @@ TEST test_sse_sync_loop_oom_branches(void) {
         &client, &req, test_sse_on_event, NULL, test_sse_on_close, &ctx, NULL);
     g_mock_alloc_fail = 0;
     if (rc == 0) {
-      http_request_free(&req); /* LCOV_EXCL_LINE */
-      break;                   /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ http_request_free(&req); /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ break;                   /* LCOV_EXCL_STOP */
     }
     http_request_free(&req);
   }
@@ -1099,8 +1099,8 @@ TEST test_sse_sync_loop_oom_branches(void) {
                                             test_sse_on_close, &ctx, NULL);
     g_mock_alloc_fail = 0;
     if (rc == 0) {
-      http_request_free(&req); /* LCOV_EXCL_LINE */
-      break;                   /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ http_request_free(&req); /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ break;                   /* LCOV_EXCL_STOP */
     }
     http_request_free(&req);
   }

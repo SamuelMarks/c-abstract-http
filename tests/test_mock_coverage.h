@@ -21,8 +21,9 @@ TEST test_mock_alloc_coverage(void) {
   dummy_cb_pthread(NULL);
 
   g_mock_select_fail = 1;
-  ASSERT_EQ(-1, c_abstract_http_mock_select(0, NULL, NULL, NULL,
-                                            NULL)); /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(-1, c_abstract_http_mock_select(
+                    0, NULL, NULL, NULL,
+                    /* LCOV_EXCL_START */ NULL)); /* LCOV_EXCL_STOP */
   g_mock_select_fail = 0;
 
   g_mock_time_jump = 1;
@@ -64,52 +65,58 @@ TEST test_mock_alloc_more(void) {
     g_mock_pthread_fail = 1;
     ASSERT_EQ(1, c_abstract_http_mock_pthread_create(
                      &dummy_thread, NULL, dummy_cb_pthread,
-                     NULL)); /* LCOV_EXCL_BR_LINE */
+                     /* LCOV_EXCL_START */ NULL)); /* LCOV_EXCL_STOP */
     ASSERT_EQ(NULL, c_abstract_http_mock_pthread_getspecific(
-                        0)); /* LCOV_EXCL_BR_LINE */
+                        /* LCOV_EXCL_START */ 0)); /* LCOV_EXCL_STOP */
 
     g_mock_pthread_fail = 2;
     g_mock_alloc_count = 0;
     ASSERT_EQ(1, c_abstract_http_mock_pthread_create(
                      &dummy_thread, NULL, dummy_cb_pthread,
-                     NULL)); /* LCOV_EXCL_BR_LINE */
+                     /* LCOV_EXCL_START */ NULL)); /* LCOV_EXCL_STOP */
     g_mock_pthread_fail = 0;
   }
 #endif
 
   ASSERT_EQ(22,
-            c_abstract_http_mock_strdup(NULL, &out2)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ c_abstract_http_mock_strdup(
+                NULL, &out2)); /* LCOV_EXCL_STOP */
   ASSERT_EQ(22,
-            c_abstract_http_mock_strdup(NULL, NULL)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ c_abstract_http_mock_strdup(
+                NULL, NULL)); /* LCOV_EXCL_STOP */
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, /* LCOV_EXCL_BR_LINE */
-            c_abstract_http_mock_strdup("test", &out2));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOMEM, /* LCOV_EXCL_STOP */
+      c_abstract_http_mock_strdup("test", &out2));
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   {
     int rc_test_tmp = c_abstract_http_mock_strdup("test", NULL);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                  "%d"); /* LCOV_EXCL_BR_LINE */
+                  /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
   }
 
   /* trigger mock alloc fail inside strdup itself */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, /* LCOV_EXCL_BR_LINE */
-            c_abstract_http_mock_strdup("test_inner_fail", &out2));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOMEM, /* LCOV_EXCL_STOP */
+      c_abstract_http_mock_strdup("test_inner_fail", &out2));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, /* LCOV_EXCL_BR_LINE */
-            c_abstract_http_mock_strdup("test_inner_fail2", NULL));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOMEM, /* LCOV_EXCL_STOP */
+      c_abstract_http_mock_strdup("test_inner_fail2", NULL));
   g_mock_alloc_fail = 0;
 
   g_mock_recv_fail = 1;
   ASSERT_EQ(-1,
-            c_abstract_http_mock_recv(0, NULL, 0, 0)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ c_abstract_http_mock_recv(
+                0, NULL, 0, 0)); /* LCOV_EXCL_STOP */
   g_mock_recv_fail = 0;
 
   g_mock_select_error_fds = 1;
@@ -123,37 +130,44 @@ TEST test_mock_alloc_more(void) {
     FD_ZERO(&errfds);
     FD_ZERO(&readfds);
     FD_ZERO(&writefds);
-    ASSERT_EQ(/* LCOV_EXCL_BR_LINE */
-              1, c_abstract_http_mock_select(1, &readfds, &writefds, &errfds,
-                                             &tv));
-    ASSERT_EQ(0, /* LCOV_EXCL_BR_LINE */
-              c_abstract_http_mock_select(0, &readfds, &writefds, NULL, &tv));
-    ASSERT_EQ(/* LCOV_EXCL_BR_LINE */
-              1, c_abstract_http_mock_select(0, &readfds, &writefds, &errfds,
-                                             &tv));
+    /* LCOV_EXCL_START */ ASSERT_EQ(/* LCOV_EXCL_STOP */
+                                    1,
+                                    c_abstract_http_mock_select(
+                                        1, &readfds, &writefds, &errfds, &tv));
+    /* LCOV_EXCL_START */ ASSERT_EQ(
+        0, /* LCOV_EXCL_STOP */
+        c_abstract_http_mock_select(0, &readfds, &writefds, NULL, &tv));
+    /* LCOV_EXCL_START */ ASSERT_EQ(/* LCOV_EXCL_STOP */
+                                    1,
+                                    c_abstract_http_mock_select(
+                                        0, &readfds, &writefds, &errfds, &tv));
   }
   g_mock_select_error_fds = 0;
 
 #ifndef _WIN32
   g_mock_waitpid_fail = 3;
-  ASSERT_EQ(0, c_abstract_http_mock_fork()); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      0, c_abstract_http_mock_fork()); /* LCOV_EXCL_STOP */
   g_mock_waitpid_fail = 0;
 #endif
 
   {
     char *out_test = NULL;
-    ASSERT_EQ(0, c_abstract_http_mock_strdup(
-                     "test", &out_test)); /* LCOV_EXCL_BR_LINE */
-    if (out_test)                         /* LCOV_EXCL_BR_LINE */
+    ASSERT_EQ(
+        0, c_abstract_http_mock_strdup(
+               /* LCOV_EXCL_START */ "test", &out_test)); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (out_test)                   /* LCOV_EXCL_STOP */
       free(out_test);
 
     ASSERT_EQ(
-        0, c_abstract_http_mock_strdup("test2", NULL)); /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ 0,
+        c_abstract_http_mock_strdup("test2", NULL)); /* LCOV_EXCL_STOP */
 
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, /* LCOV_EXCL_BR_LINE */
-              c_abstract_http_mock_strdup("test3", NULL));
+    /* LCOV_EXCL_START */ ASSERT_EQ(
+        C_ABSTRACT_HTTP_ERR_NOMEM, /* LCOV_EXCL_STOP */
+        c_abstract_http_mock_strdup("test3", NULL));
   }
 
   {
@@ -167,19 +181,22 @@ TEST test_mock_alloc_more(void) {
   g_mock_alloc_count = 1;
   {
     pthread_t thread;
-    ASSERT_EQ(0, c_abstract_http_mock_pthread_create(/* LCOV_EXCL_BR_LINE */
-                                                     &thread, NULL,
-                                                     dummy_cb_pthread, NULL));
+    /* LCOV_EXCL_START */ ASSERT_EQ(
+        0, c_abstract_http_mock_pthread_create(/* LCOV_EXCL_STOP */
+                                               &thread, NULL, dummy_cb_pthread,
+                                               NULL));
     c_abstract_http_mock_pthread_join(thread, NULL);
   }
   g_mock_pthread_fail = 0;
 
   g_mock_waitpid_fail = 1;
   ASSERT_EQ(-1,
-            c_abstract_http_mock_waitpid(0, NULL, 0)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ c_abstract_http_mock_waitpid(
+                0, NULL, 0)); /* LCOV_EXCL_STOP */
   g_mock_waitpid_fail = 2;
   ASSERT_EQ(0,
-            c_abstract_http_mock_waitpid(0, NULL, 0)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ c_abstract_http_mock_waitpid(
+                0, NULL, 0)); /* LCOV_EXCL_STOP */
   g_mock_waitpid_fail = 0;
 #endif
 
@@ -187,17 +204,20 @@ TEST test_mock_alloc_more(void) {
     void *ptr;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
-    ASSERT_EQ(NULL, c_abstract_http_mock_calloc(1, 1)); /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ ASSERT_EQ(
+        NULL, c_abstract_http_mock_calloc(1, 1)); /* LCOV_EXCL_STOP */
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
     ASSERT_EQ(NULL,
-              c_abstract_http_mock_realloc(NULL, 1)); /* LCOV_EXCL_BR_LINE */
+              /* LCOV_EXCL_START */ c_abstract_http_mock_realloc(
+                  NULL, 1)); /* LCOV_EXCL_STOP */
     g_mock_alloc_fail = 0;
     ptr = c_abstract_http_mock_malloc(1);
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
     ASSERT_EQ(NULL,
-              c_abstract_http_mock_realloc(ptr, 2)); /* LCOV_EXCL_BR_LINE */
+              /* LCOV_EXCL_START */ c_abstract_http_mock_realloc(
+                  ptr, 2)); /* LCOV_EXCL_STOP */
     g_mock_alloc_fail = 0;
     c_abstract_http_mock_free(ptr);
   }
@@ -210,43 +230,52 @@ TEST test_mock_server_coverage(void) {
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(1, mock_server_init((MockServerPtr *)&srv)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(NULL, srv);                                  /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      1, mock_server_init((MockServerPtr *)&srv)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(NULL, srv);      /* LCOV_EXCL_STOP */
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
-  ASSERT_EQ(1, mock_server_init(NULL)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(1,
+                                  mock_server_init(NULL)); /* LCOV_EXCL_STOP */
   g_mock_alloc_fail = 0;
 
   mock_server_destroy(NULL);
 
-  ASSERT_EQ(0, mock_server_init((MockServerPtr *)&srv)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      0, mock_server_init((MockServerPtr *)&srv)); /* LCOV_EXCL_STOP */
 
-  ASSERT_EQ(-1, mock_server_start(NULL)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(-1,
+                                  mock_server_start(NULL)); /* LCOV_EXCL_STOP */
 
   /* Mock socket fail */
   g_mock_socket_fail = 1;
-  ASSERT_EQ(-1, mock_server_start(srv)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(-1,
+                                  mock_server_start(srv)); /* LCOV_EXCL_STOP */
   g_mock_socket_fail = 0;
 
   /* Mock bind fail */
   g_mock_bind_fail = 1;
-  ASSERT_EQ(-1, mock_server_start(srv)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(-1,
+                                  mock_server_start(srv)); /* LCOV_EXCL_STOP */
   g_mock_bind_fail = 0;
 
   /* Mock listen fail */
   g_mock_listen_fail = 1;
-  ASSERT_EQ(-1, mock_server_start(srv)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(-1,
+                                  mock_server_start(srv)); /* LCOV_EXCL_STOP */
   g_mock_listen_fail = 0;
 
   g_mock_getsockname_fail = 1;
-  ASSERT_EQ(-1, mock_server_start(srv)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(-1,
+                                  mock_server_start(srv)); /* LCOV_EXCL_STOP */
   g_mock_getsockname_fail = 0;
 
 #if !defined(_WIN32)
   /* Mock getsockname fail - not mocked but we can mock pthread_create */
   g_mock_pthread_fail = 1;
-  ASSERT_EQ(-1, mock_server_start(srv)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(-1,
+                                  mock_server_start(srv)); /* LCOV_EXCL_STOP */
   g_mock_pthread_fail = 0;
 #endif
 
@@ -259,7 +288,8 @@ TEST test_mock_server_coverage(void) {
 
   /* Make accept fail but srv->running still true to test sleep retry */
   g_mock_accept_fail = 1;
-  ASSERT_EQ(0, mock_server_start(srv)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(0,
+                                  mock_server_start(srv)); /* LCOV_EXCL_STOP */
 
   /* Wait so thread runs and hits accept failure */
 #if defined(_WIN32)
@@ -274,23 +304,26 @@ TEST test_mock_server_coverage(void) {
 #endif
   g_mock_accept_fail = 0;
 
-  ASSERT_EQ(0, math_mock_server_get_port(NULL)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      0, math_mock_server_get_port(NULL)); /* LCOV_EXCL_STOP */
   if (math_mock_server_get_port((MockServerPtr)srv) !=
-      0) { /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ 0) { /* LCOV_EXCL_STOP */
     /* Port was assigned before pthread_create failed, so it's non-zero. We just
      * assert it is > 0. */
     ASSERT(math_mock_server_get_port((MockServerPtr)srv) >
-           0); /* LCOV_EXCL_BR_LINE */
+           /* LCOV_EXCL_START */ 0); /* LCOV_EXCL_STOP */
   } else {
-    ASSERT_EQ(/* LCOV_EXCL_LINE */
-              0, math_mock_server_get_port(
-                     (MockServerPtr)srv)); /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ ASSERT_EQ(/* LCOV_EXCL_STOP */
+                                    0, math_mock_server_get_port(
+                                           /* LCOV_EXCL_START */ (MockServerPtr)
+                                               srv)); /* LCOV_EXCL_STOP */
   }
 
   ASSERT_EQ(-1, mock_server_wait_for_request(NULL, NULL));
-  ASSERT_EQ(-1, mock_server_wait_for_request((MockServerPtr)srv,
-                                             NULL)); /* LCOV_EXCL_BR_LINE */
-                                                     /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(-1, mock_server_wait_for_request(
+                    (MockServerPtr)srv,
+                    /* LCOV_EXCL_START */ NULL)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */                           /* LCOV_EXCL_STOP */
   /* Send mock data */
   {
     int sock = (int)socket(AF_INET, SOCK_STREAM, 0);
@@ -310,7 +343,8 @@ TEST test_mock_server_coverage(void) {
     struct MockServerRequest req;
     /* Wait for the request we just sent! */
     ASSERT_EQ(0, mock_server_wait_for_request((MockServerPtr)srv, &req));
-    mock_server_request_cleanup(&req); /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ mock_server_request_cleanup(
+        &req); /* LCOV_EXCL_STOP */
     mock_server_request_cleanup(NULL);
 
     /* Mock out_req allocation failure */
@@ -318,16 +352,17 @@ TEST test_mock_server_coverage(void) {
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
     ASSERT_EQ(0, mock_server_wait_for_request((MockServerPtr)srv, &req));
-    g_mock_alloc_fail = 0; /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ g_mock_alloc_fail = 0; /* LCOV_EXCL_STOP */
     ASSERT_EQ(NULL, req.raw_header);
-    /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ /* LCOV_EXCL_STOP */
     /* Test force_request alloc failure */
     abstract_http_mock_server_force_request(NULL, "test");
     abstract_http_mock_server_force_request((MockServerPtr)srv, "test");
     ASSERT_EQ(1, abstract_http_mock_server_has_request((MockServerPtr)srv));
     ASSERT_EQ(
-        0, abstract_http_mock_server_has_request(NULL)); /* LCOV_EXCL_BR_LINE */
-                                                         /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ 0,
+        abstract_http_mock_server_has_request(NULL)); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */                             /* LCOV_EXCL_STOP */
     /* Let's stop the server so background threads don't steal the allocation
      * count */
     mock_server_destroy((MockServerPtr)srv);
@@ -345,17 +380,17 @@ TEST test_mock_server_coverage(void) {
     abstract_http_mock_server_force_request((MockServerPtr)srv, "test3");
     g_mock_alloc_fail = 0;
     ASSERT_EQ(1, abstract_http_mock_server_has_request((MockServerPtr)srv));
-    /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ /* LCOV_EXCL_STOP */
     {
       struct MockServerRequest req2;
       ASSERT_EQ(-1, mock_server_wait_for_request((MockServerPtr)srv, &req2));
-    } /* LCOV_EXCL_BR_LINE */
+/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
 
-    /* Hit remaining branches */
-    abstract_http_mock_server_clear_request(NULL);
-    abstract_http_mock_server_clear_request((MockServerPtr)srv);
-    abstract_http_mock_server_clear_request((MockServerPtr)srv);
-    abstract_http_mock_server_force_fd(NULL, 123);
+/* Hit remaining branches */
+abstract_http_mock_server_clear_request(NULL);
+abstract_http_mock_server_clear_request((MockServerPtr)srv);
+abstract_http_mock_server_clear_request((MockServerPtr)srv);
+abstract_http_mock_server_force_fd(NULL, 123);
   }
 
   /* Mock alloc fail inside server recv loop */
@@ -462,9 +497,9 @@ SUITE(mock_coverage_suite) {
   RUN_TEST(test_mock_alloc_coverage);
   RUN_TEST(test_mock_alloc_more);
   RUN_TEST(test_mock_server_coverage);
-} /* LCOV_EXCL_BR_LINE */
-/* LCOV_EXCL_BR_LINE */
-#ifdef __cplusplus /* LCOV_EXCL_BR_LINE */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */    /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ #ifdef __cplusplus /* LCOV_EXCL_STOP */
 }
 #endif /* __cplusplus */
 #endif

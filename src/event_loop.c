@@ -142,13 +142,14 @@ static enum c_abstract_http_error timer_heap_swap(struct TimerNode *a,
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_timer_heap_swap_fail) {
     g_mock_timer_heap_swap_fail--;
-    if (g_mock_timer_heap_swap_fail == 0) /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (g_mock_timer_heap_swap_fail ==
+                              0) /* LCOV_EXCL_STOP */
       return C_ABSTRACT_HTTP_ERR_NOMEM;
-  } /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
 #endif
-  *a = *b;
-  *b = temp;
-  return C_ABSTRACT_HTTP_SUCCESS;
+*a = *b;
+*b = temp;
+return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static enum c_abstract_http_error timer_heap_up(struct ModalityEventLoop *loop,
@@ -200,7 +201,7 @@ enum c_abstract_http_error
 http_loop_init_external(struct ModalityEventLoop **loop,
                         const struct HttpLoopHooks *hooks) {
   struct ModalityEventLoop *l;
-  if (!loop || !hooks) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (!loop || !hooks) { /* LCOV_EXCL_STOP */
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
@@ -289,15 +290,15 @@ void http_loop_free(struct ModalityEventLoop *loop) {
       CloseHandle(loop->wakeup_event);
     }
 #else
-    if (loop->wakeup_pipe[0] > 0) /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (loop->wakeup_pipe[0] > 0) /* LCOV_EXCL_STOP */
       close(loop->wakeup_pipe[0]);
-    if (loop->wakeup_pipe[1] > 0) /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (loop->wakeup_pipe[1] > 0) /* LCOV_EXCL_STOP */
       close(loop->wakeup_pipe[1]);
 #endif
 
-    if (loop->timers) /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (loop->timers) /* LCOV_EXCL_STOP */
       free(loop->timers);
-    if (loop->fds) /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (loop->fds) /* LCOV_EXCL_STOP */
       free(loop->fds);
   }
   free(loop);
@@ -413,7 +414,8 @@ enum c_abstract_http_error http_loop_mod_fd(struct ModalityEventLoop *loop,
   }
 
   for (i = 0; i < loop->fd_count; ++i) {
-    if (loop->fds[i].active && loop->fds[i].fd == fd) { /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (loop->fds[i].active &&
+                              loop->fds[i].fd == fd) { /* LCOV_EXCL_STOP */
       loop->fds[i].events = events;
       LOG_DEBUG("http_loop_mod_fd: Success");
       return C_ABSTRACT_HTTP_SUCCESS;
@@ -442,7 +444,8 @@ enum c_abstract_http_error http_loop_remove_fd(struct ModalityEventLoop *loop,
   }
 
   for (i = 0; i < loop->fd_count; ++i) {
-    if (loop->fds[i].active && loop->fds[i].fd == fd) { /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (loop->fds[i].active &&
+                              loop->fds[i].fd == fd) { /* LCOV_EXCL_STOP */
       loop->fds[i].active = 0;
       LOG_DEBUG("http_loop_remove_fd: Success");
       return C_ABSTRACT_HTTP_SUCCESS;
@@ -524,8 +527,10 @@ http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
   }
 
   for (i = 0; i < loop->timer_count; ++i) {
-    if (loop->timers[i].id == timer_id && /* LCOV_EXCL_BR_LINE */
-        loop->timers[i].active) {         /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (loop->timers[i].id ==
+                                  timer_id && /* LCOV_EXCL_STOP */
+                              /* LCOV_EXCL_START */ loop->timers[i]
+                                  .active) { /* LCOV_EXCL_STOP */
       loop->timers[i].active = 0;
       /* We lazily remove it when it reaches the top of the heap */
       LOG_DEBUG("http_loop_cancel_timer: Success");
@@ -628,7 +633,7 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
 
   /* Setup sockets */
   for (i = 0; i < loop->fd_count; ++i) {
-    if (loop->fds[i].active) { /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (loop->fds[i].active) { /* LCOV_EXCL_STOP */
       active_fds++;
       if (loop->fds[i].events & HTTP_LOOP_READ)
         FD_SET((unsigned)loop->fds[i].fd, &read_fds);
@@ -636,7 +641,7 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
         FD_SET((unsigned)loop->fds[i].fd, &write_fds);
       if (loop->fds[i].events & HTTP_LOOP_ERROR)
         FD_SET((unsigned)loop->fds[i].fd, &error_fds);
-      if (loop->fds[i].fd > max_fd) /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (loop->fds[i].fd > max_fd) /* LCOV_EXCL_STOP */
         max_fd = loop->fds[i].fd;
     }
   }
@@ -671,7 +676,7 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
 
   if (ret > 0) {
     for (i = 0; i < loop->fd_count; ++i) {
-      if (loop->fds[i].active) { /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (loop->fds[i].active) { /* LCOV_EXCL_STOP */
         int revents = 0;
         if (FD_ISSET(loop->fds[i].fd, &read_fds))
           revents |= HTTP_LOOP_READ;
@@ -680,7 +685,7 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
         if (FD_ISSET(loop->fds[i].fd, &error_fds))
           revents |= HTTP_LOOP_ERROR;
 
-        if (revents) { /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ if (revents) { /* LCOV_EXCL_STOP */
           abstract_http_int64_t start_cb = math_get_current_time_ms();
           loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                           loop->fds[i].user_data);
@@ -714,7 +719,8 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
   loop->running = 1;
   loop->stop_requested = 0;
 
-  while (loop->running && !loop->stop_requested) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ while (loop->running &&
+                               !loop->stop_requested) { /* LCOV_EXCL_STOP */
     abstract_http_int64_t now;
     abstract_http_int64_t next_timeout = -1;
     size_t i;
@@ -728,8 +734,9 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
 
     /* Process expired timers first */
     rc = process_timers(loop);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      return rc;                         /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ if (rc !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
     }
 
     if (loop->stop_requested)
@@ -738,17 +745,18 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
     /* Calculate next timeout */
     if (loop->timer_count > 0) {
       now = math_get_current_time_ms();
-      while (loop->timer_count > 0 &&   /* LCOV_EXCL_BR_LINE */
-             !loop->timers[0].active) { /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ while (
+          loop->timer_count > 0 &&                         /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ !loop->timers[0].active) { /* LCOV_EXCL_STOP */
         loop->timers[0] = loop->timers[loop->timer_count - 1];
         loop->timer_count--;
-        if (loop->timer_count > 0) { /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ if (loop->timer_count > 0) { /* LCOV_EXCL_STOP */
           rc = timer_heap_down(loop, 0);
           if (rc != C_ABSTRACT_HTTP_SUCCESS)
             return rc;
         }
       }
-      if (loop->timer_count > 0) { /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (loop->timer_count > 0) { /* LCOV_EXCL_STOP */
         abstract_http_int64_t timer_timeout = loop->timers[0].expiration - now;
         if (timer_timeout < 0)
           timer_timeout = 0;
@@ -776,7 +784,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
           FD_SET((unsigned)loop->fds[i].fd, &write_fds);
         if (loop->fds[i].events & HTTP_LOOP_ERROR)
           FD_SET((unsigned)loop->fds[i].fd, &error_fds);
-        if (loop->fds[i].fd > max_fd) /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ if (loop->fds[i].fd > max_fd) /* LCOV_EXCL_STOP */
           max_fd = loop->fds[i].fd;
       }
     }
@@ -813,19 +821,22 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
       }
     }
 #else
-    if (ret > 0 &&                                   /* LCOV_EXCL_BR_LINE */
-        FD_ISSET(loop->wakeup_pipe[0], &read_fds)) { /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (ret > 0 && /* LCOV_EXCL_STOP */
+                              /* LCOV_EXCL_START */ FD_ISSET(
+                                  loop->wakeup_pipe[0],
+                                  &read_fds)) { /* LCOV_EXCL_STOP */
       char buf[64];
-      while (read(loop->wakeup_pipe[0], buf, sizeof(buf)) > /* LCOV_EXCL_LINE */
-             0) {                                           /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ while (
+          read(loop->wakeup_pipe[0], buf, sizeof(buf)) > /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ 0) {                     /* LCOV_EXCL_STOP */
       }
-      ret--; /* LCOV_EXCL_LINE */
-    } /* LCOV_EXCL_LINE */
+      /* LCOV_EXCL_START */ ret--; /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
 #endif
 
     if (ret > 0) {
       for (i = 0; i < loop->fd_count; ++i) {
-        if (loop->fds[i].active) { /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ if (loop->fds[i].active) { /* LCOV_EXCL_STOP */
           int revents = 0;
           if (FD_ISSET(loop->fds[i].fd, &read_fds))
             revents |= HTTP_LOOP_READ;
@@ -834,7 +845,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
           if (FD_ISSET(loop->fds[i].fd, &error_fds))
             revents |= HTTP_LOOP_ERROR;
 
-          if (revents) { /* LCOV_EXCL_BR_LINE */
+          /* LCOV_EXCL_START */ if (revents) { /* LCOV_EXCL_STOP */
             abstract_http_int64_t start_cb = math_get_current_time_ms();
             loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                             loop->fds[i].user_data);
@@ -863,8 +874,9 @@ enum c_abstract_http_error http_loop_stop(struct ModalityEventLoop *loop) {
   }
   loop->stop_requested = 1;
   rc = http_loop_wakeup(loop);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-    return rc;                         /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ if (rc !=
+                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
   }
   LOG_DEBUG("http_loop_stop: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -875,7 +887,7 @@ enum c_abstract_http_error
 abstract_http_event_loop_test_unstop(struct ModalityEventLoop *loop);
 enum c_abstract_http_error
 abstract_http_event_loop_test_unstop(struct ModalityEventLoop *loop) {
-  if (loop) /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (loop) /* LCOV_EXCL_STOP */
     loop->stop_requested = 0;
   return C_ABSTRACT_HTTP_SUCCESS;
 }

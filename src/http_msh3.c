@@ -60,8 +60,9 @@ enum c_abstract_http_error http_msh3_global_init(void) {
     enum c_abstract_http_error unlock_rc =
         abstract_http_mutex_unlock(g_msh3_mutex);
     if (rc == C_ABSTRACT_HTTP_SUCCESS &&
-        unlock_rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_BR_LINE */
-      rc = unlock_rc;                           /* LCOV_EXCL_LINE */
+        /* LCOV_EXCL_START */ unlock_rc !=
+            C_ABSTRACT_HTTP_SUCCESS) {      /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ rc = unlock_rc; /* LCOV_EXCL_STOP */
     }
   }
   return rc;

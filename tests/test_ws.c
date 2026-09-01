@@ -1053,11 +1053,12 @@ TEST test_ws_async_register_success(void) {
 }
 #endif
 
-static int mock_on_err(int rc, void *user_data) { /* LCOV_EXCL_LINE */
-  int *called = (int *)user_data;                 /* LCOV_EXCL_LINE */
-  (void)rc;                                       /* LCOV_EXCL_LINE */
-  *called = 1;                                    /* LCOV_EXCL_LINE */
-  return 0;                                       /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ static int
+mock_on_err(int rc, void *user_data) {                  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ int *called = (int *)user_data; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)rc;                       /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ *called = 1;                    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ return 0;                       /* LCOV_EXCL_STOP */
 }
 
 TEST test_ws_async_coverage(void) {

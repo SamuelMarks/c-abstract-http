@@ -1664,7 +1664,6 @@ TEST test_curl_send_setopt_fail(void) {
       res = NULL;
     }
 
-    req.url = NULL;
     http_request_free(&req);
   }
 

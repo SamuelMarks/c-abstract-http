@@ -24,19 +24,19 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #endif
 
 static void timer_cb_1(struct ModalityEventLoop *loop,
-                       int timer_id, /* LCOV_EXCL_LINE */
+                       /* LCOV_EXCL_START */ int timer_id, /* LCOV_EXCL_STOP */
                        void *user_data) {
-  int *triggered = (int *)user_data; /* LCOV_EXCL_LINE */
-  (void)timer_id;                    /* LCOV_EXCL_LINE */
-  *triggered = 1;                    /* LCOV_EXCL_LINE */
-  (void)!http_loop_stop(loop);       /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ int *triggered = (int *)user_data; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)timer_id;                    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ *triggered = 1;                    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)!http_loop_stop(loop);       /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 
 TEST test_event_loop_init_free(void) {
   struct ModalityEventLoop *loop;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
-  ASSERT(loop != NULL);             /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT(loop != NULL);             /* LCOV_EXCL_STOP */
   http_loop_free(loop);
   PASS();
 }
@@ -48,38 +48,42 @@ TEST test_event_loop_timer(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* Add timer for 10ms */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, timer_cb_1, &triggered, &timer_id));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, timer_cb_1, &triggered, &timer_id));
 
   /* Run loop, it should block and then return 0 when timer triggers and stops
    * loop */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_run(loop)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(1, triggered);        /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(loop)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(1, triggered);        /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   PASS();
 }
 
-static void timer_cb_cancel(struct ModalityEventLoop *loop,
-                            int timer_id, /* LCOV_EXCL_LINE */
-                            void *user_data) {
-  int *triggered = (int *)user_data;      /* LCOV_EXCL_LINE */
-  (void)loop;                             /* LCOV_EXCL_LINE */
-  (void)timer_id;                         /* LCOV_EXCL_LINE */
-  *triggered = 1; /* Should not be hit */ /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+static void
+timer_cb_cancel(struct ModalityEventLoop *loop,
+                /* LCOV_EXCL_START */ int timer_id, /* LCOV_EXCL_STOP */
+                void *user_data) {
+  /* LCOV_EXCL_START */ int *triggered = (int *)user_data; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)loop;                        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)timer_id;                    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ *triggered = 1;
+  /* Should not be hit */ /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 
-static void timer_cb_stop(struct ModalityEventLoop *loop,
-                          int timer_id, /* LCOV_EXCL_LINE */
-                          void *user_data) {
-  (void)timer_id;              /* LCOV_EXCL_LINE */
-  (void)user_data;             /* LCOV_EXCL_LINE */
-  (void)!http_loop_stop(loop); /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+static void
+timer_cb_stop(struct ModalityEventLoop *loop,
+              /* LCOV_EXCL_START */ int timer_id, /* LCOV_EXCL_STOP */
+              void *user_data) {
+  /* LCOV_EXCL_START */ (void)timer_id;              /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)user_data;             /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)!http_loop_stop(loop); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 
 TEST test_event_loop_timer_cancel(void) {
   struct ModalityEventLoop *loop;
@@ -88,77 +92,87 @@ TEST test_event_loop_timer_cancel(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* Add timer to be cancelled */
-  ASSERT_EQ(/* LCOV_EXCL_BR_LINE */
-            C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_add_timer(loop, 10, timer_cb_cancel, &triggered,
-                                &timer_id1));
+  /* LCOV_EXCL_START */ ASSERT_EQ(/* LCOV_EXCL_STOP */
+                                  C_ABSTRACT_HTTP_SUCCESS,
+                                  http_loop_add_timer(loop, 10, timer_cb_cancel,
+                                                      &triggered, &timer_id1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_cancel_timer(loop, timer_id1)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, timer_id1)); /* LCOV_EXCL_STOP */
 
   /* Add stop timer */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 20, timer_cb_stop, NULL, &timer_id2));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 20, timer_cb_stop, NULL, &timer_id2));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_run(loop));                     /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(0, triggered); /* ensure cancel worked */ /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(loop)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(0, triggered);
+  /* ensure cancel worked */ /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   PASS();
 }
 
-static int mock_loop_add_fd(void *ctx, int fd, int events,
-                            http_loop_cb cb, /* LCOV_EXCL_LINE */
-                            void *data) {
-  (void)ctx;    /* LCOV_EXCL_LINE */
-  (void)fd;     /* LCOV_EXCL_LINE */
-  (void)events; /* LCOV_EXCL_LINE */
-  (void)cb;     /* LCOV_EXCL_LINE */
-  (void)data;   /* LCOV_EXCL_LINE */
-  return 0;     /* LCOV_EXCL_LINE */
+static int
+mock_loop_add_fd(void *ctx, int fd, int events,
+                 /* LCOV_EXCL_START */ http_loop_cb cb, /* LCOV_EXCL_STOP */
+                 void *data) {
+  /* LCOV_EXCL_START */ (void)ctx;    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)fd;     /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)events; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)cb;     /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)data;   /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ return 0;     /* LCOV_EXCL_STOP */
 }
-static int mock_loop_mod_fd(void *ctx, int fd,
-                            int events) { /* LCOV_EXCL_LINE */
-  (void)ctx;                              /* LCOV_EXCL_LINE */
-  (void)fd;                               /* LCOV_EXCL_LINE */
-  (void)events;                           /* LCOV_EXCL_LINE */
-  return 0;                               /* LCOV_EXCL_LINE */
+static int
+mock_loop_mod_fd(void *ctx, int fd,
+                 /* LCOV_EXCL_START */ int events) { /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)ctx;                   /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)fd;                    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)events;                /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ return 0;                    /* LCOV_EXCL_STOP */
 }
-static int mock_loop_remove_fd(void *ctx, int fd) { /* LCOV_EXCL_LINE */
-  (void)ctx;                                        /* LCOV_EXCL_LINE */
-  (void)fd;                                         /* LCOV_EXCL_LINE */
-  return 0;                                         /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ static int
+mock_loop_remove_fd(void *ctx, int fd) { /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)ctx;       /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)fd;        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ return 0;        /* LCOV_EXCL_STOP */
 }
-static void stop_loop_cb(struct ModalityEventLoop *loop,
-                         int timer_id, /* LCOV_EXCL_LINE */
-                         void *user_data) {
-  (void)timer_id;              /* LCOV_EXCL_LINE */
-  (void)user_data;             /* LCOV_EXCL_LINE */
-  (void)!http_loop_stop(loop); /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+static void
+stop_loop_cb(struct ModalityEventLoop *loop,
+             /* LCOV_EXCL_START */ int timer_id, /* LCOV_EXCL_STOP */
+             void *user_data) {
+  /* LCOV_EXCL_START */ (void)timer_id;              /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)user_data;             /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)!http_loop_stop(loop); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 
-static int mock_loop_add_timer(void *ctx, long timeout_ms,
-                               http_timer_cb cb, /* LCOV_EXCL_LINE */
-                               void *data, int *timer_id) {
-  (void)ctx;        /* LCOV_EXCL_LINE */
-  (void)timeout_ms; /* LCOV_EXCL_LINE */
-  (void)cb;         /* LCOV_EXCL_LINE */
-  (void)data;       /* LCOV_EXCL_LINE */
-  *timer_id = 1;    /* LCOV_EXCL_LINE */
-  return 0;         /* LCOV_EXCL_LINE */
+static int
+mock_loop_add_timer(void *ctx, long timeout_ms,
+                    /* LCOV_EXCL_START */ http_timer_cb cb, /* LCOV_EXCL_STOP */
+                    void *data, int *timer_id) {
+  /* LCOV_EXCL_START */ (void)ctx;        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)timeout_ms; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)cb;         /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)data;       /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ *timer_id = 1;    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ return 0;         /* LCOV_EXCL_STOP */
 }
-static int mock_loop_cancel_timer(void *ctx,
-                                  int timer_id) { /* LCOV_EXCL_LINE */
-  (void)ctx;                                      /* LCOV_EXCL_LINE */
-  (void)timer_id;                                 /* LCOV_EXCL_LINE */
-  return 0;                                       /* LCOV_EXCL_LINE */
+static int mock_loop_cancel_timer(
+    void *ctx,
+    /* LCOV_EXCL_START */ int timer_id) { /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)ctx;        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)timer_id;   /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ return 0;         /* LCOV_EXCL_STOP */
 }
-static int mock_loop_wakeup(void *ctx) { /* LCOV_EXCL_LINE */
-  (void)ctx;                             /* LCOV_EXCL_LINE */
-  return 0;                              /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ static int
+mock_loop_wakeup(void *ctx) {      /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)ctx; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ return 0;  /* LCOV_EXCL_STOP */
 }
 
 TEST test_event_loop_external(void) {
@@ -175,25 +189,31 @@ TEST test_event_loop_external(void) {
   hooks.wakeup = mock_loop_wakeup;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_init_external(NULL, NULL)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init_external(
+                NULL, NULL)); /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init_external(&loop, &hooks)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init_external(
+                &loop, &hooks)); /* LCOV_EXCL_STOP */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
-            http_loop_run(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(loop)); /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
   (void)!http_loop_stop(loop);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_add_fd(loop, 0, 1, NULL, NULL)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_mod_fd(loop, 0, 2)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_remove_fd(loop, 0)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_add_fd(loop, 0, 1, NULL,
+                                                   NULL)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      /* LCOV_EXCL_START */ http_loop_mod_fd(loop, 0, 2)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      /* LCOV_EXCL_START */ http_loop_remove_fd(loop, 0)); /* LCOV_EXCL_STOP */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, stop_loop_cb, NULL, &timer_id));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, stop_loop_cb, NULL, &timer_id));
   /* Manually call to satisfy coverage */
   {
     int dummy_triggered = 0;
@@ -201,35 +221,37 @@ TEST test_event_loop_external(void) {
   }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_cancel_timer(loop, timer_id)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, timer_id)); /* LCOV_EXCL_STOP */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_wakeup(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_wakeup(loop)); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   PASS();
 }
 
 static void mock_fd_cb(struct ModalityEventLoop *loop, int fd,
-                       int revents, /* LCOV_EXCL_LINE */
+                       /* LCOV_EXCL_START */ int revents, /* LCOV_EXCL_STOP */
                        void *user_data) {
-  int *triggered = (int *)user_data; /* LCOV_EXCL_LINE */
-  (void)loop;                        /* LCOV_EXCL_LINE */
-  (void)fd;                          /* LCOV_EXCL_LINE */
-  (void)revents;                     /* LCOV_EXCL_LINE */
-  *triggered = 1;                    /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+  /* LCOV_EXCL_START */ int *triggered = (int *)user_data; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)loop;                        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)fd;                          /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)revents;                     /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ *triggered = 1;                    /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 
 TEST test_event_loop_run(void) {
   struct ModalityEventLoop *loop = NULL;
   int timer_id = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, stop_loop_cb, NULL, &timer_id));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, stop_loop_cb, NULL, &timer_id));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_run(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(loop)); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   PASS();
@@ -241,14 +263,14 @@ TEST test_event_loop_tick_fd(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* Just test wakeup and tick */
   (void)!http_loop_wakeup(loop);
 
   /* Tick should process the wakeup pipe without blocking */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   PASS();
@@ -260,7 +282,7 @@ TEST test_event_loop_fd(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   (void)!http_loop_add_fd(loop, 0, 1, mock_fd_cb, &triggered);
   (void)!http_loop_mod_fd(loop, 0, 2);
@@ -274,60 +296,75 @@ TEST test_event_loop_fd(void) {
 TEST test_event_loop_errors(void) {
   struct ModalityEventLoop *loop = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_init(NULL)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(NULL)); /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_run(NULL)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(NULL)); /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_tick(NULL)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(NULL)); /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_stop(NULL));     /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(NULL, 0, 0, NULL, NULL));
+            /* LCOV_EXCL_START */ http_loop_stop(NULL)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(NULL, 0, 0, NULL, NULL));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      /* LCOV_EXCL_START */ http_loop_mod_fd(NULL, 0, 0)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      /* LCOV_EXCL_START */ http_loop_remove_fd(NULL, 0)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(NULL, 0, NULL, NULL, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_mod_fd(NULL, 0, 0)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                NULL, 0)); /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_remove_fd(NULL, 0)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,     /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(NULL, 0, NULL, NULL, NULL));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_cancel_timer(NULL, 0)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_wakeup(NULL)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_wakeup(NULL)); /* LCOV_EXCL_STOP */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop));    /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, NULL, NULL, NULL));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, -1, 1, mock_fd_cb, NULL));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_mod_fd(loop, -1, 1)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_remove_fd(loop, -1)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, NULL, NULL, NULL));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, -1, 1, mock_fd_cb, NULL));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      /* LCOV_EXCL_START */ http_loop_mod_fd(loop, -1, 1)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      /* LCOV_EXCL_START */ http_loop_remove_fd(loop, -1)); /* LCOV_EXCL_STOP */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, 5, 1, mock_fd_cb, NULL));
-  ASSERT_EQ(EEXIST, http_loop_add_fd(loop, 5, 1, mock_fd_cb,
-                                     NULL)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_mod_fd(loop, 6, 1)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_remove_fd(loop, 6)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, 5, 1, mock_fd_cb, NULL));
+  ASSERT_EQ(EEXIST,
+            http_loop_add_fd(loop, 5, 1, mock_fd_cb,
+                             /* LCOV_EXCL_START */ NULL)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      /* LCOV_EXCL_START */ http_loop_mod_fd(loop, 6, 1)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      /* LCOV_EXCL_START */ http_loop_remove_fd(loop, 6)); /* LCOV_EXCL_STOP */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            http_loop_cancel_timer(loop, 999)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, 999)); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   PASS();
 }
 
-static void timer_dummy_cb(struct ModalityEventLoop *loop,
-                           int timer_id, /* LCOV_EXCL_LINE */
-                           void *user_data) {
-  (void)loop;      /* LCOV_EXCL_LINE */
-  (void)timer_id;  /* LCOV_EXCL_LINE */
-  (void)user_data; /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+static void
+timer_dummy_cb(struct ModalityEventLoop *loop,
+               /* LCOV_EXCL_START */ int timer_id, /* LCOV_EXCL_STOP */
+               void *user_data) {
+  /* LCOV_EXCL_START */ (void)loop;      /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)timer_id;  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)user_data; /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 
 TEST test_event_loop_expansion(void) {
   struct ModalityEventLoop *loop = NULL;
@@ -335,15 +372,17 @@ TEST test_event_loop_expansion(void) {
   int id;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   for (i = 0; i < 30; i++) {
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-              http_loop_add_timer(loop, 1000 + i, timer_dummy_cb, NULL, &id));
+    /* LCOV_EXCL_START */ ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+        http_loop_add_timer(loop, 1000 + i, timer_dummy_cb, NULL, &id));
   }
   for (i = 0; i < 30; i++) {
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-              http_loop_add_fd(loop, 100 + i, 1, mock_fd_cb, NULL));
+    /* LCOV_EXCL_START */ ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+        http_loop_add_fd(loop, 100 + i, 1, mock_fd_cb, NULL));
   }
 
   http_loop_free(loop);
@@ -355,36 +394,45 @@ TEST test_event_loop_multiple_timers(void) {
   int id1, id2, id3, id4;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* Add timers out of order to trigger heap up */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 50, timer_dummy_cb, NULL, &id1));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &id2));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 30, timer_dummy_cb, NULL, &id3));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 5, timer_dummy_cb, NULL, &id4));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 50, timer_dummy_cb, NULL, &id1));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &id2));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 30, timer_dummy_cb, NULL, &id3));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 5, timer_dummy_cb, NULL, &id4));
 
   /* Cancel a timer to trigger heap logic */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_cancel_timer(loop, id1)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, id1)); /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_cancel_timer(loop, id2)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, id2)); /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_cancel_timer(loop, id3)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, id3)); /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_cancel_timer(loop, id4)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, id4)); /* LCOV_EXCL_STOP */
 
   /* Add many timers and let them expire to test heap down */
   {
     int ids[10];
     int i;
     for (i = 0; i < 10; ++i) {
-      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-                http_loop_add_timer(loop, (10 - i) * 10, timer_dummy_cb, NULL,
-                                    &ids[i]));
+      /* LCOV_EXCL_START */ ASSERT_EQ(
+          C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+          http_loop_add_timer(loop, (10 - i) * 10, timer_dummy_cb, NULL,
+                              &ids[i]));
     }
     /* Run the loop for enough time to expire all of them. */
     /* Each tick pops the smallest. */
@@ -412,15 +460,16 @@ TEST test_event_loop_heap_down(void) {
   (void)rc_test_tmp;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* Add timers to build a large heap */
   for (i = 0; i < 10; ++i) {
     /* randomish order */
     int timeout = (i % 2 == 0) ? (i * 10) : (200 - i * 10);
-    ASSERT_EQ(/* LCOV_EXCL_BR_LINE */
-              0, http_loop_add_timer(loop, timeout, timer_dummy_cb, NULL,
-                                     &ids[i]));
+    /* LCOV_EXCL_START */ ASSERT_EQ(/* LCOV_EXCL_STOP */
+                                    0, http_loop_add_timer(loop, timeout,
+                                                           timer_dummy_cb, NULL,
+                                                           &ids[i]));
   }
 
   /* Add one more but make timer_heap_up fail via swap */
@@ -428,15 +477,17 @@ TEST test_event_loop_heap_down(void) {
   g_mock_timer_heap_swap_fail = 1;
   rc_test_tmp = http_loop_add_timer(loop, 5, timer_dummy_cb, NULL, NULL);
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                "%d"); /* LCOV_EXCL_BR_LINE */
+                /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
   g_mock_timer_heap_swap_fail = 0;
 #endif
 
   /* Cancel them from the top/middle */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_cancel_timer(loop, ids[0])); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, ids[0])); /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_cancel_timer(loop, ids[5])); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, ids[5])); /* LCOV_EXCL_STOP */
 
   /* Run the loop a few times to pop timers */
   /* Wait, they need to expire! But they have timeouts of 10, 20, 30... up to
@@ -459,28 +510,32 @@ TEST test_event_loop_heap_down(void) {
   g_mock_timer_heap_swap_fail = 1;
   rc_test_tmp = http_loop_tick(loop);
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                "%d"); /* LCOV_EXCL_BR_LINE */
+                /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
   g_mock_timer_heap_swap_fail = 0;
 
   /* Now process all remaining expired ones */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
 
   /* Now trigger the failure during the second loop inside tick where it filters
      out inactive timers. We need an inactive timer at index 0 and at least 3
      timers total because cancellation makes timer_count decrement, so if we
      have 2, it drops to 1, and timer_heap_down isn't called! process_timers
      removed expired timers. */
-  ASSERT_EQ(0, http_loop_add_timer(loop, 5000, timer_dummy_cb, NULL,
-                                   &ids[9])); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(0, http_loop_add_timer(loop, 6000, timer_dummy_cb, NULL,
-                                   &ids[8])); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(0, http_loop_add_timer(loop, 7000, timer_dummy_cb, NULL,
-                                   &ids[7])); /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(0, http_loop_add_timer(
+                   loop, 5000, timer_dummy_cb, NULL,
+                   /* LCOV_EXCL_START */ &ids[9])); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(0, http_loop_add_timer(
+                   loop, 6000, timer_dummy_cb, NULL,
+                   /* LCOV_EXCL_START */ &ids[8])); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(0, http_loop_add_timer(
+                   loop, 7000, timer_dummy_cb, NULL,
+                   /* LCOV_EXCL_START */ &ids[7])); /* LCOV_EXCL_STOP */
   /* Cancel the top one so it is skipped during the 'Calculate next timeout'
    * loop */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_cancel_timer(loop, ids[9])); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, ids[9])); /* LCOV_EXCL_STOP */
 
   /* the timer is in the future, so process_timers skips it. Then calculate next
    * timeout processes it */
@@ -488,11 +543,12 @@ TEST test_event_loop_heap_down(void) {
   rc_test_tmp = http_loop_tick(loop);
   g_mock_timer_heap_swap_fail = 0;
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                "%d"); /* LCOV_EXCL_BR_LINE */
+                /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
 #endif
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_tick(loop));   /* will pop them and trigger heap_down! */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_tick(loop));   /* will pop them and trigger heap_down! */
 
   http_loop_free(loop);
   PASS();
@@ -506,15 +562,15 @@ TEST test_event_loop_alloc_errors(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -523,18 +579,19 @@ TEST test_event_loop_alloc_errors(void) {
     int rc_test_tmp = http_loop_init_external(&loop, &hooks);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                  "%d"); /* LCOV_EXCL_BR_LINE */
+                  /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
   }
 
   /* Other C_ABSTRACT_HTTP_ERR_NOMEM points in event_loop.c */
   /* 430 is C_ABSTRACT_HTTP_ERR_NOMEM for add_timer */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
   {
     int i, id;
     for (i = 0; i < 16; ++i) {
-      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-                http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &id));
+      /* LCOV_EXCL_START */ ASSERT_EQ(
+          C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+          http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &id));
     }
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
@@ -543,7 +600,7 @@ TEST test_event_loop_alloc_errors(void) {
           http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &id);
       g_mock_alloc_fail = 0;
       ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                    "%d"); /* LCOV_EXCL_BR_LINE */
+                    /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
     }
   }
   http_loop_free(loop);
@@ -558,7 +615,7 @@ TEST test_event_loop_pipe_fail(void) {
 
   g_mock_pipe_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
   g_mock_pipe_fail = 0;
 
   /* also test free NULL */
@@ -575,28 +632,33 @@ TEST test_event_loop_missing_hooks(void) {
 
   memset(&empty_hooks, 0, sizeof(empty_hooks));
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_init_external(&loop, &empty_hooks));
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+                                  http_loop_init_external(&loop, &empty_hooks));
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, 1, 1, NULL, NULL));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOTSUP, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, 1, 1, NULL, NULL));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOTSUP,
+      /* LCOV_EXCL_START */ http_loop_mod_fd(loop, 1, 2)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOTSUP,
+      /* LCOV_EXCL_START */ http_loop_remove_fd(loop, 1)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOTSUP, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &timer_id));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
-            http_loop_mod_fd(loop, 1, 2)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
-            http_loop_remove_fd(loop, 1)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,    /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &timer_id));
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
-            http_loop_cancel_timer(loop, 1)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, 1)); /* LCOV_EXCL_STOP */
 
   /* wakeup is a no-op if hook is missing, returns 0 */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_wakeup(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_wakeup(loop)); /* LCOV_EXCL_STOP */
 
   /* tick returns 0 when there are hooks, even if missing `tick` hook, because
    * there isn't one */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   PASS();
@@ -606,7 +668,7 @@ TEST test_event_loop_wakeup_full(void) {
   struct ModalityEventLoop *loop = NULL;
   int i;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* Fill the wakeup pipe */
   for (i = 0; i < 100000; ++i) {
@@ -622,18 +684,21 @@ TEST test_event_loop_fd_edges(void) {
   struct ModalityEventLoop *loop = NULL;
   int i;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* 318: add fd into existing empty slot */
   /* Add fd 1 */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, 1, 1, mock_fd_cb, NULL));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, 1, 1, mock_fd_cb, NULL));
   /* Remove it to make an empty slot */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_remove_fd(loop, 1)); /* LCOV_EXCL_BR_LINE */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      /* LCOV_EXCL_START */ http_loop_remove_fd(loop, 1)); /* LCOV_EXCL_STOP */
   /* Add fd 2 into empty slot */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, 2, 1, mock_fd_cb, NULL));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, 2, 1, mock_fd_cb, NULL));
 
   /* 328: realloc failure */
   g_mock_alloc_fail = 1;
@@ -641,8 +706,9 @@ TEST test_event_loop_fd_edges(void) {
   /* Wait, we have capacity=16. To trigger realloc we need to add 16 more! */
   g_mock_alloc_fail = 0;
   for (i = 3; i < 18; ++i) {
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-              http_loop_add_fd(loop, i, 1, mock_fd_cb, NULL));
+    /* LCOV_EXCL_START */ ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+        http_loop_add_fd(loop, i, 1, mock_fd_cb, NULL));
   }
 
   /* Now it's full (capacity=16, we added 1(fd=2)+15 = 16). Next add will
@@ -653,7 +719,7 @@ TEST test_event_loop_fd_edges(void) {
     int rc_test_tmp = http_loop_add_fd(loop, 20, 1, mock_fd_cb, NULL);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                  "%d"); /* LCOV_EXCL_BR_LINE */
+                  /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
   }
 
   http_loop_free(loop);
@@ -665,19 +731,23 @@ TEST test_event_loop_lazy_timer_cancel(void) {
   struct ModalityEventLoop *loop = NULL;
   int id1, id2, id3;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* Add timers far in the future */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10000, timer_dummy_cb, NULL, &id1));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 20000, timer_dummy_cb, NULL, &id2));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 30000, timer_dummy_cb, NULL, &id3));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10000, timer_dummy_cb, NULL, &id1));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 20000, timer_dummy_cb, NULL, &id2));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 30000, timer_dummy_cb, NULL, &id3));
 
   /* Cancel the first one so it's top of heap, inactive, and in the future */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_cancel_timer(loop, id1)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                loop, id1)); /* LCOV_EXCL_STOP */
 
   /* Also test stop_requested early return */
   (void)!http_loop_stop(loop);
@@ -686,22 +756,22 @@ TEST test_event_loop_lazy_timer_cancel(void) {
      wait, if stop_requested is true, it returns before calculating
      next_timeout! */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
 
   /* Unstop it to test next_timeout cleanup */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            abstract_http_event_loop_test_unstop(loop));
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+                                  abstract_http_event_loop_test_unstop(loop));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   g_mock_timer_heap_swap_fail = 1;
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, http_loop_tick(loop),
-                "%d"); /* LCOV_EXCL_BR_LINE */
+                /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
   g_mock_timer_heap_swap_fail = 0;
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   PASS();
@@ -715,7 +785,7 @@ TEST test_event_loop_tick_fd_and_timer(void) {
   int triggered = 0;
   (void)triggered;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* 552: next_timeout < 0 -> set to 0.
      To hit this, we need a timer whose expiration is slightly in the PAST,
@@ -742,26 +812,28 @@ TEST test_event_loop_tick_fd_and_timer(void) {
   /* Why wasn't this covered? Because my `test_event_loop_tick_fd` used
    * `http_loop_run` maybe? */
 
-  ASSERT_EQ(0, pipe(pipefd));        /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, pipefd[0],
-                             HTTP_LOOP_READ | HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
-                             mock_fd_cb, &triggered));
+  /* LCOV_EXCL_START */ ASSERT_EQ(0, pipe(pipefd)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, pipefd[0],
+                       HTTP_LOOP_READ | HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
+                       mock_fd_cb, &triggered));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
 
   /* 615-623: processing revents in tick */
   /* Write to the pipe so it's readable! */
   write(pipefd[1], "a", 1);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
 
   /* 705-716: http_loop_run setup fds */
   /* to stop the run, we should add a timer that stops it */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, timer_cb_1, &triggered, &timer_id));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, timer_cb_1, &triggered, &timer_id));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_run(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(loop)); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   close(pipefd[0]);
@@ -771,25 +843,26 @@ TEST test_event_loop_tick_fd_and_timer(void) {
 #endif
 
 #if !defined(_WIN32)
-static void blocking_mock_fd_cb(struct ModalityEventLoop *loop,
-                                int fd, /* LCOV_EXCL_LINE */
-                                int revents, void *user_data) {
-  int *triggered = (int *)user_data; /* LCOV_EXCL_LINE */
-  (void)loop;                        /* LCOV_EXCL_LINE */
-  (void)fd;                          /* LCOV_EXCL_LINE */
-  (void)revents;                     /* LCOV_EXCL_LINE */
-  *triggered = 1;                    /* LCOV_EXCL_LINE */
+static void
+blocking_mock_fd_cb(struct ModalityEventLoop *loop,
+                    /* LCOV_EXCL_START */ int fd, /* LCOV_EXCL_STOP */
+                    int revents, void *user_data) {
+  /* LCOV_EXCL_START */ int *triggered = (int *)user_data; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)loop;                        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)fd;                          /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)revents;                     /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ *triggered = 1;                    /* LCOV_EXCL_STOP */
 #if defined(_MSC_VER) && !defined(__clang__)
   Sleep(60);
 #else
   {
     struct timespec ts;
-    ts.tv_sec = 0;         /* LCOV_EXCL_LINE */
-    ts.tv_nsec = 60000000; /* LCOV_EXCL_LINE */
-    nanosleep(&ts, NULL);  /* LCOV_EXCL_LINE */
+    /* LCOV_EXCL_START */ ts.tv_sec = 0;         /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ ts.tv_nsec = 60000000; /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ nanosleep(&ts, NULL);  /* LCOV_EXCL_STOP */
   }
 #endif
-} /* LCOV_EXCL_LINE */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 #endif
 
 #if !defined(_WIN32)
@@ -800,19 +873,20 @@ TEST test_event_loop_blocking_cb(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(0, pipe(pipefd));       /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(0, pipe(pipefd));       /* LCOV_EXCL_STOP */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, pipefd[0], HTTP_LOOP_READ,
-                             blocking_mock_fd_cb, &triggered));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, pipefd[0], HTTP_LOOP_READ, blocking_mock_fd_cb,
+                       &triggered));
   write(pipefd[1], "a", 1);
 
   /* close write end so read end gets ERROR or EOF */
   close(pipefd[1]);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   close(pipefd[0]);
@@ -828,40 +902,47 @@ TEST test_event_loop_run_full(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(0, pipe(pipefd));       /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(0, pipe(pipefd));       /* LCOV_EXCL_STOP */
 
   /* Add an fd so `active_fds > 0` and it does `select` */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, pipefd[0],
-                             HTTP_LOOP_READ | HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
-                             mock_fd_cb, &triggered));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, pipefd[0],
+                       HTTP_LOOP_READ | HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
+                       mock_fd_cb, &triggered));
 
   /* Make the pipe readable/writable */
   write(pipefd[1], "b", 1);
 
   /* Also add a timer to stop the loop */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 20, stop_loop_cb, NULL, NULL));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 20, stop_loop_cb, NULL, NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_run(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(loop)); /* LCOV_EXCL_STOP */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* Test heap_down failure within Calculate next timeout */
   {
     int rc_test_tmp;
     int id1, id2, id3;
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-              abstract_http_event_loop_test_unstop(loop));
-    ASSERT_EQ(0, http_loop_add_timer(loop, 10000, timer_dummy_cb, NULL,
-                                     &id1)); /* LCOV_EXCL_BR_LINE */
-    ASSERT_EQ(0, http_loop_add_timer(loop, 20000, timer_dummy_cb, NULL,
-                                     &id2)); /* LCOV_EXCL_BR_LINE */
-    ASSERT_EQ(0, http_loop_add_timer(loop, 30000, timer_dummy_cb, NULL,
-                                     &id3)); /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+        abstract_http_event_loop_test_unstop(loop));
+    ASSERT_EQ(0, http_loop_add_timer(
+                     loop, 10000, timer_dummy_cb, NULL,
+                     /* LCOV_EXCL_START */ &id1)); /* LCOV_EXCL_STOP */
+    ASSERT_EQ(0, http_loop_add_timer(
+                     loop, 20000, timer_dummy_cb, NULL,
+                     /* LCOV_EXCL_START */ &id2)); /* LCOV_EXCL_STOP */
+    ASSERT_EQ(0, http_loop_add_timer(
+                     loop, 30000, timer_dummy_cb, NULL,
+                     /* LCOV_EXCL_START */ &id3)); /* LCOV_EXCL_STOP */
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              http_loop_cancel_timer(loop, id1)); /* LCOV_EXCL_BR_LINE */
+              /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                  loop, id1)); /* LCOV_EXCL_STOP */
 
     /* write to pipe so run doesn't block on select */
     write(pipefd[1], "b", 1);
@@ -870,28 +951,31 @@ TEST test_event_loop_run_full(void) {
     rc_test_tmp = http_loop_run(loop);
     g_mock_timer_heap_swap_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                  "%d"); /* LCOV_EXCL_BR_LINE */
+                  /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
 
     /* Also clear them */
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              http_loop_cancel_timer(loop, id2)); /* LCOV_EXCL_BR_LINE */
+              /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                  loop, id2)); /* LCOV_EXCL_STOP */
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              http_loop_cancel_timer(loop, id3)); /* LCOV_EXCL_BR_LINE */
+              /* LCOV_EXCL_START */ http_loop_cancel_timer(
+                  loop, id3)); /* LCOV_EXCL_STOP */
     /* Tick once to flush it since we cancelled it */
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+              /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
   }
 #endif
 
   /* Now let's try to hit the ERROR revents branch inside run */
   /* Close the write end to generate an error/EOF event */
   close(pipefd[1]);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            abstract_http_event_loop_test_unstop(loop));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 20, stop_loop_cb, NULL, NULL));
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+                                  abstract_http_event_loop_test_unstop(loop));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 20, stop_loop_cb, NULL, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_run(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(loop)); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   close(pipefd[0]);
@@ -908,48 +992,56 @@ TEST test_event_loop_mock_error_fd(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(0, pipe(pipefd));       /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(0, pipe(pipefd));       /* LCOV_EXCL_STOP */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, pipefd[0], HTTP_LOOP_ERROR, mock_fd_cb,
-                             &triggered));
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+                                  http_loop_add_fd(loop, pipefd[0],
+                                                   HTTP_LOOP_ERROR, mock_fd_cb,
+                                                   &triggered));
 
   g_mock_select_fail = 1;
   rc1 = http_loop_tick(loop);
   g_mock_select_fail = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc1); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                                  rc1); /* LCOV_EXCL_STOP */
 
   g_mock_select_error_fds = 1;
   rc2 = http_loop_tick(loop);
   g_mock_select_error_fds = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc2); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                                  rc2); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* also test run processing */
   g_mock_select_fail = 1;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, stop_loop_cb, NULL, NULL));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, stop_loop_cb, NULL, NULL));
   rc3 = http_loop_run(loop);
   g_mock_select_fail = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc3); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                                  rc3); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   g_mock_select_error_fds = 1;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, pipefd[0], HTTP_LOOP_ERROR, mock_fd_cb,
-                             &triggered));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, stop_loop_cb, NULL, NULL));
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+                                  http_loop_add_fd(loop, pipefd[0],
+                                                   HTTP_LOOP_ERROR, mock_fd_cb,
+                                                   &triggered));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, stop_loop_cb, NULL, NULL));
   rc4 = http_loop_run(loop);
   g_mock_select_error_fds = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc4); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                                  rc4); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   close(pipefd[0]);
@@ -966,30 +1058,33 @@ TEST test_event_loop_run_blocking(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(0, pipe(pipefd));       /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(0, pipe(pipefd));       /* LCOV_EXCL_STOP */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, pipefd[0], HTTP_LOOP_READ,
-                             blocking_mock_fd_cb, &triggered));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, pipefd[0], HTTP_LOOP_READ, blocking_mock_fd_cb,
+                       &triggered));
   write(pipefd[1], "a", 1);
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 20, stop_loop_cb, NULL, NULL));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 20, stop_loop_cb, NULL, NULL));
 
   /* 774, 777: blocking warning in run */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_run(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(loop)); /* LCOV_EXCL_STOP */
 
   /* 719: run with 0 active fds and 0 timers -> break */
   /* Remove the fd so it has 0 fds and 0 timers */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_remove_fd(loop, pipefd[0])); /* LCOV_EXCL_BR_LINE */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,               /* LCOV_EXCL_BR_LINE */
-            abstract_http_event_loop_test_unstop(loop));
+            /* LCOV_EXCL_START */ http_loop_remove_fd(
+                loop, pipefd[0]));                         /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+                                  abstract_http_event_loop_test_unstop(loop));
   /* wait, if 0 fds and 0 timers, it exits loop immediately */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_run(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(loop)); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   close(pipefd[0]);
@@ -1003,11 +1098,12 @@ TEST test_event_loop_timeout_underflow(void) {
   int timer_id;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   /* Add a timer */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &timer_id));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, timer_dummy_cb, NULL, &timer_id));
 
   /* 552: underflow in tick */
   /* 552: underflow in tick */
@@ -1017,15 +1113,16 @@ TEST test_event_loop_timeout_underflow(void) {
   g_mock_time_jump = 1;
   g_mock_time_jump_count = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_tick(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_tick(loop)); /* LCOV_EXCL_STOP */
 
   /* 689: underflow in run */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_timer(loop, 10, stop_loop_cb, NULL, &timer_id));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_timer(loop, 10, stop_loop_cb, NULL, &timer_id));
   g_mock_time_jump = 1;
   g_mock_time_jump_count = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_run(loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_run(loop)); /* LCOV_EXCL_STOP */
   g_mock_time_jump = 0;
 
   http_loop_free(loop);
@@ -1033,14 +1130,15 @@ TEST test_event_loop_timeout_underflow(void) {
 }
 
 #if !defined(_WIN32)
-static void dummy_write_cb(struct ModalityEventLoop *loop, int fd,
-                           int revents, /* LCOV_EXCL_LINE */
-                           void *user_data) {
-  int *triggered = (int *)user_data; /* LCOV_EXCL_LINE */
-  (void)fd;                          /* LCOV_EXCL_LINE */
-  *triggered |= revents;             /* LCOV_EXCL_LINE */
-  (void)!http_loop_stop(loop);       /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+static void
+dummy_write_cb(struct ModalityEventLoop *loop, int fd,
+               /* LCOV_EXCL_START */ int revents, /* LCOV_EXCL_STOP */
+               void *user_data) {
+  /* LCOV_EXCL_START */ int *triggered = (int *)user_data; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)fd;                          /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ *triggered |= revents;             /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)!http_loop_stop(loop);       /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 #endif
 
 TEST test_event_loop_write_error_coverage(void) {
@@ -1052,15 +1150,16 @@ TEST test_event_loop_write_error_coverage(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
 #if defined(_WIN32)
 #else
-  ASSERT_EQ(0, pipe(pipes)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(0, pipe(pipes)); /* LCOV_EXCL_STOP */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, pipes[1], HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
-                             dummy_write_cb, &triggered));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, pipes[1], HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
+                       dummy_write_cb, &triggered));
 
   {
     enum c_abstract_http_error rc_test = http_loop_run(loop);
@@ -1069,7 +1168,8 @@ TEST test_event_loop_write_error_coverage(void) {
     }
   }
 
-  ASSERT(triggered & HTTP_LOOP_WRITE); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT(triggered &
+                               HTTP_LOOP_WRITE); /* LCOV_EXCL_STOP */
 
   close(pipes[0]);
   close(pipes[1]);
@@ -1079,14 +1179,15 @@ TEST test_event_loop_write_error_coverage(void) {
   PASS();
 }
 
-static void dummy_timer_past_cb(struct ModalityEventLoop *loop,
-                                int timer_id, /* LCOV_EXCL_LINE */
-                                void *user_data) {
-  int *triggered = (int *)user_data; /* LCOV_EXCL_LINE */
-  *triggered = 1;                    /* LCOV_EXCL_LINE */
-  (void)timer_id;                    /* LCOV_EXCL_LINE */
-  (void)!http_loop_stop(loop);       /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+static void
+dummy_timer_past_cb(struct ModalityEventLoop *loop,
+                    /* LCOV_EXCL_START */ int timer_id, /* LCOV_EXCL_STOP */
+                    void *user_data) {
+  /* LCOV_EXCL_START */ int *triggered = (int *)user_data; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ *triggered = 1;                    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)timer_id;                    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)!http_loop_stop(loop);       /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 
 TEST test_event_loop_timer_past_coverage(void) {
   struct ModalityEventLoop *loop;
@@ -1095,7 +1196,7 @@ TEST test_event_loop_timer_past_coverage(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
   {
     enum c_abstract_http_error rc_test = http_loop_add_timer(
@@ -1112,21 +1213,22 @@ TEST test_event_loop_timer_past_coverage(void) {
     }
   }
 
-  ASSERT(triggered); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT(triggered); /* LCOV_EXCL_STOP */
 
   http_loop_free(loop);
   PASS();
 }
 
 #if !defined(_WIN32)
-static void dummy_error_cb(struct ModalityEventLoop *loop, int fd,
-                           int revents, /* LCOV_EXCL_LINE */
-                           void *user_data) {
-  int *triggered = (int *)user_data; /* LCOV_EXCL_LINE */
-  (void)loop;                        /* LCOV_EXCL_LINE */
-  (void)fd;                          /* LCOV_EXCL_LINE */
-  *triggered |= revents;             /* LCOV_EXCL_LINE */
-} /* LCOV_EXCL_LINE */
+static void
+dummy_error_cb(struct ModalityEventLoop *loop, int fd,
+               /* LCOV_EXCL_START */ int revents, /* LCOV_EXCL_STOP */
+               void *user_data) {
+  /* LCOV_EXCL_START */ int *triggered = (int *)user_data; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)loop;                        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (void)fd;                          /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ *triggered |= revents;             /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
 #endif
 
 TEST test_event_loop_write_error_coverage2(void) {
@@ -1138,15 +1240,16 @@ TEST test_event_loop_write_error_coverage2(void) {
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            http_loop_init(&loop)); /* LCOV_EXCL_BR_LINE */
+            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
 
 #if defined(_WIN32)
 #else
-  ASSERT_EQ(0, pipe(pipes)); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ ASSERT_EQ(0, pipe(pipes)); /* LCOV_EXCL_STOP */
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_BR_LINE */
-            http_loop_add_fd(loop, pipes[1], HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
-                             dummy_error_cb, &triggered));
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      http_loop_add_fd(loop, pipes[1], HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
+                       dummy_error_cb, &triggered));
 
   {
     enum c_abstract_http_error rc_test = http_loop_tick(loop);
@@ -1165,42 +1268,60 @@ TEST test_event_loop_write_error_coverage2(void) {
 
 SUITE(event_loop_suite) {
   system("ls /proc/self/fd | wc -l");
-  RUN_TEST(test_event_loop_write_error_coverage2); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_write_error_coverage2); /* LCOV_EXCL_STOP */
 
-  RUN_TEST(test_event_loop_timer_past_coverage); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_timer_past_coverage); /* LCOV_EXCL_STOP */
 
-  RUN_TEST(test_event_loop_write_error_coverage); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_write_error_coverage); /* LCOV_EXCL_STOP */
 
-  RUN_TEST(test_event_loop_expansion);       /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_multiple_timers); /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_heap_down);       /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_init_free);       /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_timer);           /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_timer_cancel);    /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_external);        /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_missing_hooks);   /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_wakeup_full);     /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_expansion); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_multiple_timers); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_heap_down); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_init_free);                        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(test_event_loop_timer); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_timer_cancel);                        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(test_event_loop_external); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_missing_hooks); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_wakeup_full); /* LCOV_EXCL_STOP */
 #if !defined(_WIN32)
-  RUN_TEST(test_event_loop_fd_edges); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ RUN_TEST(test_event_loop_fd_edges); /* LCOV_EXCL_STOP */
 #endif
-  RUN_TEST(test_event_loop_lazy_timer_cancel); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_lazy_timer_cancel); /* LCOV_EXCL_STOP */
 #if !defined(_WIN32)
-  RUN_TEST(test_event_loop_tick_fd_and_timer); /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_blocking_cb);       /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_run_full);          /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_mock_error_fd);     /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_run_blocking);      /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_tick_fd_and_timer); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_blocking_cb);                         /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(test_event_loop_run_full); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_mock_error_fd); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_run_blocking); /* LCOV_EXCL_STOP */
 #endif
-  RUN_TEST(test_event_loop_timeout_underflow); /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_fd);                /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_run);               /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_tick_fd);           /* LCOV_EXCL_BR_LINE */
-  RUN_TEST(test_event_loop_errors);            /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_timeout_underflow);                  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(test_event_loop_fd);      /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(test_event_loop_run);     /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(test_event_loop_tick_fd); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ RUN_TEST(test_event_loop_errors);  /* LCOV_EXCL_STOP */
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  RUN_TEST(test_event_loop_alloc_errors); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_alloc_errors); /* LCOV_EXCL_STOP */
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(_WIN32)
-  RUN_TEST(test_event_loop_pipe_fail); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ RUN_TEST(
+      test_event_loop_pipe_fail); /* LCOV_EXCL_STOP */
   system("ls /proc/self/fd | wc -l");
 #endif
 }

@@ -206,14 +206,14 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
       int bytes_read;
       sleep_ms(100); /* Wait for body packets (e.g. from WinHTTP) */
       bytes_read = (int)recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-      if (bytes_read > 0) { /* LCOV_EXCL_BR_LINE */
+      /* LCOV_EXCL_START */ if (bytes_read > 0) { /* LCOV_EXCL_STOP */
         buffer[bytes_read] = '\0';
 
         mutex_lock(&s->lock);
         if (s->captured_request)
           free(s->captured_request);
         s->captured_request = (char *)malloc((size_t)bytes_read + 1);
-        if (s->captured_request) { /* LCOV_EXCL_BR_LINE */
+        /* LCOV_EXCL_START */ if (s->captured_request) { /* LCOV_EXCL_STOP */
           memcpy(s->captured_request, buffer, (size_t)bytes_read + 1);
           s->captured_len = (size_t)bytes_read;
           s->has_request = 1;
@@ -272,7 +272,8 @@ void mock_server_destroy(MockServerPtr server) {
   if (server->running) {
     server->running = 0;
     /* Force accept to unblock by shutting down and closing socket */
-    if (server->server_fd != INVALID_SOCK) { /* LCOV_EXCL_BR_LINE */
+    /* LCOV_EXCL_START */ if (server->server_fd !=
+                              INVALID_SOCK) { /* LCOV_EXCL_STOP */
 #if defined(_WIN32)
       shutdown(server->server_fd, SD_BOTH);
 #else
@@ -314,7 +315,7 @@ int mock_server_start(MockServerPtr server) {
   socklen_t addr_len = sizeof(addr);
 #endif
 
-  if (!server || server->running) /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (!server || server->running) /* LCOV_EXCL_STOP */
     return -1;
 
   server->server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -345,7 +346,8 @@ int mock_server_start(MockServerPtr server) {
     close_socket(server->server_fd);
     return -1;
   }
-  server->port = ntohs(addr.sin_port); /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ server->port =
+      ntohs(addr.sin_port); /* LCOV_EXCL_STOP */
 
   /* Launch Thread */
   server->running = 1;
@@ -384,8 +386,9 @@ int mock_server_wait_for_request(MockServerPtr server,
     cond_wait(&server->cond_req_ready, &server->lock);
   }
 
-  if (server->has_request && server->captured_request) { /* LCOV_EXCL_BR_LINE */
-                                                         /* Copy data out */
+  /* LCOV_EXCL_START */ if (server->has_request &&
+                            server->captured_request) { /* LCOV_EXCL_STOP */
+                                                        /* Copy data out */
     {
       size_t len = strlen(server->captured_request);
       out_req->raw_header = (char *)malloc(len + 1);
@@ -409,7 +412,7 @@ int mock_server_wait_for_request(MockServerPtr server,
 }
 
 void mock_server_request_cleanup(struct MockServerRequest *req) {
-  if (req && req->raw_header) { /* LCOV_EXCL_BR_LINE */
+  /* LCOV_EXCL_START */ if (req && req->raw_header) { /* LCOV_EXCL_STOP */
     free(req->raw_header);
     req->raw_header = NULL;
   }
@@ -437,11 +440,12 @@ int abstract_http_mock_server_has_request(MockServerPtr server) {
 
 void abstract_http_mock_server_clear_request(MockServerPtr server) {
   if (server) {
-    if (server->captured_request) {    /* LCOV_EXCL_BR_LINE */
-      free(server->captured_request);  /* LCOV_EXCL_LINE */
-      server->captured_request = NULL; /* LCOV_EXCL_LINE */
-    } /* LCOV_EXCL_LINE */
-    server->has_request = 0;
+    /* LCOV_EXCL_START */ if (server->captured_request) {   /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ free(server->captured_request); /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ server->captured_request =
+          NULL;              /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
+server->has_request = 0;
   }
 }
 
