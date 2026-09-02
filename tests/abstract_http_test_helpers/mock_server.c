@@ -443,9 +443,9 @@ void abstract_http_mock_server_clear_request(MockServerPtr server) {
     /* LCOV_EXCL_START */ if (server->captured_request) {   /* LCOV_EXCL_STOP */
       /* LCOV_EXCL_START */ free(server->captured_request); /* LCOV_EXCL_STOP */
       /* LCOV_EXCL_START */ server->captured_request =
-          NULL;              /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
-server->has_request = 0;
+          NULL;             /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+    server->has_request = 0;
   }
 }
 

@@ -43,7 +43,7 @@ abstract_http_thread_pool_test_inject_task(struct AbstractHttpThreadPool *pool);
 #else
   /* LCOV_EXCL_START */ usleep(ms * 1000); /* LCOV_EXCL_STOP */
 #endif
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
 /** @brief Documented */
 struct TestTaskData {
@@ -62,16 +62,16 @@ struct TestTaskData {
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ (*data->counter)++; /* LCOV_EXCL_STOP */
-{
-  enum c_abstract_http_error rc_test = abstract_http_mutex_unlock(data->lock);
-  if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-    printf("Error: %d\n", (int)rc_test);
-  }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ free(data); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ }                   /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (*data->counter)++; /* LCOV_EXCL_STOP */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_mutex_unlock(data->lock);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  /* LCOV_EXCL_START */ }           /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ free(data); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }             /* LCOV_EXCL_STOP */
 
 /* LCOV_EXCL_START */ TEST
 test_thread_pool_execution(void) { /* LCOV_EXCL_STOP */
@@ -92,35 +92,36 @@ test_thread_pool_execution(void) { /* LCOV_EXCL_STOP */
                             C_ABSTRACT_HTTP_ERR_NOTSUP) { /* LCOV_EXCL_STOP */
     /* LCOV_EXCL_START */ abstract_http_mutex_free(lock); /* LCOV_EXCL_STOP */
     /* LCOV_EXCL_START */ PASS();                         /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-                                rc); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                                  rc); /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ for (i = 0; i < 50; ++i) {    /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ struct TestTaskData *data = /* LCOV_EXCL_STOP */
-      (struct TestTaskData *)malloc(
-          /* LCOV_EXCL_START */ sizeof(
-              struct TestTaskData));              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ data->lock = lock;        /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ data->counter = &counter; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
-      abstract_http_thread_pool_push(pool, test_task_cb, data));
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ for (i = 0; i < 50; ++i) {    /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ struct TestTaskData *data = /* LCOV_EXCL_STOP */
+        (struct TestTaskData *)malloc(
+            /* LCOV_EXCL_START */ sizeof(
+                struct TestTaskData));              /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ data->lock = lock;        /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ data->counter = &counter; /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+        abstract_http_thread_pool_push(pool, test_task_cb, data));
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-{
-  enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
-  if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-    printf("Error: %d\n", (int)rc_test);
+  {
+    enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
   }
-}
-/* LCOV_EXCL_START */ /* Blocks until all tasks complete */ /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ /* Blocks until all tasks complete */ /* LCOV_EXCL_STOP
+                                                               */
 
-/* LCOV_EXCL_START */ ASSERT_EQ(50, counter); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(50, counter); /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ abstract_http_mutex_free(lock); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ PASS();                         /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_mutex_free(lock); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ PASS();                         /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
 
 /* LCOV_EXCL_START */ TEST test_mutex_lock_unlock(void) { /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ struct AbstractHttpMutex *lock =
@@ -137,7 +138,7 @@ test_thread_pool_execution(void) { /* LCOV_EXCL_STOP */
 
   /* LCOV_EXCL_START */ abstract_http_mutex_free(lock); /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ PASS();                         /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /* LCOV_EXCL_START */ TEST test_thread_pool_errors(void) { /* LCOV_EXCL_STOP */
@@ -225,57 +226,58 @@ test_thread_pool_execution(void) { /* LCOV_EXCL_STOP */
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ abstract_http_thread_pool_test_set_stop(
-    NULL); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ abstract_http_thread_pool_test_inject_task(
-    NULL); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_thread_pool_test_set_stop(
+      NULL); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_thread_pool_test_inject_task(
+      NULL); /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ g_mock_alloc_fail = 1;  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ g_mock_alloc_count = 0; /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ (
-    void)!abstract_http_thread_pool_init(/* LCOV_EXCL_STOP */
-                                         &pool,
-                                         1); /* this will fail due to
-                                                C_ABSTRACT_HTTP_ERR_NOMEM or we
-                                                just use a valid pool */
-/* LCOV_EXCL_START */ g_mock_alloc_fail = 0; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ g_mock_alloc_fail = 1;  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ g_mock_alloc_count = 0; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ (
+      void)!abstract_http_thread_pool_init(/* LCOV_EXCL_STOP */
+                                           &pool,
+                                           1); /* this will fail due to
+                                                  C_ABSTRACT_HTTP_ERR_NOMEM or
+                                                  we just use a valid pool */
+  /* LCOV_EXCL_START */ g_mock_alloc_fail = 0; /* LCOV_EXCL_STOP */
 
-{
-  enum c_abstract_http_error rc_test = abstract_http_thread_pool_init(&pool, 1);
-  if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-    printf("Error: %d\n", (int)rc_test);
-  }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  {
+    enum c_abstract_http_error rc_test =
+        abstract_http_thread_pool_init(&pool, 1);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ g_mock_pthread_fail = 3; /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ abstract_http_thread_pool_test_set_stop(
-    pool);                                     /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ g_mock_pthread_fail = 0; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ g_mock_pthread_fail = 3; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_thread_pool_test_set_stop(
+      pool);                                     /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ g_mock_pthread_fail = 0; /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ abstract_http_thread_pool_test_set_stop(
-    pool); /* LCOV_EXCL_STOP */
-           /* Wait for the thread to exit now that stop is set */
-/* LCOV_EXCL_START */ sleep_ms(50); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_thread_pool_test_set_stop(
+      pool); /* LCOV_EXCL_STOP */
+             /* Wait for the thread to exit now that stop is set */
+  /* LCOV_EXCL_START */ sleep_ms(50); /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ g_mock_alloc_fail = 1;  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ g_mock_alloc_count = 0; /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ abstract_http_thread_pool_test_inject_task(
-    pool);                                   /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ g_mock_alloc_fail = 0; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ g_mock_alloc_fail = 1;  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ g_mock_alloc_count = 0; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_thread_pool_test_inject_task(
+      pool);                                   /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ g_mock_alloc_fail = 0; /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ abstract_http_thread_pool_test_inject_task(
-    pool); /* LCOV_EXCL_STOP */
-{
-  enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
-  if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-    printf("Error: %d\n", (int)rc_test);
-  }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_thread_pool_test_inject_task(
+      pool); /* LCOV_EXCL_STOP */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 
 #endif
 extern void dummy_cb_thread(void *arg);
@@ -296,9 +298,9 @@ test_thread_pool_external(void) { /* LCOV_EXCL_STOP */
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ }       /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 
 int dummy_hook_push(
     void *ctx,
@@ -338,47 +340,47 @@ test_thread_pool_edge_cases(void) { /* LCOV_EXCL_STOP */
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* 516-519: push when stopped */
-/* and 563-565: tasks left in queue */
-{
-  enum c_abstract_http_error rc =
-      /* LCOV_EXCL_START */ abstract_http_thread_pool_init(
-          &pool, 1); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ if (rc ==
-                            C_ABSTRACT_HTTP_ERR_NOTSUP) { /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ PASS();                         /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-                                rc); /* LCOV_EXCL_STOP */
-}
-/* LCOV_EXCL_START */ abstract_http_thread_pool_test_set_stop(
-    pool); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ ASSERT_EQ(
-    C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_STOP */
-    abstract_http_thread_pool_push(pool, dummy_cb_thread, NULL));
-
-/* Stop the pool first, let it join threads, THEN inject task to test cleanup
- */
-{
-  enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
-  if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-    printf("Error: %d\n", (int)rc_test);
+  /* 516-519: push when stopped */
+  /* and 563-565: tasks left in queue */
+  {
+    enum c_abstract_http_error rc =
+        /* LCOV_EXCL_START */ abstract_http_thread_pool_init(
+            &pool, 1); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (rc ==
+                              C_ABSTRACT_HTTP_ERR_NOTSUP) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ PASS();                         /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                                    rc); /* LCOV_EXCL_STOP */
   }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_thread_pool_test_set_stop(
+      pool); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_STOP */
+      abstract_http_thread_pool_push(pool, dummy_cb_thread, NULL));
 
-/* I can create a fake pool to free! */
-{
-  enum c_abstract_http_error err =
-      /* LCOV_EXCL_START */
-      abstract_http_thread_pool_test_free_with_tasks(); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(err,
-                                  C_ABSTRACT_HTTP_SUCCESS); /* LCOV_EXCL_STOP */
-}
+  /* Stop the pool first, let it join threads, THEN inject task to test cleanup
+   */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* I can create a fake pool to free! */
+  {
+    enum c_abstract_http_error err =
+        /* LCOV_EXCL_START */
+        abstract_http_thread_pool_test_free_with_tasks(); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ ASSERT_EQ(
+        err, C_ABSTRACT_HTTP_SUCCESS); /* LCOV_EXCL_STOP */
+  }
+
+  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
@@ -428,7 +430,7 @@ test_thread_pool_pthread_create_failures(void) { /* LCOV_EXCL_STOP */
   }
 
   /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
@@ -457,7 +459,7 @@ test_thread_pool_pthread_failures(void) { /* LCOV_EXCL_STOP */
 #endif
 
   /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
@@ -531,10 +533,10 @@ test_thread_pool_fallback_paths(void) { /* LCOV_EXCL_STOP */
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 #endif
 
 /* LCOV_EXCL_START */ SUITE(thread_pool_suite) { /* LCOV_EXCL_STOP */
@@ -563,7 +565,7 @@ test_thread_pool_fallback_paths(void) { /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ RUN_TEST(
       test_thread_pool_fallback_paths); /* LCOV_EXCL_STOP */
 #endif
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
 #ifdef __cplusplus
 }

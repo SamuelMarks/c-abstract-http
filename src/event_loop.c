@@ -145,11 +145,11 @@ static enum c_abstract_http_error timer_heap_swap(struct TimerNode *a,
     /* LCOV_EXCL_START */ if (g_mock_timer_heap_swap_fail ==
                               0) /* LCOV_EXCL_STOP */
       return C_ABSTRACT_HTTP_ERR_NOMEM;
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 #endif
-*a = *b;
-*b = temp;
-return C_ABSTRACT_HTTP_SUCCESS;
+  *a = *b;
+  *b = temp;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static enum c_abstract_http_error timer_heap_up(struct ModalityEventLoop *loop,
@@ -831,7 +831,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
           /* LCOV_EXCL_START */ 0) {                     /* LCOV_EXCL_STOP */
       }
       /* LCOV_EXCL_START */ ret--; /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ }        /* LCOV_EXCL_STOP */
 #endif
 
     if (ret > 0) {

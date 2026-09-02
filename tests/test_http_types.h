@@ -95,7 +95,7 @@ struct ServerArgs {
                                       &args->err,
                                       /* LCOV_EXCL_START */
                                       &args->err_desc); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
 #endif
 #endif
 

@@ -105,26 +105,26 @@ static struct AbstractHttpTlsKey *tls_key = NULL;
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
 #if !defined(_WIN32)
-/* LCOV_EXCL_START */ g_mock_pthread_fail = 1; /* LCOV_EXCL_STOP */
-ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
-          /* LCOV_EXCL_START */ abstract_http_tls_set(
-              key, NULL)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ g_mock_pthread_fail = 1; /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            /* LCOV_EXCL_START */ abstract_http_tls_set(
+                key, NULL)); /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ g_mock_pthread_fail = 0; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ g_mock_pthread_fail = 0; /* LCOV_EXCL_STOP */
 #endif
 
-{
-  enum c_abstract_http_error rc_test = abstract_http_tls_key_delete(key);
-  if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-    printf("Error: %d\n", (int)rc_test);
-  }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_tls_key_delete(key);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 #endif
 
 /* LCOV_EXCL_START */ TEST test_tls_errors(void) { /* LCOV_EXCL_STOP */
@@ -145,9 +145,9 @@ ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ }       /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 
 /* LCOV_EXCL_START */ SUITE(tls_suite) {           /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ RUN_TEST(test_tls_errors); /* LCOV_EXCL_STOP */
@@ -155,7 +155,7 @@ ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
   /* LCOV_EXCL_START */ RUN_TEST(test_tls_oom); /* LCOV_EXCL_STOP */
 #endif
   /* LCOV_EXCL_START */ RUN_TEST(test_tls_isolation); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                               /* LCOV_EXCL_STOP */
 
 #ifdef __cplusplus
 }

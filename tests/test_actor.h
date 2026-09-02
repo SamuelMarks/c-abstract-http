@@ -359,25 +359,25 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
       /* 15 + dummy = 16 actors */ /* LCOV_EXCL_STOP */
       (void)!abstract_http_actor_spawn(
           bus, "test", dummy_handler, NULL,
-          /* LCOV_EXCL_START */ &actor); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ g_mock_alloc_fail = 1;  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ g_mock_alloc_count = 0; /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ rc =                    /* LCOV_EXCL_STOP */
-    abstract_http_actor_spawn(
-        bus, "test_oom", dummy_handler, NULL,
-        /* LCOV_EXCL_START */ &actor); /* LCOV_EXCL_STOP */
-{
-  /* LCOV_EXCL_START */ int rc_test_tmp = rc;  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ g_mock_alloc_fail = 0; /* LCOV_EXCL_STOP */
-  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
-}
+          /* LCOV_EXCL_START */ &actor);          /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ }                       /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ g_mock_alloc_fail = 1;  /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ g_mock_alloc_count = 0; /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ rc =                    /* LCOV_EXCL_STOP */
+        abstract_http_actor_spawn(
+            bus, "test_oom", dummy_handler, NULL,
+            /* LCOV_EXCL_START */ &actor); /* LCOV_EXCL_STOP */
+    {
+      /* LCOV_EXCL_START */ int rc_test_tmp = rc;  /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ g_mock_alloc_fail = 0; /* LCOV_EXCL_STOP */
+      ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
+                    /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
+    }
 
-/* Now successfully spawn one so the next tests don't shift */
-(void)!abstract_http_actor_spawn(
-    bus, "test_success", dummy_handler, NULL,
-    /* LCOV_EXCL_START */ &actor); /* LCOV_EXCL_STOP */
+    /* Now successfully spawn one so the next tests don't shift */
+    (void)!abstract_http_actor_spawn(
+        bus, "test_success", dummy_handler, NULL,
+        /* LCOV_EXCL_START */ &actor); /* LCOV_EXCL_STOP */
   }
 
   /* Test actor spawn OOM on calloc */
@@ -409,7 +409,7 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
   /* LCOV_EXCL_START */ abstract_http_message_bus_free(
       NULL);                    /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 #endif
 
 /* LCOV_EXCL_START */ TEST
@@ -430,32 +430,34 @@ test_actor_queued_free_and_tail(void) { /* LCOV_EXCL_STOP */
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-(void)!abstract_http_actor_spawn(
-    bus, "myactor", dummy_handler, NULL,
-    /* LCOV_EXCL_START */ &actor); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  (void)!abstract_http_actor_spawn(
+      bus, "myactor", dummy_handler, NULL,
+      /* LCOV_EXCL_START */ &actor); /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ msg1.receiver = actor; /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ msg2.receiver = actor; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ msg1.receiver = actor; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ msg2.receiver = actor; /* LCOV_EXCL_STOP */
 
-{
-  enum c_abstract_http_error rc_test = abstract_http_actor_send(bus, &msg1);
-  if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-    printf("Error: %d\n", (int)rc_test);
+  {
+    enum c_abstract_http_error rc_test = abstract_http_actor_send(bus, &msg1);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_actor_send(bus, &msg2);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
   }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-{
-  enum c_abstract_http_error rc_test = abstract_http_actor_send(bus, &msg2);
-  if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-    printf("Error: %d\n", (int)rc_test);
-  }
-}
-/* LCOV_EXCL_START */ /* hits tail->next logic */ /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ /* hits tail->next logic */ /* LCOV_EXCL_STOP */
 
-/* don't process, just free, hitting lines 100-102 */
-/* LCOV_EXCL_START */ abstract_http_message_bus_free(bus);  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ abstract_http_message_bus_free(NULL); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ PASS();                               /* LCOV_EXCL_STOP */
+  /* don't process, just free, hitting lines 100-102 */
+  /* LCOV_EXCL_START */ abstract_http_message_bus_free(
+      bus); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_message_bus_free(
+      NULL);                    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
 }
 
 /* LCOV_EXCL_START */ TEST test_actor_mock_nulls(void) { /* LCOV_EXCL_STOP */
@@ -514,7 +516,7 @@ test_actor_queued_free_and_tail(void) { /* LCOV_EXCL_STOP */
   }
 
   /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 
 /* LCOV_EXCL_START */ SUITE(actor_suite) {            /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ RUN_TEST(test_actor_getters); /* LCOV_EXCL_STOP */
@@ -529,7 +531,7 @@ test_actor_queued_free_and_tail(void) { /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ RUN_TEST(test_actor_errors);     /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ RUN_TEST(test_actor_capacity);   /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ RUN_TEST(test_actor_mock_nulls); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                  /* LCOV_EXCL_STOP */
 
 #ifdef __cplusplus
 }

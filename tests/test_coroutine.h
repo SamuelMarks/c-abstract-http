@@ -32,16 +32,16 @@ struct CoroutineTestState {
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ state->counter++; /* LCOV_EXCL_STOP */
-{
-  enum c_abstract_http_error rc_test = abstract_http_coroutine_yield();
-  if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-    printf("Error: %d\n", (int)rc_test);
-  }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ state->counter++; /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ }                 /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ state->counter++; /* LCOV_EXCL_STOP */
+  {
+    enum c_abstract_http_error rc_test = abstract_http_coroutine_yield();
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  /* LCOV_EXCL_START */ }                 /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ state->counter++; /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                   /* LCOV_EXCL_STOP */
 
 /* LCOV_EXCL_START */ TEST test_coroutine_execution(void) { /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ enum c_abstract_http_error rc =
@@ -57,59 +57,59 @@ struct CoroutineTestState {
   /* LCOV_EXCL_START */ if (rc ==
                             C_ABSTRACT_HTTP_ERR_NOTSUP) { /* LCOV_EXCL_STOP */
     /* LCOV_EXCL_START */ PASS();                         /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-                                rc); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                                  rc); /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ ASSERT_EQ(0, state.counter); /* LCOV_EXCL_STOP */
-{
-  int is_done = 0;
+  /* LCOV_EXCL_START */ ASSERT_EQ(0, state.counter); /* LCOV_EXCL_STOP */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_coroutine_is_done(co, &is_done));
+    ASSERT_EQ(0, is_done);
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            abstract_http_coroutine_is_done(co, &is_done));
-  ASSERT_EQ(0, is_done);
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+            /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
+                co));                                /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(1, state.counter); /* LCOV_EXCL_STOP */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_coroutine_is_done(co, &is_done));
+    ASSERT_EQ(0, is_done);
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-          /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
-              co));                                /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ ASSERT_EQ(1, state.counter); /* LCOV_EXCL_STOP */
-{
-  int is_done = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            abstract_http_coroutine_is_done(co, &is_done));
-  ASSERT_EQ(0, is_done);
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+            /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
+                co));                                /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(2, state.counter); /* LCOV_EXCL_STOP */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_coroutine_is_done(co, &is_done));
+    ASSERT_EQ(0, is_done);
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-          /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
-              co));                                /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ ASSERT_EQ(2, state.counter); /* LCOV_EXCL_STOP */
-{
-  int is_done = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            abstract_http_coroutine_is_done(co, &is_done));
-  ASSERT_EQ(0, is_done);
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+            /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
+                co));                                /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(3, state.counter); /* LCOV_EXCL_STOP */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_coroutine_is_done(co, &is_done));
+    ASSERT_EQ(1, is_done);
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-          /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
-              co));                                /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ ASSERT_EQ(3, state.counter); /* LCOV_EXCL_STOP */
-{
-  int is_done = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            abstract_http_coroutine_is_done(co, &is_done));
-  ASSERT_EQ(1, is_done);
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* Calling resume on a finished coroutine should return an error */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
+                co)); /* LCOV_EXCL_STOP */
 
-/* Calling resume on a finished coroutine should return an error */
-ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-          /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
-              co)); /* LCOV_EXCL_STOP */
-
-/* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ PASS();                           /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ PASS();                           /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                   /* LCOV_EXCL_STOP */
 
 /* LCOV_EXCL_START */ static void dummy_coroutine_cb(void *arg) {
   (void)arg;
@@ -134,43 +134,45 @@ ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
   /* LCOV_EXCL_START */ if (rc ==
                             C_ABSTRACT_HTTP_ERR_NOTSUP) { /* LCOV_EXCL_STOP */
     /* LCOV_EXCL_START */ PASS();                         /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-                                rc);                    /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ co = NULL;                        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                                  rc);                    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ co = NULL;                        /* LCOV_EXCL_STOP */
 
-/* Test stack_size != 0 */
-rc = abstract_http_coroutine_init(
-    &co, 2048, dummy_coroutine_cb,
-    /* LCOV_EXCL_START */ NULL); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-                                rc);                    /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ co = NULL;                        /* LCOV_EXCL_STOP */
+  /* Test stack_size != 0 */
+  rc = abstract_http_coroutine_init(
+      &co, 2048, dummy_coroutine_cb,
+      /* LCOV_EXCL_START */ NULL); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                                  rc);                    /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ co = NULL;                        /* LCOV_EXCL_STOP */
 
-ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-          /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
-              co)); /* LCOV_EXCL_STOP */
-ASSERT_EQ(
-    C_ABSTRACT_HTTP_ERR_INVAL,
-    /* LCOV_EXCL_START */ abstract_http_coroutine_yield()); /* LCOV_EXCL_STOP */
-{
-  int is_done = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            abstract_http_coroutine_is_done(co, &is_done));
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
+            /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
+                co)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      /* LCOV_EXCL_START */ abstract_http_coroutine_yield()); /* LCOV_EXCL_STOP
+                                                               */
+  {
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              abstract_http_coroutine_is_done(co, &is_done));
+  /* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
 
-{
-  enum c_abstract_http_error rc_test = abstract_http_coroutine_set_hooks(NULL);
-  if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-    printf("Error: %d\n", (int)rc_test);
-  }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  {
+    enum c_abstract_http_error rc_test =
+        abstract_http_coroutine_set_hooks(NULL);
+    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Error: %d\n", (int)rc_test);
+    }
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 
 static int
 mock_co_init(struct AbstractHttpCoroutine **co,
@@ -184,7 +186,7 @@ mock_co_init(struct AbstractHttpCoroutine **co,
 }
 static void mock_co_free(struct AbstractHttpCoroutine *co) {
   (void)co;
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 static int
 /* LCOV_EXCL_START */
 mock_co_resume(struct AbstractHttpCoroutine *co) { /* LCOV_EXCL_STOP */
@@ -221,37 +223,39 @@ mock_co_is_done(const struct AbstractHttpCoroutine *co,
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ ASSERT_EQ(
-    C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
-    abstract_http_coroutine_init(&co, 0, NULL, NULL));
-ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-          /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
-              co)); /* LCOV_EXCL_STOP */
-ASSERT_EQ(
-    C_ABSTRACT_HTTP_SUCCESS,
-    /* LCOV_EXCL_START */ abstract_http_coroutine_yield()); /* LCOV_EXCL_STOP */
-{
-  int is_done = 0;
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            abstract_http_coroutine_is_done(co, &is_done));
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
-
-{
-  struct AbstractHttpCoroutineHooks z;
-  /* LCOV_EXCL_START */ memset(&z, 0, sizeof(z)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
+      abstract_http_coroutine_init(&co, 0, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
+                co)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      /* LCOV_EXCL_START */ abstract_http_coroutine_yield()); /* LCOV_EXCL_STOP
+                                                               */
   {
-    enum c_abstract_http_error rc_test = abstract_http_coroutine_set_hooks(&z);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
-}
+    int is_done = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              abstract_http_coroutine_is_done(co, &is_done));
+  /* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  {
+    struct AbstractHttpCoroutineHooks z;
+    /* LCOV_EXCL_START */ memset(&z, 0, sizeof(z)); /* LCOV_EXCL_STOP */
+    {
+      enum c_abstract_http_error rc_test =
+          abstract_http_coroutine_set_hooks(&z);
+      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
+        printf("Error: %d\n", (int)rc_test);
+      }
+    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
+
+  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 
@@ -290,7 +294,7 @@ test_coroutine_pthread_create_fail(void) { /* LCOV_EXCL_STOP */
 
   /* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ PASS();                           /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                   /* LCOV_EXCL_STOP */
 #endif
 
 /* LCOV_EXCL_START */ TEST
@@ -335,18 +339,18 @@ test_coroutine_fallback_paths(void) { /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ if (rc ==
                             C_ABSTRACT_HTTP_ERR_NOTSUP) { /* LCOV_EXCL_STOP */
     /* LCOV_EXCL_START */ PASS();                         /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-                                rc); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                                  rc); /* LCOV_EXCL_STOP */
 
-/* We start it, let it yield, then free it */
-ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-          /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
-              co));                                     /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
+  /* We start it, let it yield, then free it */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            /* LCOV_EXCL_START */ abstract_http_coroutine_resume(
+                co));                                     /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ abstract_http_coroutine_free(co); /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -386,7 +390,7 @@ test_coroutine_edge_cases(void) { /* LCOV_EXCL_STOP */
                                                                */
 
   /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 #endif
 
 /* LCOV_EXCL_START */ SUITE(coroutine_suite) { /* LCOV_EXCL_STOP */
@@ -410,7 +414,7 @@ test_coroutine_edge_cases(void) { /* LCOV_EXCL_STOP */
 #endif
 
 #endif
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
 #ifdef __cplusplus
 }

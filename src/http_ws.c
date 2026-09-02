@@ -72,24 +72,24 @@ enum c_abstract_http_error ws_sign_key(const char *client_key,
   rc = sha1_init(&ctx);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     /* LCOV_EXCL_START */ return rc; /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-rc = sha1_update(&ctx, (const unsigned char *)concatenated, len1 + len2);
-if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-  return rc;
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-rc = sha1_final(&ctx, hash);
-if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-  return rc;
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ }            /* LCOV_EXCL_STOP */
+  rc = sha1_update(&ctx, (const unsigned char *)concatenated, len1 + len2);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  rc = sha1_final(&ctx, hash);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-res = base64_encode(hash, 20, &base64_str, &base64_len);
-if (res != 0)
-  return res;
+  res = base64_encode(hash, 20, &base64_str, &base64_len);
+  if (res != 0)
+    return res;
 
-c89stringutils_strcpy_s(out_accept, 29, base64_str);
-free(base64_str);
+  c89stringutils_strcpy_s(out_accept, 29, base64_str);
+  free(base64_str);
 
-return C_ABSTRACT_HTTP_SUCCESS;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error ws_verify_accept(const char *client_key,
@@ -115,36 +115,36 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
   rc = abstract_http_mutex_lock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     goto ws_read_err;
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-while (sctx->queue_len == 0 &&
-       /* LCOV_EXCL_START */ !sctx->close_requested) { /* LCOV_EXCL_STOP */
-  /* Wait for data or close */
-  /* LCOV_EXCL_START */ rc =
-      abstract_http_cond_wait(sctx->cond, sctx->mutex); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  while (sctx->queue_len == 0 &&
+         /* LCOV_EXCL_START */ !sctx->close_requested) { /* LCOV_EXCL_STOP */
+    /* Wait for data or close */
+    /* LCOV_EXCL_START */ rc =
+        abstract_http_cond_wait(sctx->cond, sctx->mutex); /* LCOV_EXCL_STOP */
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto ws_read_err;
+    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
+
+  /* LCOV_EXCL_START */ if (sctx->queue_len > 0) { /* LCOV_EXCL_STOP */
+    size_t to_copy = sctx->queue_len;
+    /* LCOV_EXCL_START */ if (to_copy > buf_len) /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ to_copy = buf_len;   /* LCOV_EXCL_STOP */
+    memcpy(buf, sctx->queue, to_copy);
+
+    memmove(sctx->queue, sctx->queue + to_copy, sctx->queue_len - to_copy);
+    sctx->queue_len -= to_copy;
+    *out_read = to_copy;
+  } else {
+    /* queue_len == 0 and close_requested == 1 */
+    /* LCOV_EXCL_START */ *out_read = 0; /* EOF */ /* LCOV_EXCL_STOP */
+  }
+
+  rc = abstract_http_mutex_unlock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     goto ws_read_err;
-/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
-}
-
-/* LCOV_EXCL_START */ if (sctx->queue_len > 0) { /* LCOV_EXCL_STOP */
-  size_t to_copy = sctx->queue_len;
-  /* LCOV_EXCL_START */ if (to_copy > buf_len) /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ to_copy = buf_len;   /* LCOV_EXCL_STOP */
-  memcpy(buf, sctx->queue, to_copy);
-
-  memmove(sctx->queue, sctx->queue + to_copy, sctx->queue_len - to_copy);
-  sctx->queue_len -= to_copy;
-  *out_read = to_copy;
-} else {
-  /* queue_len == 0 and close_requested == 1 */
-  /* LCOV_EXCL_START */ *out_read = 0; /* EOF */ /* LCOV_EXCL_STOP */
-}
-
-rc = abstract_http_mutex_unlock(sctx->mutex);
-if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-  goto ws_read_err;
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
-return 0;
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  return 0;
 ws_read_err:
   LOG_DEBUG("ws_read_chunk_cb: returning -1 due to internal error %d", rc);
   /* LCOV_EXCL_START */ return -1; /* LCOV_EXCL_STOP */
@@ -838,97 +838,102 @@ c_abstract_http_ws_send(struct HttpRequest *req,
       /* LCOV_EXCL_START */ free(masked_payload);        /* LCOV_EXCL_STOP */
       /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
     }
-/* LCOV_EXCL_START */   } else if (len <= 65535) {  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ rc = ws_pack_header_medium(
-      header, 1, opcode, 1, len,          /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ &header_len); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ if (rc !=
-                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ free(masked_payload);        /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
-  }
-/* LCOV_EXCL_START */   } else {                                                /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ rc = ws_pack_header_large(
-      header, 1, opcode, 1, len,          /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ &header_len); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ if (rc !=
-                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ free(masked_payload);        /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
-  }
-}
-
-rc = abstract_http_mutex_lock(sctx->mutex);
-/* LCOV_EXCL_START */ if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ return rc;                         /* LCOV_EXCL_STOP */
-}
-/* LCOV_EXCL_START */ if (sctx->close_requested) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ rc =
-      abstract_http_mutex_unlock(sctx->mutex); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ if (rc !=
-                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
-  }
-  /* LCOV_EXCL_START */ free(masked_payload);             /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ /* Cannot send after close */     /* LCOV_EXCL_STOP */
-}
-
-/* Expand queue if necessary */
-/* LCOV_EXCL_START */ if (sctx->queue_len + header_len + 4 +
-                              len > /* LCOV_EXCL_STOP */
-                          /* LCOV_EXCL_START */ sctx
-                              ->queue_cap) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ size_t new_cap =     /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ sctx->queue_cap == 0
-          ? 4096
-          : sctx->queue_cap * 2;         /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ while (new_cap < /* LCOV_EXCL_STOP */
-                               /* LCOV_EXCL_START */ sctx->queue_len +
-                                   header_len + 4 + len) /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ new_cap *= 2;                  /* LCOV_EXCL_STOP */
-  {
-    /* LCOV_EXCL_START */ unsigned char *new_queue = /* LCOV_EXCL_STOP */
-        /* LCOV_EXCL_START */ (unsigned char *)realloc(
-            sctx->queue, new_cap);          /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ if (!new_queue) { /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ rc =
-          abstract_http_mutex_unlock(sctx->mutex); /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ if (rc !=
-                                C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
-        /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
-      }
-      /* LCOV_EXCL_START */ free(masked_payload); /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_ERR_NOMEM; /* LCOV_EXCL_STOP
-                                                               */
+  /* LCOV_EXCL_START */ } else if (len <= 65535) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ rc = ws_pack_header_medium(
+        header, 1, opcode, 1, len,          /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ &header_len); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (rc !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ free(masked_payload);        /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
     }
-    /* LCOV_EXCL_START */ sctx->queue = new_queue;   /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ sctx->queue_cap = new_cap; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } else { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ rc = ws_pack_header_large(
+        header, 1, opcode, 1, len,          /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ &header_len); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (rc !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ free(masked_payload);        /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
+    }
   }
-/* LCOV_EXCL_START */   }  /* LCOV_EXCL_STOP */
 
-memcpy(sctx->queue + sctx->queue_len, header, header_len);
-sctx->queue_len += header_len;
+  rc = abstract_http_mutex_lock(sctx->mutex);
+  /* LCOV_EXCL_START */ if (rc !=
+                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
+  }
+  /* LCOV_EXCL_START */ if (sctx->close_requested) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ rc =
+        abstract_http_mutex_unlock(sctx->mutex); /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ if (rc !=
+                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
+    }
+    /* LCOV_EXCL_START */ free(masked_payload);             /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_ERR_INVAL; /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ /* Cannot send after close */     /* LCOV_EXCL_STOP */
+  }
 
-memcpy(sctx->queue + sctx->queue_len, mask_key, 4);
-sctx->queue_len += 4;
+  /* Expand queue if necessary */
+  /* LCOV_EXCL_START */ if (sctx->queue_len + header_len + 4 +
+                                len > /* LCOV_EXCL_STOP */
+                            /* LCOV_EXCL_START */ sctx
+                                ->queue_cap) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ size_t new_cap =     /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ sctx->queue_cap == 0
+            ? 4096
+            : sctx->queue_cap * 2;         /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ while (new_cap < /* LCOV_EXCL_STOP */
+                                 /* LCOV_EXCL_START */ sctx->queue_len +
+                                     header_len + 4 + len) /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ new_cap *= 2;                  /* LCOV_EXCL_STOP */
+    {
+      /* LCOV_EXCL_START */ unsigned char *new_queue = /* LCOV_EXCL_STOP */
+          /* LCOV_EXCL_START */ (unsigned char *)realloc(
+              sctx->queue, new_cap);          /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ if (!new_queue) { /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ rc =
+            abstract_http_mutex_unlock(sctx->mutex); /* LCOV_EXCL_STOP */
+        /* LCOV_EXCL_START */ if (rc !=
+                                  C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP
+                                                              */
+          /* LCOV_EXCL_START */ return rc; /* LCOV_EXCL_STOP */
+        }
+        /* LCOV_EXCL_START */ free(masked_payload); /* LCOV_EXCL_STOP */
+                                                    /* LCOV_EXCL_START */
+        return C_ABSTRACT_HTTP_ERR_NOMEM;           /* LCOV_EXCL_STOP
+                                                     */
+      }
+      /* LCOV_EXCL_START */ sctx->queue = new_queue;   /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ sctx->queue_cap = new_cap; /* LCOV_EXCL_STOP */
+    }
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* LCOV_EXCL_START */ if (len > 0) { /* LCOV_EXCL_STOP */
-  memcpy(sctx->queue + sctx->queue_len, masked_payload, len);
-  sctx->queue_len += len;
-}
+  memcpy(sctx->queue + sctx->queue_len, header, header_len);
+  sctx->queue_len += header_len;
 
-rc = abstract_http_cond_signal(sctx->cond);
-/* LCOV_EXCL_START */ if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ return rc;                         /* LCOV_EXCL_STOP */
-}
-rc = abstract_http_mutex_unlock(sctx->mutex);
-/* LCOV_EXCL_START */ if (rc != C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ return rc;                         /* LCOV_EXCL_STOP */
-}
+  memcpy(sctx->queue + sctx->queue_len, mask_key, 4);
+  sctx->queue_len += 4;
 
-free(masked_payload);
-return C_ABSTRACT_HTTP_SUCCESS;
+  /* LCOV_EXCL_START */ if (len > 0) { /* LCOV_EXCL_STOP */
+    memcpy(sctx->queue + sctx->queue_len, masked_payload, len);
+    sctx->queue_len += len;
+  }
+
+  rc = abstract_http_cond_signal(sctx->cond);
+  /* LCOV_EXCL_START */ if (rc !=
+                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
+  }
+  rc = abstract_http_mutex_unlock(sctx->mutex);
+  /* LCOV_EXCL_START */ if (rc !=
+                            C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ return rc;                   /* LCOV_EXCL_STOP */
+  }
+
+  free(masked_payload);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,

@@ -384,13 +384,13 @@ TEST test_mock_server_coverage(void) {
     {
       struct MockServerRequest req2;
       ASSERT_EQ(-1, mock_server_wait_for_request((MockServerPtr)srv, &req2));
-/* LCOV_EXCL_START */     }  /* LCOV_EXCL_STOP */
+    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 
-/* Hit remaining branches */
-abstract_http_mock_server_clear_request(NULL);
-abstract_http_mock_server_clear_request((MockServerPtr)srv);
-abstract_http_mock_server_clear_request((MockServerPtr)srv);
-abstract_http_mock_server_force_fd(NULL, 123);
+    /* Hit remaining branches */
+    abstract_http_mock_server_clear_request(NULL);
+    abstract_http_mock_server_clear_request((MockServerPtr)srv);
+    abstract_http_mock_server_clear_request((MockServerPtr)srv);
+    abstract_http_mock_server_force_fd(NULL, 123);
   }
 
   /* Mock alloc fail inside server recv loop */
@@ -497,8 +497,8 @@ SUITE(mock_coverage_suite) {
   RUN_TEST(test_mock_alloc_coverage);
   RUN_TEST(test_mock_alloc_more);
   RUN_TEST(test_mock_server_coverage);
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */    /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */                    /* LCOV_EXCL_STOP */
 /* LCOV_EXCL_START */ #ifdef __cplusplus /* LCOV_EXCL_STOP */
 }
 #endif /* __cplusplus */

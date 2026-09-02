@@ -30,7 +30,7 @@ static void timer_cb_1(struct ModalityEventLoop *loop,
   /* LCOV_EXCL_START */ (void)timer_id;                    /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ *triggered = 1;                    /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)!http_loop_stop(loop);       /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                    /* LCOV_EXCL_STOP */
 
 TEST test_event_loop_init_free(void) {
   struct ModalityEventLoop *loop;
@@ -74,7 +74,7 @@ timer_cb_cancel(struct ModalityEventLoop *loop,
   /* LCOV_EXCL_START */ (void)timer_id;                    /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ *triggered = 1;
   /* Should not be hit */ /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }   /* LCOV_EXCL_STOP */
 
 static void
 timer_cb_stop(struct ModalityEventLoop *loop,
@@ -83,7 +83,7 @@ timer_cb_stop(struct ModalityEventLoop *loop,
   /* LCOV_EXCL_START */ (void)timer_id;              /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)user_data;             /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)!http_loop_stop(loop); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                              /* LCOV_EXCL_STOP */
 
 TEST test_event_loop_timer_cancel(void) {
   struct ModalityEventLoop *loop;
@@ -149,7 +149,7 @@ stop_loop_cb(struct ModalityEventLoop *loop,
   /* LCOV_EXCL_START */ (void)timer_id;              /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)user_data;             /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)!http_loop_stop(loop); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                              /* LCOV_EXCL_STOP */
 
 static int
 mock_loop_add_timer(void *ctx, long timeout_ms,
@@ -239,7 +239,7 @@ static void mock_fd_cb(struct ModalityEventLoop *loop, int fd,
   /* LCOV_EXCL_START */ (void)fd;                          /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)revents;                     /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ *triggered = 1;                    /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                    /* LCOV_EXCL_STOP */
 
 TEST test_event_loop_run(void) {
   struct ModalityEventLoop *loop = NULL;
@@ -364,7 +364,7 @@ timer_dummy_cb(struct ModalityEventLoop *loop,
   /* LCOV_EXCL_START */ (void)loop;      /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)timer_id;  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)user_data; /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                  /* LCOV_EXCL_STOP */
 
 TEST test_event_loop_expansion(void) {
   struct ModalityEventLoop *loop = NULL;
@@ -862,7 +862,7 @@ blocking_mock_fd_cb(struct ModalityEventLoop *loop,
     /* LCOV_EXCL_START */ nanosleep(&ts, NULL);  /* LCOV_EXCL_STOP */
   }
 #endif
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
 #endif
 
 #if !defined(_WIN32)
@@ -1138,7 +1138,7 @@ dummy_write_cb(struct ModalityEventLoop *loop, int fd,
   /* LCOV_EXCL_START */ (void)fd;                          /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ *triggered |= revents;             /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)!http_loop_stop(loop);       /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                    /* LCOV_EXCL_STOP */
 #endif
 
 TEST test_event_loop_write_error_coverage(void) {
@@ -1187,7 +1187,7 @@ dummy_timer_past_cb(struct ModalityEventLoop *loop,
   /* LCOV_EXCL_START */ *triggered = 1;                    /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)timer_id;                    /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)!http_loop_stop(loop);       /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                    /* LCOV_EXCL_STOP */
 
 TEST test_event_loop_timer_past_coverage(void) {
   struct ModalityEventLoop *loop;
@@ -1228,7 +1228,7 @@ dummy_error_cb(struct ModalityEventLoop *loop, int fd,
   /* LCOV_EXCL_START */ (void)loop;                        /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ (void)fd;                          /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ *triggered |= revents;             /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
+/* LCOV_EXCL_START */ }                                    /* LCOV_EXCL_STOP */
 #endif
 
 TEST test_event_loop_write_error_coverage2(void) {

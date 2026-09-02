@@ -422,8 +422,8 @@ static ABSTRACT_HTTP_THREAD_FUNC worker_thread(abstract_http_thread_arg_t arg) {
       /* LCOV_EXCL_START */ if (err !=
                                 C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
         /* LCOV_EXCL_START */ rc = err;                    /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */       }  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ break;   /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ }                              /* LCOV_EXCL_STOP */
+      /* LCOV_EXCL_START */ break;                         /* LCOV_EXCL_STOP */
     }
 
     if (pool->stop && !pool->head) {
