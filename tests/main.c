@@ -23,8 +23,7 @@
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-#undef __STDC_VERSION__
-#undef _MSC_VER
+/* __STDC_VERSION__ and _MSC_VER undefs removed to fix macro redefinition errors */
 #endif
 #include "greatest.h"
 #include "mock_alloc.h"

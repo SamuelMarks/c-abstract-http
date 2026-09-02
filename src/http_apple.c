@@ -106,8 +106,9 @@ static void apple_stream_cb(CFReadStreamRef stream, CFStreamEventType type,
   } else if (type == kCFStreamEventErrorOccurred) {
     state->error = C_ABSTRACT_HTTP_ERR_IO;
     state->done = 1;
-  /* LCOV_EXCL_START */ } else if (type == kCFStreamEventEndEncountered) { /* LCOV_EXCL_STOP
-                                                                            */
+  /* LCOV_EXCL_START */ } else if (
+      type == kCFStreamEventEndEncountered) { /* LCOV_EXCL_STOP
+                                               */
     state->done = 1;
   }
 

@@ -13,6 +13,9 @@ extern "C" {
 
 #if !defined(_WIN32)
 #include <pthread.h>
+typedef int MOCK_SOCKET_T;
+#else
+typedef SOCKET MOCK_SOCKET_T;
 #endif
 /* extern int g_mock_recv_fail; */
 
@@ -326,7 +329,7 @@ TEST test_mock_server_coverage(void) {
   /* LCOV_EXCL_START */                           /* LCOV_EXCL_STOP */
   /* Send mock data */
   {
-    int sock = (int)socket(AF_INET, SOCK_STREAM, 0);
+    MOCK_SOCKET_T sock = (MOCK_SOCKET_T)socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -395,7 +398,7 @@ TEST test_mock_server_coverage(void) {
 
   /* Mock alloc fail inside server recv loop */
   {
-    int sock = (int)socket(AF_INET, SOCK_STREAM, 0);
+    MOCK_SOCKET_T sock = (MOCK_SOCKET_T)socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -426,7 +429,7 @@ TEST test_mock_server_coverage(void) {
 
   /* Mock alloc fail for existing captured_request in recv loop */
   {
-    int sock = (int)socket(AF_INET, SOCK_STREAM, 0);
+    MOCK_SOCKET_T sock = (MOCK_SOCKET_T)socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -451,7 +454,7 @@ TEST test_mock_server_coverage(void) {
 
     TEST_CLOSESOCKET(sock);
 
-    sock = (int)socket(AF_INET, SOCK_STREAM, 0);
+    sock = (MOCK_SOCKET_T)socket(AF_INET, SOCK_STREAM, 0);
     connect(sock, (struct sockaddr *)&addr, sizeof(addr));
 
     /* Make malloc fail for the second one, to hit the `free` block */

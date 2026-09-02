@@ -18,18 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* LCOV_EXCL_START */ static char *c_abstract_http_test_types_strdup(const char *s) {  /* LCOV_EXCL_STOP */
-  size_t len;
-  char *d;
-/* LCOV_EXCL_START */   if (!s) return NULL;  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   len = strlen(s);  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   d = (char*)malloc(len + 1);  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   if (d) memcpy(d, s, len + 1);  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   return d;  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
-#undef strdup
-#define strdup(s) c_abstract_http_test_types_strdup(s)
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -1839,7 +1827,8 @@ TEST test_http_client_errs(void) {
   ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
       /* LCOV_EXCL_START */ http_client_init(&client)); /* LCOV_EXCL_STOP */
-  client.base_url = strdup("url");
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("url", &client.base_url));
   http_client_free(&client);
   PASS();
 }
@@ -1871,7 +1860,8 @@ TEST test_http_types_more_errs_2(void) {
   /* LCOV_EXCL_START */ ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
       http_request_add_part(&req, "f", NULL, NULL, "d", 1));
-  req.body = (unsigned char *)strdup("body");
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("body", (char **)&req.body));
   req.body_len = 4;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             /* LCOV_EXCL_START */ http_request_flatten_parts(
@@ -2678,9 +2668,12 @@ TEST test_http_types_oom_bruteforce_all(void) {
         printf("Error: %d\n", (int)rc_test);
       }
     }
-    config.proxy_url = strdup("url");
-    config.proxy_username = strdup("u");
-    config.proxy_password = strdup("p");
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_mock_strdup("url", &config.proxy_url));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_mock_strdup("u", &config.proxy_username));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_mock_strdup("p", &config.proxy_password));
     http_config_free(&config);
   }
 

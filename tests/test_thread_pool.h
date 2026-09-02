@@ -37,7 +37,7 @@ abstract_http_thread_pool_test_inject_task(struct AbstractHttpThreadPool *pool);
 
 /* LCOV_EXCL_START */ static void sleep_ms(int ms) { /* LCOV_EXCL_STOP */
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-  Sleep(ms);
+  Sleep((unsigned long)ms);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   delay(ms);
 #else
@@ -302,7 +302,7 @@ test_thread_pool_external(void) { /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
 /* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 
-int dummy_hook_push(
+static int dummy_hook_push(
     void *ctx,
     /* LCOV_EXCL_START */ abstract_http_thread_task_cb cb, /* LCOV_EXCL_STOP */
     void *arg) {

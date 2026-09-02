@@ -18,14 +18,27 @@ def main():
     build_dir = ".build-coverage"
 
     print("--> Configuring CMake for coverage...")
+    cmake_cmd = [
+        "cmake", "-B", build_dir,
+        "-DC_ABSTRACT_HTTP_ENABLE_COVERAGE=ON",
+        "-DBUILD_TESTING=ON",
+        "-DC_ABSTRACT_HTTP_ENABLE_WEBSOCKETS=ON",
+        "-DC_ABSTRACT_HTTP_ENABLE_SSE=ON"
+    ]
+
+    if os.name == "nt":
+        if os.path.exists(r"C:\usr\cygwin64\bin\gcc.exe"):
+            os.environ["PATH"] = r"C:\usr\cygwin64\bin;" + os.environ.get("PATH", "")
+            cmake_cmd.extend(["-G", "Unix Makefiles", "-DCMAKE_C_COMPILER=gcc"])
+        elif os.path.exists(r"C:\usr\msys64\ucrt64\bin\gcc.exe"):
+            os.environ["PATH"] = r"C:\usr\msys64\ucrt64\bin;" + os.environ.get("PATH", "")
+            cmake_cmd.extend(["-G", "MinGW Makefiles", "-DCMAKE_C_COMPILER=gcc"])
+        elif os.path.exists(r"C:\usr\msys64\mingw64\bin\gcc.exe"):
+            os.environ["PATH"] = r"C:\usr\msys64\mingw64\bin;" + os.environ.get("PATH", "")
+            cmake_cmd.extend(["-G", "MinGW Makefiles", "-DCMAKE_C_COMPILER=gcc"])
+
     try:
-        subprocess.run([
-            "cmake", "-B", build_dir,
-            "-DC_ABSTRACT_HTTP_ENABLE_COVERAGE=ON",
-            "-DBUILD_TESTING=ON",
-            "-DC_ABSTRACT_HTTP_ENABLE_WEBSOCKETS=ON",
-            "-DC_ABSTRACT_HTTP_ENABLE_SSE=ON"
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(cmake_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
     except subprocess.CalledProcessError:
         print("Warning: CMake configuration failed. Skipping coverage update.")
         sys.exit(0)

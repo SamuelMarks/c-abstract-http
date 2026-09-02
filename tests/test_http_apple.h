@@ -17,7 +17,6 @@ int g_mock_pthread_create_sync = 0;
 #include <stdlib.h>
 #include <string.h>
 
-/* LCOV_EXCL_START */ static char *c_abstract_http_test_apple_strdup(const char *s) {  /* LCOV_EXCL_STOP */
   size_t len;
   char *d;
 /* LCOV_EXCL_START */   if (!s)  /* LCOV_EXCL_STOP */
@@ -28,9 +27,7 @@ int g_mock_pthread_create_sync = 0;
 /* LCOV_EXCL_START */     memcpy(d, s, len + 1);  /* LCOV_EXCL_STOP */
 /* LCOV_EXCL_START */   return d;  /* LCOV_EXCL_STOP */
 /* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
-#undef strdup
 /** @brief Documented */
-#define strdup(s) c_abstract_http_test_apple_strdup(s)
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,8 +67,10 @@ mock_on_chunk_cb(void *user_data, const void *chunk,
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      strdup("http://fail_url_str");           /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_url_str",
+                                  &req.url));  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
@@ -80,8 +79,10 @@ mock_on_chunk_cb(void *user_data, const void *chunk,
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      strdup("http://fail_url");               /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_url",
+                                  &req.url));  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
@@ -92,8 +93,10 @@ mock_on_chunk_cb(void *user_data, const void *chunk,
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      strdup("http://fail_request_ref");       /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_request_ref",
+                                  &req.url));  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
   {
     /* LCOV_EXCL_START */ int debug_rc =
@@ -105,11 +108,16 @@ mock_on_chunk_cb(void *user_data, const void *chunk,
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      strdup("http://fail_body_data");             /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_POST;    /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.body = strdup("test"); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.body_len = 4;          /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_body_data",
+                                  &req.url));   /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ req.method = HTTP_POST; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("test",
+                                  (char **)&req.body)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ req.body_len = 4;               /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
             /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
                                                   &res)); /* LCOV_EXCL_STOP */
@@ -117,8 +125,10 @@ mock_on_chunk_cb(void *user_data, const void *chunk,
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      strdup("http://fail_read_stream");       /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_read_stream",
+                                  &req.url));  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
             /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
@@ -127,8 +137,10 @@ mock_on_chunk_cb(void *user_data, const void *chunk,
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      strdup("http://fail_read_stream_open");  /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_read_stream_open",
+                                  &req.url));  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
             /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
@@ -137,8 +149,10 @@ mock_on_chunk_cb(void *user_data, const void *chunk,
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      strdup("http://fail_mutable_data");       /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_mutable_data",
+                                  &req.url));   /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req.method = HTTP_POST; /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req.read_chunk =
       (http_read_chunk_fn)1;                        /* LCOV_EXCL_STOP */
@@ -150,10 +164,15 @@ mock_on_chunk_cb(void *user_data, const void *chunk,
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      strdup("http://fail_cb_rc");                       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_POST;          /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.body = strdup("test");       /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_cb_rc",
+                                  &req.url));   /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ req.method = HTTP_POST; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("test",
+                                  (char **)&req.body));  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req.body_len = 4;                /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req.on_chunk = mock_on_chunk_cb; /* LCOV_EXCL_STOP */
   {
@@ -258,8 +277,11 @@ test_apple_send_mock_server(void) { /* LCOV_EXCL_STOP */
 #else
   /* LCOV_EXCL_START */ strcpy(req.url, url); /* LCOV_EXCL_STOP */
 #endif
-  /* LCOV_EXCL_START */ req.method = HTTP_POST;            /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.body = strdup("Hello Apple!"); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ req.method = HTTP_POST; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("Hello Apple!",
+                                  (char **)&req.body)); /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req.body_len =
       strlen("Hello Apple!"); /* LCOV_EXCL_STOP */
 
@@ -665,18 +687,22 @@ mock_read_chunk_fail(void *user_data, void *buf,
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ }                       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.url = strdup(url); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.method = HTTP_GET; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup(url, &req1.url)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ req1.method = HTTP_GET;     /* LCOV_EXCL_STOP */
 
   {
     enum c_abstract_http_error rc_test = http_request_init(&req2);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ }                       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req2.url = strdup(url); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req2.method = HTTP_GET; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup(url, &req2.url)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ req2.method = HTTP_GET;     /* LCOV_EXCL_STOP */
 
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
@@ -773,8 +799,10 @@ test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
       printf("Error: %d\n", (int)rc_test);
     }
   /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.url =
-      strdup("http://fail_url_str");            /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_url_str",
+                                  &req1.url));  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req1.method = HTTP_GET; /* LCOV_EXCL_STOP */
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
@@ -821,8 +849,10 @@ test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
       printf("Error: %d\n", (int)rc_test);
     }
   /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.url =
-      strdup("http://fail_request_ref");        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_request_ref",
+                                  &req1.url));  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req1.method = HTTP_GET; /* LCOV_EXCL_STOP */
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
@@ -866,11 +896,16 @@ test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
       printf("Error: %d\n", (int)rc_test);
     }
   /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.url =
-      strdup("http://fail_body_data");              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.method = HTTP_POST;    /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.body = strdup("test"); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.body_len = 4;          /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_body_data",
+                                  &req1.url));   /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ req1.method = HTTP_POST; /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("test",
+                                  (char **)&req1.body)); /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ req1.body_len = 4;               /* LCOV_EXCL_STOP */
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -913,8 +948,10 @@ test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
       printf("Error: %d\n", (int)rc_test);
     }
   /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.url =
-      strdup("http://fail_read_stream");        /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_read_stream",
+                                  &req1.url));  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req1.method = HTTP_GET; /* LCOV_EXCL_STOP */
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
@@ -958,8 +995,10 @@ test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
       printf("Error: %d\n", (int)rc_test);
     }
   /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.url =
-      strdup("http://fail_read_stream_open");   /* LCOV_EXCL_STOP */
+  /* LCOV_EXCL_START */ ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_read_stream_open",
+                                  &req1.url));  /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ req1.method = HTTP_GET; /* LCOV_EXCL_STOP */
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
