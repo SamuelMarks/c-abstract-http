@@ -49,8 +49,8 @@ TEST test_wasm_global_lifecycle(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_init());
 
-  http_wasm_global_cleanup();
-  http_wasm_global_cleanup();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
   PASS();
 }
 
@@ -59,7 +59,7 @@ TEST test_wasm_context_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
   enum c_abstract_http_error rc;
 
-  http_wasm_global_init();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_init());
 
   rc = http_wasm_context_init(&ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -68,7 +68,7 @@ TEST test_wasm_context_lifecycle(void) {
   http_wasm_context_free(ctx);
   http_wasm_context_free(NULL);
 
-  http_wasm_global_cleanup();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
   PASS();
 }
 
@@ -81,8 +81,8 @@ TEST test_wasm_config_application(void) {
   struct HttpConfig config;
   enum c_abstract_http_error rc;
 
-  http_wasm_global_init();
-  http_wasm_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -105,7 +105,7 @@ TEST test_wasm_config_application(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   http_wasm_context_free(ctx);
-  http_wasm_global_cleanup();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
   PASS();
 }
 
@@ -118,8 +118,8 @@ TEST test_wasm_send_connection_failure(void) {
   struct HttpConfig config;
   enum c_abstract_http_error rc;
 
-  http_wasm_global_init();
-  http_wasm_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_config_init(&config);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -144,7 +144,7 @@ TEST test_wasm_send_connection_failure(void) {
 
   http_request_free(&req);
   http_wasm_context_free(ctx);
-  http_wasm_global_cleanup();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
   PASS();
 }
 #endif
@@ -155,8 +155,8 @@ TEST test_wasm_send_invalid_arguments(void) {
   struct HttpResponse *res = NULL;
   struct HttpRequest req;
 
-  http_wasm_global_init();
-  http_wasm_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_context_init(&ctx));
   {
     enum c_abstract_http_error rc_test = http_request_init(&req);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
@@ -173,7 +173,7 @@ TEST test_wasm_send_invalid_arguments(void) {
 
   http_request_free(&req);
   http_wasm_context_free(ctx);
-  http_wasm_global_cleanup();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
   PASS();
 }
 

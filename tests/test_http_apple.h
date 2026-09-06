@@ -13,26 +13,11 @@ int g_mock_pthread_create_sync = 0;
 #ifndef C_ABSTRACT_HTTP_TEST_HTTP_APPLE_H
 #define C_ABSTRACT_HTTP_TEST_HTTP_APPLE_H
 
-/* clang-format off */
-#include <stdlib.h>
-#include <string.h>
-
-  size_t len;
-  char *d;
-/* LCOV_EXCL_START */   if (!s)  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */     return NULL;  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   len = strlen(s);  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   d = (char *)malloc(len + 1);  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   if (d)  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */     memcpy(d, s, len + 1);  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */   return d;  /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }  /* LCOV_EXCL_STOP */
-/** @brief Documented */
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
+/* clang-format off */
 #include <greatest.h>
 #include <stdlib.h>
 #include <string.h>

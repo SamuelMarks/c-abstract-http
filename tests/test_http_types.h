@@ -2783,14 +2783,14 @@ TEST test_http_types_oom_bruteforce_all(void) {
       http_client_send_multi(NULL, NULL, 0, NULL, NULL, NULL, 0));
 
   /* 1800: bind fail on invalid port or already bound port */
-  /* Actually, we just need to bind to a restricted port to fail bind, e.g. 80
-   * without root */
 #if !defined(_WIN32) && !defined(__CYGWIN__)
   {
     char *c = NULL, *s = NULL;
+    g_mock_bind_fail = 1;
     /* LCOV_EXCL_START */ ASSERT_EQ(
         C_ABSTRACT_HTTP_ERR_IO, /* LCOV_EXCL_STOP */
         http_oauth2_localhost_intercept(80, "p", &c, &s, NULL, NULL));
+    g_mock_bind_fail = 0;
   }
 #endif
 

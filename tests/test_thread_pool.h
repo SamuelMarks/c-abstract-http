@@ -302,6 +302,9 @@ test_thread_pool_external(void) { /* LCOV_EXCL_STOP */
   /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
 /* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
 
+extern enum c_abstract_http_error
+abstract_http_thread_pool_test_free_with_tasks(void);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 static int dummy_hook_push(
     void *ctx,
     /* LCOV_EXCL_START */ abstract_http_thread_task_cb cb, /* LCOV_EXCL_STOP */
@@ -312,9 +315,6 @@ static int dummy_hook_push(
   /* LCOV_EXCL_START */ return 0;  /* LCOV_EXCL_STOP */
 }
 
-extern enum c_abstract_http_error
-abstract_http_thread_pool_test_free_with_tasks(void);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /* LCOV_EXCL_START */ TEST
 test_thread_pool_edge_cases(void) { /* LCOV_EXCL_STOP */
   struct AbstractHttpThreadPool *pool;
