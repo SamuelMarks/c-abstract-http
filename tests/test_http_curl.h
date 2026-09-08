@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file test_http_curl.h
  * @brief Integration tests for Libcurl Backend.
@@ -1761,5 +1761,3 @@ SUITE(http_curl_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_CURL_H */
-
-/* LCOV_EXCL_BR_STOP */

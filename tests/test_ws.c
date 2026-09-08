@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE 1
 #endif
@@ -1053,12 +1053,11 @@ TEST test_ws_async_register_success(void) {
 }
 #endif
 
-/* LCOV_EXCL_START */ static int
-mock_on_err(int rc, void *user_data) {                  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ int *called = (int *)user_data; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ (void)rc;                       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ *called = 1;                    /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ return 0;                       /* LCOV_EXCL_STOP */
+static int mock_on_err(int rc, void *user_data) {
+  int *called = (int *)user_data;
+  (void)rc;
+  *called = 1;
+  return 0;
 }
 
 TEST test_ws_async_coverage(void) {
@@ -1197,5 +1196,3 @@ int main(int argc, char **argv) {
   RUN_SUITE(ws_suite);
   GREATEST_MAIN_END();
 }
-
-/* LCOV_EXCL_BR_STOP */

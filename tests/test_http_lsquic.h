@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file test_http_lsquic.h
  * @brief Integration tests for lsquic Backend.
@@ -119,5 +119,3 @@ SUITE(http_lsquic_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_LSQUIC_H */
-
-/* LCOV_EXCL_BR_STOP */

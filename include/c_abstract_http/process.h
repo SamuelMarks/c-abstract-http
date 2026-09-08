@@ -53,6 +53,7 @@ struct AbstractHttpProcessHooks {
 /**
  * @brief Register external process hooks.
  * @param[in] hooks The hooks structure (copied internally).
+ * @return 0 on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_process_set_hooks(const struct AbstractHttpProcessHooks *hooks);

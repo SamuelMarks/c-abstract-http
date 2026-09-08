@@ -136,6 +136,7 @@ enum c_abstract_http_error http_xquic_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
+  enum c_abstract_http_error rc;
   LOG_DEBUG("http_xquic_send_multi: Entering");
   if (!ctx || !loop || !multi || !futures) {
     LOG_DEBUG("http_xquic_send_multi: Error EINVAL");
@@ -149,7 +150,11 @@ enum c_abstract_http_error http_xquic_send_multi(
   }
 
   if (loop) {
-    http_loop_wakeup(loop);
+    rc = http_loop_wakeup(loop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("http_xquic_send_multi: http_loop_wakeup failed %d", (int)rc);
+      return rc;
+    }
   }
 
   LOG_DEBUG("http_xquic_send_multi: Success");

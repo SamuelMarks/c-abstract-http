@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file test_http_fetch.h
  * @brief Integration tests for Libfetch Backend.
@@ -419,5 +419,3 @@ SUITE(http_fetch_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_FETCH_H */
-
-/* LCOV_EXCL_BR_STOP */

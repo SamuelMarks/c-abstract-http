@@ -245,8 +245,12 @@ static pthread_key_t co_tls_key;
 static int co_tls_initialized = 0;
 
 static enum c_abstract_http_error init_tls_key(void) {
+  int rc;
   if (!co_tls_initialized) {
-    pthread_key_create(&co_tls_key, NULL);
+    rc = pthread_key_create(&co_tls_key, NULL);
+    if (rc != 0) {
+      return C_ABSTRACT_HTTP_ERR_SYSCALL;
+    }
     co_tls_initialized = 1;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -276,7 +280,13 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  init_tls_key();
+  {
+    enum c_abstract_http_error tls_rc = init_tls_key();
+    if (tls_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("abstract_http_coroutine_init: Error init_tls_key failed");
+      return tls_rc;
+    }
+  }
 
   c = (struct AbstractHttpCoroutine *)calloc(
       1, sizeof(struct AbstractHttpCoroutine));
@@ -345,7 +355,13 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  init_tls_key();
+  {
+    enum c_abstract_http_error tls_rc = init_tls_key();
+    if (tls_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("abstract_http_coroutine_resume: Error init_tls_key failed");
+      return tls_rc;
+    }
+  }
   pthread_setspecific(co_tls_key, co);
 
   swapcontext(&co->caller_ctx, &co->ctx);
@@ -362,7 +378,13 @@ enum c_abstract_http_error abstract_http_coroutine_yield(void) {
     return g_coroutine_hooks.yield();
   }
 
-  init_tls_key();
+  {
+    enum c_abstract_http_error tls_rc = init_tls_key();
+    if (tls_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("abstract_http_coroutine_yield: Error init_tls_key failed");
+      return tls_rc;
+    }
+  }
   co = (struct AbstractHttpCoroutine *)pthread_getspecific(co_tls_key);
 
   if (!co) {

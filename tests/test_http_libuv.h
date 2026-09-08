@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file test_http_libuv.h
  * @brief Integration tests for Liblibuv Backend.
@@ -420,5 +420,3 @@ SUITE(http_libuv_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_libuv_H */
-
-/* LCOV_EXCL_BR_STOP */

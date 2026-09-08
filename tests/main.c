@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE 1
 #endif
@@ -98,25 +98,24 @@
 #if defined(_MSC_VER)
 #include <crtdbg.h>
 #endif
-/* clang-format on */
-
-/* LCOV_EXCL_START */ GREATEST_MAIN_DEFS(); /* LCOV_EXCL_STOP */
-
 #if defined(__linux__) || defined(__APPLE__)
 #include <signal.h>
 #endif
+/* clang-format on */
+
+GREATEST_MAIN_DEFS();
+
 int main(int argc, char **argv) {
   int i;
 #if defined(__linux__) || defined(__APPLE__)
   signal(SIGPIPE, SIG_IGN);
-/* LCOV_EXCL_START */                                                          \
-#endif                                               /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ for (i = 1; i < argc; ++i) { /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ if (strcmp(argv[i], "--test-worker") ==
-                              0) {    /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ _exit(1); /* LCOV_EXCL_STOP */
+
+#endif
+  for (i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "--test-worker") == 0) {
+      _exit(1);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
 
 #if defined(_MSC_VER)
   _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
@@ -124,28 +123,28 @@ int main(int argc, char **argv) {
   _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
   _CrtSetReportFile(_CRT_ERROR, (_HFILE)(size_t)2);
 #endif
-  /* LCOV_EXCL_START */ GREATEST_MAIN_BEGIN(); /* LCOV_EXCL_STOP */
+  GREATEST_MAIN_BEGIN();
 
-  /* LCOV_EXCL_START */ RUN_SUITE(http_types_suite); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_SUITE(event_loop_suite); /* LCOV_EXCL_STOP */
+  RUN_SUITE(http_types_suite);
+  RUN_SUITE(event_loop_suite);
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
   RUN_SUITE(thread_pool_suite);
-/* LCOV_EXCL_START */                                                          \
-#endif /* LCOV_EXCL_STOP */
+
+#endif
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
   RUN_SUITE(tls_suite);
-/* LCOV_EXCL_START */                                                          \
-#endif                                            /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_SUITE(process_suite); /* LCOV_EXCL_STOP */
+
+#endif
+  RUN_SUITE(process_suite);
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
   RUN_SUITE(coroutine_suite);
-/* LCOV_EXCL_START */                                                          \
-#endif                                              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_SUITE(actor_suite);     /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_SUITE(transport_suite); /* LCOV_EXCL_STOP */
+
+#endif
+  RUN_SUITE(actor_suite);
+  RUN_SUITE(transport_suite);
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) ||                      \
     !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
-  /* LCOV_EXCL_START */ RUN_SUITE(cmp_integration_suite); /* LCOV_EXCL_STOP */
+  RUN_SUITE(cmp_integration_suite);
 #endif
 
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
@@ -175,7 +174,7 @@ int main(int argc, char **argv) {
   RUN_SUITE(http_wininet_suite);
 #endif
 #elif defined(__APPLE__)
-  /* LCOV_EXCL_START */ RUN_SUITE(http_apple_suite); /* LCOV_EXCL_STOP */
+  RUN_SUITE(http_apple_suite);
 #elif defined(__ANDROID__)
   RUN_SUITE(http_android_suite);
 #elif defined(__EMSCRIPTEN__)
@@ -191,11 +190,9 @@ int main(int argc, char **argv) {
 
 #ifdef malloc
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
-  /* LCOV_EXCL_START */ RUN_SUITE(mock_coverage_suite); /* LCOV_EXCL_STOP */
+  RUN_SUITE(mock_coverage_suite);
 #endif
 #endif
 
-  /* LCOV_EXCL_START */ GREATEST_MAIN_END(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }                      /* LCOV_EXCL_STOP */
-
-/* LCOV_EXCL_BR_STOP */
+  GREATEST_MAIN_END();
+}

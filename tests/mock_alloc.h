@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 #ifndef ABSTRACT_HTTP_MOCK_ALLOC_H
 #define ABSTRACT_HTTP_MOCK_ALLOC_H
 
@@ -172,5 +172,3 @@ extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
 #endif
 
 #endif
-
-/* LCOV_EXCL_BR_STOP */

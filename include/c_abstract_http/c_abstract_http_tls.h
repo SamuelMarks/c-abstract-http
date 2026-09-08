@@ -60,6 +60,7 @@ abstract_http_tls_get(struct AbstractHttpTlsKey *key, void **out_value);
  * @brief Deletes a TLS key.
  *
  * @param[in] key The TLS key to delete.
+ * @return 0 on success, or an error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_tls_key_delete(struct AbstractHttpTlsKey *key);

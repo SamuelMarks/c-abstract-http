@@ -222,12 +222,13 @@ abstract_http_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name,
   }
 
   {
-    c_abstract_http_strdup(name, &_ast_strdup_0);
-    a->name = _ast_strdup_0;
-    if (!a->name) {
+    enum c_abstract_http_error dup_rc =
+        c_abstract_http_strdup(name, &_ast_strdup_0);
+    if (dup_rc != C_ABSTRACT_HTTP_SUCCESS) {
       ABSTRACT_HTTP_FREE(a);
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
+      return dup_rc;
     }
+    a->name = _ast_strdup_0;
   }
 
   a->handler = handler;

@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file test_http_msh3.h
  * @brief Integration tests for MsH3 Backend.
@@ -179,5 +179,3 @@ SUITE(http_msh3_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_MSH3_H */
-
-/* LCOV_EXCL_BR_STOP */

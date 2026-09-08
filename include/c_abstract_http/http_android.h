@@ -33,6 +33,8 @@ http_android_global_init(void);
  * @brief Cleanup global Android environment.
  *
  * Releases any globally cached Java classes or references.
+ *
+ * @return 0 on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_android_global_cleanup(void);

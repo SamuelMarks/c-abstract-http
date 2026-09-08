@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 #ifndef TEST_TRANSPORT_H
 #define TEST_TRANSPORT_H
 
@@ -79,5 +79,3 @@ SUITE(transport_suite) {
 }
 #endif /* __cplusplus */
 #endif /* TEST_TRANSPORT_H */
-
-/* LCOV_EXCL_BR_STOP */

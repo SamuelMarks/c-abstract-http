@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 #if defined(_WIN32) && defined(_MSC_VER)
 #endif
 #if defined(_MSC_VER)
@@ -636,8 +636,6 @@ int c_abstract_http_mock_select_darwin_extsn(int nfds, fd_set *readfds,
 }
 #endif
 int g_mock_timer_heap_swap_fail = 0;
-
-/* LCOV_EXCL_BR_STOP */
 
 #ifdef __MINGW32__
 void (*__imp_c_abstract_http_mock_select)(void) =

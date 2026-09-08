@@ -793,7 +793,7 @@ enum c_abstract_http_error http_curl_send(struct HttpTransportContext *ctx,
     if (write_ctx.chunk.memory)
       free(write_ctx.chunk.memory);
     if (headers)
-      /* LCOV_EXCL_START */ curl_slist_free_all(headers); /* LCOV_EXCL_STOP */
+      curl_slist_free_all(headers);
     return rc;
   }
 
@@ -900,7 +900,7 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
     rc = http_loop_cancel_timer(ctx->loop, ctx->timer_id);
     if (rc != C_ABSTRACT_HTTP_SUCCESS && rc != C_ABSTRACT_HTTP_ERR_INVAL) {
       LOG_DEBUG("multi_timer_function: http_loop_cancel_timer failed");
-      /* LCOV_EXCL_START */ goto timer_error; /* LCOV_EXCL_STOP */
+      goto timer_error;
     }
     ctx->timer_id = 0;
   }
@@ -910,15 +910,15 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
                              &ctx->timer_id);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("multi_timer_function: http_loop_add_timer failed");
-      /* LCOV_EXCL_START */ printf("TIMER ERROR %d\n", rc); /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ goto timer_error;               /* LCOV_EXCL_STOP */
+      printf("TIMER ERROR %d\n", rc);
+      goto timer_error;
     }
   }
   return 0; /* CURLM_OK */
 
-/* LCOV_EXCL_START */ timer_error: /* LCOV_EXCL_STOP */
+timer_error:
   LOG_DEBUG("multi_timer_function: returning -1 due to internal error %d", rc);
-  /* LCOV_EXCL_START */ return -1; /* LCOV_EXCL_STOP */
+  return -1;
 }
 
 static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
@@ -933,7 +933,7 @@ static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG(
           "multi_socket_function: ABSTRACT_HTTP_HTTP_LOOP_REMOVE_FD failed");
-      /* LCOV_EXCL_START */ goto socket_error; /* LCOV_EXCL_STOP */
+      goto socket_error;
     }
     ABSTRACT_HTTP_CURL_MULTI_ASSIGN(ctx->multi, s, NULL);
   } else {
@@ -949,7 +949,7 @@ static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG(
             "multi_socket_function: ABSTRACT_HTTP_HTTP_LOOP_ADD_FD failed");
-        /* LCOV_EXCL_START */ goto socket_error; /* LCOV_EXCL_STOP */
+        goto socket_error;
       }
       ABSTRACT_HTTP_CURL_MULTI_ASSIGN(ctx->multi, s, (void *)1);
     } else {
@@ -957,15 +957,15 @@ static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG(
             "multi_socket_function: ABSTRACT_HTTP_HTTP_LOOP_MOD_FD failed");
-        /* LCOV_EXCL_START */ goto socket_error; /* LCOV_EXCL_STOP */
+        goto socket_error;
       }
     }
   }
   return 0; /* CURLM_OK */
 
-/* LCOV_EXCL_START */ socket_error: /* LCOV_EXCL_STOP */
+socket_error:
   LOG_DEBUG("multi_socket_function: returning -1 due to internal error %d", rc);
-  /* LCOV_EXCL_START */ return -1; /* LCOV_EXCL_STOP */
+  return -1;
 }
 
 enum c_abstract_http_error http_curl_send_multi(
@@ -1067,22 +1067,16 @@ enum c_abstract_http_error http_curl_send_multi(
     /* Cleanup any tasks successfully added before the failure */
     size_t j;
     for (j = 0; j < i; ++j) {
-      /* LCOV_EXCL_START */ struct CurlMultiTask *task = /* LCOV_EXCL_STOP */
-          /* LCOV_EXCL_START */ (struct CurlMultiTask *)futures[j]
-              ->internal_state;                  /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ if (task) {          /* LCOV_EXCL_STOP */
-        /* LCOV_EXCL_START */ if (task->headers) /* LCOV_EXCL_STOP */
-          /* LCOV_EXCL_START */ curl_slist_free_all(
-              task->headers); /* LCOV_EXCL_STOP */
-        /* LCOV_EXCL_START */ if (task->write_ctx.chunk
-                                      .memory) /* LCOV_EXCL_STOP */
-          /* LCOV_EXCL_START */ free(
-              task->write_ctx.chunk.memory); /* LCOV_EXCL_STOP */
-        /* LCOV_EXCL_START */ ABSTRACT_HTTP_CURL_MULTI_REMOVE_HANDLE(
-            ctx->multi, task->easy); /* LCOV_EXCL_STOP */
-        /* LCOV_EXCL_START */ curl_easy_cleanup(
-            task->easy);                  /* LCOV_EXCL_STOP */
-        /* LCOV_EXCL_START */ free(task); /* LCOV_EXCL_STOP */
+      struct CurlMultiTask *task =
+          (struct CurlMultiTask *)futures[j]->internal_state;
+      if (task) {
+        if (task->headers)
+          curl_slist_free_all(task->headers);
+        if (task->write_ctx.chunk.memory)
+          free(task->write_ctx.chunk.memory);
+        ABSTRACT_HTTP_CURL_MULTI_REMOVE_HANDLE(ctx->multi, task->easy);
+        curl_easy_cleanup(task->easy);
+        free(task);
       }
     }
     return rc;

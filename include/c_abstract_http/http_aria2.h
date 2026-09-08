@@ -30,6 +30,7 @@ http_aria2_global_init(void);
 
 /**
  * @brief Decrement the global initialization reference count.
+ * @return 0 on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_aria2_global_cleanup(void);

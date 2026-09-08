@@ -85,6 +85,7 @@ struct AbstractHttpActorHooks {
 /**
  * @brief Register external actor hooks.
  * @param[in] hooks The hooks structure.
+ * @return 0 on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_actor_set_hooks(const struct AbstractHttpActorHooks *hooks);

@@ -38,6 +38,7 @@ http_winhttp_global_init(void);
 /**
  * @brief Cleanup global WinHTTP environment.
  * No-op for WinHTTP.
+ * @return 0 on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_winhttp_global_cleanup(void);

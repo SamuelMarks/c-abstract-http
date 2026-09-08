@@ -156,6 +156,7 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
 /**
  * @brief Destroy the thread pool, waiting for tasks to complete.
  * @param[in] pool The thread pool.
+ * @return 0 on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool);

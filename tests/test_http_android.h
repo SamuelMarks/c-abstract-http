@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file test_http_android.h
  * @brief Unit tests for the Android Transport Backend.
@@ -97,5 +97,3 @@ SUITE(http_android_suite) {
 #endif /* __cplusplus */
 
 #endif /* C_ABSTRACT_HTTP_TEST_HTTP_ANDROID_H */
-
-/* LCOV_EXCL_BR_STOP */

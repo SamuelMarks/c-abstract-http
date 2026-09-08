@@ -28,7 +28,7 @@
 enum c_abstract_http_error
 c_abstract_http_sse_init(struct HttpRequest *req,
                          const struct c_abstract_http_sse_config *config) {
-  int res;
+  enum c_abstract_http_error res;
 
   LOG_DEBUG("c_abstract_http_sse_init: Entering");
   if (!req) {
@@ -37,36 +37,36 @@ c_abstract_http_sse_init(struct HttpRequest *req,
   }
 
   res = http_headers_add(&req->headers, "Accept", "text/event-stream");
-  if (res != 0) {
+  if (res != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("c_abstract_http_sse_init: Error http_headers_add (Accept) "
               "failed with %d",
-              res);
+              (int)res);
     return res;
   }
 
   res = http_headers_add(&req->headers, "Connection", "keep-alive");
-  if (res != 0) {
+  if (res != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("c_abstract_http_sse_init: Error http_headers_add (Connection) "
               "failed with %d",
-              res);
+              (int)res);
     return res;
   }
 
   res = http_headers_add(&req->headers, "Cache-Control", "no-cache");
-  if (res != 0) {
+  if (res != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("c_abstract_http_sse_init: Error http_headers_add "
               "(Cache-Control) failed with %d",
-              res);
+              (int)res);
     return res;
   }
 
   if (config && config->last_event_id) {
     res =
         http_headers_add(&req->headers, "Last-Event-ID", config->last_event_id);
-    if (res != 0) {
+    if (res != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("c_abstract_http_sse_init: Error http_headers_add "
                 "(Last-Event-ID) failed with %d",
-                res);
+                (int)res);
       return res;
     }
   }
@@ -75,7 +75,7 @@ c_abstract_http_sse_init(struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int sse_strdup(const char *s, char **out) {
+static enum c_abstract_http_error sse_strdup(const char *s, char **out) {
   size_t len;
   char *copy;
   len = strlen(s);
@@ -159,9 +159,9 @@ void sse_parser_destroy(struct sse_parser_ctx *ctx) {
   memset(ctx, 0, sizeof(*ctx));
 }
 
-static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
-                            size_t len) {
-  int dup_rc;
+static enum c_abstract_http_error
+sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
+  enum c_abstract_http_error dup_rc;
   const char *colon;
   size_t field_len;
   const char *value;
@@ -191,8 +191,9 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
     free(ctx->current_event);
     ctx->current_event = NULL;
     dup_rc = sse_strdup("message", &ctx->current_event);
-    if (dup_rc != 0) {
-      LOG_DEBUG("sse_process_line: Error sse_strdup failed with %d", dup_rc);
+    if (dup_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("sse_process_line: Error sse_strdup failed with %d",
+                (int)dup_rc);
       return dup_rc;
     }
     ctx->data_offset = 0;
@@ -266,8 +267,7 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
     }
   } else if (field_len == 5 && memcmp(line, "retry", 5) == 0) {
     char num_buf[32];
-    /* LCOV_EXCL_START */ size_t copy_len =
-        value_len < 31 ? value_len : 31; /* LCOV_EXCL_STOP */
+    size_t copy_len = value_len < 31 ? value_len : 31;
     memcpy(num_buf, value, copy_len);
     num_buf[copy_len] = '\0';
     ctx->retry_ms = atoi(num_buf);
@@ -279,8 +279,11 @@ static int sse_process_line(struct sse_parser_ctx *ctx, const char *line,
 enum c_abstract_http_error sse_parser_feed(struct sse_parser_ctx *ctx,
                                            const char *chunk, size_t len) {
   size_t i;
+  char c;
+  enum c_abstract_http_error p_rc;
+
   for (i = 0; i < len; ++i) {
-    char c = chunk[i];
+    c = chunk[i];
 
     if (c == '\r' || c == '\n') {
       /* Process line */
@@ -317,9 +320,9 @@ enum c_abstract_http_error sse_parser_feed(struct sse_parser_ctx *ctx,
                    ignore it. */
                 /* For now, just drop \r. */
     } else if (c == '\n') {
-      int res = sse_process_line(ctx, ctx->line_buffer, ctx->line_offset);
-      if (res != 0)
-        return res;
+      p_rc = sse_process_line(ctx, ctx->line_buffer, ctx->line_offset);
+      if (p_rc != C_ABSTRACT_HTTP_SUCCESS)
+        return p_rc;
       ctx->line_offset = 0;
     } else {
       if (ctx->line_offset + 1 >= ctx->line_capacity) {
@@ -475,16 +478,15 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
     rc = c_abstract_http_sse_sync_read_loop(client, req, on_evt, on_err,
                                             on_close, user_data, &exit_flag);
 
-    /* LCOV_EXCL_START */ if (rc !=
-                              C_ABSTRACT_HTTP_SUCCESS) { /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ if (on_err)                  /* LCOV_EXCL_STOP */
-        /* LCOV_EXCL_START */ on_err(rc, user_data);     /* LCOV_EXCL_STOP */
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (on_err)
+        on_err(rc, user_data);
       return rc;
     }
     /* We still return success here because the "registration" succeeded, it
        just blocked. A true async interface without a thread pool requires
        native event loop hooks, which we do not currently mandate SSE parsers to
        intercept natively here yet. */
-    /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_SUCCESS; /* LCOV_EXCL_STOP */
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 }

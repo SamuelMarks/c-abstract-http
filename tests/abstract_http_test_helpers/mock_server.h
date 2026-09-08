@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file mock_server.h
  * @brief Lightweight, cross-platform TCP server for integration testing.
@@ -102,5 +102,3 @@ extern void abstract_http_mock_server_force_fd(MockServerPtr server, int fd);
 #endif /* __cplusplus */
 
 #endif /* ABSTRACT_HTTP_TEST_HELPERS_MOCK_SERVER_H */
-
-/* LCOV_EXCL_BR_STOP */

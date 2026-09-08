@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 int g_mock_pthread_create_sync = 0;
 /**
  * @file test_http_apple.h
@@ -27,557 +27,409 @@ extern "C" {
 #include "abstract_http_test_helpers/mock_server.h"
 /* clang-format on */
 
-static int
-mock_on_chunk_cb(void *user_data, const void *chunk,
-                 /* LCOV_EXCL_START */ size_t len) {   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ int *calls = (int *)user_data; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ (void)chunk;                   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ (void)len;                     /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ (*calls)++;                    /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ return 0;                      /* LCOV_EXCL_STOP */
+static int mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
+  int *calls = (int *)user_data;
+  (void)chunk;
+  (void)len;
+  (*calls)++;
+  return 0;
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-/* LCOV_EXCL_START */ TEST test_apple_oom_branches(void) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ struct HttpTransportContext *ctx =
-      NULL; /* LCOV_EXCL_STOP */
+TEST test_apple_oom_branches(void) {
+  struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
-  /* LCOV_EXCL_START */ struct HttpResponse *res = NULL; /* LCOV_EXCL_STOP */
+  struct HttpResponse *res = NULL;
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_context_init(&ctx)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
 
 #if defined(__APPLE__)
 
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_url_str",
-                                  &req.url));  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req);          /* LCOV_EXCL_STOP */
+            c_abstract_http_mock_strdup("http://fail_url_str", &req.url));
+  req.method = HTTP_GET;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
 
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_url",
-                                  &req.url));  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req);          /* LCOV_EXCL_STOP */
+            c_abstract_http_mock_strdup("http://fail_url", &req.url));
+  req.method = HTTP_GET;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
 
   /* fail_url_ref removed because urlRef parsing was optimized out */
 
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_request_ref",
-                                  &req.url));  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
+            c_abstract_http_mock_strdup("http://fail_request_ref", &req.url));
+  req.method = HTTP_GET;
   {
-    /* LCOV_EXCL_START */ int debug_rc =
-        http_apple_send(ctx, &req, &res); /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
-                                    debug_rc); /* LCOV_EXCL_STOP */
+    int debug_rc = http_apple_send(ctx, &req, &res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, debug_rc);
   }
-  /* LCOV_EXCL_START */ http_request_free(&req); /* LCOV_EXCL_STOP */
+  http_request_free(&req);
 
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_body_data",
-                                  &req.url));   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_POST; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("test",
-                                  (char **)&req.body)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.body_len = 4;               /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req);          /* LCOV_EXCL_STOP */
+            c_abstract_http_mock_strdup("http://fail_body_data", &req.url));
+  req.method = HTTP_POST;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("test", (char **)&req.body));
+  req.body_len = 4;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
 
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_read_stream",
-                                  &req.url));  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req);          /* LCOV_EXCL_STOP */
+            c_abstract_http_mock_strdup("http://fail_read_stream", &req.url));
+  req.method = HTTP_GET;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_read_stream_open",
-                                  &req.url));  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req);          /* LCOV_EXCL_STOP */
+      c_abstract_http_mock_strdup("http://fail_read_stream_open", &req.url));
+  req.method = HTTP_GET;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
 
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_mutable_data",
-                                  &req.url));   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_POST; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.read_chunk =
-      (http_read_chunk_fn)1;                        /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.expected_body_len = 10; /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req);          /* LCOV_EXCL_STOP */
+            c_abstract_http_mock_strdup("http://fail_mutable_data", &req.url));
+  req.method = HTTP_POST;
+  req.read_chunk = (http_read_chunk_fn)1;
+  req.expected_body_len = 10;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
 
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_cb_rc",
-                                  &req.url));   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_POST; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("test",
-                                  (char **)&req.body));  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.body_len = 4;                /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.on_chunk = mock_on_chunk_cb; /* LCOV_EXCL_STOP */
+            c_abstract_http_mock_strdup("http://fail_cb_rc", &req.url));
+  req.method = HTTP_POST;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("test", (char **)&req.body));
+  req.body_len = 4;
+  req.on_chunk = mock_on_chunk_cb;
   {
-    /* LCOV_EXCL_START */ int calls = 0;                   /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ req.on_chunk_user_data = &calls; /* LCOV_EXCL_STOP */
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
-              /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                    &res)); /* LCOV_EXCL_STOP */
+    int calls = 0;
+    req.on_chunk_user_data = &calls;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
   }
-  /* LCOV_EXCL_START */ http_request_free(&req); /* LCOV_EXCL_STOP */
+  http_request_free(&req);
 #endif
 
-  /* LCOV_EXCL_START */ http_apple_context_free(ctx); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ PASS();                       /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }                               /* LCOV_EXCL_STOP */
+  http_apple_context_free(ctx);
+  PASS();
+}
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-/* LCOV_EXCL_START */ TEST test_apple_oom(void) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ struct HttpTransportContext *ctx =
-      NULL; /* LCOV_EXCL_STOP */
+TEST test_apple_oom(void) {
+  struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
-  /* LCOV_EXCL_START */ struct HttpResponse *res = NULL; /* LCOV_EXCL_STOP */
+  struct HttpResponse *res = NULL;
 
-  /* LCOV_EXCL_START */ g_mock_alloc_fail = 1;  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ g_mock_alloc_count = 0; /* LCOV_EXCL_STOP */
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
   {
-    /* LCOV_EXCL_START */ int rc_test_tmp =
-        http_apple_context_init(&ctx);           /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ g_mock_alloc_fail = 0; /* LCOV_EXCL_STOP */
-    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                  /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
+    int rc_test_tmp = http_apple_context_init(&ctx);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_context_init(&ctx)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
 
-  /* LCOV_EXCL_START */ req.url = "http://example.com"; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.method = HTTP_GET;          /* LCOV_EXCL_STOP */
+  req.url = "http://example.com";
+  req.method = HTTP_GET;
 
   /* Test 124: malloc for *res fails */
-  /* LCOV_EXCL_START */ g_mock_alloc_fail = 1;  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ g_mock_alloc_count = 0; /* LCOV_EXCL_STOP */
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
   {
-    /* LCOV_EXCL_START */ int rc_test_tmp =
-        http_apple_send(ctx, &req, &res);        /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ g_mock_alloc_fail = 0; /* LCOV_EXCL_STOP */
-    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp,
-                  /* LCOV_EXCL_START */ "%d"); /* LCOV_EXCL_STOP */
+    int rc_test_tmp = http_apple_send(ctx, &req, &res);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
-  /* LCOV_EXCL_START */ http_apple_context_free(ctx); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ PASS();                       /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }                               /* LCOV_EXCL_STOP */
+  http_apple_context_free(ctx);
+  PASS();
+}
 #endif
 
 /** @brief Documented */
-/* LCOV_EXCL_START */ TEST
-test_apple_send_mock_server(void) { /* LCOV_EXCL_STOP */
+TEST test_apple_send_mock_server(void) {
 #if defined(__APPLE__)
-  /* LCOV_EXCL_START */ struct HttpTransportContext *ctx =
-      NULL; /* LCOV_EXCL_STOP */
+  struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
-  /* LCOV_EXCL_START */ struct HttpResponse *res = NULL; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ MockServerPtr server = NULL;     /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ int port = 0;                    /* LCOV_EXCL_STOP */
+  struct HttpResponse *res = NULL;
+  MockServerPtr server = NULL;
+  int port = 0;
   char url[256];
-  /* LCOV_EXCL_START */ int on_chunk_calls = 0; /* LCOV_EXCL_STOP */
+  int on_chunk_calls = 0;
   struct MockServerRequest mock_req;
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ mock_server_init(&server)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ mock_server_start(server)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ port =
-      math_mock_server_get_port(server);  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT(port > 0); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
+  port = math_mock_server_get_port(server);
+  ASSERT(port > 0);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/echo",
-            /* LCOV_EXCL_START */ port); /* LCOV_EXCL_STOP */
+  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/echo", port);
 #else
-  /* LCOV_EXCL_START */ sprintf(url, "http://127.0.0.1:%d/echo",
-                                port); /* LCOV_EXCL_STOP */
+  sprintf(url, "http://127.0.0.1:%d/echo", port);
 #endif
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_context_init(&ctx)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
 
   /* Normal request */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      (char *)malloc(strlen(url) + 1); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)malloc(strlen(url) + 1);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(req.url, strlen(url) + 1, url);
 #else
-  /* LCOV_EXCL_START */ strcpy(req.url, url); /* LCOV_EXCL_STOP */
+  strcpy(req.url, url);
 #endif
-  /* LCOV_EXCL_START */ req.method = HTTP_POST; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("Hello Apple!",
-                                  (char **)&req.body)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.body_len =
-      strlen("Hello Apple!"); /* LCOV_EXCL_STOP */
-
+  req.method = HTTP_POST;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT(res != NULL);              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(200, res->status_code); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT(res->body_len > 0);        /* LCOV_EXCL_STOP */
+            c_abstract_http_mock_strdup("Hello Apple!", (char **)&req.body));
+  req.body_len = strlen("Hello Apple!");
 
-  /* LCOV_EXCL_START */ http_response_free(res); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(res);               /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ res = NULL;              /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+  ASSERT(res != NULL);
+  ASSERT_EQ(200, res->status_code);
+  ASSERT(res->body_len > 0);
+
+  http_response_free(res);
+  free(res);
+  http_request_free(&req);
+  res = NULL;
 
   /* On-chunk request */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
-      mock_server_wait_for_request(server, &mock_req));
-  /* LCOV_EXCL_START */ mock_server_request_cleanup(
-      &mock_req); /* LCOV_EXCL_STOP */
-
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      (char *)malloc(strlen(url) + 1); /* LCOV_EXCL_STOP */
+            mock_server_wait_for_request(server, &mock_req));
+  mock_server_request_cleanup(&mock_req);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)malloc(strlen(url) + 1);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(req.url, strlen(url) + 1, url);
 #else
-  /* LCOV_EXCL_START */ strcpy(req.url, url); /* LCOV_EXCL_STOP */
+  strcpy(req.url, url);
 #endif
-  /* LCOV_EXCL_START */ req.method = HTTP_GET;           /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.on_chunk = mock_on_chunk_cb; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.on_chunk_user_data =
-      &on_chunk_calls; /* LCOV_EXCL_STOP */
+  req.method = HTTP_GET;
+  req.on_chunk = mock_on_chunk_cb;
+  req.on_chunk_user_data = &on_chunk_calls;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+  ASSERT(res != NULL);
+  ASSERT_EQ(200, res->status_code);
+  ASSERT(on_chunk_calls > 0);
+
+  http_response_free(res);
+  free(res);
+  http_request_free(&req);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT(res != NULL);              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(200, res->status_code); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT(on_chunk_calls > 0);       /* LCOV_EXCL_STOP */
+            mock_server_wait_for_request(server, &mock_req));
+  mock_server_request_cleanup(&mock_req);
 
-  /* LCOV_EXCL_START */ http_response_free(res); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(res);               /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req); /* LCOV_EXCL_STOP */
-
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
-      mock_server_wait_for_request(server, &mock_req));
-  /* LCOV_EXCL_START */ mock_server_request_cleanup(
-      &mock_req); /* LCOV_EXCL_STOP */
-
-  /* LCOV_EXCL_START */ http_apple_context_free(ctx); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ mock_server_destroy(server);  /* LCOV_EXCL_STOP */
+  http_apple_context_free(ctx);
+  mock_server_destroy(server);
 #endif
-  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
+  PASS();
+}
 
 /** @brief Documented */
-/* LCOV_EXCL_START */ TEST test_apple_lifecycle(void) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ struct HttpTransportContext *ctx =
-      NULL; /* LCOV_EXCL_STOP */
+TEST test_apple_lifecycle(void) {
+  struct HttpTransportContext *ctx = NULL;
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_global_init()); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_global_init());
 
   /* Init */
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_ERR_INVAL,
-      /* LCOV_EXCL_START */ http_apple_context_init(NULL)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_context_init(&ctx)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT(ctx != NULL);                /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_context_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
+  ASSERT(ctx != NULL);
 
   /* Free */
-  /* LCOV_EXCL_START */ http_apple_context_free(ctx);  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_apple_context_free(NULL); /* LCOV_EXCL_STOP */
+  http_apple_context_free(ctx);
+  http_apple_context_free(NULL);
 
   {
     enum c_abstract_http_error rc_test = http_apple_global_cleanup();
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
 
-  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
+  PASS();
+}
 
 /** @brief Documented */
-/* LCOV_EXCL_START */ TEST test_apple_config(void) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ struct HttpTransportContext *ctx =
-      NULL; /* LCOV_EXCL_STOP */
+TEST test_apple_config(void) {
+  struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_context_init(&ctx)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT(ctx != NULL);                /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
+  ASSERT(ctx != NULL);
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_config_init(&cfg)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            /* LCOV_EXCL_START */ http_apple_config_apply(
-                NULL, &cfg)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            /* LCOV_EXCL_START */ http_apple_config_apply(
-                ctx, NULL)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_apple_config_apply(
-                ctx, &cfg)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_config_apply(NULL, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_config_apply(ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
 
-  /* LCOV_EXCL_START */ http_config_free(&cfg);       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_apple_context_free(ctx); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ PASS();                       /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }                               /* LCOV_EXCL_STOP */
+  http_config_free(&cfg);
+  http_apple_context_free(ctx);
+  PASS();
+}
 
 /** @brief Documented */
-/* LCOV_EXCL_START */ TEST test_apple_send_invalid(void) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ struct HttpTransportContext *ctx =
-      NULL; /* LCOV_EXCL_STOP */
+TEST test_apple_send_invalid(void) {
+  struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
-  /* LCOV_EXCL_START */ struct HttpResponse *res = NULL; /* LCOV_EXCL_STOP */
+  struct HttpResponse *res = NULL;
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_context_init(&ctx)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            /* LCOV_EXCL_START */ http_apple_send(NULL, &req,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, NULL,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                  NULL)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(NULL, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, NULL, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, NULL));
 
 #if defined(__APPLE__)
   /* Valid input but we need to mock a real URL so it fails gracefully */
-  /* LCOV_EXCL_START */ req.url =
-      (char *)malloc(sizeof("http://localhost:1")); /* LCOV_EXCL_STOP */
+  req.url = (char *)malloc(sizeof("http://localhost:1"));
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(req.url, sizeof("http://localhost:1"), "http://localhost:1");
 #else
-  /* LCOV_EXCL_START */ strcpy(req.url,
-                               "http://localhost:1"); /* LCOV_EXCL_STOP */
+  strcpy(req.url, "http://localhost:1");
 #endif
-  /* LCOV_EXCL_START */ req.method = HTTP_GET; /* LCOV_EXCL_STOP */
+  req.method = HTTP_GET;
   /* Might fail with C_ABSTRACT_HTTP_ERR_IO due to no connection or return an
    * allocated res */
   {
-    enum c_abstract_http_error rc =
-        /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                              &res); /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ ASSERT(rc != 0);           /* LCOV_EXCL_STOP */
+    enum c_abstract_http_error rc = http_apple_send(ctx, &req, &res);
+    ASSERT(rc != 0);
   }
 #else
   /* Valid input but not implemented (or no Apple OS) should return ENOSYS */
   ASSERT_EQ(ENOSYS, http_apple_send(ctx, &req, &res));
 #endif
 
-  /* LCOV_EXCL_START */ http_request_free(&req);      /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_apple_context_free(ctx); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ PASS();                       /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }                               /* LCOV_EXCL_STOP */
+  http_request_free(&req);
+  http_apple_context_free(ctx);
+  PASS();
+}
 
 /** @brief Documented */
-/* LCOV_EXCL_START */ TEST
-test_apple_send_all_methods(void) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ struct HttpTransportContext *ctx =
-      NULL; /* LCOV_EXCL_STOP */
+TEST test_apple_send_all_methods(void) {
+  struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
-  /* LCOV_EXCL_START */ struct HttpResponse *res = NULL; /* LCOV_EXCL_STOP */
+  struct HttpResponse *res = NULL;
   struct HttpConfig cfg;
   int i;
   const enum HttpMethod methods[] = {
-      /* LCOV_EXCL_START */ /* LCOV_EXCL_STOP */
-      HTTP_POST,
-      HTTP_PUT,
-      HTTP_DELETE,
-      HTTP_PATCH,
-      HTTP_HEAD,
-      HTTP_OPTIONS,
-      HTTP_TRACE,
-      HTTP_CONNECT,
-      (enum HttpMethod)99 /* Invalid
-                             method */
+
+      HTTP_POST,    HTTP_PUT,   HTTP_DELETE,  HTTP_PATCH,         HTTP_HEAD,
+      HTTP_OPTIONS, HTTP_TRACE, HTTP_CONNECT, (enum HttpMethod)99 /* Invalid
+                                                                     method */
   };
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_context_init(&ctx)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_config_init(&cfg)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ cfg.verify_peer = 0;               /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_apple_config_apply(
-                ctx, &cfg));                    /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_config_free(&cfg); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  cfg.verify_peer = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
+  http_config_free(&cfg);
 
-  /* LCOV_EXCL_START */ for (i = 0; i < 9; i++) { /* LCOV_EXCL_STOP */
-    ASSERT_EQ(
-        C_ABSTRACT_HTTP_SUCCESS,
-        /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ req.url =
-        (char *)malloc(sizeof("http://localhost:1")); /* LCOV_EXCL_STOP */
+  for (i = 0; i < 9; i++) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    req.url = (char *)malloc(sizeof("http://localhost:1"));
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     strcpy_s(req.url, sizeof("http://localhost:1"), "http://localhost:1");
 #else
-    /* LCOV_EXCL_START */ strcpy(req.url,
-                                 "http://localhost:1"); /* LCOV_EXCL_STOP */
+    strcpy(req.url, "http://localhost:1");
 #endif
-    /* LCOV_EXCL_START */ req.method = methods[i]; /* LCOV_EXCL_STOP */
+    req.method = methods[i];
     {
       enum c_abstract_http_error rc_test =
           http_headers_add(&req.headers, "X-Test", "Value");
       if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
         printf("Error: %d\n", (int)rc_test);
       }
-    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+    }
 
-    /* LCOV_EXCL_START */ if (i == 8) { /* LCOV_EXCL_STOP */
+    if (i == 8) {
       /* Invalid method may fail differently, let's just see if it crashes */
       {
         enum c_abstract_http_error rc_test = http_apple_send(ctx, &req, &res);
         if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
           printf("Error: %d\n", (int)rc_test);
         }
-      /* LCOV_EXCL_START */ }      /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ } else { /* LCOV_EXCL_STOP */
-      enum c_abstract_http_error rc =
-          /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                &res); /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ ASSERT(rc != 0);           /* LCOV_EXCL_STOP */
+      }
+    } else {
+      enum c_abstract_http_error rc = http_apple_send(ctx, &req, &res);
+      ASSERT(rc != 0);
     }
-    /* LCOV_EXCL_START */ http_request_free(&req); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ }                          /* LCOV_EXCL_STOP */
-
-  /* LCOV_EXCL_START */ http_apple_context_free(ctx); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ PASS();                       /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }                               /* LCOV_EXCL_STOP */
-
-static int
-mock_read_chunk(void *user_data, void *buf,
-                /* LCOV_EXCL_START */ size_t buf_len, /* LCOV_EXCL_STOP */
-                size_t *out_read) {
-  /* LCOV_EXCL_START */ int *calls = (int *)user_data; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ if (*calls >= 2) {             /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ *out_read = 0;               /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ return 0;                    /* LCOV_EXCL_STOP */
+    http_request_free(&req);
   }
-  /* LCOV_EXCL_START */ (*calls)++;                   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ if (buf_len > 4)              /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ buf_len = 4;                /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ memcpy(buf, "test", buf_len); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ *out_read = buf_len;          /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ return 0;                     /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }                               /* LCOV_EXCL_STOP */
 
-static int
-mock_read_chunk_fail(void *user_data, void *buf,
-                     /* LCOV_EXCL_START */ size_t buf_len, /* LCOV_EXCL_STOP */
-                     size_t *out_read) {
-  /* LCOV_EXCL_START */ (void)user_data;               /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ (void)buf;                     /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ (void)buf_len;                 /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ (void)out_read;                /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ return C_ABSTRACT_HTTP_ERR_IO; /* LCOV_EXCL_STOP */
+  http_apple_context_free(ctx);
+  PASS();
+}
+
+static int mock_read_chunk(void *user_data, void *buf, size_t buf_len,
+                           size_t *out_read) {
+  int *calls = (int *)user_data;
+  if (*calls >= 2) {
+    *out_read = 0;
+    return 0;
+  }
+  (*calls)++;
+  if (buf_len > 4)
+    buf_len = 4;
+  memcpy(buf, "test", buf_len);
+  *out_read = buf_len;
+  return 0;
+}
+
+static int mock_read_chunk_fail(void *user_data, void *buf, size_t buf_len,
+                                size_t *out_read) {
+  (void)user_data;
+  (void)buf;
+  (void)buf_len;
+  (void)out_read;
+  return C_ABSTRACT_HTTP_ERR_IO;
 }
 
 /** @brief Documented */
-/* LCOV_EXCL_START */ TEST test_apple_read_chunk(void) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ struct HttpTransportContext *ctx =
-      NULL; /* LCOV_EXCL_STOP */
+TEST test_apple_read_chunk(void) {
+  struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
-  /* LCOV_EXCL_START */ struct HttpResponse *res = NULL; /* LCOV_EXCL_STOP */
+  struct HttpResponse *res = NULL;
   struct HttpConfig cfg;
-  /* LCOV_EXCL_START */ int calls = 0; /* LCOV_EXCL_STOP */
+  int calls = 0;
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_context_init(&ctx)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_config_init(&cfg)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ cfg.verify_peer = 0;               /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_apple_config_apply(
-                ctx, &cfg));                    /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_config_free(&cfg); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  cfg.verify_peer = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
+  http_config_free(&cfg);
 
   /* Success chunk */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      (char *)malloc(sizeof("http://localhost:1")); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)malloc(sizeof("http://localhost:1"));
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(req.url, sizeof("http://localhost:1"), "http://localhost:1");
 #else
-  /* LCOV_EXCL_START */ strcpy(req.url,
-                               "http://localhost:1"); /* LCOV_EXCL_STOP */
+  strcpy(req.url, "http://localhost:1");
 #endif
-  /* LCOV_EXCL_START */ req.method = HTTP_POST;            /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.read_chunk = mock_read_chunk;  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.read_chunk_user_data = &calls; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.expected_body_len = 8;         /* LCOV_EXCL_STOP */
+  req.method = HTTP_POST;
+  req.read_chunk = mock_read_chunk;
+  req.read_chunk_user_data = &calls;
+  req.expected_body_len = 8;
 
   /* Will fail to connect but it hits the read_chunk loop */
   {
@@ -585,197 +437,159 @@ mock_read_chunk_fail(void *user_data, void *buf,
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ }                          /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req);   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ if (res) {                 /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ http_response_free(res); /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ free(res);               /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ res = NULL;              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ }                          /* LCOV_EXCL_STOP */
+  }
+  http_request_free(&req);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
 
   /* Fail chunk */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_request_init(&req)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.url =
-      (char *)malloc(sizeof("http://localhost:1")); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)malloc(sizeof("http://localhost:1"));
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(req.url, sizeof("http://localhost:1"), "http://localhost:1");
 #else
-  /* LCOV_EXCL_START */ strcpy(req.url,
-                               "http://localhost:1"); /* LCOV_EXCL_STOP */
+  strcpy(req.url, "http://localhost:1");
 #endif
-  /* LCOV_EXCL_START */ req.method = HTTP_POST; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.read_chunk =
-      mock_read_chunk_fail;                              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.read_chunk_user_data = NULL; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req.expected_body_len = 8;       /* LCOV_EXCL_STOP */
+  req.method = HTTP_POST;
+  req.read_chunk = mock_read_chunk_fail;
+  req.read_chunk_user_data = NULL;
+  req.expected_body_len = 8;
 
   /* Will fail with C_ABSTRACT_HTTP_ERR_IO */
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
-            /* LCOV_EXCL_START */ http_apple_send(ctx, &req,
-                                                  &res)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req);          /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ if (res) {                        /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ http_response_free(res);        /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ free(res);                      /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ res = NULL;                     /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ }                                 /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
+  http_request_free(&req);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
 
-  /* LCOV_EXCL_START */ http_apple_context_free(ctx); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ PASS();                       /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }                               /* LCOV_EXCL_STOP */
+  http_apple_context_free(ctx);
+  PASS();
+}
 
 /** @brief Documented */
 
 /** @brief Documented */
-/* LCOV_EXCL_START */ TEST test_apple_send_multi(void) { /* LCOV_EXCL_STOP */
+TEST test_apple_send_multi(void) {
 #if defined(__APPLE__)
-  /* LCOV_EXCL_START */ enum c_abstract_http_error rc =
-      C_ABSTRACT_HTTP_SUCCESS;                       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ MockServerPtr server = NULL; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ struct HttpTransportContext *ctx =
-      NULL; /* LCOV_EXCL_STOP */
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  MockServerPtr server = NULL;
+  struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req1, req2;
   struct HttpMultiRequest multi;
-  /* LCOV_EXCL_START */ struct HttpFuture *future1 = NULL,
-                                          *future2 = NULL; /* LCOV_EXCL_STOP */
+  struct HttpFuture *future1 = NULL, *future2 = NULL;
   struct HttpFuture *futures[2];
-  /* LCOV_EXCL_START */ struct ModalityEventLoop *loop =
-      NULL; /* LCOV_EXCL_STOP */
+  struct ModalityEventLoop *loop = NULL;
   int port;
   char url[256];
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ mock_server_init(&server)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ mock_server_start(server)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ port =
-      math_mock_server_get_port(server); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
+  port = math_mock_server_get_port(server);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/echo",
-            /* LCOV_EXCL_START */ port); /* LCOV_EXCL_STOP */
+  sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/echo", port);
 #else
-  /* LCOV_EXCL_START */ sprintf(url, "http://127.0.0.1:%d/echo",
-                                port); /* LCOV_EXCL_STOP */
+  sprintf(url, "http://127.0.0.1:%d/echo", port);
 #endif
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_context_init(&ctx)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
   {
     enum c_abstract_http_error rc_test = http_request_init(&req1);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup(url, &req1.url)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.method = HTTP_GET;     /* LCOV_EXCL_STOP */
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup(url, &req1.url));
+  req1.method = HTTP_GET;
 
   {
     enum c_abstract_http_error rc_test = http_request_init(&req2);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup(url, &req2.url)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req2.method = HTTP_GET;     /* LCOV_EXCL_STOP */
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup(url, &req2.url));
+  req2.method = HTTP_GET;
 
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
   {
     enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req1);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
   {
     enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req2);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
 
-  future1 = (struct HttpFuture *)calloc(
-      /* LCOV_EXCL_START */ 1, sizeof(struct HttpFuture)); /* LCOV_EXCL_STOP */
-  future2 = (struct HttpFuture *)calloc(
-      /* LCOV_EXCL_START */ 1, sizeof(struct HttpFuture)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ futures[0] = future1;              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ futures[1] = future2;              /* LCOV_EXCL_STOP */
+  future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  future2 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[0] = future1;
+  futures[1] = future2;
 
-  /* LCOV_EXCL_START */ rc =
-      http_apple_send_multi(ctx, loop, &multi, futures); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-                                  rc); /* LCOV_EXCL_STOP */
+  rc = http_apple_send_multi(ctx, loop, &multi, futures);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
-  /* LCOV_EXCL_START */ while (!future1->is_ready ||
-                               !future2->is_ready) { /* LCOV_EXCL_STOP */
+  while (!future1->is_ready || !future2->is_ready) {
     {
       enum c_abstract_http_error rc_test = http_loop_tick(loop);
       if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
         printf("Error: %d\n", (int)rc_test);
       }
-    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+    }
   }
 
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      200, future1->response->status_code); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      200, future2->response->status_code); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(200, future1->response->status_code);
+  ASSERT_EQ(200, future2->response->status_code);
 
-  /* LCOV_EXCL_START */ http_response_free(
-      future1->response);                        /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(future1->response); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_response_free(
-      future2->response);                        /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(future2->response); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(future1);           /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(future2);           /* LCOV_EXCL_STOP */
+  http_response_free(future1->response);
+  free(future1->response);
+  http_response_free(future2->response);
+  free(future2->response);
+  free(future1);
+  free(future2);
 
   /* Test invalid args */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_STOP */
-      http_apple_send_multi(NULL, loop, &multi, futures));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_apple_send_multi(NULL, loop, &multi, futures));
 
-  /* LCOV_EXCL_START */ http_multi_request_free(&multi); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req1);        /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req2);        /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_apple_context_free(ctx);    /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_loop_free(loop);            /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ mock_server_destroy(server);     /* LCOV_EXCL_STOP */
+  http_multi_request_free(&multi);
+  http_request_free(&req1);
+  http_request_free(&req2);
+  http_apple_context_free(ctx);
+  http_loop_free(loop);
+  mock_server_destroy(server);
 #endif
-  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
+  PASS();
+}
 
-/* LCOV_EXCL_START */ TEST
-test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
+TEST test_apple_send_multi_branches(void) {
 #if defined(__APPLE__)
-  /* LCOV_EXCL_START */ struct HttpTransportContext *ctx =
-      NULL; /* LCOV_EXCL_STOP */
+  struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req1;
   struct HttpMultiRequest multi;
-  /* LCOV_EXCL_START */ struct HttpFuture *future1 = NULL; /* LCOV_EXCL_STOP */
+  struct HttpFuture *future1 = NULL;
   struct HttpFuture *futures[2];
-  /* LCOV_EXCL_START */ struct ModalityEventLoop *loop =
-      NULL; /* LCOV_EXCL_STOP */
+  struct ModalityEventLoop *loop = NULL;
 
-  ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      /* LCOV_EXCL_START */ http_apple_context_init(&ctx)); /* LCOV_EXCL_STOP */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            /* LCOV_EXCL_START */ http_loop_init(&loop)); /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
   /* Test fail_url_str */
   {
@@ -783,49 +597,43 @@ test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_url_str",
-                                  &req1.url));  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.method = HTTP_GET; /* LCOV_EXCL_STOP */
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://fail_url_str", &req1.url));
+  req1.method = HTTP_GET;
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
   {
     enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req1);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  future1 = (struct HttpFuture *)calloc(
-      /* LCOV_EXCL_START */ 1, sizeof(struct HttpFuture)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ futures[0] = future1;              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
-      http_apple_send_multi(ctx, loop, &multi, futures));
-  /* LCOV_EXCL_START */ while (!future1->is_ready) { /* LCOV_EXCL_STOP */
+  }
+  future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[0] = future1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_apple_send_multi(ctx, loop, &multi, futures));
+  while (!future1->is_ready) {
     {
       enum c_abstract_http_error rc_test = http_loop_tick(loop);
       if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
         printf("Error: %d\n", (int)rc_test);
       }
-    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+    }
   }
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_ERR_INVAL, /* LCOV_EXCL_STOP */
-      future1->response->status_code ? 0 : C_ABSTRACT_HTTP_ERR_INVAL);
-  /* LCOV_EXCL_START */ if (future1->response) { /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ http_response_free(
-        future1->response);                              /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ free(future1->response);       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ }                                /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(future1);                   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_multi_request_free(&multi); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req1);        /* LCOV_EXCL_STOP */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            future1->response->status_code ? 0 : C_ABSTRACT_HTTP_ERR_INVAL);
+  if (future1->response) {
+    http_response_free(future1->response);
+    free(future1->response);
+  }
+  free(future1);
+  http_multi_request_free(&multi);
+  http_request_free(&req1);
 
   /* Test fail_request_ref */
   {
@@ -833,46 +641,41 @@ test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_request_ref",
-                                  &req1.url));  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.method = HTTP_GET; /* LCOV_EXCL_STOP */
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://fail_request_ref", &req1.url));
+  req1.method = HTTP_GET;
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
   {
     enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req1);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  future1 = (struct HttpFuture *)calloc(
-      /* LCOV_EXCL_START */ 1, sizeof(struct HttpFuture)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ futures[0] = future1;              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
-      http_apple_send_multi(ctx, loop, &multi, futures));
-  /* LCOV_EXCL_START */ while (!future1->is_ready) { /* LCOV_EXCL_STOP */
+  }
+  future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[0] = future1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_apple_send_multi(ctx, loop, &multi, futures));
+  while (!future1->is_ready) {
     {
       enum c_abstract_http_error rc_test = http_loop_tick(loop);
       if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
         printf("Error: %d\n", (int)rc_test);
       }
-    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+    }
   }
-  /* LCOV_EXCL_START */ if (future1->response) { /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ http_response_free(
-        future1->response);                              /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ free(future1->response);       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ }                                /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(future1);                   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_multi_request_free(&multi); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req1);        /* LCOV_EXCL_STOP */
+  if (future1->response) {
+    http_response_free(future1->response);
+    free(future1->response);
+  }
+  free(future1);
+  http_multi_request_free(&multi);
+  http_request_free(&req1);
 
   /* Test fail_body_data */
   {
@@ -880,51 +683,44 @@ test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_body_data",
-                                  &req1.url));   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.method = HTTP_POST; /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("test",
-                                  (char **)&req1.body)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.body_len = 4;               /* LCOV_EXCL_STOP */
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://fail_body_data", &req1.url));
+  req1.method = HTTP_POST;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("test", (char **)&req1.body));
+  req1.body_len = 4;
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
   {
     enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req1);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  future1 = (struct HttpFuture *)calloc(
-      /* LCOV_EXCL_START */ 1, sizeof(struct HttpFuture)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ futures[0] = future1;              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
-      http_apple_send_multi(ctx, loop, &multi, futures));
-  /* LCOV_EXCL_START */ while (!future1->is_ready) { /* LCOV_EXCL_STOP */
+  }
+  future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[0] = future1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_apple_send_multi(ctx, loop, &multi, futures));
+  while (!future1->is_ready) {
     {
       enum c_abstract_http_error rc_test = http_loop_tick(loop);
       if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
         printf("Error: %d\n", (int)rc_test);
       }
-    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+    }
   }
-  /* LCOV_EXCL_START */ if (future1->response) { /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ http_response_free(
-        future1->response);                              /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ free(future1->response);       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ }                                /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(future1);                   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_multi_request_free(&multi); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req1);        /* LCOV_EXCL_STOP */
+  if (future1->response) {
+    http_response_free(future1->response);
+    free(future1->response);
+  }
+  free(future1);
+  http_multi_request_free(&multi);
+  http_request_free(&req1);
 
   /* Test fail_read_stream */
   {
@@ -932,46 +728,41 @@ test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_read_stream",
-                                  &req1.url));  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.method = HTTP_GET; /* LCOV_EXCL_STOP */
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://fail_read_stream", &req1.url));
+  req1.method = HTTP_GET;
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
   {
     enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req1);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  future1 = (struct HttpFuture *)calloc(
-      /* LCOV_EXCL_START */ 1, sizeof(struct HttpFuture)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ futures[0] = future1;              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
-      http_apple_send_multi(ctx, loop, &multi, futures));
-  /* LCOV_EXCL_START */ while (!future1->is_ready) { /* LCOV_EXCL_STOP */
+  }
+  future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[0] = future1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_apple_send_multi(ctx, loop, &multi, futures));
+  while (!future1->is_ready) {
     {
       enum c_abstract_http_error rc_test = http_loop_tick(loop);
       if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
         printf("Error: %d\n", (int)rc_test);
       }
-    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+    }
   }
-  /* LCOV_EXCL_START */ if (future1->response) { /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ http_response_free(
-        future1->response);                              /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ free(future1->response);       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ }                                /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(future1);                   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_multi_request_free(&multi); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req1);        /* LCOV_EXCL_STOP */
+  if (future1->response) {
+    http_response_free(future1->response);
+    free(future1->response);
+  }
+  free(future1);
+  http_multi_request_free(&multi);
+  http_request_free(&req1);
 
   /* Test fail_read_stream_open */
   {
@@ -979,78 +770,69 @@ test_apple_send_multi_branches(void) { /* LCOV_EXCL_STOP */
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
+  }
+  ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
-      c_abstract_http_mock_strdup("http://fail_read_stream_open",
-                                  &req1.url));  /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ req1.method = HTTP_GET; /* LCOV_EXCL_STOP */
+      c_abstract_http_mock_strdup("http://fail_read_stream_open", &req1.url));
+  req1.method = HTTP_GET;
   {
     enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+  }
   {
     enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req1);
     if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
       printf("Error: %d\n", (int)rc_test);
     }
-  /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
-  future1 = (struct HttpFuture *)calloc(
-      /* LCOV_EXCL_START */ 1, sizeof(struct HttpFuture)); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ futures[0] = future1;              /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ ASSERT_EQ(
-      C_ABSTRACT_HTTP_SUCCESS, /* LCOV_EXCL_STOP */
-      http_apple_send_multi(ctx, loop, &multi, futures));
-  /* LCOV_EXCL_START */ while (!future1->is_ready) { /* LCOV_EXCL_STOP */
+  }
+  future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[0] = future1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_apple_send_multi(ctx, loop, &multi, futures));
+  while (!future1->is_ready) {
     {
       enum c_abstract_http_error rc_test = http_loop_tick(loop);
       if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
         printf("Error: %d\n", (int)rc_test);
       }
-    /* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+    }
   }
-  /* LCOV_EXCL_START */ if (future1->response) { /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ http_response_free(
-        future1->response);                              /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ free(future1->response);       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ }                                /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ free(future1);                   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_multi_request_free(&multi); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_request_free(&req1);        /* LCOV_EXCL_STOP */
+  if (future1->response) {
+    http_response_free(future1->response);
+    free(future1->response);
+  }
+  free(future1);
+  http_multi_request_free(&multi);
+  http_request_free(&req1);
 
-  /* LCOV_EXCL_START */ http_apple_context_free(ctx); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ http_loop_free(loop);         /* LCOV_EXCL_STOP */
+  http_apple_context_free(ctx);
+  http_loop_free(loop);
 #endif
-  /* LCOV_EXCL_START */ PASS(); /* LCOV_EXCL_STOP */
-/* LCOV_EXCL_START */ }         /* LCOV_EXCL_STOP */
+  PASS();
+}
 
-/* LCOV_EXCL_START */ SUITE(http_apple_suite) { /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_TEST(
-      test_apple_send_multi_branches);                   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_TEST(test_apple_send_multi); /* LCOV_EXCL_STOP */
+SUITE(http_apple_suite) {
+  RUN_TEST(test_apple_send_multi_branches);
+  RUN_TEST(test_apple_send_multi);
 
-  /* LCOV_EXCL_START */ RUN_TEST(
-      test_apple_send_mock_server);                        /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_TEST(test_apple_read_chunk);   /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_TEST(test_apple_lifecycle);    /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_TEST(test_apple_config);       /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_TEST(test_apple_send_invalid); /* LCOV_EXCL_STOP */
-  /* LCOV_EXCL_START */ RUN_TEST(
-      test_apple_send_all_methods); /* LCOV_EXCL_STOP */
+  RUN_TEST(test_apple_send_mock_server);
+  RUN_TEST(test_apple_read_chunk);
+  RUN_TEST(test_apple_lifecycle);
+  RUN_TEST(test_apple_config);
+  RUN_TEST(test_apple_send_invalid);
+  RUN_TEST(test_apple_send_all_methods);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  /* LCOV_EXCL_START */ RUN_TEST(test_apple_oom_branches); /* LCOV_EXCL_STOP */
+  RUN_TEST(test_apple_oom_branches);
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  /* LCOV_EXCL_START */ RUN_TEST(test_apple_oom); /* LCOV_EXCL_STOP */
+  RUN_TEST(test_apple_oom);
 #endif
-/* LCOV_EXCL_START */ } /* LCOV_EXCL_STOP */
+}
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif /* C_ABSTRACT_HTTP_TEST_HTTP_APPLE_H */
-
-/* LCOV_EXCL_BR_STOP */

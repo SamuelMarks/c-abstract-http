@@ -355,7 +355,12 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
     free(p);
     return C_ABSTRACT_HTTP_ERR_IO;
   } else if (pid == 0) {
-    char *argv[] = {"test-worker", "--test-worker", NULL};
+    static char arg0[] = "test-worker";
+    static char arg1[] = "--test-worker";
+    char *argv[3];
+    argv[0] = arg0;
+    argv[1] = arg1;
+    argv[2] = NULL;
     (void)argv;
     free(p);
 
@@ -367,9 +372,8 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
     close((int)(size_t)parent_to_child->read_handle);
     close((int)(size_t)child_to_parent->write_handle);
 
-    /* LCOV_EXCL_START */ if (execv("/proc/self/exe", argv) ==
-                              -1) {   /* LCOV_EXCL_STOP */
-      /* LCOV_EXCL_START */ _exit(1); /* LCOV_EXCL_STOP */
+    if (execv("/proc/self/exe", argv) == -1) {
+      _exit(1);
     }
   } else {
     close((int)(size_t)parent_to_child->read_handle);
@@ -579,9 +583,8 @@ abstract_http_ipc_deserialize_request(const char *buf, size_t len,
   p = buf;
   end = buf + len;
 
-  /* LCOV_EXCL_START */ if ((rc = http_request_init(req)) !=
-                            0)       /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ return rc; /* LCOV_EXCL_STOP */
+  if ((rc = http_request_init(req)) != 0)
+    return rc;
 
   if ((rc = parse_int(&p, end, &method)) != 0)
     return rc;
@@ -689,9 +692,8 @@ abstract_http_ipc_deserialize_response(const char *buf, size_t len,
   p = buf;
   end = buf + len;
 
-  /* LCOV_EXCL_START */ if ((rc = http_response_init(res)) !=
-                            0)       /* LCOV_EXCL_STOP */
-    /* LCOV_EXCL_START */ return rc; /* LCOV_EXCL_STOP */
+  if ((rc = http_response_init(res)) != 0)
+    return rc;
 
   if ((rc = parse_int(&p, end, &res->status_code)) != 0)
     return rc;

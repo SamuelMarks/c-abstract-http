@@ -76,7 +76,8 @@ struct HttpTransportContext {
    correctness) ... */
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
-static int method_to_wide(enum HttpMethod method, const wchar_t **out) {
+static enum c_abstract_http_error method_to_wide(enum HttpMethod method,
+                                                 const wchar_t **out) {
   switch (method) {
   case HTTP_GET:
     *out = L"GET";
@@ -121,8 +122,8 @@ static void safe_close_handle(HINTERNET *h) {
   }
 }
 
-static int headers_to_wide_block(const struct HttpHeaders *headers,
-                                 wchar_t **out) {
+static enum c_abstract_http_error
+headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
   size_t i;
   size_t total_wide_chars = 0;
   wchar_t *buf;
@@ -462,15 +463,18 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
   hConnect = WinHttpConnect(ctx->hSession, urlComp.lpszHostName,
                             (INTERNET_PORT)urlComp.nPort, 0);
   if (!hConnect)
-    CLEANUP_AND_RET(EIO);
+    CLEANUP_AND_RET(C_ABSTRACT_HTTP_ERR_IO);
 
-  method_to_wide(req->method, &wmethod);
+  rc = method_to_wide(req->method, &wmethod);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    CLEANUP_AND_RET(rc);
+
   hRequest = WinHttpOpenRequest(
       hConnect, wmethod, urlComp.lpszUrlPath, NULL, WINHTTP_NO_REFERER,
       WINHTTP_DEFAULT_ACCEPT_TYPES,
       (urlComp.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0);
   if (!hRequest)
-    CLEANUP_AND_RET(EIO);
+    CLEANUP_AND_RET(C_ABSTRACT_HTTP_ERR_IO);
 
   if (ctx->security_flags != 0) {
     WinHttpSetOption(hRequest, WINHTTP_OPTION_SECURITY_FLAGS,
@@ -508,8 +512,9 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
   }
 
   if (req->headers.count > 0) {
-    if (headers_to_wide_block(&req->headers, &wHeaders) != 0)
-      CLEANUP_AND_RET(ENOMEM);
+    rc = headers_to_wide_block(&req->headers, &wHeaders);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      CLEANUP_AND_RET(rc);
     if (wHeaders) {
       WinHttpAddRequestHeaders(hRequest, wHeaders, (DWORD)-1L,
                                WINHTTP_ADDREQ_FLAG_ADD);

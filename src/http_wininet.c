@@ -85,7 +85,8 @@ static void safe_close_handle(HINTERNET *h) {
   }
 }
 
-static int method_to_wide(enum HttpMethod method, const wchar_t **out) {
+static enum c_abstract_http_error method_to_wide(enum HttpMethod method,
+                                                 const wchar_t **out) {
   switch (method) {
   case HTTP_GET:
     *out = L"GET";
@@ -123,8 +124,8 @@ static int method_to_wide(enum HttpMethod method, const wchar_t **out) {
   }
 }
 
-static int headers_to_wide_block(const struct HttpHeaders *headers,
-                                 wchar_t **out) {
+static enum c_abstract_http_error
+headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
   size_t i;
   size_t total_wchars = 0;
   wchar_t *buf, *p;
@@ -337,22 +338,34 @@ http_wininet_config_apply(struct HttpTransportContext *ctx,
   ctx->config = *config;
   if (config->proxy_username) {
     char *tmp = NULL;
-    c_abstract_http_strdup(config->proxy_username, &tmp);
+    enum c_abstract_http_error rc =
+        c_abstract_http_strdup(config->proxy_username, &tmp);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     ctx->config.proxy_username = tmp;
   }
   if (config->proxy_password) {
     char *tmp = NULL;
-    c_abstract_http_strdup(config->proxy_password, &tmp);
+    enum c_abstract_http_error rc =
+        c_abstract_http_strdup(config->proxy_password, &tmp);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     ctx->config.proxy_password = tmp;
   }
   if (config->user_agent) {
     char *tmp = NULL;
-    c_abstract_http_strdup(config->user_agent, &tmp);
+    enum c_abstract_http_error rc =
+        c_abstract_http_strdup(config->user_agent, &tmp);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     ctx->config.user_agent = tmp;
   }
   if (config->proxy_url) {
     char *tmp = NULL;
-    c_abstract_http_strdup(config->proxy_url, &tmp);
+    enum c_abstract_http_error rc =
+        c_abstract_http_strdup(config->proxy_url, &tmp);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     ctx->config.proxy_url = tmp;
   }
 
@@ -485,7 +498,11 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
     dwFlags |= ctx->security_flags; /* Apply ignore-cert flags here */
   }
 
-  method_to_wide(req->method, &wmethod);
+  rc = method_to_wide(req->method, &wmethod);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    LOG_DEBUG("http_wininet_send: Error method_to_wide failed");
+    goto cleanup;
+  }
   hRequest = HttpOpenRequestW(hConnect, wmethod, urlComp.lpszUrlPath, NULL,
                               NULL, NULL, dwFlags, 0);
   if (!hRequest) {
@@ -524,9 +541,9 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
 
   /* 5. Headers */
   if (req->headers.count > 0) {
-    if (headers_to_wide_block(&req->headers, &wHeaders) != 0) {
-      LOG_DEBUG("http_wininet_send: Error ENOMEM in headers_to_wide_block");
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+    rc = headers_to_wide_block(&req->headers, &wHeaders);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("http_wininet_send: Error in headers_to_wide_block");
       goto cleanup;
     }
     /* Add headers (replacing existing if needed or adding) */

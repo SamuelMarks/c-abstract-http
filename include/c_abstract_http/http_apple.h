@@ -27,6 +27,7 @@ http_apple_global_init(void);
 
 /**
  * @brief Cleanup global Apple networking environment.
+ * @return 0 on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_apple_global_cleanup(void);
@@ -72,6 +73,12 @@ http_apple_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
 /**
  * @brief The send_multi implementation for Apple.
  * Matches `http_send_multi_fn` signature.
+ *
+ * @param[in] ctx The transport context.
+ * @param[in] loop Optional event loop for asynchronous notification.
+ * @param[in] multi Container holding multiple requests.
+ * @param[out] futures Array of future handles tracking per-request completion.
+ * @return 0 on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_apple_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,

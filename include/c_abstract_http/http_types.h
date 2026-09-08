@@ -114,6 +114,10 @@ typedef uint64_t abstract_http_uint64_t;
 
 #include "c_abstract_http/no_discard.h"
 
+/**
+ * @def C_ABSTRACT_HTTP_API
+ * @brief Public symbol visibility export/import macro.
+ */
 #ifndef C_ABSTRACT_HTTP_API
 #if defined(_WIN32) || defined(__CYGWIN__)
 #if defined(C_ABSTRACT_HTTP_BUILD_SHARED)
@@ -134,7 +138,7 @@ typedef uint64_t abstract_http_uint64_t;
 /* clang-format on */
 
 /**
- * @brief HTTP Method verbs.
+ * @brief Error codes returned by abstract HTTP operations.
  */
 typedef enum c_abstract_http_error {
   C_ABSTRACT_HTTP_SUCCESS = 0,
@@ -146,6 +150,9 @@ typedef enum c_abstract_http_error {
   C_ABSTRACT_HTTP_ERR_SYSCALL = -6
 } c_abstract_http_error_t;
 
+/**
+ * @brief HTTP Method verbs.
+ */
 enum HttpMethod {
   HTTP_GET,     /**< HTTP GET */
   HTTP_POST,    /**< HTTP POST */

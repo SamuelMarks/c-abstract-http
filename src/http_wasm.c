@@ -153,7 +153,11 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
   }
 
   emscripten_fetch_attr_init(&attr);
-  get_method_str(req->method, &method_str);
+  rc = get_method_str(req->method, &method_str);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    LOG_DEBUG("http_wasm_send: Error get_method_str failed %d", (int)rc);
+    return rc;
+  }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strcpy_s(attr.requestMethod, sizeof(attr.requestMethod), method_str);
 #else

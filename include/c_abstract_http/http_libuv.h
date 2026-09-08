@@ -43,6 +43,8 @@ http_libuv_global_init(void);
  * @brief Decrement the global initialization reference count.
  *
  * If the count reaches zero, `libuv_global_cleanup` is invoked.
+ *
+ * @return 0 on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libuv_global_cleanup(void);

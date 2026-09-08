@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file abstract_http_helpers.c
  * @brief Implementation of test helpers.
@@ -45,5 +45,3 @@ int write_to_file(const char *const filename, const char *const contents) {
 
   return rc;
 }
-
-/* LCOV_EXCL_BR_STOP */

@@ -37,6 +37,7 @@ http_lsquic_global_init(void);
 /**
  * @brief Clean up the global lsquic API state.
  * Automatically cleans up when the reference count drops to 0.
+ * @return 0 on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_lsquic_global_cleanup(void);

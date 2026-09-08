@@ -246,8 +246,6 @@ static void parse_headers(struct libuv_state *state) {
     }
   }
 
-  http_headers_init(&r->headers);
-
   /* Parse headers */
   p = strchr(state->res_buf, '\n');
   if (p)
@@ -470,10 +468,22 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   (*host)[host_len] = '\0';
 
   if (path_start) {
-    c_abstract_http_strdup(path_start, &_ast_strdup);
+    enum c_abstract_http_error dup_rc =
+        c_abstract_http_strdup(path_start, &_ast_strdup);
+    if (dup_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(*host);
+      *host = NULL;
+      return dup_rc;
+    }
     *path = _ast_strdup;
   } else {
-    c_abstract_http_strdup("/", &_ast_strdup);
+    enum c_abstract_http_error dup_rc =
+        c_abstract_http_strdup("/", &_ast_strdup);
+    if (dup_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(*host);
+      *host = NULL;
+      return dup_rc;
+    }
     *path = _ast_strdup;
   }
 
@@ -533,7 +543,13 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   sprintf(port_str, "%d", port);
 #endif
 
-  get_method_str(req->method, &method_str);
+  rc = get_method_str(req->method, &method_str);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    LOG_DEBUG("http_libuv_send: Error get_method_str failed %d", (int)rc);
+    free(host);
+    free(path);
+    return rc;
+  }
 
   /* Build request buffer */
   state.req_buf = (char *)malloc(req_cap);

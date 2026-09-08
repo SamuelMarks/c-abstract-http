@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file test_http_winhttp.h
  * @brief Integration tests for WinHTTP Backend.
@@ -628,5 +628,3 @@ SUITE(http_winhttp_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_WINHTTP_H */
-
-/* LCOV_EXCL_BR_STOP */

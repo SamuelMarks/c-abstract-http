@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file test_http_libevent.h
  * @brief Integration tests for Liblibevent Backend.
@@ -426,5 +426,3 @@ SUITE(http_libevent_suite) {
 #endif /* __cplusplus */
 
 #endif /* TEST_HTTP_libevent_H */
-
-/* LCOV_EXCL_BR_STOP */

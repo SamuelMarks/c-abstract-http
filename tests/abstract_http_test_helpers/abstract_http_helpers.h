@@ -1,4 +1,4 @@
-/* LCOV_EXCL_BR_START */
+
 /**
  * @file abstract_http_helpers.h
  * @brief Helper functions for unit testing.
@@ -37,5 +37,3 @@ extern int write_to_file(const char *filename, const char *contents);
 #endif /* __cplusplus */
 
 #endif /* !C_ABSTRACT_HTTP_TESTS_ABSTRACT_HTTP_HELPERS_H */
-
-/* LCOV_EXCL_BR_STOP */
