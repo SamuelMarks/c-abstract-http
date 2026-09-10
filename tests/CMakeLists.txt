@@ -19,15 +19,23 @@ include_directories(${greatest_SOURCE_DIR})
 include_directories(../include)
 include_directories(../src)
 
-# Need to build abstract_http_test_helpers/mock_server.c as part of the test executable
+# Need to build test helper sources as part of the test executable
+set(TEST_HARNESS_SOURCES
+    abstract_http_test_helpers/abstract_http_helpers.c
+    test_coverage_fix.c
+    test_http_curl_dummy.c
+    fuzz_sse.c
+    fuzz_ws.c
+)
+
 if(C_ABSTRACT_HTTP_HEADER_ONLY OR (WIN32 AND BUILD_SHARED_LIBS))
-    set(TEST_SOURCES main.c mock_alloc.c)
+    set(TEST_SOURCES main.c mock_alloc.c ${TEST_HARNESS_SOURCES})
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         list(APPEND TEST_SOURCES abstract_http_test_helpers/mock_server.c)
     endif()
     set(EXTRA_TEST_SOURCES mock_alloc.c)
 else()
-    set(TEST_SOURCES main.c)
+    set(TEST_SOURCES main.c ${TEST_HARNESS_SOURCES})
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         # mock_server.c is already in the library
         # list(APPEND TEST_SOURCES abstract_http_test_helpers/mock_server.c)
@@ -63,6 +71,9 @@ if(WIN32)
 endif()
 
 add_test(NAME c-abstract-http-tests COMMAND c-abstract-http-test)
+add_test(NAME c-abstract-http-test-worker COMMAND c-abstract-http-test --test-worker)
+set_tests_properties(c-abstract-http-test-worker PROPERTIES WILL_FAIL TRUE)
+add_test(NAME c-abstract-http-test-arg COMMAND c-abstract-http-test -s transport_suite)
 
 if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
     add_executable(c-abstract-http-test-ws test_ws.c ${EXTRA_TEST_SOURCES})
@@ -158,30 +169,23 @@ if(EMSCRIPTEN)
 endif()
 
 if(WIN32 AND BUILD_SHARED_LIBS)
-    macro(copy_dlls_to_test_target TARGET_NAME)
-        if(TARGET ${TARGET_NAME})
-            add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    $<TARGET_FILE:c-abstract-http>
-                    $<TARGET_FILE_DIR:${TARGET_NAME}>
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    $<TARGET_FILE:c89stringutils>
-                    $<TARGET_FILE_DIR:${TARGET_NAME}>
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    $<TARGET_FILE:cfs>
-                    $<TARGET_FILE_DIR:${TARGET_NAME}>
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    $<TARGET_FILE:parson>
-                    $<TARGET_FILE_DIR:${TARGET_NAME}>
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    $<TARGET_FILE:c_str_span>
-                    $<TARGET_FILE_DIR:${TARGET_NAME}>
-            )
-        endif()
-    endmacro()
-
-    copy_dlls_to_test_target(c-abstract-http-test)
-    copy_dlls_to_test_target(c-abstract-http-test-ws)
-    copy_dlls_to_test_target(c-abstract-http-test-sse)
-    copy_dlls_to_test_target(c-abstract-http-test-crypto)
+    if(TARGET c-abstract-http-test)
+        add_custom_command(TARGET c-abstract-http-test POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:c-abstract-http>
+                $<TARGET_FILE_DIR:c-abstract-http-test>
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:c89stringutils>
+                $<TARGET_FILE_DIR:c-abstract-http-test>
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:cfs>
+                $<TARGET_FILE_DIR:c-abstract-http-test>
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:parson>
+                $<TARGET_FILE_DIR:c-abstract-http-test>
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:c_str_span>
+                $<TARGET_FILE_DIR:c-abstract-http-test>
+        )
+    endif()
 endif()

@@ -147,6 +147,10 @@ static int mock_loop_wakeup(void *ctx) {
   (void)ctx;
   return 0;
 }
+static int mock_loop_wakeup_fail(void *ctx) {
+  (void)ctx;
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
 
 TEST test_event_loop_external(void) {
   struct ModalityEventLoop *loop = NULL;
@@ -949,12 +953,7 @@ TEST test_event_loop_write_error_coverage(void) {
             http_loop_add_fd(loop, pipes[1], HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
                              dummy_write_cb, &triggered));
 
-  {
-    enum c_abstract_http_error rc_test = http_loop_run(loop);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
 
   ASSERT(triggered & HTTP_LOOP_WRITE);
 
@@ -982,20 +981,11 @@ TEST test_event_loop_timer_past_coverage(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
-  {
-    enum c_abstract_http_error rc_test = http_loop_add_timer(
-        loop, -10, dummy_timer_past_cb, &triggered, &timer_id);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_loop_add_timer(loop, -10, dummy_timer_past_cb, &triggered,
+                                &timer_id));
 
-  {
-    enum c_abstract_http_error rc_test = http_loop_run(loop);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
 
   ASSERT(triggered);
 
@@ -1031,12 +1021,7 @@ TEST test_event_loop_write_error_coverage2(void) {
             http_loop_add_fd(loop, pipes[1], HTTP_LOOP_WRITE | HTTP_LOOP_ERROR,
                              dummy_error_cb, &triggered));
 
-  {
-    enum c_abstract_http_error rc_test = http_loop_tick(loop);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
 
   close(pipes[0]);
   close(pipes[1]);
@@ -1046,8 +1031,258 @@ TEST test_event_loop_write_error_coverage2(void) {
   PASS();
 }
 
+#if !defined(_WIN32)
+static void dummy_fd_simple_cb(struct ModalityEventLoop *l, int fd, int events,
+                               void *user_data) {
+  (void)l;
+  (void)fd;
+  (void)events;
+  (void)user_data;
+}
+#endif
+
+static void timer_stop_cb(struct ModalityEventLoop *loop, int timer_id,
+                          void *user_data) {
+  (void)timer_id;
+  (void)user_data;
+  (void)!http_loop_stop(loop);
+}
+
+#if !defined(_WIN32)
+static void fd_stop_cb(struct ModalityEventLoop *l, int fd, int events,
+                       void *user_data) {
+  (void)fd;
+  (void)events;
+  (void)user_data;
+  (void)!http_loop_stop(l);
+}
+#endif
+
+TEST test_event_loop_additional_coverage(void) {
+  struct ModalityEventLoop *loop = NULL;
+  int timer_id = 0;
+#if !defined(_WIN32)
+  int pipes[2];
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_init_external(&loop, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_event_loop_test_unstop(NULL));
+
+  /* Test stop with wakeup failure */
+  {
+    struct HttpLoopHooks hooks;
+    struct ModalityEventLoop *ext_loop = NULL;
+    memset(&hooks, 0, sizeof(hooks));
+    hooks.wakeup = mock_loop_wakeup_fail;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_init_external(&ext_loop, &hooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_stop(ext_loop));
+    http_loop_free(ext_loop);
+  }
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+
+  /* Test inactive timer in cancel */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_loop_add_timer(loop, 5000, timer_dummy_cb, NULL, &timer_id));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_cancel_timer(loop, timer_id));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_cancel_timer(loop, timer_id));
+
+#if !defined(_WIN32)
+  if (pipe(pipes) == 0) {
+    char byte = 'x';
+    /* Register fd 0 (stdin, <= max_fd) so fd > max_fd is false */
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_loop_add_fd(loop, 0, HTTP_LOOP_READ, dummy_fd_simple_cb, NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_fd(loop, pipes[0], HTTP_LOOP_READ,
+                               dummy_fd_simple_cb, NULL));
+    /* pipes[1] registered with READ, but only write end, so revents will be 0
+     */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_fd(loop, pipes[1], HTTP_LOOP_READ,
+                               dummy_fd_simple_cb, NULL));
+    (void)!write(pipes[1], &byte, 1);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+    (void)!read(pipes[0], &byte, 1);
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_remove_fd(loop, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_remove_fd(loop, pipes[1]));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_remove_fd(loop, pipes[0]));
+    /* second remove: inactive fd */
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_remove_fd(loop, pipes[0]));
+    /* mod inactive fd */
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_loop_mod_fd(loop, pipes[0], HTTP_LOOP_WRITE));
+
+    /* add with HTTP_LOOP_ERROR and test tick */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_fd(loop, pipes[0], HTTP_LOOP_ERROR,
+                               dummy_fd_simple_cb, NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_remove_fd(loop, pipes[0]));
+
+    close(pipes[0]);
+    close(pipes[1]);
+  }
+#endif
+
+  /* Test cancelled timer in http_loop_run + timer_timeout < 0 via
+   * g_mock_time_jump */
+  {
+    int cancel_id = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_timer(loop, 50, timer_dummy_cb, NULL, &cancel_id));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_timer(loop, 20, timer_stop_cb, NULL, NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_cancel_timer(loop, cancel_id));
+    g_mock_time_jump = 1;
+    g_mock_time_jump_count = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
+    g_mock_time_jump = 0;
+  }
+
+  /* Test wakeup pipe drained inside http_loop_run */
+  {
+    struct ModalityEventLoop *wake_loop = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&wake_loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_timer(wake_loop, 15, timer_stop_cb, NULL, NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_wakeup(wake_loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(wake_loop));
+    http_loop_free(wake_loop);
+  }
+
+  /* Test inactive fd when ret > 0 in http_loop_tick */
+#if !defined(_WIN32)
+  {
+    struct ModalityEventLoop *tick_loop = NULL;
+    int tpipes1[2], tpipes2[2];
+    char c = 'a';
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&tick_loop));
+    if (pipe(tpipes1) == 0 && pipe(tpipes2) == 0) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_add_fd(tick_loop, tpipes1[0], HTTP_LOOP_READ,
+                                 dummy_fd_simple_cb, NULL));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_add_fd(tick_loop, tpipes2[0], HTTP_LOOP_READ,
+                                 dummy_fd_simple_cb, NULL));
+      /* Remove tpipes1[0] so slot 0 is inactive */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_remove_fd(tick_loop, tpipes1[0]));
+      /* Write to tpipes2 so select returns > 0 */
+      (void)!write(tpipes2[1], &c, 1);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(tick_loop));
+      (void)!read(tpipes2[0], &c, 1);
+      close(tpipes1[0]);
+      close(tpipes1[1]);
+      close(tpipes2[0]);
+      close(tpipes2[1]);
+    }
+    http_loop_free(tick_loop);
+  }
+#endif
+
+  /* Test single cancelled timer and inactive fd in http_loop_run */
+  {
+    struct ModalityEventLoop *single_loop = NULL;
+    int cancel_id = 0;
+#if !defined(_WIN32)
+    int dummy_pipes1[2], dummy_pipes2[2], dummy_pipes3[2];
+#endif
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&single_loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_timer(single_loop, 1000, timer_dummy_cb, NULL,
+                                  &cancel_id));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_cancel_timer(single_loop, cancel_id));
+#if !defined(_WIN32)
+    if (pipe(dummy_pipes1) == 0 && pipe(dummy_pipes2) == 0 &&
+        pipe(dummy_pipes3) == 0) {
+      char b = 'x';
+      /* Add dummy_pipes3[0] as active FD that has no events (revents == 0) */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_add_fd(single_loop, dummy_pipes3[0], HTTP_LOOP_READ,
+                                 dummy_fd_simple_cb, NULL));
+      /* Add fd 0 so fd > max_fd is false inside http_loop_run */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_add_fd(single_loop, 0, HTTP_LOOP_READ,
+                                 dummy_fd_simple_cb, NULL));
+      /* Add dummy_pipes1[0] */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_add_fd(single_loop, dummy_pipes1[0], HTTP_LOOP_READ,
+                                 dummy_fd_simple_cb, NULL));
+      /* Add dummy_pipes2[0] which will call fd_stop_cb */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_add_fd(single_loop, dummy_pipes2[0], HTTP_LOOP_READ,
+                                 fd_stop_cb, NULL));
+      /* Remove dummy_pipes1[0] so it is inactive */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_remove_fd(single_loop, dummy_pipes1[0]));
+      /* Write to dummy_pipes2 so select returns > 0 and fd_stop_cb stops the
+       * loop */
+      (void)!write(dummy_pipes2[1], &b, 1);
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(single_loop));
+
+      (void)!read(dummy_pipes2[0], &b, 1);
+      close(dummy_pipes1[0]);
+      close(dummy_pipes1[1]);
+      close(dummy_pipes2[0]);
+      close(dummy_pipes2[1]);
+      close(dummy_pipes3[0]);
+      close(dummy_pipes3[1]);
+    }
+#endif
+    http_loop_free(single_loop);
+  }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* Test process_timers failure inside http_loop_run */
+  {
+    struct ModalityEventLoop *fail_loop = NULL;
+    int tid1 = 0, tid2 = 0, tid3 = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&fail_loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_timer(fail_loop, 0, timer_dummy_cb, NULL, &tid1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_timer(fail_loop, 50, timer_dummy_cb, NULL, &tid2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_timer(fail_loop, 200, timer_dummy_cb, NULL, &tid3));
+    g_mock_timer_heap_swap_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_loop_run(fail_loop));
+    g_mock_timer_heap_swap_fail = 0;
+    http_loop_free(fail_loop);
+  }
+
+  /* Test timer_heap_swap false branch with g_mock_timer_heap_swap_fail = 2 */
+  {
+    struct ModalityEventLoop *swap_loop = NULL;
+    int tid1 = 0, tid2 = 0, tid3 = 0, tid4 = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&swap_loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_timer(swap_loop, 100, timer_dummy_cb, NULL, &tid1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_timer(swap_loop, 200, timer_dummy_cb, NULL, &tid2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_timer(swap_loop, 300, timer_dummy_cb, NULL, &tid3));
+    g_mock_timer_heap_swap_fail = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+              http_loop_add_timer(swap_loop, 10, timer_dummy_cb, NULL, &tid4));
+    g_mock_timer_heap_swap_fail = 0;
+    http_loop_free(swap_loop);
+  }
+#endif
+
+  http_loop_free(loop);
+  PASS();
+}
+
 SUITE(event_loop_suite) {
   system("ls /proc/self/fd | wc -l");
+  RUN_TEST(test_event_loop_additional_coverage);
   RUN_TEST(test_event_loop_write_error_coverage2);
 
   RUN_TEST(test_event_loop_timer_past_coverage);

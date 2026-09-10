@@ -242,8 +242,6 @@ TEST test_sha1_rollover(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int g_mock_sha1_fail;
-
 TEST test_sha1_mock_failures(void) {
   struct sha1_ctx ctx;
   unsigned char out[20];

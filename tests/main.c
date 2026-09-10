@@ -45,48 +45,41 @@
 #endif
 #include "test_actor.h"
 #include "test_transport.h"
+#include "test_http_raw.h"
+#include "test_http_aria2.h"
+#include "test_http_xquic.h"
+#include "test_http_picoquic.h"
+#include "test_http_wasm.h"
+#include "test_http_fetch.h"
+#include "test_http_nghttp3.h"
+#include "test_http_libevent.h"
+#include "test_http_libuv.h"
+#include "test_http_lsquic.h"
+#include "test_http_libsoup3.h"
+#include "test_http_android.h"
+#include "test_http_msh3.h"
+#include "test_http_winhttp.h"
+#include "test_http_wininet.h"
 #include "test_mock_coverage.h"
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) || !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
 #include "test_cmp_integration.h"
 #endif
 
-#if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
-#include "test_http_libsoup3.h"
-
-#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-#include "test_http_lsquic.h"
-
-#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
-#include "test_http_picoquic.h"
-
-#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-#include "test_http_nghttp3.h"
-
-#elif defined(C_ABSTRACT_HTTP_USE_MSH3)
-#include "test_http_msh3.h"
-
-#elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
-#include "test_http_libuv.h"
-#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
-#include "test_http_libevent.h"
-
-#elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
+#if defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
 #include "test_http_fetch.h"
 
 #elif (defined(_WIN32) || defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(C_ABSTRACT_HTTP_USE_WININET)) && !defined(MINGW_TEST_CURL)
-#if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
-#include "test_http_winhttp.h"
-#endif
-#if defined(C_ABSTRACT_HTTP_USE_WININET)
-#include "test_http_wininet.h"
-#endif
+/* Windows HTTP backends included above */
 #elif defined(__APPLE__)
 #include "test_http_apple.h"
+#if defined(C_ABSTRACT_HTTP_HAVE_CURL)
+#include "test_http_curl.h"
+#endif
 #elif defined(__ANDROID__)
 #include "test_http_android.h"
 
 #elif defined(__EMSCRIPTEN__)
-#include "test_http_wasm.h"
+/* No HTTP curl on Emscripten */
 
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 /* No HTTP backend tests on DOS currently */
@@ -105,6 +98,10 @@
 
 GREATEST_MAIN_DEFS();
 
+#if defined(_MSC_VER)
+#include <libloaderapi.h>
+#endif
+
 int main(int argc, char **argv) {
   int i;
 #if defined(__linux__) || defined(__APPLE__)
@@ -113,15 +110,17 @@ int main(int argc, char **argv) {
 #endif
   for (i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "--test-worker") == 0) {
-      _exit(1);
+      exit(1);
     }
   }
 
 #if defined(_MSC_VER)
-  _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-  _CrtSetReportFile(_CRT_ASSERT, (_HFILE)(size_t)2);
-  _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-  _CrtSetReportFile(_CRT_ERROR, (_HFILE)(size_t)2);
+  if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
+    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_ASSERT, (_HFILE)(size_t)2);
+    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_ERROR, (_HFILE)(size_t)2);
+  }
 #endif
   GREATEST_MAIN_BEGIN();
 
@@ -142,43 +141,52 @@ int main(int argc, char **argv) {
 #endif
   RUN_SUITE(actor_suite);
   RUN_SUITE(transport_suite);
-#if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) ||                      \
-    !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
-  RUN_SUITE(cmp_integration_suite);
-#endif
-
-#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
-#if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
-  RUN_SUITE(http_libsoup3_suite);
-#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-  RUN_SUITE(http_lsquic_suite);
-#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+  RUN_SUITE(http_raw_suite);
+  RUN_SUITE(http_aria2_suite);
+  RUN_SUITE(http_xquic_suite);
   RUN_SUITE(http_picoquic_suite);
-#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-  RUN_SUITE(http_nghttp3_suite);
-#elif defined(C_ABSTRACT_HTTP_USE_MSH3)
-  RUN_SUITE(http_msh3_suite);
-#elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
-  RUN_SUITE(http_libuv_suite);
-#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
-  RUN_SUITE(http_libevent_suite);
-#elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
+  RUN_SUITE(http_wasm_suite);
   RUN_SUITE(http_fetch_suite);
-#elif (defined(_WIN32) || defined(C_ABSTRACT_HTTP_USE_WINHTTP) ||              \
-       defined(C_ABSTRACT_HTTP_USE_WININET)) &&                                \
-    !defined(MINGW_TEST_CURL)
+  RUN_SUITE(http_nghttp3_suite);
+  RUN_SUITE(http_libevent_suite);
+  RUN_SUITE(http_libuv_suite);
+  RUN_SUITE(http_lsquic_suite);
+  RUN_SUITE(http_libsoup3_suite);
+  RUN_SUITE(http_android_suite);
+  RUN_SUITE(http_msh3_suite);
+#if !defined(_WIN32)
+  RUN_SUITE(http_winhttp_suite);
+  RUN_SUITE(http_wininet_suite);
+#else
 #if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
   RUN_SUITE(http_winhttp_suite);
 #endif
 #if defined(C_ABSTRACT_HTTP_USE_WININET)
   RUN_SUITE(http_wininet_suite);
 #endif
+#endif
+#if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) ||                      \
+    !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
+  RUN_SUITE(cmp_integration_suite);
+#endif
+
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
+#if defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
+  RUN_SUITE(http_fetch_suite);
+#elif (defined(_WIN32) || defined(C_ABSTRACT_HTTP_USE_WINHTTP) ||              \
+       defined(C_ABSTRACT_HTTP_USE_WININET)) &&                                \
+    !defined(MINGW_TEST_CURL)
+  /* Windows suites run unconditionally above */
 #elif defined(__APPLE__)
   RUN_SUITE(http_apple_suite);
+#if defined(C_ABSTRACT_HTTP_HAVE_CURL)
+  RUN_SUITE(http_curl_suite);
+#endif
 #elif defined(__ANDROID__)
-  RUN_SUITE(http_android_suite);
+  /* Android suite run unconditionally above */
+
 #elif defined(__EMSCRIPTEN__)
-  RUN_SUITE(http_wasm_suite);
+  /* No HTTP curl suite for Emscripten */
 
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   /* No HTTP backend suite for DOS currently */

@@ -1,4 +1,3 @@
-
 /* clang-format off */
 #include <errno.h>
 #include <stdio.h>
@@ -6,26 +5,50 @@
 #include <string.h>
 
 #include <c_abstract_http/http_aria2.h>
+#include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
 #include "str.h"
-#include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_aria2_system_fail;
+extern int g_mock_aria2_fopen_fail;
+extern int g_mock_aria2_response_init_fail;
+extern int g_mock_aria2_config_init_fail;
+#endif
 
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
-  /** @brief config (variable) of struct HttpTransportContext */
+  /** @brief Configuration settings */
   struct HttpConfig config;
 };
 
+/**
+ * @brief Initialize the global aria2 environment safely.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
 enum c_abstract_http_error http_aria2_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+/**
+ * @brief Clean up the global aria2 environment.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
 enum c_abstract_http_error http_aria2_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Initialize a new aria2 context.
+ *
+ * @param[out] ctx Pointer to receive context pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
 enum c_abstract_http_error
-http_aria2_context_init(struct HttpTransportContext **ctx) {
+http_aria2_context_init(struct HttpTransportContext **const ctx) {
   enum c_abstract_http_error rc;
   LOG_DEBUG("http_aria2_context_init: Entering");
   if (!ctx) {
@@ -39,7 +62,14 @@ http_aria2_context_init(struct HttpTransportContext **ctx) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  rc = http_config_init(&(*ctx)->config);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_aria2_config_init_fail) {
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+  } else
+#endif
+  {
+    rc = http_config_init(&(*ctx)->config);
+  }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_aria2_context_init: Error http_config_init failed with %d",
               rc);
@@ -52,6 +82,11 @@ http_aria2_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Free an aria2 transport context.
+ *
+ * @param[in] ctx The context to free.
+ */
 void http_aria2_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_aria2_context_free: Entering");
   if (ctx) {
@@ -61,6 +96,13 @@ void http_aria2_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_aria2_context_free: Exiting");
 }
 
+/**
+ * @brief Apply configuration to the aria2 transport context.
+ *
+ * @param[in] ctx The context.
+ * @param[in] config The configuration to apply.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
 enum c_abstract_http_error
 http_aria2_config_apply(struct HttpTransportContext *ctx,
                         const struct HttpConfig *config) {
@@ -69,21 +111,36 @@ http_aria2_config_apply(struct HttpTransportContext *ctx,
     LOG_DEBUG("http_aria2_config_apply: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  ctx->config = *config;
+  ctx->config.timeout_ms = config->timeout_ms;
+  ctx->config.verify_peer = config->verify_peer;
+  ctx->config.verify_host = config->verify_host;
+  ctx->config.follow_redirects = config->follow_redirects;
   LOG_DEBUG("http_aria2_config_apply: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Perform a single HTTP request using aria2.
+ *
+ * @param[in] ctx The context.
+ * @param[in] req The request to send.
+ * @param[out] res Pointer to receive response pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
 enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
                                            const struct HttpRequest *req,
                                            struct HttpResponse **const res) {
   enum c_abstract_http_error rc;
+  int sys_rc;
   char cmd[4096];
   char tmp_filename[256];
-  struct HttpResponse *new_res = NULL;
-  FILE *f = NULL;
+  struct HttpResponse *new_res;
+  FILE *f;
   long file_size;
   size_t bytes_read;
+
+  new_res = NULL;
+  f = NULL;
 
   LOG_DEBUG("http_aria2_send: Entering");
   if (!ctx || !req || !res || !req->url) {
@@ -92,22 +149,36 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  /* MSVC Safe Path */
   sprintf_s(tmp_filename, sizeof(tmp_filename), "aria2c_tmp_%p.bin",
             (void *)req);
   sprintf_s(cmd, sizeof(cmd),
             "aria2c -q --allow-overwrite=true -d . -o %s \"%s\"", tmp_filename,
             req->url);
 #else
-  /* Standard POSIX / GCC Path */
   sprintf(tmp_filename, "aria2c_tmp_%p.bin", (void *)req);
   sprintf(cmd, "aria2c -q --allow-overwrite=true -d . -o %s \"%s\"",
           tmp_filename, req->url);
 #endif
 
-  rc = system(cmd);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("http_aria2_send: Error system() failed with %d", rc);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_aria2_system_fail == 1) {
+    sys_rc = 1;
+  } else if (g_mock_aria2_system_fail == 2) {
+    FILE *mf = fopen(tmp_filename, "wb");
+    fclose(mf);
+    sys_rc = 0;
+  } else {
+    FILE *mf = fopen(tmp_filename, "wb");
+    fputs("HTTP/1.1 200 OK\r\n\r\nMock response body from aria2", mf);
+    fclose(mf);
+    sys_rc = 0;
+  }
+#else
+  sys_rc = system(cmd);
+#endif
+
+  if (sys_rc != 0) {
+    LOG_DEBUG("http_aria2_send: Error system() failed with %d", sys_rc);
     remove(tmp_filename);
     return C_ABSTRACT_HTTP_ERR_IO;
   }
@@ -119,7 +190,14 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  rc = http_response_init(new_res);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_aria2_response_init_fail) {
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+  } else
+#endif
+  {
+    rc = http_response_init(new_res);
+  }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_aria2_send: Error http_response_init failed with %d", rc);
     free(new_res);
@@ -129,12 +207,18 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
 
   new_res->status_code = 200;
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_aria2_fopen_fail) {
+    f = NULL;
+  } else {
+#endif
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  /* MSVC Safe Path */
-  fopen_s(&f, tmp_filename, "rb");
+    fopen_s(&f, tmp_filename, "rb");
 #else
-  /* Standard POSIX / GCC Path */
   f = fopen(tmp_filename, "rb");
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  }
 #endif
 
   if (f) {
@@ -173,10 +257,22 @@ enum c_abstract_http_error http_aria2_send(struct HttpTransportContext *ctx,
   return rc;
 }
 
+/**
+ * @brief Perform multiple HTTP requests concurrently via aria2.
+ *
+ * @param[in] ctx The context.
+ * @param[in] loop The event loop context (unused).
+ * @param[in] multi The multi request definition.
+ * @param[out] futures Array of futures to populate.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
 enum c_abstract_http_error http_aria2_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
+  enum c_abstract_http_error rc;
+  struct HttpResponse *res;
+
   cah_cppcheck_mut_ptr((void *)ctx);
   (void)loop;
 
@@ -186,18 +282,13 @@ enum c_abstract_http_error http_aria2_send_multi(
   }
 
   for (i = 0; i < multi->count; i++) {
-    struct HttpResponse *res = NULL;
-    enum c_abstract_http_error rc =
-        http_aria2_send(ctx, multi->requests[i], &res);
+    res = NULL;
+    rc = http_aria2_send(ctx, multi->requests[i], &res);
+    futures[i]->response = res;
+    futures[i]->error_code = rc;
+    futures[i]->is_ready = 1;
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      futures[i]->response = res;
-      futures[i]->error_code = rc;
-      futures[i]->is_ready = 1;
       return rc;
-    } else {
-      futures[i]->response = res;
-      futures[i]->error_code = rc;
-      futures[i]->is_ready = 1;
     }
   }
   return C_ABSTRACT_HTTP_SUCCESS;

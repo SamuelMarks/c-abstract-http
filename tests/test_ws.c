@@ -13,6 +13,13 @@
 #include "../src/ws_internal.h"
 #include <string.h>
 #include "mock_alloc.h"
+#if defined(_WIN32)
+#if !defined(_MSC_VER) || _MSC_VER >= 1600
+__declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
+#endif
+#else
+#include <unistd.h>
+#endif
 /* clang-format on */
 
 static int test_ws_mock_on_error_called = 0;
@@ -617,6 +624,18 @@ TEST test_ws_realloc_oom(void) {
   g_mock_alloc_fail = 0;
   ws_parser_destroy(&parser);
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
+
+  /* Repeat without on_error callback */
+  memset(&parser, 0, sizeof(parser));
+  parser.on_message = test_ws_on_message;
+  parser.on_error = NULL;
+  parser.user_data = &ctx;
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  rc = ws_parser_feed(&parser, chunk, sizeof(chunk));
+  g_mock_alloc_fail = 0;
+  ws_parser_destroy(&parser);
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -693,6 +712,26 @@ TEST test_ws_parser_reassembly_too_large(void) {
     free(parser.payload_buffer);
   if (parser.reassembly_buffer)
     free(parser.reassembly_buffer);
+
+  /* Repeat with parser.on_error == NULL */
+  memset(&parser, 0, sizeof(parser));
+  rc = ws_parser_feed(&parser, chunk1, 3);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (parser.payload_buffer)
+    free(parser.payload_buffer);
+  parser.payload_buffer = malloc(16777217);
+  parser.payload_capacity = 16777217;
+  parser.state = WS_PARSER_READ_PAYLOAD;
+  parser.current_frame.fin = 0;
+  parser.current_frame.opcode = 0;
+  parser.current_frame.payload_len = 16777217;
+  parser.payload_offset = 16777216;
+  rc = ws_parser_feed(&parser, chunk2, 1);
+  ASSERT_EQ(90, rc); /* EMSGSIZE */
+  if (parser.payload_buffer)
+    free(parser.payload_buffer);
+  if (parser.reassembly_buffer)
+    free(parser.reassembly_buffer);
   PASS();
 }
 
@@ -740,6 +779,16 @@ TEST test_ws_parser_reassembly_fin_oom(void) {
   rc = ws_parser_feed(&parser, chunk2, 4 + 4096);
   g_mock_alloc_fail = 0;
 
+  ws_parser_destroy(&parser);
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
+
+  /* Repeat without on_error callback */
+  memset(&parser, 0, sizeof(parser));
+  rc = ws_parser_feed(&parser, chunk1, 3);
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  rc = ws_parser_feed(&parser, chunk2, 4 + 4096);
+  g_mock_alloc_fail = 0;
   ws_parser_destroy(&parser);
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
@@ -861,6 +910,21 @@ TEST test_ws_parser_reassembly_frag_oom(void) {
 
   ws_parser_destroy(&parser);
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
+
+  /* Repeat without on_error callback */
+  memset(&parser, 0, sizeof(parser));
+  rc = ws_parser_feed(&parser, chunk1, 3);
+  if (parser.reassembly_buffer)
+    free(parser.reassembly_buffer);
+  parser.reassembly_capacity = 2;
+  parser.reassembly_offset = 1;
+  parser.reassembly_buffer = malloc(2);
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  rc = ws_parser_feed(&parser, chunk2, 2 + 10);
+  g_mock_alloc_fail = 0;
+  ws_parser_destroy(&parser);
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   PASS();
 }
 #endif
@@ -878,6 +942,19 @@ TEST test_ws_sync_loop_init_oom(void) {
     int rc_test_tmp = c_abstract_http_ws_sync_read_loop(
         &client, &req, test_ws_on_message, test_ws_on_error, test_ws_on_close,
         &ctx, NULL);
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
+  }
+  c_abstract_http_ws_free(&req);
+  http_request_free(&req);
+  memset(&req, 0, sizeof(req));
+
+  /* Repeat without on_error callback */
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  {
+    int rc_test_tmp = c_abstract_http_ws_sync_read_loop(
+        &client, &req, test_ws_on_message, NULL, test_ws_on_close, &ctx, NULL);
     g_mock_alloc_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
@@ -909,6 +986,17 @@ TEST test_ws_sync_loop_parser_oom(void) {
       rc = c_abstract_http_ws_sync_read_loop(&client, &req, test_ws_on_message,
                                              test_ws_on_error, test_ws_on_close,
                                              &ctx, NULL);
+      g_mock_alloc_fail = 0;
+      c_abstract_http_ws_free(&req);
+      c_abstract_http_ws_free(&req);
+      http_request_free(&req);
+      memset(&req, 0, sizeof(req));
+
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = i;
+      rc =
+          c_abstract_http_ws_sync_read_loop(&client, &req, test_ws_on_message,
+                                            NULL, test_ws_on_close, &ctx, NULL);
       g_mock_alloc_fail = 0;
       c_abstract_http_ws_free(&req);
       c_abstract_http_ws_free(&req);
@@ -958,6 +1046,16 @@ TEST test_ws_sync_loop_feed_error(void) {
 
   c_abstract_http_ws_free(&req);
   http_request_free(&req);
+  memset(&req, 0, sizeof(req));
+
+  /* Feed framing error without on_err callback */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
+            c_abstract_http_ws_sync_read_loop(&client, &req, test_ws_on_message,
+                                              NULL, test_ws_on_close, &ctx,
+                                              NULL));
+
+  c_abstract_http_ws_free(&req);
+  http_request_free(&req);
   PASS();
 }
 
@@ -995,12 +1093,32 @@ mock_client_send(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
 
+static int mock_on_err(int rc, void *user_data) {
+  int *called = (int *)user_data;
+  (void)rc;
+  *called = 1;
+  return 0;
+}
+
+static int mock_push_fail(void *ctx, abstract_http_thread_task_cb cb,
+                          void *arg) {
+  (void)ctx;
+  (void)cb;
+  (void)arg;
+  return (int)C_ABSTRACT_HTTP_ERR_IO;
+}
+
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 TEST test_ws_async_register_success(void) {
-  struct HttpClient client = {0};
-  struct HttpRequest req = {0};
+  struct HttpClient client;
+  struct HttpRequest req;
   struct AbstractHttpThreadPool *pool = NULL;
-  struct AbstractHttpThreadPoolHooks hooks = {0};
+  struct AbstractHttpThreadPoolHooks hooks;
+  int err_called = 0;
+
+  memset(&client, 0, sizeof(client));
+  memset(&req, 0, sizeof(req));
+  memset(&hooks, 0, sizeof(hooks));
 
   hooks.push = mock_push;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1011,10 +1129,34 @@ TEST test_ws_async_register_success(void) {
   ASSERT_EQ(
       C_ABSTRACT_HTTP_ERR_INVAL,
       c_abstract_http_ws_async_register(&client, NULL, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_ws_async_register(
+                                           NULL, &req, NULL, NULL, NULL, NULL));
+
+  /* Test push failure */
+  hooks.push = mock_push_fail;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_init_external(&pool, &hooks));
+  client.thread_pool = pool;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_async_register(
+                                        &client, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
+
+  /* Restore successful push */
+  hooks.push = mock_push;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_init_external(&pool, &hooks));
+  client.thread_pool = pool;
 
   /* Since c_abstract_http_ws_init needs URL, etc., it will fail inside
    * sync_read_loop. */
   /* We just test that it doesn't crash and gets scheduled. */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_async_register(&client, &req, NULL, mock_on_err,
+                                              NULL, &err_called));
+  ASSERT_EQ(1, err_called);
+
+  /* Register with NULL on_err to hit free(ctx) at bottom of async task */
   ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
       c_abstract_http_ws_async_register(&client, &req, NULL, NULL, NULL, NULL));
@@ -1052,13 +1194,6 @@ TEST test_ws_async_register_success(void) {
   PASS();
 }
 #endif
-
-static int mock_on_err(int rc, void *user_data) {
-  int *called = (int *)user_data;
-  (void)rc;
-  *called = 1;
-  return 0;
-}
 
 TEST test_ws_async_coverage(void) {
   struct HttpClient client;
@@ -1111,7 +1246,783 @@ TEST test_ws_edge_cases(void) {
   PASS();
 }
 
+static enum c_abstract_http_error
+mock_send_empty_body(struct HttpTransportContext *ctx,
+                     const struct HttpRequest *req, struct HttpResponse **res) {
+  char *b;
+  (void)ctx;
+  (void)req;
+  *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
+  b = (char *)calloc(1, 1);
+  (*res)->body = b;
+  (*res)->body_len = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+mock_send_null_res(struct HttpTransportContext *ctx,
+                   const struct HttpRequest *req, struct HttpResponse **res) {
+  (void)ctx;
+  (void)req;
+  *res = NULL;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+mock_send_null_body(struct HttpTransportContext *ctx,
+                    const struct HttpRequest *req, struct HttpResponse **res) {
+  (void)ctx;
+  (void)req;
+  *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
+  (*res)->body = NULL;
+  (*res)->body_len = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+mock_send_null_ws_ctx(struct HttpTransportContext *ctx,
+                      const struct HttpRequest *req,
+                      struct HttpResponse **res) {
+  (void)ctx;
+  if (req->ws_ctx) {
+    c_abstract_http_ws_free((struct HttpRequest *)req);
+  }
+  *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static int test_ws_sync_close_called = 0;
+static int mock_sync_on_close(int status, void *user_data) {
+  (void)user_data;
+  test_ws_sync_close_called = status;
+  return 0;
+}
+
+TEST test_ws_sync_loop_branches(void) {
+  struct HttpClient client;
+  struct HttpRequest req;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+
+  /* NULL req with non-NULL client */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_ws_sync_read_loop(&client, NULL, NULL, NULL, NULL,
+                                              NULL, NULL));
+
+  /* send returns success but res has body_len == 0 */
+  client.send = mock_send_empty_body;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL,
+                                              NULL, NULL));
+
+  /* send returns success but body is NULL */
+  client.send = mock_send_null_body;
+  test_ws_sync_close_called = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL,
+                                              mock_sync_on_close, NULL, NULL));
+  ASSERT_EQ(200, test_ws_sync_close_called);
+
+  /* send returns success and clears req->ws_ctx */
+  client.send = mock_send_null_ws_ctx;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL,
+                                              NULL, NULL));
+
+  /* send returns success but *res == NULL */
+  client.send = mock_send_null_res;
+  ASSERT_EQ(0, c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL,
+                                                 NULL, NULL, NULL));
+
+  /* send fails with on_err == NULL */
+  client.send = mock_client_send;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL,
+                                              NULL, NULL));
+
+  http_request_free(&req);
+  http_client_free(&client);
+  PASS();
+}
+
+TEST test_ws_init_config_branches(void) {
+  struct HttpRequest req;
+  struct c_abstract_http_ws_config cfg;
+  const char *headers_odd[2];
+  const char *headers_even[3];
+
+  headers_odd[0] = "Header1";
+  headers_odd[1] = NULL;
+
+  headers_even[0] = "Header1";
+  headers_even[1] = "Val1";
+  headers_even[2] = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+
+  /* config with subprotocols == NULL, custom_headers == NULL */
+  memset(&cfg, 0, sizeof(cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, &cfg));
+  c_abstract_http_ws_free(&req);
+
+  /* config with custom_headers odd */
+  memset(&cfg, 0, sizeof(cfg));
+  cfg.custom_headers = headers_odd;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, &cfg));
+  c_abstract_http_ws_free(&req);
+
+  /* config with custom_headers even */
+  memset(&cfg, 0, sizeof(cfg));
+  cfg.custom_headers = headers_even;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, &cfg));
+  c_abstract_http_ws_free(&req);
+
+  http_request_free(&req);
+  PASS();
+}
+
+TEST test_ws_read_chunk_more(void) {
+  struct HttpRequest req;
+  size_t out_read;
+  char buf[4];
+  struct ws_stream_ctx *sctx;
+
+  out_read = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
+  sctx = (struct ws_stream_ctx *)req.ws_ctx;
+
+  /* Send some data so queue has content */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_send(
+                &req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                (const unsigned char *)"01234567890123456789", 20));
+
+  /* Read with smaller buffer: to_copy > buf_len */
+  ASSERT_EQ(
+      0, req.read_chunk(req.read_chunk_user_data, buf, sizeof(buf), &out_read));
+  ASSERT_EQ(sizeof(buf), out_read);
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* Mutex lock failure in ws_read_chunk_cb */
+  g_mock_mutex_fail = 1;
+  ASSERT_EQ(-1, req.read_chunk(req.read_chunk_user_data, buf, sizeof(buf),
+                               &out_read));
+  g_mock_mutex_fail = 0;
+
+  /* Mutex unlock failure in ws_read_chunk_cb */
+  g_mock_mutex_fail = 2;
+  ASSERT_EQ(-1, req.read_chunk(req.read_chunk_user_data, buf, sizeof(buf),
+                               &out_read));
+  g_mock_mutex_fail = 0;
+#endif
+
+  /* Close the request */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_close(&req, 1000));
+
+  /* Drain the queue */
+  while (sctx->queue_len > 0) {
+    char big_buf[1024];
+    ASSERT_EQ(0, req.read_chunk(req.read_chunk_user_data, big_buf,
+                                sizeof(big_buf), &out_read));
+  }
+
+  /* Now queue_len == 0 && close_requested == 1: returns EOF (*out_read = 0) */
+  out_read = 99;
+  ASSERT_EQ(
+      0, req.read_chunk(req.read_chunk_user_data, buf, sizeof(buf), &out_read));
+  ASSERT_EQ(0, out_read);
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* Cond wait failure in ws_read_chunk_cb when queue is empty and not closed */
+  sctx->close_requested = 0;
+  g_mock_cond_fail = 1;
+  ASSERT_EQ(-1, req.read_chunk(req.read_chunk_user_data, buf, sizeof(buf),
+                               &out_read));
+  g_mock_cond_fail = 0;
+  sctx->close_requested = 1;
+#endif
+
+  c_abstract_http_ws_free(&req);
+  http_request_free(&req);
+  PASS();
+}
+
+TEST test_ws_send_branches(void) {
+  struct HttpRequest req;
+  struct ws_stream_ctx *sctx;
+  char *medium_buf;
+  char *large_buf;
+  unsigned char small_buf[5];
+
+  memcpy(small_buf, "test", 5);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
+  sctx = (struct ws_stream_ctx *)req.ws_ctx;
+
+  /* Send with len == 0 */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, NULL, 0));
+
+  /* Send medium payload (len <= 65535, > 125) */
+  medium_buf = (char *)malloc(200);
+  ASSERT(medium_buf != NULL);
+  memset(medium_buf, 'A', 200);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    (const unsigned char *)medium_buf, 200));
+  free(medium_buf);
+
+  /* Send large payload (len > 65535) */
+  large_buf = (char *)malloc(70000);
+  ASSERT(large_buf != NULL);
+  memset(large_buf, 'B', 70000);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_BINARY,
+                                    (const unsigned char *)large_buf, 70000));
+  free(large_buf);
+
+  /* Queue expansion when queue_cap == 0 */
+  sctx->queue_cap = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* Malloc failure for masked_payload */
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_alloc_fail = 0;
+
+  /* Realloc failure when expanding queue */
+  sctx->queue_cap = 10;
+  sctx->queue_len = 10;
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_alloc_fail = 0;
+
+  /* Realloc failure when expanding queue with mutex unlock failure */
+  sctx->queue_cap = 10;
+  sctx->queue_len = 10;
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  g_mock_mutex_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_alloc_fail = 0;
+  g_mock_mutex_fail = 0;
+
+  /* ws_generate_mask_key failure */
+  g_mock_mask_key_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_mask_key_fail = 0;
+
+  /* ws_apply_mask failure */
+  g_mock_mask_key_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_mask_key_fail = 0;
+
+  /* ws_pack_header_small failure */
+  g_mock_pack_header_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_pack_header_fail = 0;
+
+  /* ws_pack_header_medium failure */
+  g_mock_pack_header_fail = 2;
+  medium_buf = (char *)malloc(200);
+  ASSERT(medium_buf != NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    (const unsigned char *)medium_buf, 200));
+  g_mock_pack_header_fail = 0;
+  free(medium_buf);
+
+  /* ws_pack_header_large failure */
+  g_mock_pack_header_fail = 3;
+  large_buf = (char *)malloc(70000);
+  ASSERT(large_buf != NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_BINARY,
+                                    (const unsigned char *)large_buf, 70000));
+  g_mock_pack_header_fail = 0;
+  free(large_buf);
+
+  /* Mutex lock failure */
+  g_mock_mutex_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_mutex_fail = 0;
+
+  /* Cond signal failure */
+  g_mock_cond_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_cond_fail = 0;
+
+  /* Mutex unlock failure */
+  g_mock_mutex_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_mutex_fail = 0;
+#endif
+
+  /* Close request */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_close(&req, 1000));
+
+  /* Send after close */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* Send after close with mutex unlock failure */
+  g_mock_mutex_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_mutex_fail = 0;
+#endif
+
+  c_abstract_http_ws_free(&req);
+  http_request_free(&req);
+  PASS();
+}
+
+TEST test_ws_close_branches(void) {
+  struct HttpRequest req;
+  struct ws_stream_ctx *sctx;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
+  sctx = (struct ws_stream_ctx *)req.ws_ctx;
+  (void)sctx;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* Mutex lock failure in close */
+  g_mock_mutex_fail = 3;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_close(&req, 1000));
+  g_mock_mutex_fail = 0;
+  sctx->close_requested = 0;
+
+  /* Cond signal failure in close */
+  g_mock_cond_fail = 4;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_close(&req, 1000));
+  g_mock_cond_fail = 0;
+  sctx->close_requested = 0;
+
+  /* Mutex unlock failure in close */
+  g_mock_mutex_fail = 4;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_close(&req, 1000));
+  g_mock_mutex_fail = 0;
+  sctx->close_requested = 0;
+#endif
+
+  /* Successful close */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_close(&req, 1000));
+
+  /* Second close fails send */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_ws_close(&req, 1000));
+
+  c_abstract_http_ws_free(&req);
+  http_request_free(&req);
+  PASS();
+}
+
+TEST test_ws_header_and_mask_coverage(void) {
+  unsigned char buf[16];
+  unsigned char key[4];
+
+  key[0] = 1;
+  key[1] = 2;
+  key[2] = 3;
+  key[3] = 4;
+
+  /* Pack with out_len == NULL */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      ws_pack_header_small(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1, 5, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_pack_header_medium(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_TEXT, 1,
+                                  200, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_pack_header_large(buf, 1, C_ABSTRACT_HTTP_WS_OPCODE_BINARY, 1,
+                                 70000, NULL));
+
+  /* Mask key error checks */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, ws_generate_mask_key(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, ws_apply_mask(buf, 5, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_apply_mask(NULL, 0, key));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_apply_mask(buf, 0, key));
+
+  /* send and close with NULL ws_ctx */
+  {
+    struct HttpRequest null_ctx_req;
+    memset(&null_ctx_req, 0, sizeof(null_ctx_req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              c_abstract_http_ws_send(&null_ctx_req,
+                                      C_ABSTRACT_HTTP_WS_OPCODE_TEXT, buf, 1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              c_abstract_http_ws_close(&null_ctx_req, 1000));
+  }
+
+  PASS();
+}
+
+TEST test_ws_parser_missing_callbacks(void) {
+  struct ws_parser_ctx parser;
+  unsigned char rsv_chunk[2];
+  unsigned char frag_ctrl[2];
+  unsigned char ping_chunk[2];
+  unsigned char pong_chunk[2];
+  unsigned char close_short[2];
+  unsigned char text_chunk[4];
+  unsigned char close_payload[4];
+  unsigned char frag1[3];
+  unsigned char frag2[3];
+
+  rsv_chunk[0] = 0xB1;
+  rsv_chunk[1] = 0x00;
+  frag_ctrl[0] = 0x08;
+  frag_ctrl[1] = 0x00;
+  ping_chunk[0] = 0x89;
+  ping_chunk[1] = 0x00;
+  pong_chunk[0] = 0x8A;
+  pong_chunk[1] = 0x00;
+  close_short[0] = 0x88;
+  close_short[1] = 0x00;
+  text_chunk[0] = 0x81;
+  text_chunk[1] = 0x02;
+  text_chunk[2] = 'H';
+  text_chunk[3] = 'i';
+
+  close_payload[0] = 0x88;
+  close_payload[1] = 0x02;
+  close_payload[2] = 0x03;
+  close_payload[3] = 0xE8;
+
+  frag1[0] = 0x01;
+  frag1[1] = 0x01;
+  frag1[2] = 'A';
+  frag2[0] = 0x01;
+  frag2[1] = 0x01;
+  frag2[2] = 'B';
+
+  /* Init parser with ALL callbacks NULL */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, NULL, NULL, NULL, NULL));
+
+  /* Feed errors with NULL on_error */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
+            ws_parser_feed(&parser, rsv_chunk, sizeof(rsv_chunk)));
+  ws_parser_destroy(&parser);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
+            ws_parser_feed(&parser, frag_ctrl, sizeof(frag_ctrl)));
+  ws_parser_destroy(&parser);
+
+  /* Close with payload >= 2 and NULL on_close */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, close_payload, sizeof(close_payload)));
+  ws_parser_destroy(&parser);
+
+  /* Fragmented message continuation error with NULL on_error */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, frag1, sizeof(frag1)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
+            ws_parser_feed(&parser, frag2, sizeof(frag2)));
+  ws_parser_destroy(&parser);
+
+  /* PING with NULL on_message */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, ping_chunk, sizeof(ping_chunk)));
+  ws_parser_destroy(&parser);
+
+  /* PONG with NULL on_message */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, pong_chunk, sizeof(pong_chunk)));
+  ws_parser_destroy(&parser);
+
+  /* Close with payload < 2 and NULL on_close */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, close_short, sizeof(close_short)));
+  ws_parser_destroy(&parser);
+
+  /* Single frame with NULL on_message */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_feed(&parser, text_chunk, sizeof(text_chunk)));
+  ws_parser_destroy(&parser);
+
+  /* Feed edge cases */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, ws_parser_feed(NULL, text_chunk, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, ws_parser_feed(&parser, NULL, 5));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_parser_feed(&parser, text_chunk, 0));
+
+  PASS();
+}
+
+TEST test_ws_free_partial(void) {
+  struct HttpRequest req;
+  struct ws_stream_ctx *sctx;
+  memset(&req, 0, sizeof(req));
+
+  sctx = (struct ws_stream_ctx *)calloc(1, sizeof(struct ws_stream_ctx));
+  ASSERT(sctx != NULL);
+
+  /* sctx with NULL mutex, cond, queue */
+  req.ws_ctx = sctx;
+  c_abstract_http_ws_free(&req);
+  ASSERT_EQ(NULL, req.ws_ctx);
+
+  /* req with NULL ws_ctx */
+  c_abstract_http_ws_free(&req);
+
+  /* NULL req */
+  c_abstract_http_ws_free(NULL);
+  PASS();
+}
+
+#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__)
+static void ws_cond_wake_cb(void *arg) {
+  struct HttpRequest *req = (struct HttpRequest *)arg;
+#if defined(_WIN32)
+  Sleep(30);
+#else
+  usleep(30000);
+#endif
+  (void)!c_abstract_http_ws_send(req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                 (const unsigned char *)"hi", 2);
+}
+
+TEST test_ws_read_chunk_cond_wait_success(void) {
+  struct HttpRequest req;
+  struct AbstractHttpThreadPool *pool = NULL;
+  char buf[32];
+  size_t out_read = 0;
+
+  memset(&req, 0, sizeof(req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_push(pool, ws_cond_wake_cb, &req));
+
+  ASSERT_EQ(
+      0, req.read_chunk(req.read_chunk_user_data, buf, sizeof(buf), &out_read));
+  ASSERT(out_read > 0);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
+  c_abstract_http_ws_free(&req);
+  http_request_free(&req);
+  PASS();
+}
+#endif
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern void abstract_http_test_ws_async_task(void *arg);
+TEST test_ws_async_task_null(void) {
+  abstract_http_test_ws_async_task(NULL);
+  PASS();
+}
+
+TEST test_ws_async_task_branches(void) {
+  struct c_abstract_http_ws_async_ctx *ctx1;
+  struct c_abstract_http_ws_async_ctx *ctx2;
+  struct HttpClient client;
+  struct HttpRequest req;
+
+  memset(&client, 0, sizeof(client));
+  memset(&req, 0, sizeof(req));
+  client.send = mock_send_success_ws;
+
+  /* Case 1: err == SUCCESS */
+  ctx1 = (struct c_abstract_http_ws_async_ctx *)malloc(sizeof(*ctx1));
+  ASSERT(ctx1 != NULL);
+  ctx1->client = &client;
+  ctx1->req = &req;
+  ctx1->on_msg = NULL;
+  ctx1->on_err = NULL;
+  ctx1->on_close = NULL;
+  ctx1->user_data = NULL;
+  abstract_http_test_ws_async_task(ctx1);
+  c_abstract_http_ws_free(&req);
+  http_request_free(&req);
+
+  /* Case 2: err != SUCCESS and on_err == NULL */
+  memset(&req, 0, sizeof(req));
+  client.send = mock_send_fail_ws;
+  ctx2 = (struct c_abstract_http_ws_async_ctx *)malloc(sizeof(*ctx2));
+  ASSERT(ctx2 != NULL);
+  ctx2->client = &client;
+  ctx2->req = &req;
+  ctx2->on_msg = NULL;
+  ctx2->on_err = NULL;
+  ctx2->on_close = NULL;
+  ctx2->user_data = NULL;
+  abstract_http_test_ws_async_task(ctx2);
+  c_abstract_http_ws_free(&req);
+  http_request_free(&req);
+
+  PASS();
+}
+
+TEST test_ws_sha1_failures(void) {
+  char accept[29];
+  g_mock_sha1_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            ws_sign_key("dGhlIHNhbXBsZSBub25jZQ==", accept));
+  g_mock_sha1_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            ws_sign_key("dGhlIHNhbXBsZSBub25jZQ==", accept));
+  g_mock_sha1_fail = 3;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            ws_sign_key("dGhlIHNhbXBsZSBub25jZQ==", accept));
+  g_mock_sha1_fail = 0;
+  PASS();
+}
+#endif
+
+TEST test_ws_parser_branch_coverage(void) {
+  struct ws_parser_ctx parser;
+  enum c_abstract_http_error rc;
+  int exit_flag;
+  struct HttpClient client;
+  struct HttpRequest req;
+  const unsigned char rsv_chunk[2] = {0xF1, 0x00};
+  const unsigned char oversized_chunk[10] = {0x81, 0x7F, 0x00, 0x00, 0x00,
+                                             0x00, 0x02, 0x00, 0x00, 0x00};
+  const unsigned char close_chunk[4] = {0x88, 0x02, 0x03, 0xE8};
+  const unsigned char ping_chunk[6] = {0x89, 0x04, 'p', 'i', 'n', 'g'};
+  const unsigned char pong_chunk[6] = {0x8A, 0x04, 'p', 'o', 'n', 'g'};
+  const unsigned char frag1[6] = {0x01, 0x04, 't', 'e', 's', 't'};
+  const unsigned char non_cont[6] = {0x02, 0x04, 'b', 'a', 'd', 'f'};
+
+  exit_flag = 1;
+  rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  /* Feed empty chunk */
+  rc = ws_parser_feed(&parser, NULL, 0);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  /* Feed RSV bit without on_error */
+  rc = ws_parser_feed(&parser, rsv_chunk, sizeof(rsv_chunk));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, rc);
+
+  ws_parser_destroy(&parser);
+  rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  /* Feed oversized chunk without on_error */
+  rc = ws_parser_feed(&parser, oversized_chunk, sizeof(oversized_chunk));
+  ASSERT_EQ(90, rc);
+
+  ws_parser_destroy(&parser);
+  rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  /* Feed close chunk without on_close */
+  rc = ws_parser_feed(&parser, close_chunk, sizeof(close_chunk));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  ws_parser_destroy(&parser);
+
+  /* Feed close chunk with 0 payload bytes followed by another frame */
+  {
+    const unsigned char close_two_frames[6] = {0x88, 0x00, 0x88,
+                                               0x02, 0x03, 0xE8};
+    rc = ws_parser_init(&parser, NULL, NULL, test_ws_mock_on_close, NULL);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    rc = ws_parser_feed(&parser, close_two_frames, sizeof(close_two_frames));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    ws_parser_destroy(&parser);
+  }
+
+  rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  /* Feed ping and pong without on_message */
+  rc = ws_parser_feed(&parser, ping_chunk, sizeof(ping_chunk));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  ws_parser_destroy(&parser);
+  rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  rc = ws_parser_feed(&parser, pong_chunk, sizeof(pong_chunk));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  ws_parser_destroy(&parser);
+  rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  /* Framing error: fragment 1 then non-continuation opcode */
+  rc = ws_parser_feed(&parser, frag1, sizeof(frag1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  rc = ws_parser_feed(&parser, non_cont, sizeof(non_cont));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, rc);
+
+  ws_parser_destroy(&parser);
+
+  /* Parser with invalid state */
+  rc = ws_parser_init(&parser, NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  parser.state = (enum ws_parser_state)999;
+  rc = ws_parser_feed(&parser, ping_chunk, 1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, rc);
+  ws_parser_destroy(&parser);
+
+  rc = ws_parser_init(&parser, NULL, test_ws_mock_on_error, NULL, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  test_ws_mock_on_error_called = 0;
+  parser.state = (enum ws_parser_state)999;
+  rc = ws_parser_feed(&parser, ping_chunk, 1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, test_ws_mock_on_error_called);
+  ws_parser_destroy(&parser);
+
+  /* c_abstract_http_ws_sync_read_loop with exit_flag = 1 */
+  memset(&client, 0, sizeof(client));
+  memset(&req, 0, sizeof(req));
+  rc = c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL, NULL,
+                                         &exit_flag);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  PASS();
+}
+
 SUITE(ws_suite) {
+  RUN_TEST(test_ws_parser_branch_coverage);
   RUN_TEST(test_ws_async_coverage);
   /* RUN_TEST(test_ws_send_large); */
   RUN_TEST(test_ws_edge_cases);
@@ -1188,6 +2099,22 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_sync_loop_parser_oom);
 #endif
   RUN_TEST(test_ws_sync_loop_feed_error);
+  RUN_TEST(test_ws_read_chunk_more);
+  RUN_TEST(test_ws_send_branches);
+  RUN_TEST(test_ws_close_branches);
+  RUN_TEST(test_ws_header_and_mask_coverage);
+  RUN_TEST(test_ws_parser_missing_callbacks);
+  RUN_TEST(test_ws_init_config_branches);
+  RUN_TEST(test_ws_sync_loop_branches);
+  RUN_TEST(test_ws_free_partial);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  RUN_TEST(test_ws_async_task_null);
+  RUN_TEST(test_ws_async_task_branches);
+  RUN_TEST(test_ws_sha1_failures);
+#endif
+#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__)
+  RUN_TEST(test_ws_read_chunk_cond_wait_success);
+#endif
 }
 GREATEST_MAIN_DEFS();
 

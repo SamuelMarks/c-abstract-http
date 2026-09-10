@@ -1,4 +1,3 @@
-
 /**
  * @file abstract_http_helpers.h
  * @brief Helper functions for unit testing.
@@ -14,13 +13,16 @@ extern "C" {
 
 /* clang-format off */
 #include <stdio.h>
+#include <c_abstract_http/http_types.h>
 /* clang-format on */
 
 /**
  * @brief Callback for assertion failures in dependencies.
  * Usually mocked out or prints to stderr.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on completion.
  */
-extern void abstract_http_precondition_failed(void);
+extern enum c_abstract_http_error abstract_http_precondition_failed(void);
 
 /**
  * @brief Write string content to a file.
@@ -28,9 +30,10 @@ extern void abstract_http_precondition_failed(void);
  *
  * @param[in] filename Path to the file to write.
  * @param[in] contents The data to write.
- * @return EXIT_SUCCESS on success, EXIT_FAILURE on error.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error enum on failure.
  */
-extern int write_to_file(const char *filename, const char *contents);
+extern enum c_abstract_http_error write_to_file(const char *filename,
+                                                const char *contents);
 
 #ifdef __cplusplus
 }

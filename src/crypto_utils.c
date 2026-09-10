@@ -61,9 +61,19 @@ static void math_sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
   state[4] += e;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_sha1_fail;
+#endif
+
 enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx) {
   if (!ctx)
     return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_sha1_fail > 0) {
+    if (--g_mock_sha1_fail == 0)
+      return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
   ctx->count[0] = ctx->count[1] = 0;
   ctx->state[0] = 0x67452301;
   ctx->state[1] = 0xEFCDAB89;
@@ -72,10 +82,6 @@ enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx) {
   ctx->state[4] = 0xC3D2E1F0;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int g_mock_sha1_fail;
-#endif
 
 enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
                                        const unsigned char *data, size_t len) {

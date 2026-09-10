@@ -111,11 +111,32 @@ int g_mock_http_loop_fail = 0;
        ? CURLM_OUT_OF_MEMORY                                                   \
        : (curl_multi_setopt)(handle, option, param))
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+int g_mock_curl_multi_add_fail = 0;
+/**
+ * @brief Mock wrapper for curl_multi_add_handle to simulate failures.
+ * @param multi Curl multi handle.
+ * @param handle Curl easy handle.
+ * @return CURLMcode result.
+ */
+static CURLMcode mock_curl_multi_add_handle(CURLM *multi, CURL *handle) {
+  if (g_mock_curl_multi_add_fail == 1)
+    return CURLM_BAD_HANDLE;
+  if (g_mock_curl_multi_add_fail == 2) {
+    static int s_multi_add_count = 0;
+    if (++s_multi_add_count >= 2) {
+      s_multi_add_count = 0;
+      return CURLM_BAD_HANDLE;
+    }
+  }
+  if (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0)
+    return CURLM_OUT_OF_MEMORY;
+  return curl_multi_add_handle(multi, handle);
+}
 #undef ABSTRACT_HTTP_CURL_MULTI_ADD_HANDLE
 #define ABSTRACT_HTTP_CURL_MULTI_ADD_HANDLE(multi, handle)                     \
-  (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0                  \
-       ? CURLM_OUT_OF_MEMORY                                                   \
-       : (curl_multi_add_handle)(multi, handle))
+  mock_curl_multi_add_handle(multi, handle)
+#endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 extern struct curl_slist *g_mock_curl_cookies;
@@ -349,6 +370,7 @@ enum c_abstract_http_error
 http_curl_config_apply(struct HttpTransportContext *ctx,
                        const struct HttpConfig *config) {
   long ssl_version_max = 0;
+  long http_version = 0;
   LOG_DEBUG("http_curl_config_apply: Entering");
   if (!ctx || !ctx->curl || !config) {
     LOG_DEBUG("http_curl_config_apply: Error EINVAL");
@@ -357,23 +379,17 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
 
   if (config->version_mask & HTTP_VERSION_3) {
 #if LIBCURL_VERSION_NUM >= 0x074200 /* 7.66.0 */
-    if ((config->version_mask &
-         (HTTP_VERSION_2 | HTTP_VERSION_1_1 | HTTP_VERSION_1_0)) ||
-        config->http3_fallback) {
-      if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
-                                         CURL_HTTP_VERSION_3) != CURLE_OK)
-        return C_ABSTRACT_HTTP_ERR_IO;
-    } else {
+    http_version = CURL_HTTP_VERSION_3;
 #if LIBCURL_VERSION_NUM >= 0x075000 /* 7.80.0 */
-      if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
-                                         CURL_HTTP_VERSION_3ONLY) != CURLE_OK)
-        return C_ABSTRACT_HTTP_ERR_IO;
-#else
-      if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
-                                         CURL_HTTP_VERSION_3) != CURLE_OK)
-        return C_ABSTRACT_HTTP_ERR_IO;
-#endif
+    if (!((config->version_mask &
+           (HTTP_VERSION_2 | HTTP_VERSION_1_1 | HTTP_VERSION_1_0)) ||
+          config->http3_fallback)) {
+      http_version = CURL_HTTP_VERSION_3ONLY;
     }
+#endif
+    if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
+                                       http_version) != CURLE_OK)
+      return C_ABSTRACT_HTTP_ERR_IO;
 #else
     /* Fallback to default if libcurl is too old */
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
@@ -967,6 +983,77 @@ socket_error:
   LOG_DEBUG("multi_socket_function: returning -1 due to internal error %d", rc);
   return -1;
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Invoke multi_timer_function for unit test verification.
+ * @param ctx Context pointer.
+ * @param timeout_ms Timeout value.
+ * @return 0 on success, -1 on error.
+ */
+int abstract_http_test_multi_timer_function(struct HttpTransportContext *ctx,
+                                            long timeout_ms);
+
+/**
+ * @brief Invoke multi_socket_function for unit test verification.
+ * @param ctx Context pointer.
+ * @param s Socket descriptor.
+ * @param what Action flags.
+ * @param socketp Socket state pointer.
+ * @return 0 on success, -1 on error.
+ */
+int abstract_http_test_multi_socket_function(struct HttpTransportContext *ctx,
+                                             curl_socket_t s, int what,
+                                             void *socketp);
+
+/**
+ * @brief Set timer ID for test verification.
+ * @param ctx Context pointer.
+ * @param timer_id Timer ID value.
+ */
+void abstract_http_test_set_timer_id(struct HttpTransportContext *ctx,
+                                     int timer_id);
+
+/**
+ * @brief Get timer ID for test verification.
+ * @param ctx Context pointer.
+ * @return Timer ID.
+ */
+int abstract_http_test_get_timer_id(struct HttpTransportContext *ctx);
+
+/**
+ * @brief Set event loop for test verification.
+ * @param ctx Context pointer.
+ * @param loop Event loop pointer.
+ */
+void abstract_http_test_set_loop(struct HttpTransportContext *ctx,
+                                 struct ModalityEventLoop *loop);
+
+int abstract_http_test_multi_timer_function(struct HttpTransportContext *ctx,
+                                            long timeout_ms) {
+  return multi_timer_function(ctx->multi, timeout_ms, ctx);
+}
+
+int abstract_http_test_multi_socket_function(struct HttpTransportContext *ctx,
+                                             curl_socket_t s, int what,
+                                             void *socketp) {
+  return multi_socket_function(ctx->curl, s, what, ctx, socketp);
+}
+
+void abstract_http_test_set_timer_id(struct HttpTransportContext *ctx,
+                                     int timer_id) {
+  ctx->timer_id = timer_id;
+}
+
+int abstract_http_test_get_timer_id(struct HttpTransportContext *ctx) {
+  return ctx->timer_id;
+}
+
+void abstract_http_test_set_loop(struct HttpTransportContext *ctx,
+                                 struct ModalityEventLoop *loop) {
+  ctx->loop = loop;
+}
+#endif
 
 enum c_abstract_http_error http_curl_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,

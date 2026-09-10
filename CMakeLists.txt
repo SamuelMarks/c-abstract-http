@@ -526,7 +526,22 @@ else()
             src/coroutine.c
             src/actor.c
             src/process.c
-                        src/transport.c
+            src/transport.c
+            src/http_raw.c
+            src/http_aria2.c
+            src/http_xquic.c
+            src/http_picoquic.c
+            src/http_wasm.c
+            src/http_fetch.c
+            src/http_nghttp3.c
+            src/http_libevent.c
+            src/http_libuv.c
+            src/http_lsquic.c
+            src/http_libsoup3.c
+            src/http_android.c
+            src/http_msh3.c
+            src/http_winhttp.c
+            src/http_wininet.c
         )
         set_target_properties(c-abstract-http PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
         if(MINGW OR CYGWIN)
@@ -543,7 +558,22 @@ else()
             src/coroutine.c
             src/actor.c
             src/process.c
-                        src/transport.c
+            src/transport.c
+            src/http_raw.c
+            src/http_aria2.c
+            src/http_xquic.c
+            src/http_picoquic.c
+            src/http_wasm.c
+            src/http_fetch.c
+            src/http_nghttp3.c
+            src/http_libevent.c
+            src/http_libuv.c
+            src/http_lsquic.c
+            src/http_libsoup3.c
+            src/http_android.c
+            src/http_msh3.c
+            src/http_winhttp.c
+            src/http_wininet.c
         )
     endif()
 
@@ -597,13 +627,8 @@ endif()
 
 #Platform specific HTTP backends
     if(CMAKE_SYSTEM_NAME STREQUAL "Android" OR ANDROID)
-        target_sources(c-abstract-http PRIVATE
-            src/http_android.c
-        )
+        # Android backend already included in main sources
     elseif(EMSCRIPTEN)
-        target_sources(c-abstract-http PRIVATE
-            src/http_wasm.c
-        )
 #Fetch API requires - s FETCH = 1
         target_link_options(c-abstract-http PUBLIC "SHELL:-s FETCH=1")
     elseif(C_ABSTRACT_HTTP_USE_LIBUV)
@@ -658,16 +683,10 @@ target_link_libraries(c-abstract-http PUBLIC lsquic ssl crypto)
 endif()
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LSQUIC)
     elseif(C_ABSTRACT_HTTP_USE_PICOQUIC)
-        target_sources(c-abstract-http PRIVATE
-            src/http_picoquic.c
-        )
         c_abstract_http_resolve_dependency(picoquic https://github.com/private-octopus/picoquic.git master)
         target_link_libraries(c-abstract-http PUBLIC picoquic)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_PICOQUIC)
     elseif(C_ABSTRACT_HTTP_USE_NGHTTP3)
-        target_sources(c-abstract-http PRIVATE
-            src/http_nghttp3.c
-        )
         set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
         set(ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
         set(ENABLE_APP OFF CACHE BOOL "" FORCE)
@@ -679,24 +698,14 @@ if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
 endif()
 
         target_link_libraries(c-abstract-http PUBLIC nghttp3)
-        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_NGHTTP3)
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_NGHTTP3 C_ABSTRACT_HTTP_HAVE_REAL_NGHTTP3)
     elseif(C_ABSTRACT_HTTP_USE_MSH3)
-        target_sources(c-abstract-http PRIVATE
-            src/http_msh3.c
-        )
         c_abstract_http_resolve_dependency(msh3 https://github.com/nibanks/msh3.git main)
         target_link_libraries(c-abstract-http PUBLIC msh3)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_MSH3)
     elseif(C_ABSTRACT_HTTP_USE_ARIA2)
-        target_sources(c-abstract-http PRIVATE
-            src/http_aria2.c
-        )
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_ARIA2)
     elseif(WIN32 AND NOT MINGW_TEST_CURL)
-        target_sources(c-abstract-http PRIVATE
-            src/http_winhttp.c
-            src/http_wininet.c
-        )
         if(MSVC AND MSVC_VERSION LESS 1600)
             target_link_libraries(c-abstract-http PUBLIC wininet ws2_32)
             target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_WININET)
@@ -711,10 +720,17 @@ endif()
         find_library(FOUNDATION Foundation)
         find_library(CFNetwork CFNetwork)
         target_link_libraries(c-abstract-http PUBLIC ${FOUNDATION} ${CFNetwork})
+        if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
+            find_package(CURL QUIET)
+            if(CURL_FOUND)
+                target_sources(c-abstract-http PRIVATE
+                    src/http_curl.c
+                )
+                target_link_libraries(c-abstract-http PUBLIC CURL::libcurl)
+                target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_HAVE_CURL)
+            endif()
+        endif()
     elseif(C_ABSTRACT_HTTP_USE_XQUIC)
-        target_sources(c-abstract-http PRIVATE
-            src/http_xquic.c
-        )
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_XQUIC)
     elseif(C_ABSTRACT_HTTP_USE_LIBSOUP3)
         target_sources(c-abstract-http PRIVATE
@@ -734,15 +750,9 @@ endif()
         target_link_libraries(c-abstract-http PUBLIC ${LIBSOUP3_LIBRARIES})
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LIBSOUP3)
     elseif(C_ABSTRACT_HTTP_USE_LIBFETCH)
-        target_sources(c-abstract-http PRIVATE
-            src/http_fetch.c
-        )
         target_link_libraries(c-abstract-http PUBLIC fetch)
-        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LIBFETCH)
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LIBFETCH C_ABSTRACT_HTTP_HAVE_REAL_FETCH)
     elseif(CMAKE_SYSTEM_NAME STREQUAL "DOS")
-        target_sources(c-abstract-http PRIVATE
-            src/http_raw.c
-        )
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
     else()
         target_sources(c-abstract-http PRIVATE
@@ -756,6 +766,7 @@ endif()
             unset(BUILD_TESTING)
         endif()
         target_link_libraries(c-abstract-http PUBLIC CURL::libcurl)
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_HAVE_CURL)
     endif()
 
     c_abstract_http_apply_crypto(c-abstract-http PUBLIC)

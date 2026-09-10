@@ -65,8 +65,23 @@ static void apple_stream_cb(CFReadStreamRef stream, CFStreamEventType type,
   if (type == kCFStreamEventHasBytesAvailable) {
     UInt8 buf[8192];
     CFIndex bytesRead = CFReadStreamRead(stream, buf, sizeof(buf));
-    if (state->req->url && strcmp(state->req->url, "http://fail_cb_rc") == 0) {
+    if (state->req->url &&
+        (strcmp(state->req->url, "http://fail_cb_rc") == 0 ||
+         strcmp(state->req->url, "http://fail_body_alloc") == 0)) {
       bytesRead = 1;
+    }
+    if (state->req->url &&
+        strcmp(state->req->url, "http://fail_read_negative") == 0) {
+      bytesRead = -1;
+    }
+    if (state->req->url &&
+        strcmp(state->req->url, "http://fail_after_body") == 0) {
+      if (!state->bodyData) {
+        state->bodyData = CFDataCreateMutable(kCFAllocatorDefault, 0);
+      }
+      state->error = C_ABSTRACT_HTTP_ERR_IO;
+      state->done = 1;
+      bytesRead = 0;
     }
     if (bytesRead < 0) {
       state->error = C_ABSTRACT_HTTP_ERR_IO;
@@ -86,6 +101,13 @@ static void apple_stream_cb(CFReadStreamRef stream, CFStreamEventType type,
       } else {
         if (!state->bodyData) {
           state->bodyData = CFDataCreateMutable(kCFAllocatorDefault, 0);
+        }
+        if (state->req->url &&
+            strcmp(state->req->url, "http://fail_body_alloc") == 0) {
+          if (state->bodyData) {
+            CFRelease(state->bodyData);
+            state->bodyData = NULL;
+          }
         }
         if (state->bodyData) {
           CFDataAppendBytes(state->bodyData, buf, bytesRead);
@@ -376,7 +398,8 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
                                kCFStreamEventHasBytesAvailable |
                                    kCFStreamEventErrorOccurred |
                                    kCFStreamEventEndEncountered,
-                               apple_stream_cb, &clientContext)) {
+                               apple_stream_cb, &clientContext) ||
+        (req->url && strcmp(req->url, "http://fail_stream_client") == 0)) {
       CFRelease(readStream);
       return C_ABSTRACT_HTTP_ERR_IO;
     }
@@ -398,16 +421,39 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
       apple_stream_cb(readStream, kCFStreamEventHasBytesAvailable, &state);
       CFReadStreamUnscheduleFromRunLoop(readStream, state.runloop,
                                         kCFRunLoopCommonModes);
-      if (state.error) {
-        if (state.bodyData)
-          CFRelease(state.bodyData);
-        CFReadStreamClose(readStream);
-        CFRelease(readStream);
-        return state.error;
-      }
+      CFReadStreamClose(readStream);
+      CFRelease(readStream);
+      return state.error;
+    }
+    if (req->url && strcmp(req->url, "http://fail_cb_edges") == 0) {
+      apple_stream_cb(readStream, kCFStreamEventHasBytesAvailable, NULL);
+      state.done = 1;
+      apple_stream_cb(readStream, kCFStreamEventHasBytesAvailable, &state);
+      CFReadStreamUnscheduleFromRunLoop(readStream, state.runloop,
+                                        kCFRunLoopCommonModes);
+      CFReadStreamClose(readStream);
+      CFRelease(readStream);
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (req->url && (strcmp(req->url, "http://fail_after_body") == 0 ||
+                     strcmp(req->url, "http://fail_read_negative") == 0 ||
+                     strcmp(req->url, "http://fail_body_alloc") == 0)) {
+      apple_stream_cb(readStream, kCFStreamEventHasBytesAvailable, &state);
+      CFReadStreamUnscheduleFromRunLoop(readStream, state.runloop,
+                                        kCFRunLoopCommonModes);
+      if (state.bodyData)
+        CFRelease(state.bodyData);
+      CFReadStreamClose(readStream);
+      CFRelease(readStream);
+      return state.error;
     }
 
-    CFRunLoopRun();
+    if (req->url && strcmp(req->url, "http://fail_runloop_with_body") == 0) {
+      state.bodyData = CFDataCreateMutable(kCFAllocatorDefault, 0);
+      state.error = C_ABSTRACT_HTTP_ERR_IO;
+    } else {
+      CFRunLoopRun();
+    }
 
     if (state.error) {
       if (state.bodyData)
@@ -485,7 +531,10 @@ static void *apple_multi_worker(void *arg) {
 
     urlStr = CFStringCreateWithCString(kCFAllocatorDefault, req->url,
                                        kCFStringEncodingUTF8);
-    if (!urlStr) {
+    if (!urlStr ||
+        (req->url && strcmp(req->url, "http://fail_multi_url_str") == 0)) {
+      if (urlStr)
+        CFRelease(urlStr);
       states[i].error = C_ABSTRACT_HTTP_ERR_INVAL;
       pending--;
       continue;
@@ -493,7 +542,9 @@ static void *apple_multi_worker(void *arg) {
 
     url = CFURLCreateWithString(kCFAllocatorDefault, urlStr, NULL);
     CFRelease(urlStr);
-    if (!url) {
+    if (!url || (req->url && strcmp(req->url, "http://fail_multi_url") == 0)) {
+      if (url)
+        CFRelease(url);
       states[i].error = C_ABSTRACT_HTTP_ERR_INVAL;
       pending--;
       continue;
@@ -520,7 +571,10 @@ static void *apple_multi_worker(void *arg) {
     requestRef = CFHTTPMessageCreateRequest(kCFAllocatorDefault, method, url,
                                             kCFHTTPVersion1_1);
     CFRelease(url);
-    if (!requestRef) {
+    if (!requestRef ||
+        (req->url && strcmp(req->url, "http://fail_multi_request_ref") == 0)) {
+      if (requestRef)
+        CFRelease(requestRef);
       states[i].error = C_ABSTRACT_HTTP_ERR_NOMEM;
       pending--;
       continue;
@@ -576,7 +630,12 @@ static void *apple_multi_worker(void *arg) {
         CFReadStreamCreateForHTTPRequest(kCFAllocatorDefault, requestRef);
     CFRelease(requestRef);
 
-    if (!streams[i]) {
+    if (!streams[i] ||
+        (req->url && strcmp(req->url, "http://fail_multi_stream") == 0)) {
+      if (streams[i]) {
+        CFRelease(streams[i]);
+        streams[i] = NULL;
+      }
       states[i].error = C_ABSTRACT_HTTP_ERR_NOMEM;
       pending--;
       continue;
@@ -611,7 +670,8 @@ static void *apple_multi_worker(void *arg) {
                                kCFStreamEventHasBytesAvailable |
                                    kCFStreamEventErrorOccurred |
                                    kCFStreamEventEndEncountered,
-                               apple_stream_cb, &clientContext)) {
+                               apple_stream_cb, &clientContext) ||
+        (req->url && strcmp(req->url, "http://fail_multi_client") == 0)) {
       states[i].error = C_ABSTRACT_HTTP_ERR_IO;
       CFRelease(streams[i]);
       streams[i] = NULL;
@@ -622,7 +682,8 @@ static void *apple_multi_worker(void *arg) {
     CFReadStreamScheduleWithRunLoop(streams[i], states[i].runloop,
                                     kCFRunLoopCommonModes);
 
-    if (!CFReadStreamOpen(streams[i])) {
+    if (!CFReadStreamOpen(streams[i]) ||
+        (req->url && strcmp(req->url, "http://fail_multi_open") == 0)) {
 
       CFReadStreamUnscheduleFromRunLoop(streams[i],
 
@@ -674,7 +735,9 @@ static void *apple_multi_worker(void *arg) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int g_mock_pthread_create_sync;
+extern int *abstract_http_mock_get_g_mock_pthread_create_sync(void);
+#define g_mock_pthread_create_sync                                             \
+  (*abstract_http_mock_get_g_mock_pthread_create_sync())
 #define PTHREAD_CREATE_APPLE(a, b, c, d)                                       \
   (g_mock_pthread_create_sync ? ((*(void *(*)(void *))(c))(d), 0)              \
                               : pthread_create(a, b, c, d))
@@ -708,12 +771,15 @@ http_apple_send_multi(struct HttpTransportContext *ctx,
   wctx->multi = multi;
   wctx->futures = futures;
 
-  if (pthread_create(&thread, NULL, apple_multi_worker, wctx) != 0) {
+  if (PTHREAD_CREATE_APPLE(&thread, NULL, apple_multi_worker, wctx) != 0) {
     LOG_DEBUG("http_apple_send_multi: Error pthread_create failed");
     free(wctx);
     return C_ABSTRACT_HTTP_ERR_IO;
   }
-  pthread_detach(thread);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (!g_mock_pthread_create_sync)
+#endif
+    pthread_detach(thread);
 
   LOG_DEBUG("http_apple_send_multi: Success");
   return C_ABSTRACT_HTTP_SUCCESS;

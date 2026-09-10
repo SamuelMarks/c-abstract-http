@@ -34,12 +34,7 @@ TEST test_serialize_deserialize_request(void) {
   size_t len = 0;
   char *_ast_strdup_0 = NULL;
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req_in);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req_in));
   req_in.method = HTTP_POST;
   req_in.url =
       (c_abstract_http_mock_strdup("http://example.com/api", &_ast_strdup_0),
@@ -81,20 +76,10 @@ TEST test_serialize_deserialize_response(void) {
   char *buf = NULL;
   size_t len = 0;
 
-  {
-    enum c_abstract_http_error rc_test = http_response_init(&res_in);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(&res_in));
   res_in.status_code = 404;
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&res_in.headers, "Server", "mock");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&res_in.headers, "Server", "mock"));
 
   res_in.body_len = 9;
   res_in.body = malloc(res_in.body_len);
@@ -200,29 +185,12 @@ TEST test_abstract_http_serialize_errors(void) {
 TEST test_abstract_http_process_hooks(void) {
   struct AbstractHttpProcessHooks hooks;
   memset(&hooks, 0, sizeof(hooks));
-  {
-    enum c_abstract_http_error rc_test =
-        abstract_http_process_set_hooks(&hooks);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test = abstract_http_process_set_hooks(NULL);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_process_set_hooks(&hooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_process_set_hooks(NULL));
   /* Should do nothing */
 
   /* Reset hooks so it doesn't affect other tests */
-  {
-    enum c_abstract_http_error rc_test =
-        abstract_http_process_set_hooks(&hooks);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_process_set_hooks(&hooks));
   PASS();
 }
 
@@ -338,13 +306,7 @@ TEST test_process_hooks_coverage(void) {
   hooks.wait_and_free = dummy_process_wait_and_free;
   hooks.ipc_write = dummy_ipc_write;
   hooks.ipc_read = dummy_ipc_read;
-  {
-    enum c_abstract_http_error rc_test =
-        abstract_http_process_set_hooks(&hooks);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_process_set_hooks(&hooks));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_process_spawn(&proc, &p2c, &c2p));
@@ -354,13 +316,7 @@ TEST test_process_hooks_coverage(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_read(NULL, NULL, 0));
 
   memset(&hooks, 0, sizeof(hooks));
-  {
-    enum c_abstract_http_error rc_test =
-        abstract_http_process_set_hooks(&hooks);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_process_set_hooks(&hooks));
   PASS();
 }
 
@@ -515,13 +471,8 @@ TEST test_process_deserialization_edge_cases(void) {
 
   req.method = HTTP_GET;
   req.url = "/";
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&req.headers, "Key", "Value");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Key", "Value"));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_ipc_serialize_request(&req, &buf, &len));
   req.url = NULL;
@@ -539,13 +490,8 @@ TEST test_process_deserialization_edge_cases(void) {
   free(buf);
 
   res.status_code = 200;
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&res.headers, "Key", "Value");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&res.headers, "Key", "Value"));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res);
@@ -713,18 +659,8 @@ TEST test_process_final_edge_cases(void) {
   {
     struct AbstractHttpProcess *my_proc = NULL;
     struct AbstractHttpIpcPipe p1, p2;
-    {
-      enum c_abstract_http_error rc_test = abstract_http_ipc_pipe_init(&p1);
-      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-        printf("Error: %d\n", (int)rc_test);
-      }
-    }
-    {
-      enum c_abstract_http_error rc_test = abstract_http_ipc_pipe_init(&p2);
-      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-        printf("Error: %d\n", (int)rc_test);
-      }
-    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_init(&p1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_init(&p2));
     if (abstract_http_process_spawn(&my_proc, &p1, &p2) ==
         C_ABSTRACT_HTTP_SUCCESS) {
       if (my_proc)
@@ -766,13 +702,8 @@ TEST test_process_final_edge_cases(void) {
   {
     req.method = HTTP_GET;
     req.url = "/";
-    {
-      enum c_abstract_http_error rc_test =
-          http_headers_add(&req.headers, "A", "B");
-      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-        printf("Error: %d\n", (int)rc_test);
-      }
-    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_headers_add(&req.headers, "A", "B"));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               abstract_http_ipc_serialize_request(&req, &buf, &len));
     req.url = NULL;
@@ -808,13 +739,8 @@ TEST test_process_final_edge_cases(void) {
   /* 631: read_size body_len */
   {
     res.status_code = 200;
-    {
-      enum c_abstract_http_error rc_test =
-          http_headers_add(&res.headers, "A", "B");
-      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-        printf("Error: %d\n", (int)rc_test);
-      }
-    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_headers_add(&res.headers, "A", "B"));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               abstract_http_ipc_serialize_response(&res, &buf, &len));
     http_response_free(&res);
@@ -838,37 +764,17 @@ TEST test_process_misc_coverage(void) {
   char *buf = NULL;
   size_t len = 0;
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&req.headers, NULL, "value");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_headers_add(&req.headers, NULL, "value"));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_ipc_serialize_request(&req, &buf, &len));
   http_request_free(&req);
   free(buf);
 
-  {
-    enum c_abstract_http_error rc_test = http_response_init(&res);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&res.headers, NULL, "value");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(&res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_headers_add(&res.headers, NULL, "value"));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res);
@@ -877,8 +783,8 @@ TEST test_process_misc_coverage(void) {
   PASS();
 }
 
-TEST test_process_waitpid_fail_2(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+TEST test_process_waitpid_fail_2(void) {
   void *proc = malloc(1024);
   int exit_code = 0;
   printf("I AM EXECUTING\n");
@@ -888,9 +794,9 @@ TEST test_process_waitpid_fail_2(void) {
                    (struct AbstractHttpProcess *)proc, &exit_code));
   ASSERT_EQ(-1, exit_code);
   g_mock_waitpid_fail = 0;
-#endif
   PASS();
 }
+#endif
 
 #ifndef __EMSCRIPTEN__
 TEST test_process_wait_signal(void) {
@@ -919,19 +825,9 @@ TEST test_process_null_header_keys(void) {
   char *buf = NULL;
   size_t len = 0;
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&req.headers, NULL, "value");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_headers_add(&req.headers, NULL, "value"));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_ipc_serialize_request(&req, &buf, &len));
   http_request_free(&req);
@@ -939,13 +835,8 @@ TEST test_process_null_header_keys(void) {
 
   memset(&res, 0, sizeof(res));
   res.status_code = 200;
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&res.headers, NULL, "value");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_headers_add(&res.headers, NULL, "value"));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_ipc_serialize_response(&res, &buf, &len));
   http_response_free(&res);
@@ -960,19 +851,8 @@ TEST test_process_serialize_null_key_value(void) {
   char *buf = NULL;
   size_t len = 0;
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&req.headers, "k", "v");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_add(&req.headers, "k", "v"));
   free((void *)req.headers.headers[0].value);
   req.headers.headers[0].value = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -982,13 +862,7 @@ TEST test_process_serialize_null_key_value(void) {
 
   memset(&res, 0, sizeof(res));
   res.status_code = 200;
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&res.headers, "k", "v");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_add(&res.headers, "k", "v"));
   free((void *)res.headers.headers[0].value);
   res.headers.headers[0].value = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1005,19 +879,8 @@ TEST test_process_serialize_null_key(void) {
   char *buf = NULL;
   size_t len = 0;
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&req.headers, "k", "v");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_add(&req.headers, "k", "v"));
   free((void *)req.headers.headers[0].key);
   req.headers.headers[0].key = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1027,19 +890,8 @@ TEST test_process_serialize_null_key(void) {
 
   memset(&res, 0, sizeof(res));
   res.status_code = 200;
-  {
-    enum c_abstract_http_error rc_test = http_headers_init(&res.headers);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&res.headers, "k", "v");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_init(&res.headers));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_add(&res.headers, "k", "v"));
   free((void *)res.headers.headers[0].key);
   res.headers.headers[0].key = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1056,12 +908,7 @@ TEST test_process_serialize_body_len_no_body(void) {
   char *buf = NULL;
   size_t len = 0;
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.body_len = 100;
   req.body = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1182,7 +1029,9 @@ SUITE(process_suite) {
 #ifndef __EMSCRIPTEN__
   RUN_TEST(test_process_wait_signal);
 #endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_process_waitpid_fail_2);
+#endif
   RUN_TEST(test_process_misc_coverage);
   RUN_TEST(test_abstract_http_process_hooks);
   RUN_TEST(test_abstract_http_ipc_short_rw);

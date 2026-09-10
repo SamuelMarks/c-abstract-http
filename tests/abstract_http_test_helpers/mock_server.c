@@ -205,7 +205,9 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
       char buffer[4096];
       int bytes_read;
       sleep_ms(100); /* Wait for body packets (e.g. from WinHTTP) */
+      g_mock_server_reading = 1;
       bytes_read = (int)recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+      g_mock_server_reading = 0;
       if (bytes_read > 0) {
         buffer[bytes_read] = '\0';
 
@@ -306,6 +308,11 @@ void mock_server_destroy(MockServerPtr server) {
   platform_cleanup();
 }
 
+static unsigned short portable_ntohs(unsigned short netshort) {
+  const unsigned char *b = (const unsigned char *)&netshort;
+  return (unsigned short)(((unsigned short)b[0] << 8) | (unsigned short)b[1]);
+}
+
 int mock_server_start(MockServerPtr server) {
   struct sockaddr_in addr;
 #if defined(_WIN32)
@@ -320,6 +327,12 @@ int mock_server_start(MockServerPtr server) {
   server->server_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (server->server_fd == INVALID_SOCK)
     return -1;
+
+  {
+    int opt = 1;
+    setsockopt(server->server_fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt,
+               sizeof(opt));
+  }
 
   /* Bind to loopback, port 0 (ephemeral) */
   memset(&addr, 0, sizeof(addr));
@@ -345,7 +358,7 @@ int mock_server_start(MockServerPtr server) {
     close_socket(server->server_fd);
     return -1;
   }
-  server->port = ntohs(addr.sin_port);
+  server->port = portable_ntohs(addr.sin_port);
 
   /* Launch Thread */
   server->running = 1;
@@ -358,6 +371,7 @@ int mock_server_start(MockServerPtr server) {
     close_socket(server->server_fd);
     return -1;
   }
+  sleep_ms(50);
 #else
   if (pthread_create(&server->thread, NULL, math_server_thread_func, server) !=
       0) {
@@ -365,6 +379,7 @@ int mock_server_start(MockServerPtr server) {
     close_socket(server->server_fd);
     return -1;
   }
+  sleep_ms(10);
 #endif
 
   return 0;
@@ -449,5 +464,27 @@ void abstract_http_mock_server_force_fd(MockServerPtr server, int fd) {
   if (server) {
     server->server_fd = (socket_t)fd;
     server->running = 0;
+  }
+}
+
+void abstract_http_mock_server_signal_ready(MockServerPtr server) {
+  if (server) {
+    mutex_lock(&server->lock);
+    cond_signal(&server->cond_req_ready);
+    mutex_unlock(&server->lock);
+  }
+}
+
+void abstract_http_mock_server_run_thread_once(MockServerPtr server) {
+  if (server) {
+    server->running = 0;
+    (void)math_server_thread_func(server);
+  }
+}
+
+void abstract_http_mock_server_force_running(MockServerPtr server,
+                                             int running) {
+  if (server) {
+    server->running = running;
   }
 }

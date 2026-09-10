@@ -47,12 +47,7 @@ TEST test_inject_config(void) {
   struct CmpAppConfig cmp_cfg = {CMP_MODALITY_SYNC_MULTI, 4, 16};
   struct HttpConfig http_cfg;
 
-  {
-    enum c_abstract_http_error rc_test = http_config_init(&http_cfg);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&http_cfg));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             cmp_http_inject_config(&cmp_cfg, &http_cfg));
 

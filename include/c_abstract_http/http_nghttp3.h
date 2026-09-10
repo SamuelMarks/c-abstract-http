@@ -28,7 +28,8 @@ struct HttpTransportContext;
 /**
  * @brief Initialize the global nghttp3 API state.
  * Reference-counted; safe to call multiple times.
- * @return 0 on success, ENOMEM or native error code on failure.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_nghttp3_global_init(void);
@@ -36,7 +37,8 @@ http_nghttp3_global_init(void);
 /**
  * @brief Clean up the global nghttp3 API state.
  * Automatically cleans up when the reference count drops to 0.
- * @return 0 on success.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_nghttp3_global_cleanup(void);
@@ -45,7 +47,7 @@ http_nghttp3_global_cleanup(void);
  * @brief Initialize a new nghttp3 transport context.
  *
  * @param[out] ctx Double pointer to receive the newly allocated context.
- * @return 0 on success, ENOMEM on failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_nghttp3_context_init(struct HttpTransportContext **ctx);
@@ -53,7 +55,7 @@ http_nghttp3_context_init(struct HttpTransportContext **ctx);
 /**
  * @brief Free a nghttp3 transport context and its associated resources.
  *
- * @param[in] ctx The context to free.
+ * @param[in] ctx The context to free. Safe to pass NULL.
  */
 C_ABSTRACT_HTTP_API void
 http_nghttp3_context_free(struct HttpTransportContext *ctx);
@@ -65,7 +67,7 @@ http_nghttp3_context_free(struct HttpTransportContext *ctx);
  *
  * @param[in,out] ctx The target context.
  * @param[in] config The configuration settings.
- * @return 0 on success, or a mapped error code on failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_nghttp3_config_apply(struct HttpTransportContext *ctx,
@@ -78,7 +80,7 @@ http_nghttp3_config_apply(struct HttpTransportContext *ctx,
  * @param[in] ctx The transport context.
  * @param[in] req The request to send.
  * @param[out] res Double pointer to receive the newly allocated response.
- * @return 0 on success, or a mapped error code on failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_nghttp3_send(struct HttpTransportContext *ctx,
@@ -89,10 +91,10 @@ http_nghttp3_send(struct HttpTransportContext *ctx,
  * Matches `http_send_multi_fn` signature.
  *
  * @param[in] ctx The transport context.
- * @param[in] loop The event loop context.
+ * @param[in,out] loop The event loop context.
  * @param[in] multi The multi request structure.
  * @param[out] futures Array of futures.
- * @return 0 on success.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_nghttp3_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,

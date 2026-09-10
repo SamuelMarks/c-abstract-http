@@ -211,6 +211,7 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_actor_send(NULL, &msg));
 
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_init(&bus));
+   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_message_bus_process(bus, NULL));
    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_actor_spawn(bus, NULL, dummy_handler, NULL, &actor));
    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_actor_spawn(bus, "test", NULL, NULL, &actor));
    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_actor_spawn(bus, "test", dummy_handler, NULL, NULL));
@@ -392,29 +393,16 @@ TEST test_actor_queued_free_and_tail(void) {
   memset(&msg1, 0, sizeof(msg1));
   memset(&msg2, 0, sizeof(msg2));
 
-  {
-    enum c_abstract_http_error rc_test = abstract_http_message_bus_init(&bus);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  (void)!abstract_http_actor_spawn(bus, "myactor", dummy_handler, NULL, &actor);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_init(&bus));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      abstract_http_actor_spawn(bus, "myactor", dummy_handler, NULL, &actor));
 
   msg1.receiver = actor;
   msg2.receiver = actor;
 
-  {
-    enum c_abstract_http_error rc_test = abstract_http_actor_send(bus, &msg1);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test = abstract_http_actor_send(bus, &msg2);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_send(bus, &msg1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_send(bus, &msg2));
   /* hits tail->next logic */
 
   /* don't process, just free, hitting lines 100-102 */

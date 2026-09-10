@@ -44,16 +44,24 @@ extern int g_mock_curl_setopt_count;
 extern CURLcode g_mock_curl_perform_res;
 extern int g_mock_http_response_init_fail;
 extern int g_mock_http_loop_fail;
+extern int g_mock_curl_multi_add_fail;
+extern int
+abstract_http_test_multi_timer_function(struct HttpTransportContext *ctx,
+                                        long timeout_ms);
+extern int abstract_http_test_multi_socket_function(
+    struct HttpTransportContext *ctx, curl_socket_t s, int what, void *socketp);
+extern void abstract_http_test_set_timer_id(struct HttpTransportContext *ctx,
+                                            int timer_id);
+extern int abstract_http_test_get_timer_id(struct HttpTransportContext *ctx);
+extern void abstract_http_test_set_loop(struct HttpTransportContext *ctx,
+                                        struct ModalityEventLoop *loop);
 #endif
 
 static int setup_request(struct HttpRequest *req, int port) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   char *_ast_strdup_0 = NULL;
   char url[64];
 
-  rc = http_request_init(req);
-  if (rc != 0)
-    return rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(req));
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
@@ -116,12 +124,7 @@ TEST test_curl_config_application(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_config_init(&config);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
 
   /* Set some values */
   config.timeout_ms = 500;
@@ -161,12 +164,7 @@ TEST test_curl_send_connection_failure(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_config_init(&config);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
 
   /* Fast timeout for test speed */
   config.timeout_ms = 50;
@@ -181,12 +179,8 @@ TEST test_curl_send_connection_failure(void) {
      Note: On some systems connection refused happens instanly (ECONNREFUSED),
      on others it times out (C_ABSTRACT_HTTP_ERR_TIMEOUT). Both are valid error
      mappings for this test. */
-  if (rc != ECONNREFUSED && rc != C_ABSTRACT_HTTP_ERR_TIMEOUT &&
-      rc != EHOSTUNREACH && rc != C_ABSTRACT_HTTP_ERR_IO) {
-    fprintf(stderr, "Unexpected return code: %d (%s)\n", rc, strerror(rc));
-    FAIL();
-  }
-
+  ASSERT(rc == ECONNREFUSED || rc == C_ABSTRACT_HTTP_ERR_TIMEOUT ||
+         rc == EHOSTUNREACH || rc == C_ABSTRACT_HTTP_ERR_IO);
   ASSERT(res == NULL); /* Should not be allocated on failure */
 
   http_config_free(&config);
@@ -207,12 +201,7 @@ TEST test_curl_send_invalid_arguments(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
 
   /* NULL ctx */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_context_init(NULL));
@@ -288,12 +277,7 @@ TEST test_curl_send_chunked(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_config_init(&config);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   setup_request(&req, math_mock_server_get_port(server));
@@ -355,12 +339,7 @@ TEST test_curl_send_chunked_abort(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_config_init(&config);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   setup_request(&req, math_mock_server_get_port(server));
@@ -428,12 +407,7 @@ TEST test_curl_send_upload_chunked(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_config_init(&config);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   setup_request(&req, math_mock_server_get_port(server));
@@ -441,13 +415,8 @@ TEST test_curl_send_upload_chunked(void) {
 
   /* Disable Expect: 100-continue to prevent curl from waiting or aborting early
    */
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&req.headers, "Expect", "");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Expect", ""));
 
   up_state.data = payload;
   up_state.len = strlen(payload);
@@ -498,6 +467,32 @@ TEST test_curl_http3_config(void) {
   ret = http_curl_config_apply(ctx, &config);
   ASSERT(ret == 0 || ret == C_ABSTRACT_HTTP_ERR_IO);
 
+  config.http3_fallback = 1;
+  ret = http_curl_config_apply(ctx, &config);
+  ASSERT(ret == 0 || ret == C_ABSTRACT_HTTP_ERR_IO);
+
+  config.version_mask = HTTP_VERSION_3 | HTTP_VERSION_2;
+  config.http3_fallback = 0;
+  ret = http_curl_config_apply(ctx, &config);
+  ASSERT(ret == 0 || ret == C_ABSTRACT_HTTP_ERR_IO);
+
+  /* Force setopt failure on CURLOPT_HTTP_VERSION with CURL_HTTP_VERSION_3 */
+  config.version_mask = HTTP_VERSION_3;
+  config.http3_fallback = 1;
+  g_mock_curl_setopt_fail = 1;
+  g_mock_curl_setopt_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_curl_config_apply(ctx, &config));
+  g_mock_curl_setopt_fail = 0;
+
+  /* Force setopt failure on CURLOPT_HTTP_VERSION with CURL_HTTP_VERSION_3ONLY
+   */
+  config.version_mask = HTTP_VERSION_3;
+  config.http3_fallback = 0;
+  g_mock_curl_setopt_fail = 1;
+  g_mock_curl_setopt_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_curl_config_apply(ctx, &config));
+  g_mock_curl_setopt_fail = 0;
+
   http_config_free(&config);
   http_curl_context_free(ctx);
   {
@@ -514,6 +509,7 @@ TEST test_curl_edge_cases(void) {
   struct HttpResponse *res = NULL;
   int i;
 
+  memset(&req, 0, sizeof(req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   /* Missing parameters */
@@ -522,12 +518,7 @@ TEST test_curl_edge_cases(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(ctx, &req, NULL));
 
   /* Bad URL */
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url = "badurl://";
   /* ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(ctx, &req, &res)); */
 
@@ -538,53 +529,25 @@ TEST test_curl_edge_cases(void) {
     {
       int rc_test_tmp = http_curl_send(ctx, &req, &res);
       g_mock_alloc_fail = 0;
-      if (rc_test_tmp == 0) {
-        if (res) {
-          http_response_free(res);
-          free(res);
-          res = NULL;
-        }
-        continue;
-      }
-      /* ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp); */
+      (void)rc_test_tmp;
+      ASSERT(res == NULL);
     }
   }
 
   /* Force header allocation failure */
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url = "badurl://";
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&req.headers, "X", "Y");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&req.headers, "X2", "Y2");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_add(&req.headers, "X", "Y"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "X2", "Y2"));
   for (i = 0; i < 25; i++) {
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
     {
       int rc_test_tmp = http_curl_send(ctx, &req, &res);
       g_mock_alloc_fail = 0;
-      if (res) {
-        http_response_free(res);
-        c_abstract_http_mock_free(res);
-        res = NULL;
-      }
-      if (rc_test_tmp == 0)
-        break;
+      (void)rc_test_tmp;
+      ASSERT(res == NULL);
     }
   }
   g_mock_alloc_fail = 0;
@@ -615,12 +578,7 @@ TEST test_curl_send_write_oom(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url = url_buf;
   req.method = HTTP_GET;
 
@@ -637,11 +595,7 @@ TEST test_curl_send_write_oom(void) {
         break;
       }
       g_mock_alloc_fail = 0;
-      if (res) {
-        http_response_free(res);
-        c_abstract_http_mock_free(res);
-        res = NULL;
-      }
+      ASSERT(res == NULL);
     }
   }
 
@@ -665,12 +619,7 @@ TEST test_curl_send_unsupported_protocol(void) {
   struct HttpResponse *res = NULL;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url = "badprotocol://localhost/";
   req.method = HTTP_GET;
 
@@ -690,12 +639,7 @@ TEST test_curl_send_resolve_error(void) {
   struct HttpResponse *res = NULL;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url = "http://this.domain.does.not.exist.at.all.test/";
   req.method = HTTP_GET;
 
@@ -716,76 +660,32 @@ TEST test_curl_unsupported_methods(void) {
   struct HttpResponse *res = NULL;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url = "badprotocol://localhost/";
   req.method = HTTP_GET;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_curl_send(ctx, &req, &res));
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(res == NULL);
 
   req.method = HTTP_DELETE;
-  {
-    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
-    (void)rc_send;
-  }
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(http_curl_send(ctx, &req, &res) != 0);
+  ASSERT(res == NULL);
 
   req.method = HTTP_HEAD;
-  {
-    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
-    (void)rc_send;
-  }
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(http_curl_send(ctx, &req, &res) != 0);
+  ASSERT(res == NULL);
 
   req.method = HTTP_PATCH;
-  {
-    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
-    (void)rc_send;
-  }
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(http_curl_send(ctx, &req, &res) != 0);
+  ASSERT(res == NULL);
 
   req.method = HTTP_PUT;
-  {
-    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
-    (void)rc_send;
-  }
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(http_curl_send(ctx, &req, &res) != 0);
+  ASSERT(res == NULL);
 
   req.method = HTTP_POST;
-  {
-    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
-    (void)rc_send;
-  }
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(http_curl_send(ctx, &req, &res) != 0);
+  ASSERT(res == NULL);
 
   req.url = NULL;
   http_request_free(&req);
@@ -800,12 +700,7 @@ TEST test_curl_payload_methods(void) {
   struct HttpResponse *res = NULL;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url = NULL;
   c_abstract_http_strdup("http://localhost/", &req.url);
   req.body = (unsigned char *)malloc(4);
@@ -813,48 +708,20 @@ TEST test_curl_payload_methods(void) {
   req.body_len = 4;
 
   req.method = HTTP_PATCH;
-  {
-    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
-    (void)rc_send;
-  }
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(http_curl_send(ctx, &req, &res) != 0);
+  ASSERT(res == NULL);
 
   req.method = HTTP_QUERY;
-  {
-    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
-    (void)rc_send;
-  }
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(http_curl_send(ctx, &req, &res) != 0);
+  ASSERT(res == NULL);
 
   req.method = HTTP_PUT;
-  {
-    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
-    (void)rc_send;
-  }
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(http_curl_send(ctx, &req, &res) != 0);
+  ASSERT(res == NULL);
 
   req.method = HTTP_POST;
-  {
-    c_abstract_http_error_t rc_send = http_curl_send(ctx, &req, &res);
-    (void)rc_send;
-  }
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(http_curl_send(ctx, &req, &res) != 0);
+  ASSERT(res == NULL);
 
   http_request_free(&req);
   http_curl_context_free(ctx);
@@ -892,22 +759,12 @@ TEST test_curl_send_cookies(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
-  {
-    enum c_abstract_http_error rc_test = http_config_init(&config);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
   config.cookie_jar = &jar;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -931,9 +788,6 @@ TEST test_curl_send_cookies(void) {
     for (i = 0; i < 10; i++) {
       int rc_test_tmp;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (g_mock_curl_cookies) {
-        curl_slist_free_all(g_mock_curl_cookies);
-      }
       g_mock_curl_cookies = curl_slist_append(
           NULL, "example.com\tFALSE\t/\tFALSE\t0\tname\tvalue");
 #endif
@@ -959,9 +813,6 @@ TEST test_curl_send_cookies(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   abstract_http_test_multi_socket_cb(NULL, 0, HTTP_LOOP_ERROR, ctx);
-  if (g_mock_curl_cookies) {
-    curl_slist_free_all(g_mock_curl_cookies);
-  }
   g_mock_curl_cookies = NULL;
 #endif
 
@@ -1001,23 +852,14 @@ TEST test_curl_send_upload_chunked_abort(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
   req.method = HTTP_POST;
   req.read_chunk = curl_mock_upload_cb_abort;
   req.read_chunk_user_data = &up_state;
   req.expected_body_len = 4;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_curl_send(ctx, &req, &res));
-  if (res) {
-    http_response_free(res);
-    free(res);
-    res = NULL;
-  }
+  ASSERT(res == NULL);
   http_request_free(&req);
 
   http_curl_context_free(ctx);
@@ -1040,6 +882,11 @@ TEST test_curl_init_fails(void) {
   g_mock_curl_init_fail = 2;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_curl_context_init(&ctx));
   g_mock_curl_init_fail = 0;
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_curl_context_init(&ctx));
+  g_mock_alloc_fail = 0;
 #else
   SKIP();
 #endif
@@ -1061,12 +908,7 @@ TEST test_curl_send_oom(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
 
   for (i = 0; i < 15; i++) {
@@ -1118,12 +960,7 @@ TEST test_curl_send_chunked_methods(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   /* PUT chunked */
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
   req.method = HTTP_PUT;
   req.read_chunk = curl_mock_upload_cb;
@@ -1139,12 +976,7 @@ TEST test_curl_send_chunked_methods(void) {
   http_request_free(&req);
 
   /* PATCH chunked */
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
   req.method = HTTP_PATCH;
   req.read_chunk = curl_mock_upload_cb;
@@ -1160,12 +992,7 @@ TEST test_curl_send_chunked_methods(void) {
   http_request_free(&req);
 
   /* QUERY chunked */
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
   req.method = HTTP_QUERY;
   req.read_chunk = curl_mock_upload_cb;
@@ -1182,12 +1009,7 @@ TEST test_curl_send_chunked_methods(void) {
   http_request_free(&req);
 
   /* GET chunked (default fallback) */
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
   req.method = HTTP_GET;
   req.read_chunk = curl_mock_upload_cb;
@@ -1203,12 +1025,7 @@ TEST test_curl_send_chunked_methods(void) {
   http_request_free(&req);
 
   /* QUERY payload */
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
   req.method = HTTP_QUERY;
   req.body = (unsigned char *)"data";
@@ -1223,12 +1040,7 @@ TEST test_curl_send_chunked_methods(void) {
   http_request_free(&req);
 
   /* Unknown method fallback */
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
   req.method = 999;
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res), "%d");
@@ -1240,12 +1052,7 @@ TEST test_curl_send_chunked_methods(void) {
   http_request_free(&req);
 
   /* Unknown method chunked fallback */
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
   req.method = 999;
   req.read_chunk = curl_mock_upload_cb;
@@ -1287,49 +1094,19 @@ TEST test_curl_send_multi(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_config_init(&config);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req1);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
   setup_request(&req1, port);
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req2);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
   setup_request(&req2, port);
 
-  {
-    enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req1);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req2);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req2));
 
   future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
   future2 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
@@ -1340,12 +1117,7 @@ TEST test_curl_send_multi(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   while (!future1->is_ready || !future2->is_ready) {
-    {
-      enum c_abstract_http_error rc_test = http_loop_tick(loop);
-      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-        printf("Error: %d\n", (int)rc_test);
-      }
-    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
   }
 
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, future1->error_code, "%d");
@@ -1396,26 +1168,11 @@ TEST test_curl_send_multi_oom(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, 80);
 
-  {
-    enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req));
 
   future = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
   futures[0] = future;
@@ -1429,18 +1186,9 @@ TEST test_curl_send_multi_oom(void) {
       if (rc_test_tmp == 0) {
         /* Cleanup success task */
         while (!futures[0]->is_ready) {
-          {
-            enum c_abstract_http_error rc_test = http_loop_tick(loop);
-            if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-              printf("Error: %d\n", (int)rc_test);
-            }
-          }
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
         }
-        if (futures[0]->response) {
-          http_response_free(futures[0]->response);
-          free(futures[0]->response);
-          futures[0]->response = NULL;
-        }
+        ASSERT(futures[0]->response == NULL);
         futures[0]->is_ready = 0;
         break;
       }
@@ -1483,33 +1231,12 @@ TEST test_curl_send_multi_setopt_fail(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   c_abstract_http_strdup("http://localhost", &req.url);
-  {
-    enum c_abstract_http_error rc_test =
-        http_headers_add(&req.headers, "X", "Y");
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_add(&req.headers, "X", "Y"));
 
-  {
-    enum c_abstract_http_error rc_test = http_multi_request_init(&multi);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
-  {
-    enum c_abstract_http_error rc_test = http_multi_request_add(&multi, &req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req));
 
   future = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
   futures[0] = future;
@@ -1522,18 +1249,9 @@ TEST test_curl_send_multi_setopt_fail(void) {
       /* If it succeeded because an ignored setopt failed, we must still clean
        * it up! */
       while (!futures[0]->is_ready) {
-        {
-          enum c_abstract_http_error rc_test = http_loop_tick(loop);
-          if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-            printf("Error: %d\n", (int)rc_test);
-          }
-        }
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
       }
-      if (futures[0]->response) {
-        http_response_free(futures[0]->response);
-        free(futures[0]->response);
-        futures[0]->response = NULL;
-      }
+      ASSERT(futures[0]->response == NULL);
       futures[0]->is_ready = 0;
     }
     g_mock_curl_setopt_fail = 0;
@@ -1565,12 +1283,7 @@ TEST test_curl_send_setopt_fail(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   for (j = 0; j < 9; j++) {
-    {
-      enum c_abstract_http_error rc_test = http_config_init(&config);
-      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-        printf("Error: %d\n", (int)rc_test);
-      }
-    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
     if (j == 0) {
       config.version_mask = HTTP_VERSION_3;
       config.http3_fallback = 1;
@@ -1622,46 +1335,18 @@ TEST test_curl_send_setopt_fail(void) {
   {
     struct HttpRequest req;
     struct HttpResponse *res = NULL;
-    {
-      enum c_abstract_http_error rc_test = http_request_init(&req);
-      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-        printf("Error: %d\n", (int)rc_test);
-      }
-    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     c_abstract_http_strdup("http://localhost", &req.url);
-    {
-      enum c_abstract_http_error rc_test =
-          http_headers_add(&req.headers, "A", "B");
-      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-        printf("Error: %d\n", (int)rc_test);
-      }
-    }
-    {
-      enum c_abstract_http_error rc_test =
-          http_headers_add(&req.headers, "C", "D");
-      if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-        printf("Error: %d\n", (int)rc_test);
-      }
-    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_headers_add(&req.headers, "A", "B"));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_headers_add(&req.headers, "C", "D"));
     for (i = 0; i < 15; i++) {
       g_mock_curl_setopt_fail = 1;
       g_mock_curl_setopt_count = i;
-      if (http_curl_send(ctx, &req, &res) == 0) {
-        g_mock_curl_setopt_fail = 0;
-        if (res) {
-          http_response_free(res);
-          free(res);
-          res = NULL;
-        }
-      }
+      (void)!http_curl_send(ctx, &req, &res);
       g_mock_curl_setopt_fail = 0;
-    }
-
-    /* Cleanup previous runs before the OOM check */
-    if (res) {
-      http_response_free(res);
-      c_abstract_http_mock_free(res);
-      res = NULL;
+      ASSERT(res == NULL);
     }
 
     http_request_free(&req);
@@ -1692,12 +1377,7 @@ TEST test_curl_send_perform_errors(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
-  {
-    enum c_abstract_http_error rc_test = http_request_init(&req);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   c_abstract_http_strdup("http://localhost", &req.url);
 
   for (i = 0; i < 7; i++) {
@@ -1721,6 +1401,159 @@ TEST test_curl_send_perform_errors(void) {
   PASS();
 }
 
+/** @brief Documented */
+TEST test_curl_multi_callbacks_coverage(void) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  struct HttpTransportContext *ctx = NULL;
+  struct ModalityEventLoop *loop = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+  abstract_http_test_set_loop(ctx, loop);
+
+  /* 1. Timer function: add timer */
+  ASSERT_EQ(0, abstract_http_test_multi_timer_function(ctx, 100));
+  ASSERT(abstract_http_test_get_timer_id(ctx) > 0);
+
+  /* 2. Timer function: cancel previous timer and add new timer */
+  ASSERT_EQ(0, abstract_http_test_multi_timer_function(ctx, 200));
+
+  /* 3. Timer function: cancel failure */
+  g_mock_http_loop_fail = 1;
+  ASSERT_EQ(-1, abstract_http_test_multi_timer_function(ctx, -1));
+  g_mock_http_loop_fail = 0;
+
+  /* 4. Timer function: add failure */
+  abstract_http_test_set_timer_id(ctx, 0);
+  g_mock_http_loop_fail = 1;
+  ASSERT_EQ(-1, abstract_http_test_multi_timer_function(ctx, 100));
+  g_mock_http_loop_fail = 0;
+
+  /* 5. Socket function: ADD_FD */
+  ASSERT_EQ(
+      0, abstract_http_test_multi_socket_function(ctx, 42, CURL_POLL_IN, NULL));
+
+  /* 6. Socket function: MOD_FD */
+  ASSERT_EQ(0, abstract_http_test_multi_socket_function(ctx, 42, CURL_POLL_OUT,
+                                                        (void *)1));
+
+  /* 7. Socket function: REMOVE_FD */
+  ASSERT_EQ(0, abstract_http_test_multi_socket_function(
+                   ctx, 42, CURL_POLL_REMOVE, (void *)1));
+
+  /* 8. Socket function: ADD_FD failure */
+  g_mock_http_loop_fail = 1;
+  ASSERT_EQ(-1, abstract_http_test_multi_socket_function(
+                    ctx, 42, CURL_POLL_INOUT, NULL));
+
+  /* 9. Socket function: MOD_FD failure */
+  ASSERT_EQ(-1, abstract_http_test_multi_socket_function(ctx, 42, CURL_POLL_IN,
+                                                         (void *)1));
+
+  /* 10. Socket function: REMOVE_FD failure */
+  ASSERT_EQ(-1, abstract_http_test_multi_socket_function(
+                    ctx, 42, CURL_POLL_REMOVE, (void *)1));
+  g_mock_http_loop_fail = 0;
+
+  http_loop_free(loop);
+  http_curl_context_free(ctx);
+#else
+  SKIP();
+#endif
+  PASS();
+}
+
+/** @brief Documented */
+TEST test_curl_send_setopt_fail_with_headers(void) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  int i;
+  int failed = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = "http://127.0.0.1:8080/test";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "X-Custom", "Val"));
+
+  for (i = 0; i < 25; ++i) {
+    g_mock_curl_setopt_fail = 1;
+    g_mock_curl_setopt_count = i;
+    if (http_curl_send(ctx, &req, &res) == C_ABSTRACT_HTTP_ERR_IO) {
+      failed = 1;
+      g_mock_curl_setopt_fail = 0;
+      break;
+    }
+  }
+  g_mock_curl_setopt_fail = 0;
+  ASSERT(failed);
+  ASSERT(res == NULL);
+
+  req.url = NULL;
+  http_request_free(&req);
+  http_curl_context_free(ctx);
+#else
+  SKIP();
+#endif
+  PASS();
+}
+
+/** @brief Documented */
+TEST test_curl_send_multi_cleanup_partial(void) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  struct HttpTransportContext *ctx = NULL;
+  struct ModalityEventLoop *loop = NULL;
+  struct HttpRequest req1;
+  struct HttpRequest req2;
+  struct HttpMultiRequest multi;
+  struct HttpFuture *futures[2];
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
+  req1.url = "http://127.0.0.1:8080/test1";
+  req2.url = "http://127.0.0.1:8080/test2";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req1.headers, "X-H1", "V1"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req2.headers, "X-H2", "V2"));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req2));
+
+  futures[0] = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[1] = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+
+  g_mock_curl_multi_add_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_curl_send_multi(ctx, loop, &multi, futures));
+  g_mock_curl_multi_add_fail = 0;
+
+  g_mock_curl_multi_add_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_curl_send_multi(ctx, loop, &multi, futures));
+  g_mock_curl_multi_add_fail = 0;
+
+  free(futures[0]);
+  free(futures[1]);
+
+  req1.url = NULL;
+  req2.url = NULL;
+  http_request_free(&req1);
+  http_request_free(&req2);
+  http_multi_request_free(&multi);
+  http_loop_free(loop);
+  http_curl_context_free(ctx);
+#else
+  SKIP();
+#endif
+  PASS();
+}
+
 SUITE(http_curl_suite) {
   RUN_TEST(test_curl_send_cookies);
   RUN_TEST(test_curl_send_upload_chunked_abort);
@@ -1730,6 +1563,9 @@ SUITE(http_curl_suite) {
   RUN_TEST(test_curl_send_multi);
   RUN_TEST(test_curl_send_multi_oom);
   RUN_TEST(test_curl_send_multi_setopt_fail);
+  RUN_TEST(test_curl_multi_callbacks_coverage);
+  RUN_TEST(test_curl_send_setopt_fail_with_headers);
+  RUN_TEST(test_curl_send_multi_cleanup_partial);
   RUN_TEST(test_curl_send_setopt_fail);
   RUN_TEST(test_curl_send_perform_errors);
   RUN_TEST(test_curl_payload_methods);
@@ -1740,8 +1576,6 @@ SUITE(http_curl_suite) {
   RUN_TEST(test_curl_send_resolve_error);
 
   RUN_TEST(test_curl_send_write_oom);
-
-  RUN_TEST(test_curl_edge_cases);
 
   RUN_TEST(test_curl_edge_cases);
 

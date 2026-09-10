@@ -74,6 +74,19 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_wasm_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
                struct HttpResponse **res);
 
+/**
+ * @brief Perform multiple HTTP requests concurrently via wasm fetch.
+ *
+ * @param[in] ctx The context.
+ * @param[in] loop The event loop context.
+ * @param[in] multi The multi request definition.
+ * @param[out] futures Array of futures to populate.
+ * @return 0 on success, or a mapped error code on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_wasm_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

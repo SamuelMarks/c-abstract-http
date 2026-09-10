@@ -92,13 +92,7 @@ TEST test_tls_oom(void) {
   g_mock_pthread_fail = 0;
 #endif
 
-  {
-    enum c_abstract_http_error rc_test =
-        abstract_http_tls_key_create(&key, NULL);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_tls_key_create(&key, NULL));
 
 #if !defined(_WIN32)
   g_mock_pthread_fail = 1;
@@ -107,12 +101,7 @@ TEST test_tls_oom(void) {
   g_mock_pthread_fail = 0;
 #endif
 
-  {
-    enum c_abstract_http_error rc_test = abstract_http_tls_key_delete(key);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_tls_key_delete(key));
 
   PASS();
 }
@@ -126,12 +115,7 @@ TEST test_tls_errors(void) {
   ASSERT_EQ(
       C_ABSTRACT_HTTP_ERR_INVAL,
       abstract_http_tls_get((struct AbstractHttpTlsKey *)(size_t)1, NULL));
-  {
-    enum c_abstract_http_error rc_test = abstract_http_tls_key_delete(NULL);
-    if (rc_test != C_ABSTRACT_HTTP_SUCCESS) {
-      printf("Error: %d\n", (int)rc_test);
-    }
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_tls_key_delete(NULL));
   PASS();
 }
 

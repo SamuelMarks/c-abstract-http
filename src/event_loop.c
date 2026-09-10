@@ -28,19 +28,19 @@
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #undef FD_SET
 #define FD_SET(fd, set)                                                        \
   do {                                                                         \
     u_int __i;                                                                 \
     for (__i = 0; __i < ((fd_set FAR *)(set))->fd_count; __i++) {              \
-      if (((fd_set FAR *)(set))->fd_array[__i] == (fd)) {                      \
+      if (((fd_set FAR *)(set))->fd_array[__i] == (SOCKET)(fd)) {              \
         break;                                                                 \
       }                                                                        \
     }                                                                          \
     if (__i == ((fd_set FAR *)(set))->fd_count) {                              \
       if (((fd_set FAR *)(set))->fd_count < FD_SETSIZE) {                      \
-        ((fd_set FAR *)(set))->fd_array[__i] = (fd);                           \
+        ((fd_set FAR *)(set))->fd_array[__i] = (SOCKET)(fd);                   \
         ((fd_set FAR *)(set))->fd_count++;                                     \
       }                                                                        \
     }                                                                          \
@@ -289,16 +289,12 @@ void http_loop_free(struct ModalityEventLoop *loop) {
       CloseHandle(loop->wakeup_event);
     }
 #else
-    if (loop->wakeup_pipe[0] > 0)
-      close(loop->wakeup_pipe[0]);
-    if (loop->wakeup_pipe[1] > 0)
-      close(loop->wakeup_pipe[1]);
+    close(loop->wakeup_pipe[0]);
+    close(loop->wakeup_pipe[1]);
 #endif
 
-    if (loop->timers)
-      free(loop->timers);
-    if (loop->fds)
-      free(loop->fds);
+    free(loop->timers);
+    free(loop->fds);
   }
   free(loop);
   LOG_DEBUG("http_loop_free: Exiting");
@@ -630,11 +626,11 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
     if (loop->fds[i].active) {
       active_fds++;
       if (loop->fds[i].events & HTTP_LOOP_READ)
-        FD_SET((unsigned)loop->fds[i].fd, &read_fds);
+        FD_SET(loop->fds[i].fd, &read_fds);
       if (loop->fds[i].events & HTTP_LOOP_WRITE)
-        FD_SET((unsigned)loop->fds[i].fd, &write_fds);
+        FD_SET(loop->fds[i].fd, &write_fds);
       if (loop->fds[i].events & HTTP_LOOP_ERROR)
-        FD_SET((unsigned)loop->fds[i].fd, &error_fds);
+        FD_SET(loop->fds[i].fd, &error_fds);
       if (loop->fds[i].fd > max_fd)
         max_fd = loop->fds[i].fd;
     }
@@ -713,7 +709,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
   loop->running = 1;
   loop->stop_requested = 0;
 
-  while (loop->running && !loop->stop_requested) {
+  while (!loop->stop_requested) {
     abstract_http_int64_t now;
     abstract_http_int64_t next_timeout = -1;
     size_t i;
@@ -769,11 +765,11 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
       if (loop->fds[i].active) {
         active_fds++;
         if (loop->fds[i].events & HTTP_LOOP_READ)
-          FD_SET((unsigned)loop->fds[i].fd, &read_fds);
+          FD_SET(loop->fds[i].fd, &read_fds);
         if (loop->fds[i].events & HTTP_LOOP_WRITE)
-          FD_SET((unsigned)loop->fds[i].fd, &write_fds);
+          FD_SET(loop->fds[i].fd, &write_fds);
         if (loop->fds[i].events & HTTP_LOOP_ERROR)
-          FD_SET((unsigned)loop->fds[i].fd, &error_fds);
+          FD_SET(loop->fds[i].fd, &error_fds);
         if (loop->fds[i].fd > max_fd)
           max_fd = loop->fds[i].fd;
       }

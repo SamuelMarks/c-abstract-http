@@ -41,8 +41,19 @@
 #include <stdarg.h>
 /* clang-format on */
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_strcasecmp_fail;
+extern int g_mock_headers_init_fail;
+extern int g_mock_parts_init_fail;
+extern int g_mock_multi_init_fail;
+#endif
+
 static enum c_abstract_http_error
 strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_strcasecmp_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   while (*s1 && *s2) {
     int diff = tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
     if (diff != 0) {
@@ -77,6 +88,10 @@ sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fmt, ...) {
 enum c_abstract_http_error http_headers_init(struct HttpHeaders *headers) {
   if (!headers)
     return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_headers_init_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   headers->headers = NULL;
   headers->count = 0;
   headers->capacity = 0;
@@ -90,10 +105,8 @@ void http_headers_free(struct HttpHeaders *headers) {
 
   if (headers->headers) {
     for (i = 0; i < headers->count; ++i) {
-      if (headers->headers[i].key)
-        free(headers->headers[i].key);
-      if (headers->headers[i].value)
-        free(headers->headers[i].value);
+      free(headers->headers[i].key);
+      free(headers->headers[i].value);
     }
     free(headers->headers);
     headers->headers = NULL;
@@ -106,14 +119,29 @@ extern enum c_abstract_http_error c_abstract_http_strdup(const char *s,
                                                          char **out_s);
 enum c_abstract_http_error c_abstract_http_strdup(const char *s, char **out_s) {
   size_t len;
-  if (!s || !out_s)
+  char *d;
+  if (!s)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   len = strlen(s);
-  *out_s = (char *)malloc(len + 1);
-  if (!*out_s)
+  d = (char *)malloc(len + 1);
+  if (!d) {
+    if (out_s)
+      *out_s = NULL;
     return C_ABSTRACT_HTTP_ERR_NOMEM;
-  memcpy(*out_s, s, len + 1);
+  }
+  memcpy(d, s, len + 1);
+  if (out_s)
+    *out_s = d;
+  else
+    free(d);
   return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+abstract_http_test_real_strdup(const char *s, char **out_s);
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+abstract_http_test_real_strdup(const char *s, char **out_s) {
+  return c_abstract_http_strdup(s, out_s);
 }
 
 enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers,
@@ -209,6 +237,10 @@ enum c_abstract_http_error http_headers_remove(struct HttpHeaders *headers,
 enum c_abstract_http_error http_parts_init(struct HttpParts *parts) {
   if (!parts)
     return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_parts_init_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   parts->parts = NULL;
   parts->count = 0;
   parts->capacity = 0;
@@ -221,12 +253,9 @@ void http_parts_free(struct HttpParts *parts) {
     return;
   if (parts->parts) {
     for (i = 0; i < parts->count; ++i) {
-      if (parts->parts[i].name)
-        free(parts->parts[i].name);
-      if (parts->parts[i].filename)
-        free(parts->parts[i].filename);
-      if (parts->parts[i].content_type)
-        free(parts->parts[i].content_type);
+      free(parts->parts[i].name);
+      free(parts->parts[i].filename);
+      free(parts->parts[i].content_type);
       http_headers_free(&parts->parts[i].headers);
       /* data ownership is typically external references for efficiency,
          but for safety in this generator we assume data pointers are managed
@@ -437,7 +466,7 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
     pos += (size_t)written;
 
     /* Data */
-    if (part->data_len > 0 && part->data) {
+    if (part->data_len > 0) {
       memcpy(buffer + pos, part->data, part->data_len);
       pos += part->data_len;
     }
@@ -502,11 +531,8 @@ void http_cookie_jar_free(struct HttpCookieJar *jar) {
     return;
   if (jar->cookies) {
     for (i = 0; i < jar->count; ++i) {
-      if (jar->cookies[i].name)
-        free(jar->cookies[i].name);
-      if (jar->cookies[i].value)
-        free(jar->cookies[i].value);
-
+      free(jar->cookies[i].name);
+      free(jar->cookies[i].value);
       free(jar->cookies[i].domain);
       free(jar->cookies[i].path);
     }
@@ -681,8 +707,10 @@ enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
   rc = http_parts_init(&req->parts);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    http_headers_free(&req->headers);
     return rc;
+  }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -740,6 +768,10 @@ enum c_abstract_http_error
 http_multi_request_init(struct HttpMultiRequest *multi) {
   if (!multi)
     return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_multi_init_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   multi->requests = NULL;
   multi->count = 0;
   multi->capacity = 0;
@@ -855,7 +887,7 @@ static enum c_abstract_http_error base64_encode(const unsigned char *src,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   for (i = 0, j = 0; i < len;) {
-    unsigned long octet_a = i < len ? src[i++] : 0;
+    unsigned long octet_a = src[i++];
     unsigned long octet_b = i < len ? src[i++] : 0;
     unsigned long octet_c = i < len ? src[i++] : 0;
     unsigned long triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
@@ -1681,15 +1713,13 @@ typedef int abstract_http_socket_t;
 static enum c_abstract_http_error urldecode_alloc(const char *src,
                                                   size_t src_len, char **out);
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-enum c_abstract_http_error
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_test_urldecode_alloc(const char *src, size_t src_len, char **out);
-enum c_abstract_http_error abstract_http_test_urldecode_alloc(const char *src,
-                                                              size_t src_len,
-                                                              char **out) {
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+abstract_http_test_urldecode_alloc(const char *src, size_t src_len,
+                                   char **out) {
   return urldecode_alloc(src, src_len, out);
 }
-#endif
 
 static enum c_abstract_http_error urldecode_alloc(const char *src,
                                                   size_t src_len, char **out) {
@@ -1779,7 +1809,8 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
 
   memset(&saddr, 0, sizeof(saddr));
   saddr.sin_family = AF_INET;
-  saddr.sin_port = htons(port);
+  saddr.sin_port = (unsigned short)((((unsigned short)(port) >> 8) & 0xff) |
+                                    (((unsigned short)(port) & 0xff) << 8));
   saddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
   if (bind(srv_sock, (struct sockaddr *)&saddr, sizeof(saddr)) ==
@@ -1920,7 +1951,7 @@ http_response_save_to_file(const struct HttpResponse *res, const char *path) {
   if (!f)
     return C_ABSTRACT_HTTP_ERR_IO;
 
-  if (res->body_len > 0 && res->body) {
+  if (res->body_len > 0) {
     written = fwrite(res->body, 1, res->body_len, f);
     if (written != res->body_len) {
       fclose(f);
@@ -1973,11 +2004,8 @@ enum c_abstract_http_error http_client_send_multi(
         return rc;
       }
     } else {
-      rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        http_multi_request_free(&multi);
-        return rc;
-      }
+      http_multi_request_free(&multi);
+      return C_ABSTRACT_HTTP_ERR_NOTSUP;
     }
     break;
 

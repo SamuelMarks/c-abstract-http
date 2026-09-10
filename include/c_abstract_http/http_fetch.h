@@ -28,13 +28,10 @@ extern "C" {
 /**
  * @brief Initialize the global fetch environment safely.
  *
- * Uses an internal reference counter to ensure `fetch_global_init` is called
- * called exactly once on the first invocation, and `fetch_global_cleanup` only
- * on the last. This allows multiple independent clients to initialize/cleanup
- * without race conditions (assuming single-threaded startup or external
- * locking, as C89 lacks mutexes).
+ * Uses an internal reference counter to ensure fetch global initialization
+ * occurs safely without race conditions.
  *
- * @return 0 on success, EIO on failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_fetch_global_init(void);
@@ -42,20 +39,18 @@ http_fetch_global_init(void);
 /**
  * @brief Decrement the global initialization reference count.
  *
- * If the count reaches zero, `fetch_global_cleanup` is invoked.
+ * If the count reaches zero, global cleanup is invoked.
  *
- * @return 0 on success.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_fetch_global_cleanup(void);
 
 /**
  * @brief Create a new Fetch-backed transport context.
- * Internal allocates a FETCH handle for reuse.
  *
  * @param[out] ctx Double pointer to receive the allocated context.
- * @return 0 on success, ENOMEM on allocation failure, EIO on Fetch init
- * failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_fetch_context_init(struct HttpTransportContext **ctx);
@@ -69,15 +64,14 @@ http_fetch_context_init(struct HttpTransportContext **ctx);
 void http_fetch_context_free(struct HttpTransportContext *ctx);
 
 /**
- * @brief Apply configuration settings to the FETCH handle.
+ * @brief Apply configuration settings to the FETCH context.
  *
  * Maps abstract `HttpConfig` settings (timeout, verify peer, proxy, user-agent)
- * to specific `fetch_easy_setopt` calls. This should be called after
- * context_init and before sending requests if custom settings are required.
+ * to transport context options.
  *
- * @param[in] ctx The transport context.
+ * @param[in,out] ctx The transport context.
  * @param[in] config The configuration structure to apply.
- * @return 0 on success, EINVAL if inputs invalid, or EIO if setopt fails.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_fetch_config_apply(
     struct HttpTransportContext *ctx, const struct HttpConfig *config);
@@ -87,19 +81,12 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_fetch_config_apply(
  * Matches `http_send_fn` signature.
  *
  * Performs the HTTP request using the stored FETCH handle.
- * 1. Resets reusable handle state (except sticky options like connection
- * cache).
- * 2. Sets Method, URL, Body, and Headers from `req`.
- * 3. Executes request (`fetch_easy_perform`).
- * 4. Captures Response Code and Body.
- * 5. Maps FETCH errors to system `errno` codes.
  *
  * @param[in] ctx The transport context.
  * @param[in] req The request to send.
  * @param[out] res Double pointer to receive the newly allocated response
  * object.
- * @return 0 on success, or a mapped error code (e.g. ETIMEDOUT, ECONNREFUSED)
- * on failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_fetch_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
@@ -109,14 +96,13 @@ http_fetch_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
  * @brief Dispatch multiple HTTP requests using libfetch asynchronous modes.
  *
  * Provides multiplexed execution over a single transport context.
- * Requires `C_ABSTRACT_HTTP_USE_LIBFETCH`.
  *
- * @param ctx Pointer to an initialized HttpTransportContext.
- * @param loop Event loop to drive the execution.
- * @param multi Multi-request specification.
- * @param futures Array of returned HttpFuture handles, allocated upon success.
- * @return 0 on success (all requests initiated), negative mapped error
- * otherwise.
+ * @param[in] ctx Pointer to an initialized HttpTransportContext.
+ * @param[in,out] loop Event loop to drive the execution.
+ * @param[in] multi Multi-request specification.
+ * @param[out] futures Array of returned HttpFuture handles, allocated upon
+ * success.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_fetch_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,

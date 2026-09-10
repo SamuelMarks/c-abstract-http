@@ -577,14 +577,14 @@ abstract_http_ipc_deserialize_request(const char *buf, size_t len,
   const char *p;
   const char *end;
 
-  if (!buf || !req)
+  if (!buf)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-
-  p = buf;
-  end = buf + len;
 
   if ((rc = http_request_init(req)) != 0)
     return rc;
+
+  p = buf;
+  end = buf + len;
 
   if ((rc = parse_int(&p, end, &method)) != 0)
     return rc;
@@ -686,14 +686,14 @@ abstract_http_ipc_deserialize_response(const char *buf, size_t len,
   const char *p;
   const char *end;
 
-  if (!buf || !res)
+  if (!buf)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-
-  p = buf;
-  end = buf + len;
 
   if ((rc = http_response_init(res)) != 0)
     return rc;
+
+  p = buf;
+  end = buf + len;
 
   if ((rc = parse_int(&p, end, &res->status_code)) != 0)
     return rc;

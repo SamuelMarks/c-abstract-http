@@ -40,6 +40,25 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_android_global_cleanup(void);
 
 /**
+ * @brief Set the global JavaVM handle.
+ *
+ * @param[in] jvm Pointer to the JavaVM instance.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_android_set_jvm(void *jvm);
+
+/**
+ * @brief Set the JavaVM handle for a specific transport context.
+ *
+ * @param[in,out] ctx The transport context.
+ * @param[in] jvm Pointer to the JavaVM instance.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_android_context_set_jvm(struct HttpTransportContext *ctx, void *jvm);
+
+/**
  * @brief Create a new Android-backed transport context.
  *
  * @param[out] ctx Double pointer to receive the allocated context.

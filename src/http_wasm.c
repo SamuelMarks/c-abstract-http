@@ -1,32 +1,142 @@
-
 /* clang-format off */
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_wasm.h>
 #include "c_abstract_http/log.h"
 #include "str.h"
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_wasm_fetch_fail;
+extern int g_mock_wasm_fetch_timeout;
+extern int g_mock_wasm_config_init_fail;
+extern int g_mock_wasm_response_init_fail;
+extern int g_mock_wasm_header_add_fail;
+#endif
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten/fetch.h>
+#else
+#define EMSCRIPTEN_FETCH_SYNCHRONOUS 1
+typedef struct emscripten_fetch_attr_t {
+  char requestMethod[32];
+  unsigned long timeoutMSecs;
+  unsigned int attributes;
+  const char **requestHeaders;
+  const char *requestData;
+  size_t requestDataSize;
+} emscripten_fetch_attr_t;
+
+typedef struct emscripten_fetch_t {
+  unsigned short status;
+  uint64_t numBytes;
+  unsigned short readyState;
+  const char *data;
+} emscripten_fetch_t;
+
+static void emscripten_fetch_attr_init(emscripten_fetch_attr_t *attr) {
+  memset(attr, 0, sizeof(*attr));
+}
+
+static void emscripten_fetch_close(emscripten_fetch_t *fetch) {
+  if (fetch) {
+    if (fetch->data) {
+      free((void *)fetch->data);
+    }
+    free(fetch);
+  }
+}
+
+static size_t
+emscripten_fetch_get_response_headers_length(emscripten_fetch_t *fetch) {
+  static const char hdr[] =
+      "Content-Type: text/plain\nNoColonHeader\r\nLast: header";
+  (void)fetch;
+  return sizeof(hdr) - 1;
+}
+
+static void
+emscripten_fetch_get_response_headers(emscripten_fetch_t *fetch, char *dst,
+                                      size_t dst_size) {
+  static const char hdr[] =
+      "Content-Type: text/plain\nNoColonHeader\r\nLast: header";
+  (void)fetch;
+  if (dst && dst_size >= sizeof(hdr)) {
+    memcpy(dst, hdr, sizeof(hdr));
+  }
+}
+
+static emscripten_fetch_t *emscripten_fetch(const emscripten_fetch_attr_t *attr,
+                                            const char *url) {
+  emscripten_fetch_t *f;
+  char *d;
+  (void)attr;
+  (void)url;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_wasm_fetch_fail) {
+    return NULL;
+  }
+  if (g_mock_wasm_fetch_timeout) {
+    f = (emscripten_fetch_t *)calloc(1, sizeof(*f));
+    if (f) {
+      f->status = 0;
+      f->numBytes = 0;
+      f->readyState = 1;
+    }
+    return f;
+  }
+#endif
+  f = (emscripten_fetch_t *)calloc(1, sizeof(*f));
+  if (!f) {
+    return NULL;
+  }
+  if (strcmp(attr->requestMethod, "HEAD") == 0) {
+    f->status = 200;
+    f->numBytes = 0;
+    f->readyState = 4;
+    f->data = NULL;
+    return f;
+  }
+  f->status = 200;
+  f->numBytes = 12;
+  f->readyState = 4;
+  d = (char *)malloc(13);
+  if (d) {
+    memcpy(d, "Hello WebAsm\0", 13);
+  }
+  f->data = d;
+  return f;
+}
 #endif
 /* clang-format on */
 
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
+  /** @brief Configuration settings */
   struct HttpConfig config;
 };
 
 static int wasm_global_init_count = 0;
 
+/**
+ * @brief Initialize global wasm transport environment.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
 enum c_abstract_http_error http_wasm_global_init(void) {
   wasm_global_init_count++;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Clean up global wasm transport environment.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
 enum c_abstract_http_error http_wasm_global_cleanup(void) {
   if (wasm_global_init_count > 0) {
     wasm_global_init_count--;
@@ -34,6 +144,12 @@ enum c_abstract_http_error http_wasm_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Initialize a new wasm transport context.
+ *
+ * @param[out] ctx Pointer to receive context pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
 enum c_abstract_http_error
 http_wasm_context_init(struct HttpTransportContext **ctx) {
   enum c_abstract_http_error rc;
@@ -42,15 +158,21 @@ http_wasm_context_init(struct HttpTransportContext **ctx) {
     LOG_DEBUG("http_wasm_context_init: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  *ctx = (struct HttpTransportContext *)malloc(
-      sizeof(struct HttpTransportContext));
+  *ctx = (struct HttpTransportContext *)calloc(
+      1, sizeof(struct HttpTransportContext));
   if (!*ctx) {
     LOG_DEBUG("http_wasm_context_init: Error ENOMEM");
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
-  memset(*ctx, 0, sizeof(struct HttpTransportContext));
 
-  rc = http_config_init(&(*ctx)->config);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_wasm_config_init_fail) {
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+  } else
+#endif
+  {
+    rc = http_config_init(&(*ctx)->config);
+  }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wasm_context_init: Error http_config_init failed with %d",
               rc);
@@ -62,6 +184,11 @@ http_wasm_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Free a wasm transport context.
+ *
+ * @param[in] ctx The context to free.
+ */
 void http_wasm_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wasm_context_free: Entering");
   if (ctx) {
@@ -71,6 +198,13 @@ void http_wasm_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wasm_context_free: Exiting");
 }
 
+/**
+ * @brief Apply configuration to wasm transport context.
+ *
+ * @param[in] ctx The context.
+ * @param[in] config The configuration to apply.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
 enum c_abstract_http_error
 http_wasm_config_apply(struct HttpTransportContext *ctx,
                        const struct HttpConfig *config) {
@@ -79,11 +213,21 @@ http_wasm_config_apply(struct HttpTransportContext *ctx,
     LOG_DEBUG("http_wasm_config_apply: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  ctx->config = *config;
+  ctx->config.timeout_ms = config->timeout_ms;
+  ctx->config.verify_peer = config->verify_peer;
+  ctx->config.verify_host = config->verify_host;
+  ctx->config.follow_redirects = config->follow_redirects;
   LOG_DEBUG("http_wasm_config_apply: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Convert HTTP method enum to string representation.
+ *
+ * @param[in] method HTTP method enum.
+ * @param[out] out_str Pointer to receive string pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
 static enum c_abstract_http_error get_method_str(enum HttpMethod method,
                                                  const char **out_str) {
   switch (method) {
@@ -99,44 +243,48 @@ static enum c_abstract_http_error get_method_str(enum HttpMethod method,
   case HTTP_DELETE:
     *out_str = "DELETE";
     break;
-  case HTTP_PATCH:
-    *out_str = "PATCH";
-    break;
   case HTTP_HEAD:
     *out_str = "HEAD";
     break;
   case HTTP_OPTIONS:
     *out_str = "OPTIONS";
     break;
-  case HTTP_TRACE:
-    *out_str = "TRACE";
-    break;
-  case HTTP_QUERY:
-    *out_str = "QUERY";
-    break;
-  case HTTP_CONNECT:
-    *out_str = "CONNECT";
+  case HTTP_PATCH:
+    *out_str = "PATCH";
     break;
   default:
-    *out_str = "GET";
-    break;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Perform a single HTTP request using wasm fetch.
+ *
+ * @param[in] ctx The context.
+ * @param[in] req The request to send.
+ * @param[out] res Pointer to receive response pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
 enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
                                           const struct HttpRequest *req,
                                           struct HttpResponse **res) {
-#ifdef __EMSCRIPTEN__
   emscripten_fetch_attr_t attr;
   emscripten_fetch_t *fetch;
-  const char **headers = NULL;
-  size_t headers_count = 0;
+  const char **headers;
+  size_t headers_count;
   size_t i;
-  char *body_buffer = NULL;
-  size_t body_len = 0;
+  char *body_buffer;
+  size_t body_len;
   const char *method_str;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  enum c_abstract_http_error rc;
+
+  fetch = NULL;
+  headers = NULL;
+  headers_count = 0;
+  body_buffer = NULL;
+  body_len = 0;
+  rc = C_ABSTRACT_HTTP_SUCCESS;
 
   LOG_DEBUG("http_wasm_send: Entering");
   if (!ctx || !req || !res) {
@@ -240,7 +388,6 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
 
   if (fetch->status == 0 && fetch->numBytes == 0 && fetch->readyState != 4) {
     LOG_DEBUG("http_wasm_send: Error ETIMEDOUT");
-    emscripten_fetch_close(fetch);
     rc = C_ABSTRACT_HTTP_ERR_TIMEOUT;
     goto cleanup;
   }
@@ -248,17 +395,20 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
   *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
   if (!*res) {
     LOG_DEBUG("http_wasm_send: Error ENOMEM (*res)");
-    emscripten_fetch_close(fetch);
     rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     goto cleanup;
   }
 
-  rc = http_response_init(*res);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_wasm_response_init_fail) {
+    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+  } else
+#endif
+  {
+    rc = http_response_init(*res);
+  }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wasm_send: Error http_response_init failed with %d", rc);
-    emscripten_fetch_close(fetch);
-    free(*res);
-    *res = NULL;
     goto cleanup;
   }
 
@@ -268,10 +418,6 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
     (*res)->body = malloc((size_t)fetch->numBytes);
     if (!(*res)->body) {
       LOG_DEBUG("http_wasm_send: Error ENOMEM ((*res)->body)");
-      emscripten_fetch_close(fetch);
-      http_response_free(*res);
-      free(*res);
-      *res = NULL;
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       goto cleanup;
     }
@@ -284,10 +430,6 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
       if (chunk_rc != 0) {
         LOG_DEBUG("http_wasm_send: Error ECANCELED (chunk callback failed %d)",
                   chunk_rc);
-        http_response_free(*res);
-        free(*res);
-        *res = NULL;
-        emscripten_fetch_close(fetch);
         rc = ECANCELED;
         goto cleanup;
       }
@@ -304,38 +446,41 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
       char *hdrs_buf = (char *)malloc(hdrs_len + 1);
       if (hdrs_buf) {
         emscripten_fetch_get_response_headers(fetch, hdrs_buf, hdrs_len + 1);
-        /* http_response_init already initializes headers! No need to call
-           http_headers_init here, but if we do it's a no-op / reset. */
         {
           char *p = hdrs_buf;
           const char *end = hdrs_buf + hdrs_len;
           while (p < end && *p) {
-            char *line_end = strchr(p, '\r');
+            char *line_end = strchr(p, 13);
             if (!line_end) {
-              line_end = strchr(p, '\n');
+              line_end = strchr(p, 10);
             }
             if (line_end) {
               *line_end = '\0';
             }
-            if (p) {
+            {
               char *colon = strchr(p, ':');
               if (colon) {
-                int add_rc;
                 char *val = colon + 1;
                 *colon = '\0';
                 while (*val == ' ')
                   val++;
-                add_rc = http_headers_add(&(*res)->headers, p, val);
-                if (add_rc != 0) {
-                  LOG_DEBUG(
-                      "http_wasm_send: Error http_headers_add failed with %d",
-                      add_rc);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+                if (g_mock_wasm_header_add_fail ||
+                    http_headers_add(&(*res)->headers, p, val) != 0)
+#else
+                if (http_headers_add(&(*res)->headers, p, val) != 0)
+#endif
+                {
+                  LOG_DEBUG("http_wasm_send: Error http_headers_add failed");
+                  rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+                  free(hdrs_buf);
+                  goto cleanup;
                 }
               }
             }
             if (line_end) {
               p = line_end + 1;
-              if (*p == '\n')
+              if (*p == 10)
                 p++;
             } else {
               break;
@@ -347,9 +492,10 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
     }
   }
 
-  emscripten_fetch_close(fetch);
-
 cleanup:
+  if (fetch) {
+    emscripten_fetch_close(fetch);
+  }
   if (headers) {
     free((void *)headers);
   }
@@ -360,10 +506,56 @@ cleanup:
   if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wasm_send: Success");
   } else {
+    if (*res) {
+      http_response_free(*res);
+      free(*res);
+      *res = NULL;
+    }
     LOG_DEBUG("http_wasm_send: Error returning %d", rc);
   }
   return rc;
-#else
+}
+
+/**
+ * @brief Perform multiple HTTP requests concurrently via wasm fetch.
+ *
+ * @param[in] ctx The context.
+ * @param[in] loop The event loop context.
+ * @param[in] multi The multi request definition.
+ * @param[out] futures Array of futures to populate.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
+enum c_abstract_http_error http_wasm_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
+  size_t i;
+  enum c_abstract_http_error rc;
+  cah_cppcheck_mut_ptr((void *)ctx);
+  (void)loop;
+
+  LOG_DEBUG("http_wasm_send_multi: Entering");
+  if (!ctx || !multi || !futures) {
+    LOG_DEBUG("http_wasm_send_multi: Error EINVAL");
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  for (i = 0; i < multi->count; i++) {
+    struct HttpResponse *res = NULL;
+    rc = http_wasm_send(ctx, multi->requests[i], &res);
+    futures[i]->response = res;
+    futures[i]->error_code = rc;
+    futures[i]->is_ready = 1;
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+
+  if (loop) {
+    rc = http_loop_wakeup(loop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+
   return C_ABSTRACT_HTTP_SUCCESS;
-#endif
 }

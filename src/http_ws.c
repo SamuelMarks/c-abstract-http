@@ -22,6 +22,11 @@
 #include <c89stringutils_string_extras.h>
 /* clang-format on */
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_mask_key_fail;
+extern int g_mock_pack_header_fail;
+#endif
+
 enum c_abstract_http_error ws_generate_key(char out_key[25]) {
   unsigned char random_bytes[16];
   char *base64_str = NULL;
@@ -114,13 +119,16 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
 
   rc = abstract_http_mutex_lock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    goto ws_read_err;
+    LOG_DEBUG("ws_read_chunk_cb: returning -1 due to internal error %d", rc);
+    return -1;
   }
   while (sctx->queue_len == 0 && !sctx->close_requested) {
     /* Wait for data or close */
     rc = abstract_http_cond_wait(sctx->cond, sctx->mutex);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      goto ws_read_err;
+      (void)!abstract_http_mutex_unlock(sctx->mutex);
+      LOG_DEBUG("ws_read_chunk_cb: returning -1 due to internal error %d", rc);
+      return -1;
     }
   }
 
@@ -140,12 +148,10 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
 
   rc = abstract_http_mutex_unlock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    goto ws_read_err;
+    LOG_DEBUG("ws_read_chunk_cb: returning -1 due to internal error %d", rc);
+    return -1;
   }
   return 0;
-ws_read_err:
-  LOG_DEBUG("ws_read_chunk_cb: returning -1 due to internal error %d", rc);
-  return -1;
 }
 
 static void ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
@@ -278,6 +284,12 @@ uint64_t math_ws_ntohll(uint64_t netqword) {
 enum c_abstract_http_error ws_generate_mask_key(unsigned char out_key[4]) {
   int i;
   static int rand_initialized = 0;
+  if (!out_key)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_mask_key_fail == 1)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (!rand_initialized) {
     srand((unsigned int)time(NULL));
     rand_initialized = 1;
@@ -293,6 +305,12 @@ enum c_abstract_http_error ws_apply_mask(unsigned char *payload, size_t len,
   size_t i;
   if (!payload || len == 0)
     return C_ABSTRACT_HTTP_SUCCESS;
+  if (!mask_key)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_mask_key_fail == 2)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   for (i = 0; i < len; i++) {
     payload[i] ^= mask_key[i % 4];
   }
@@ -305,6 +323,10 @@ ws_pack_header_small(unsigned char *buf, int fin,
                      size_t len, size_t *out_len) {
   if (!buf || len > 125)
     return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_pack_header_fail == 1)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   buf[0] = (unsigned char)((fin ? 0x80 : 0x00) | (opcode & 0x0F));
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | (len & 0x7F));
   if (out_len)
@@ -319,6 +341,10 @@ ws_pack_header_medium(unsigned char *buf, int fin,
   uint16_t net_len;
   if (!buf || len <= 125 || len > 65535)
     return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_pack_header_fail == 2)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   buf[0] = (unsigned char)((fin ? 0x80 : 0x00) | (opcode & 0x0F));
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | 126);
   net_len = math_ws_htons((uint16_t)len);
@@ -335,6 +361,10 @@ ws_pack_header_large(unsigned char *buf, int fin,
   uint64_t net_len;
   if (!buf || len <= 65535)
     return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_pack_header_fail == 3)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   buf[0] = (unsigned char)((fin ? 0x80 : 0x00) | (opcode & 0x0F));
   buf[1] = (unsigned char)((mask ? 0x80 : 0x00) | 127);
   net_len = math_ws_htonll((uint64_t)len);
@@ -387,7 +417,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
     switch (ctx->state) {
     case WS_PARSER_READ_OPCODE: {
       unsigned char b = chunk[i++];
-      ctx->current_frame.fin = (b & 0x80) != 0;
+      ctx->current_frame.fin = (b >> 7) & 1;
       ctx->current_frame.opcode = (enum c_abstract_http_ws_opcode)(b & 0x0F);
 
       /* Fail if any RSV bits are set */
@@ -411,7 +441,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
     case WS_PARSER_READ_LEN: {
       unsigned char b = chunk[i++];
       unsigned char base_len = b & 0x7F;
-      ctx->current_frame.mask = (b & 0x80) != 0;
+      ctx->current_frame.mask = (b >> 7) & 1;
 
       if (base_len == 126) {
         ctx->state = WS_PARSER_READ_EXT_LEN_16;
@@ -635,6 +665,11 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
       }
       break;
     }
+    default: {
+      if (ctx->on_error)
+        ctx->on_error(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
+      return C_ABSTRACT_HTTP_ERR_WS_FRAMING;
+    }
     }
   }
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -708,15 +743,6 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-struct c_abstract_http_ws_async_ctx {
-  struct HttpClient *client;
-  struct HttpRequest *req;
-  c_abstract_http_ws_on_message on_msg;
-  c_abstract_http_ws_on_error on_err;
-  c_abstract_http_ws_on_close on_close;
-  void *user_data;
-};
-
 static void c_abstract_http_ws_async_task(void *arg) {
   enum c_abstract_http_error err;
   struct c_abstract_http_ws_async_ctx *ctx =
@@ -734,6 +760,13 @@ static void c_abstract_http_ws_async_task(void *arg) {
   }
   free(ctx);
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+void abstract_http_test_ws_async_task(void *arg);
+void abstract_http_test_ws_async_task(void *arg) {
+  c_abstract_http_ws_async_task(arg);
+}
+#endif
 
 enum c_abstract_http_error c_abstract_http_ws_async_register(
     struct HttpClient *client, struct HttpRequest *req,
@@ -886,10 +919,13 @@ c_abstract_http_ws_send(struct HttpRequest *req,
 
   rc = abstract_http_cond_signal(sctx->cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    (void)!abstract_http_mutex_unlock(sctx->mutex);
+    free(masked_payload);
     return rc;
   }
   rc = abstract_http_mutex_unlock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(masked_payload);
     return rc;
   }
 
@@ -921,6 +957,7 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
   sctx->close_requested = 1;
   rc = abstract_http_cond_signal(sctx->cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    (void)!abstract_http_mutex_unlock(sctx->mutex);
     return rc;
   }
   rc = abstract_http_mutex_unlock(sctx->mutex);
@@ -932,8 +969,12 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
 }
 
 void c_abstract_http_ws_free(struct HttpRequest *req) {
-  if (req && req->ws_ctx) {
-    ws_stream_ctx_free((struct ws_stream_ctx *)req->ws_ctx);
-    req->ws_ctx = NULL;
+  if (req) {
+    if (req->ws_ctx) {
+      ws_stream_ctx_free((struct ws_stream_ctx *)req->ws_ctx);
+      req->ws_ctx = NULL;
+    } else {
+      ws_stream_ctx_free(NULL);
+    }
   }
 }

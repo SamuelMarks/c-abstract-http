@@ -133,11 +133,196 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
 #undef g_mock_listen_fail
 #undef g_mock_accept_fail
 #undef g_mock_recv_fail
+#undef g_mock_pthread_create_sync
+#undef g_mock_mutex_fail
+#undef g_mock_cond_fail
+#undef g_mock_strcasecmp_fail
+#undef g_mock_headers_init_fail
+#undef g_mock_parts_init_fail
+#undef g_mock_multi_init_fail
+#undef g_mock_mask_key_fail
+#undef g_mock_pack_header_fail
+#undef g_mock_raw_send_fail
+#undef g_mock_raw_connect_fail
+#undef g_mock_raw_gethostbyname_fail
+#undef g_mock_raw_nonblocking_fail
+#undef g_mock_raw_blocking_fail
+#undef g_mock_raw_realloc_fail
+#undef g_mock_raw_response_init_fail
+#undef g_mock_aria2_system_fail
+#undef g_mock_aria2_fopen_fail
+#undef g_mock_aria2_response_init_fail
+#undef g_mock_aria2_config_init_fail
+#undef g_mock_xquic_config_init_fail
+#undef g_mock_xquic_engine_present
+#undef g_mock_picoquic_create_fail
+#undef g_mock_picoquic_config_init_fail
+#undef g_mock_picoquic_response_init_fail
+#undef g_mock_picoquic_quic_null_on_free
+#undef g_mock_wasm_fetch_fail
+#undef g_mock_wasm_fetch_timeout
+#undef g_mock_wasm_config_init_fail
+#undef g_mock_wasm_response_init_fail
+#undef g_mock_wasm_header_add_fail
+#undef g_mock_fetch_global_init_fail
+#undef g_mock_fetch_context_init_fail
+#undef g_mock_fetch_config_init_fail
+#undef g_mock_fetch_parse_fail
+#undef g_mock_fetch_req_fail
+#undef g_mock_fetch_err_code
+#undef g_mock_fetch_empty_body
+#undef g_mock_fetch_response_init_fail
+#undef g_mock_fetch_response_alloc_fail
+#undef g_mock_fetch_upload_alloc_fail
+#undef g_mock_fetch_upload_realloc_fail
+#undef g_mock_fetch_body_realloc_fail
+#undef g_mock_fetch_loop_wakeup_fail
+#undef g_mock_nghttp3_global_init_fail
+#undef g_mock_nghttp3_context_init_fail
+#undef g_mock_nghttp3_config_init_fail
+#undef g_mock_nghttp3_conn_new_fail
+#undef g_mock_nghttp3_response_alloc_fail
+#undef g_mock_nghttp3_response_init_fail
+#undef g_mock_nghttp3_send_fail
+#undef g_mock_nghttp3_loop_wakeup_fail
+#undef g_mock_libevent_global_init_fail
+#undef g_mock_libevent_context_init_fail
+#undef g_mock_libevent_config_init_fail
+#undef g_mock_libevent_base_new_fail
+#undef g_mock_libevent_conn_new_fail
+#undef g_mock_libevent_req_new_fail
+#undef g_mock_libevent_make_req_fail
+#undef g_mock_libevent_res_alloc_fail
+#undef g_mock_libevent_res_init_fail
+#undef g_mock_libevent_body_alloc_fail
+#undef g_mock_libevent_buf_add_fail
+#undef g_mock_libevent_empty_body
+#undef g_mock_libuv_global_init_fail
+#undef g_mock_libuv_context_init_fail
+#undef g_mock_libuv_config_init_fail
+#undef g_mock_libuv_req_buf_alloc_fail
+#undef g_mock_libuv_res_alloc_fail
+#undef g_mock_libuv_res_init_fail
+#undef g_mock_libuv_body_alloc_fail
+#undef g_mock_libuv_body_realloc_fail
+#undef g_mock_libuv_headers_realloc_fail
+#undef g_mock_libuv_addrinfo_fail
+#undef g_mock_libuv_connect_fail
+#undef g_mock_libuv_write_fail
+#undef g_mock_libuv_read_fail
+#undef g_mock_libuv_alloc_fail
+#undef g_mock_lsquic_global_init_fail
+#undef g_mock_lsquic_context_init_fail
+#undef g_mock_lsquic_config_init_fail
+#undef g_mock_lsquic_engine_new_fail
+#undef g_mock_lsquic_res_alloc_fail
+#undef g_mock_lsquic_res_init_fail
+#undef g_mock_lsquic_body_alloc_fail
+#undef g_mock_lsquic_read_fail
+#undef g_mock_libsoup3_global_init_fail
+#undef g_mock_libsoup3_context_init_fail
+#undef g_mock_libsoup3_config_init_fail
+#undef g_mock_libsoup3_session_new_fail
+#undef g_mock_libsoup3_msg_new_fail
+#undef g_mock_libsoup3_send_fail
+#undef g_mock_libsoup3_res_alloc_fail
+#undef g_mock_libsoup3_res_init_fail
+#undef g_mock_libsoup3_body_alloc_fail
+#undef g_mock_libsoup3_uri_parse_fail
+#undef g_mock_android_getenv_detached
+#undef g_mock_android_getenv_fail
+#undef g_mock_android_attach_fail
+#undef g_mock_android_new_string_fail
+#undef g_mock_android_find_class_fail
+#undef g_mock_android_get_method_fail
+#undef g_mock_android_new_object_fail
+#undef g_mock_android_call_object_fail
+#undef g_mock_android_res_alloc_fail
+#undef g_mock_android_res_init_fail
+#undef g_mock_android_input_stream_fail
+#undef g_mock_android_error_stream_fail
+#undef g_mock_android_read_exception
+#undef g_mock_android_body_alloc_fail
+#undef g_mock_android_body_realloc_fail
+#undef g_mock_android_final_body_realloc_fail
+#undef g_mock_android_cleanup_exception
+#undef g_mock_android_read_chunks
+#undef g_mock_android_status_code
+#undef g_mock_android_config_init_fail
+#undef g_mock_msh3_api_open_fail
+#undef g_mock_msh3_config_open_fail
+#undef g_mock_msh3_conn_open_fail
+#undef g_mock_msh3_request_open_fail
+#undef g_mock_msh3_send_fail
+#undef g_mock_msh3_shutdown_error
+#undef g_mock_msh3_header_alloc_fail
+#undef g_mock_msh3_body_realloc_fail
+#undef g_mock_msh3_getaddrinfo_fail
+#undef g_mock_msh3_getaddrinfo_null_result
+#undef g_mock_msh3_mutex_init_fail
+#undef g_mock_msh3_config_init_fail
+#undef g_mock_msh3_global_lock_fail
+#undef g_mock_msh3_res_alloc_fail
+#undef g_mock_msh3_res_init_fail
+#undef g_mock_msh3_cond_init_fail
+#undef g_mock_msh3_send_lock_fail
+#undef g_mock_msh3_cond_wait_fail
+#undef g_mock_msh3_header_add_fail
+#undef g_mock_msh3_cb_mutex_lock_fail
+#undef g_mock_msh3_parse_url_alloc_fail
+#undef g_mock_msh3_extra_events
+#undef g_mock_winhttp_open_fail
+#undef g_mock_winhttp_connect_fail
+#undef g_mock_winhttp_open_request_fail
+#undef g_mock_winhttp_send_request_fail
+#undef g_mock_winhttp_write_data_fail
+#undef g_mock_winhttp_receive_response_fail
+#undef g_mock_winhttp_query_headers_fail
+#undef g_mock_winhttp_query_data_available_fail
+#undef g_mock_winhttp_read_data_fail
+#undef g_mock_winhttp_set_timeouts_fail
+#undef g_mock_winhttp_set_option_fail
+#undef g_mock_winhttp_crack_url_fail
+#undef g_mock_winhttp_add_request_headers_fail
+#undef g_mock_winhttp_queue_work_item_fail
+#undef g_mock_winhttp_context_init_fail
+#undef g_mock_winhttp_response_init_fail
+#undef g_mock_winhttp_status_code
+#undef g_mock_winhttp_cookie_count
+#undef g_mock_winhttp_read_chunks
+#undef g_mock_winhttp_total_body_realloc_fail
+#undef g_mock_winhttp_read_buf_alloc_fail
+#undef g_mock_winhttp_res_alloc_fail
+#undef g_mock_wininet_open_fail
+#undef g_mock_wininet_connect_fail
+#undef g_mock_wininet_open_request_fail
+#undef g_mock_wininet_send_request_fail
+#undef g_mock_wininet_send_request_ex_fail
+#undef g_mock_wininet_write_file_fail
+#undef g_mock_wininet_end_request_fail
+#undef g_mock_wininet_query_info_fail
+#undef g_mock_wininet_read_file_fail
+#undef g_mock_wininet_set_option_fail
+#undef g_mock_wininet_crack_url_fail
+#undef g_mock_wininet_add_headers_fail
+#undef g_mock_wininet_context_init_fail
+#undef g_mock_wininet_response_init_fail
+#undef g_mock_wininet_status_code
+#undef g_mock_wininet_cookie_count
+#undef g_mock_wininet_read_chunks
+#undef g_mock_wininet_read_chunk_alloc_fail
+#undef g_mock_wininet_body_realloc_fail
+#undef g_mock_wininet_res_alloc_fail
+#undef g_mock_accept_fd
+#undef g_mock_server_reading
+#undef g_mock_recv_data
+#undef g_mock_sha1_fail
 int g_mock_sha1_fail = 0;
 
 int g_mock_alloc_fail = 0;
 int g_mock_alloc_count = 0;
 int g_mock_pthread_fail = 0;
+int g_mock_pthread_create_sync = 0;
 int g_mock_pipe_fail = 0;
 int g_mock_fork_fail = 0;
 int g_mock_waitpid_fail = 0;
@@ -152,6 +337,188 @@ int g_mock_bind_fail = 0;
 int g_mock_listen_fail = 0;
 int g_mock_accept_fail = 0;
 int g_mock_recv_fail = 0;
+int g_mock_mutex_fail = 0;
+int g_mock_cond_fail = 0;
+int g_mock_strcasecmp_fail = 0;
+int g_mock_headers_init_fail = 0;
+int g_mock_parts_init_fail = 0;
+int g_mock_multi_init_fail = 0;
+int g_mock_mask_key_fail = 0;
+int g_mock_pack_header_fail = 0;
+int g_mock_raw_send_fail = 0;
+int g_mock_raw_connect_fail = 0;
+int g_mock_raw_gethostbyname_fail = 0;
+int g_mock_raw_nonblocking_fail = 0;
+int g_mock_raw_blocking_fail = 0;
+int g_mock_raw_realloc_fail = 0;
+int g_mock_raw_response_init_fail = 0;
+int g_mock_aria2_system_fail = 0;
+int g_mock_aria2_fopen_fail = 0;
+int g_mock_aria2_response_init_fail = 0;
+int g_mock_aria2_config_init_fail = 0;
+int g_mock_xquic_config_init_fail = 0;
+int g_mock_xquic_engine_present = 0;
+int g_mock_picoquic_create_fail = 0;
+int g_mock_picoquic_config_init_fail = 0;
+int g_mock_picoquic_response_init_fail = 0;
+int g_mock_picoquic_quic_null_on_free = 0;
+int g_mock_wasm_fetch_fail = 0;
+int g_mock_wasm_fetch_timeout = 0;
+int g_mock_wasm_config_init_fail = 0;
+int g_mock_wasm_response_init_fail = 0;
+int g_mock_wasm_header_add_fail = 0;
+int g_mock_fetch_global_init_fail = 0;
+int g_mock_fetch_context_init_fail = 0;
+int g_mock_fetch_config_init_fail = 0;
+int g_mock_fetch_parse_fail = 0;
+int g_mock_fetch_req_fail = 0;
+int g_mock_fetch_err_code = 0;
+int g_mock_fetch_empty_body = 0;
+int g_mock_fetch_response_init_fail = 0;
+int g_mock_fetch_response_alloc_fail = 0;
+int g_mock_fetch_upload_alloc_fail = 0;
+int g_mock_fetch_upload_realloc_fail = 0;
+int g_mock_fetch_body_realloc_fail = 0;
+int g_mock_fetch_loop_wakeup_fail = 0;
+int g_mock_nghttp3_global_init_fail = 0;
+int g_mock_nghttp3_context_init_fail = 0;
+int g_mock_nghttp3_config_init_fail = 0;
+int g_mock_nghttp3_conn_new_fail = 0;
+int g_mock_nghttp3_response_alloc_fail = 0;
+int g_mock_nghttp3_response_init_fail = 0;
+int g_mock_nghttp3_send_fail = 0;
+int g_mock_nghttp3_loop_wakeup_fail = 0;
+int g_mock_libevent_global_init_fail = 0;
+int g_mock_libevent_context_init_fail = 0;
+int g_mock_libevent_config_init_fail = 0;
+int g_mock_libevent_base_new_fail = 0;
+int g_mock_libevent_conn_new_fail = 0;
+int g_mock_libevent_req_new_fail = 0;
+int g_mock_libevent_make_req_fail = 0;
+int g_mock_libevent_res_alloc_fail = 0;
+int g_mock_libevent_res_init_fail = 0;
+int g_mock_libevent_body_alloc_fail = 0;
+int g_mock_libevent_buf_add_fail = 0;
+int g_mock_libevent_empty_body = 0;
+int g_mock_libuv_global_init_fail = 0;
+int g_mock_libuv_context_init_fail = 0;
+int g_mock_libuv_config_init_fail = 0;
+int g_mock_libuv_req_buf_alloc_fail = 0;
+int g_mock_libuv_res_alloc_fail = 0;
+int g_mock_libuv_res_init_fail = 0;
+int g_mock_libuv_body_alloc_fail = 0;
+int g_mock_libuv_body_realloc_fail = 0;
+int g_mock_libuv_headers_realloc_fail = 0;
+int g_mock_libuv_addrinfo_fail = 0;
+int g_mock_libuv_connect_fail = 0;
+int g_mock_libuv_write_fail = 0;
+int g_mock_libuv_read_fail = 0;
+int g_mock_libuv_alloc_fail = 0;
+int g_mock_lsquic_global_init_fail = 0;
+int g_mock_lsquic_context_init_fail = 0;
+int g_mock_lsquic_config_init_fail = 0;
+int g_mock_lsquic_engine_new_fail = 0;
+int g_mock_lsquic_res_alloc_fail = 0;
+int g_mock_lsquic_res_init_fail = 0;
+int g_mock_lsquic_body_alloc_fail = 0;
+int g_mock_lsquic_read_fail = 0;
+int g_mock_libsoup3_global_init_fail = 0;
+int g_mock_libsoup3_context_init_fail = 0;
+int g_mock_libsoup3_config_init_fail = 0;
+int g_mock_libsoup3_session_new_fail = 0;
+int g_mock_libsoup3_msg_new_fail = 0;
+int g_mock_libsoup3_send_fail = 0;
+int g_mock_libsoup3_res_alloc_fail = 0;
+int g_mock_libsoup3_res_init_fail = 0;
+int g_mock_libsoup3_body_alloc_fail = 0;
+int g_mock_libsoup3_uri_parse_fail = 0;
+int g_mock_android_getenv_detached = 0;
+int g_mock_android_getenv_fail = 0;
+int g_mock_android_attach_fail = 0;
+int g_mock_android_new_string_fail = 0;
+int g_mock_android_find_class_fail = 0;
+int g_mock_android_get_method_fail = 0;
+int g_mock_android_new_object_fail = 0;
+int g_mock_android_call_object_fail = 0;
+int g_mock_android_res_alloc_fail = 0;
+int g_mock_android_res_init_fail = 0;
+int g_mock_android_input_stream_fail = 0;
+int g_mock_android_error_stream_fail = 0;
+int g_mock_android_read_exception = 0;
+int g_mock_android_body_alloc_fail = 0;
+int g_mock_android_body_realloc_fail = 0;
+int g_mock_android_final_body_realloc_fail = 0;
+int g_mock_android_cleanup_exception = 0;
+int g_mock_android_read_chunks = 0;
+int g_mock_android_status_code = 0;
+int g_mock_android_config_init_fail = 0;
+int g_mock_msh3_api_open_fail = 0;
+int g_mock_msh3_config_open_fail = 0;
+int g_mock_msh3_conn_open_fail = 0;
+int g_mock_msh3_request_open_fail = 0;
+int g_mock_msh3_send_fail = 0;
+int g_mock_msh3_shutdown_error = 0;
+int g_mock_msh3_header_alloc_fail = 0;
+int g_mock_msh3_body_realloc_fail = 0;
+int g_mock_msh3_getaddrinfo_fail = 0;
+int g_mock_msh3_getaddrinfo_null_result = 0;
+int g_mock_msh3_mutex_init_fail = 0;
+int g_mock_msh3_config_init_fail = 0;
+int g_mock_msh3_global_lock_fail = 0;
+int g_mock_msh3_res_alloc_fail = 0;
+int g_mock_msh3_res_init_fail = 0;
+int g_mock_msh3_cond_init_fail = 0;
+int g_mock_msh3_send_lock_fail = 0;
+int g_mock_msh3_cond_wait_fail = 0;
+int g_mock_msh3_header_add_fail = 0;
+int g_mock_msh3_cb_mutex_lock_fail = 0;
+int g_mock_msh3_parse_url_alloc_fail = 0;
+int g_mock_msh3_extra_events = 0;
+int g_mock_winhttp_open_fail = 0;
+int g_mock_winhttp_connect_fail = 0;
+int g_mock_winhttp_open_request_fail = 0;
+int g_mock_winhttp_send_request_fail = 0;
+int g_mock_winhttp_write_data_fail = 0;
+int g_mock_winhttp_receive_response_fail = 0;
+int g_mock_winhttp_query_headers_fail = 0;
+int g_mock_winhttp_query_data_available_fail = 0;
+int g_mock_winhttp_read_data_fail = 0;
+int g_mock_winhttp_set_timeouts_fail = 0;
+int g_mock_winhttp_set_option_fail = 0;
+int g_mock_winhttp_crack_url_fail = 0;
+int g_mock_winhttp_add_request_headers_fail = 0;
+int g_mock_winhttp_queue_work_item_fail = 0;
+int g_mock_winhttp_context_init_fail = 0;
+int g_mock_winhttp_response_init_fail = 0;
+int g_mock_winhttp_status_code = 0;
+int g_mock_winhttp_cookie_count = 0;
+int g_mock_winhttp_read_chunks = 0;
+int g_mock_winhttp_total_body_realloc_fail = 0;
+int g_mock_winhttp_read_buf_alloc_fail = 0;
+int g_mock_winhttp_res_alloc_fail = 0;
+int g_mock_wininet_open_fail = 0;
+int g_mock_wininet_connect_fail = 0;
+int g_mock_wininet_open_request_fail = 0;
+int g_mock_wininet_send_request_fail = 0;
+int g_mock_wininet_send_request_ex_fail = 0;
+int g_mock_wininet_write_file_fail = 0;
+int g_mock_wininet_end_request_fail = 0;
+int g_mock_wininet_query_info_fail = 0;
+int g_mock_wininet_read_file_fail = 0;
+int g_mock_wininet_set_option_fail = 0;
+int g_mock_wininet_crack_url_fail = 0;
+int g_mock_wininet_add_headers_fail = 0;
+int g_mock_wininet_context_init_fail = 0;
+int g_mock_wininet_response_init_fail = 0;
+int g_mock_wininet_status_code = 0;
+int g_mock_wininet_cookie_count = 0;
+int g_mock_wininet_read_chunks = 0;
+int g_mock_wininet_read_chunk_alloc_fail = 0;
+int g_mock_wininet_body_realloc_fail = 0;
+int g_mock_wininet_res_alloc_fail = 0;
+int g_mock_accept_fd = -1;
+int g_mock_server_reading = 0;
+const char *g_mock_recv_data = NULL;
 
 int *abstract_http_mock_get_g_mock_sha1_fail(void) { return &g_mock_sha1_fail; }
 
@@ -163,6 +530,9 @@ int *abstract_http_mock_get_g_mock_alloc_count(void) {
 }
 int *abstract_http_mock_get_g_mock_pthread_fail(void) {
   return &g_mock_pthread_fail;
+}
+int *abstract_http_mock_get_g_mock_pthread_create_sync(void) {
+  return &g_mock_pthread_create_sync;
 }
 int *abstract_http_mock_get_g_mock_pipe_fail(void) { return &g_mock_pipe_fail; }
 int *abstract_http_mock_get_g_mock_fork_fail(void) { return &g_mock_fork_fail; }
@@ -196,6 +566,546 @@ int *abstract_http_mock_get_g_mock_accept_fail(void) {
   return &g_mock_accept_fail;
 }
 int *abstract_http_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
+int *abstract_http_mock_get_g_mock_mutex_fail(void) { return &g_mock_mutex_fail; }
+int *abstract_http_mock_get_g_mock_cond_fail(void) { return &g_mock_cond_fail; }
+int *abstract_http_mock_get_g_mock_strcasecmp_fail(void) {
+  return &g_mock_strcasecmp_fail;
+}
+int *abstract_http_mock_get_g_mock_headers_init_fail(void) {
+  return &g_mock_headers_init_fail;
+}
+int *abstract_http_mock_get_g_mock_parts_init_fail(void) {
+  return &g_mock_parts_init_fail;
+}
+int *abstract_http_mock_get_g_mock_multi_init_fail(void) {
+  return &g_mock_multi_init_fail;
+}
+int *abstract_http_mock_get_g_mock_mask_key_fail(void) {
+  return &g_mock_mask_key_fail;
+}
+int *abstract_http_mock_get_g_mock_pack_header_fail(void) {
+  return &g_mock_pack_header_fail;
+}
+int *abstract_http_mock_get_g_mock_raw_send_fail(void) {
+  return &g_mock_raw_send_fail;
+}
+int *abstract_http_mock_get_g_mock_raw_connect_fail(void) {
+  return &g_mock_raw_connect_fail;
+}
+int *abstract_http_mock_get_g_mock_raw_gethostbyname_fail(void) {
+  return &g_mock_raw_gethostbyname_fail;
+}
+int *abstract_http_mock_get_g_mock_raw_nonblocking_fail(void) {
+  return &g_mock_raw_nonblocking_fail;
+}
+int *abstract_http_mock_get_g_mock_raw_blocking_fail(void) {
+  return &g_mock_raw_blocking_fail;
+}
+int *abstract_http_mock_get_g_mock_raw_realloc_fail(void) {
+  return &g_mock_raw_realloc_fail;
+}
+int *abstract_http_mock_get_g_mock_raw_response_init_fail(void) {
+  return &g_mock_raw_response_init_fail;
+}
+int *abstract_http_mock_get_g_mock_aria2_system_fail(void) {
+  return &g_mock_aria2_system_fail;
+}
+int *abstract_http_mock_get_g_mock_aria2_fopen_fail(void) {
+  return &g_mock_aria2_fopen_fail;
+}
+int *abstract_http_mock_get_g_mock_aria2_response_init_fail(void) {
+  return &g_mock_aria2_response_init_fail;
+}
+int *abstract_http_mock_get_g_mock_aria2_config_init_fail(void) {
+  return &g_mock_aria2_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_xquic_config_init_fail(void) {
+  return &g_mock_xquic_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_xquic_engine_present(void) {
+  return &g_mock_xquic_engine_present;
+}
+int *abstract_http_mock_get_g_mock_picoquic_create_fail(void) {
+  return &g_mock_picoquic_create_fail;
+}
+int *abstract_http_mock_get_g_mock_picoquic_config_init_fail(void) {
+  return &g_mock_picoquic_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_picoquic_response_init_fail(void) {
+  return &g_mock_picoquic_response_init_fail;
+}
+int *abstract_http_mock_get_g_mock_picoquic_quic_null_on_free(void) {
+  return &g_mock_picoquic_quic_null_on_free;
+}
+int *abstract_http_mock_get_g_mock_wasm_fetch_fail(void) {
+  return &g_mock_wasm_fetch_fail;
+}
+int *abstract_http_mock_get_g_mock_wasm_fetch_timeout(void) {
+  return &g_mock_wasm_fetch_timeout;
+}
+int *abstract_http_mock_get_g_mock_wasm_config_init_fail(void) {
+  return &g_mock_wasm_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_wasm_response_init_fail(void) {
+  return &g_mock_wasm_response_init_fail;
+}
+int *abstract_http_mock_get_g_mock_wasm_header_add_fail(void) {
+  return &g_mock_wasm_header_add_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_global_init_fail(void) {
+  return &g_mock_fetch_global_init_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_context_init_fail(void) {
+  return &g_mock_fetch_context_init_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_config_init_fail(void) {
+  return &g_mock_fetch_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_parse_fail(void) {
+  return &g_mock_fetch_parse_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_req_fail(void) {
+  return &g_mock_fetch_req_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_err_code(void) {
+  return &g_mock_fetch_err_code;
+}
+int *abstract_http_mock_get_g_mock_fetch_empty_body(void) {
+  return &g_mock_fetch_empty_body;
+}
+int *abstract_http_mock_get_g_mock_fetch_response_init_fail(void) {
+  return &g_mock_fetch_response_init_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_response_alloc_fail(void) {
+  return &g_mock_fetch_response_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_upload_alloc_fail(void) {
+  return &g_mock_fetch_upload_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_upload_realloc_fail(void) {
+  return &g_mock_fetch_upload_realloc_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_body_realloc_fail(void) {
+  return &g_mock_fetch_body_realloc_fail;
+}
+int *abstract_http_mock_get_g_mock_fetch_loop_wakeup_fail(void) {
+  return &g_mock_fetch_loop_wakeup_fail;
+}
+int *abstract_http_mock_get_g_mock_nghttp3_global_init_fail(void) {
+  return &g_mock_nghttp3_global_init_fail;
+}
+int *abstract_http_mock_get_g_mock_nghttp3_context_init_fail(void) {
+  return &g_mock_nghttp3_context_init_fail;
+}
+int *abstract_http_mock_get_g_mock_nghttp3_config_init_fail(void) {
+  return &g_mock_nghttp3_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_nghttp3_conn_new_fail(void) {
+  return &g_mock_nghttp3_conn_new_fail;
+}
+int *abstract_http_mock_get_g_mock_nghttp3_response_alloc_fail(void) {
+  return &g_mock_nghttp3_response_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_nghttp3_response_init_fail(void) {
+  return &g_mock_nghttp3_response_init_fail;
+}
+int *abstract_http_mock_get_g_mock_nghttp3_send_fail(void) {
+  return &g_mock_nghttp3_send_fail;
+}
+int *abstract_http_mock_get_g_mock_nghttp3_loop_wakeup_fail(void) {
+  return &g_mock_nghttp3_loop_wakeup_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_global_init_fail(void) {
+  return &g_mock_libevent_global_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_context_init_fail(void) {
+  return &g_mock_libevent_context_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_config_init_fail(void) {
+  return &g_mock_libevent_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_base_new_fail(void) {
+  return &g_mock_libevent_base_new_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_conn_new_fail(void) {
+  return &g_mock_libevent_conn_new_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_req_new_fail(void) {
+  return &g_mock_libevent_req_new_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_make_req_fail(void) {
+  return &g_mock_libevent_make_req_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_res_alloc_fail(void) {
+  return &g_mock_libevent_res_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_res_init_fail(void) {
+  return &g_mock_libevent_res_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_body_alloc_fail(void) {
+  return &g_mock_libevent_body_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_buf_add_fail(void) {
+  return &g_mock_libevent_buf_add_fail;
+}
+int *abstract_http_mock_get_g_mock_libevent_empty_body(void) {
+  return &g_mock_libevent_empty_body;
+}
+int *abstract_http_mock_get_g_mock_libuv_global_init_fail(void) {
+  return &g_mock_libuv_global_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_context_init_fail(void) {
+  return &g_mock_libuv_context_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_config_init_fail(void) {
+  return &g_mock_libuv_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_req_buf_alloc_fail(void) {
+  return &g_mock_libuv_req_buf_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_res_alloc_fail(void) {
+  return &g_mock_libuv_res_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_res_init_fail(void) {
+  return &g_mock_libuv_res_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_body_alloc_fail(void) {
+  return &g_mock_libuv_body_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_body_realloc_fail(void) {
+  return &g_mock_libuv_body_realloc_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_headers_realloc_fail(void) {
+  return &g_mock_libuv_headers_realloc_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_addrinfo_fail(void) {
+  return &g_mock_libuv_addrinfo_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_connect_fail(void) {
+  return &g_mock_libuv_connect_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_write_fail(void) {
+  return &g_mock_libuv_write_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_read_fail(void) {
+  return &g_mock_libuv_read_fail;
+}
+int *abstract_http_mock_get_g_mock_libuv_alloc_fail(void) {
+  return &g_mock_libuv_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_lsquic_global_init_fail(void) {
+  return &g_mock_lsquic_global_init_fail;
+}
+int *abstract_http_mock_get_g_mock_lsquic_context_init_fail(void) {
+  return &g_mock_lsquic_context_init_fail;
+}
+int *abstract_http_mock_get_g_mock_lsquic_config_init_fail(void) {
+  return &g_mock_lsquic_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_lsquic_engine_new_fail(void) {
+  return &g_mock_lsquic_engine_new_fail;
+}
+int *abstract_http_mock_get_g_mock_lsquic_res_alloc_fail(void) {
+  return &g_mock_lsquic_res_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_lsquic_res_init_fail(void) {
+  return &g_mock_lsquic_res_init_fail;
+}
+int *abstract_http_mock_get_g_mock_lsquic_body_alloc_fail(void) {
+  return &g_mock_lsquic_body_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_lsquic_read_fail(void) {
+  return &g_mock_lsquic_read_fail;
+}
+int *abstract_http_mock_get_g_mock_libsoup3_global_init_fail(void) {
+  return &g_mock_libsoup3_global_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libsoup3_context_init_fail(void) {
+  return &g_mock_libsoup3_context_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libsoup3_config_init_fail(void) {
+  return &g_mock_libsoup3_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libsoup3_session_new_fail(void) {
+  return &g_mock_libsoup3_session_new_fail;
+}
+int *abstract_http_mock_get_g_mock_libsoup3_msg_new_fail(void) {
+  return &g_mock_libsoup3_msg_new_fail;
+}
+int *abstract_http_mock_get_g_mock_libsoup3_send_fail(void) {
+  return &g_mock_libsoup3_send_fail;
+}
+int *abstract_http_mock_get_g_mock_libsoup3_res_alloc_fail(void) {
+  return &g_mock_libsoup3_res_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_libsoup3_res_init_fail(void) {
+  return &g_mock_libsoup3_res_init_fail;
+}
+int *abstract_http_mock_get_g_mock_libsoup3_body_alloc_fail(void) {
+  return &g_mock_libsoup3_body_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_libsoup3_uri_parse_fail(void) {
+  return &g_mock_libsoup3_uri_parse_fail;
+}
+int *abstract_http_mock_get_g_mock_android_getenv_detached(void) {
+  return &g_mock_android_getenv_detached;
+}
+int *abstract_http_mock_get_g_mock_android_getenv_fail(void) {
+  return &g_mock_android_getenv_fail;
+}
+int *abstract_http_mock_get_g_mock_android_attach_fail(void) {
+  return &g_mock_android_attach_fail;
+}
+int *abstract_http_mock_get_g_mock_android_new_string_fail(void) {
+  return &g_mock_android_new_string_fail;
+}
+int *abstract_http_mock_get_g_mock_android_find_class_fail(void) {
+  return &g_mock_android_find_class_fail;
+}
+int *abstract_http_mock_get_g_mock_android_get_method_fail(void) {
+  return &g_mock_android_get_method_fail;
+}
+int *abstract_http_mock_get_g_mock_android_new_object_fail(void) {
+  return &g_mock_android_new_object_fail;
+}
+int *abstract_http_mock_get_g_mock_android_call_object_fail(void) {
+  return &g_mock_android_call_object_fail;
+}
+int *abstract_http_mock_get_g_mock_android_res_alloc_fail(void) {
+  return &g_mock_android_res_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_android_res_init_fail(void) {
+  return &g_mock_android_res_init_fail;
+}
+int *abstract_http_mock_get_g_mock_android_input_stream_fail(void) {
+  return &g_mock_android_input_stream_fail;
+}
+int *abstract_http_mock_get_g_mock_android_error_stream_fail(void) {
+  return &g_mock_android_error_stream_fail;
+}
+int *abstract_http_mock_get_g_mock_android_read_exception(void) {
+  return &g_mock_android_read_exception;
+}
+int *abstract_http_mock_get_g_mock_android_body_alloc_fail(void) {
+  return &g_mock_android_body_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_android_body_realloc_fail(void) {
+  return &g_mock_android_body_realloc_fail;
+}
+int *abstract_http_mock_get_g_mock_android_final_body_realloc_fail(void) {
+  return &g_mock_android_final_body_realloc_fail;
+}
+int *abstract_http_mock_get_g_mock_android_cleanup_exception(void) {
+  return &g_mock_android_cleanup_exception;
+}
+int *abstract_http_mock_get_g_mock_android_read_chunks(void) {
+  return &g_mock_android_read_chunks;
+}
+int *abstract_http_mock_get_g_mock_android_status_code(void) {
+  return &g_mock_android_status_code;
+}
+int *abstract_http_mock_get_g_mock_android_config_init_fail(void) {
+  return &g_mock_android_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_api_open_fail(void) {
+  return &g_mock_msh3_api_open_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_config_open_fail(void) {
+  return &g_mock_msh3_config_open_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_conn_open_fail(void) {
+  return &g_mock_msh3_conn_open_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_request_open_fail(void) {
+  return &g_mock_msh3_request_open_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_send_fail(void) {
+  return &g_mock_msh3_send_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_shutdown_error(void) {
+  return &g_mock_msh3_shutdown_error;
+}
+int *abstract_http_mock_get_g_mock_msh3_header_alloc_fail(void) {
+  return &g_mock_msh3_header_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_body_realloc_fail(void) {
+  return &g_mock_msh3_body_realloc_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_getaddrinfo_fail(void) {
+  return &g_mock_msh3_getaddrinfo_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_getaddrinfo_null_result(void) {
+  return &g_mock_msh3_getaddrinfo_null_result;
+}
+int *abstract_http_mock_get_g_mock_msh3_mutex_init_fail(void) {
+  return &g_mock_msh3_mutex_init_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_config_init_fail(void) {
+  return &g_mock_msh3_config_init_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_global_lock_fail(void) {
+  return &g_mock_msh3_global_lock_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_res_alloc_fail(void) {
+  return &g_mock_msh3_res_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_res_init_fail(void) {
+  return &g_mock_msh3_res_init_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_cond_init_fail(void) {
+  return &g_mock_msh3_cond_init_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_send_lock_fail(void) {
+  return &g_mock_msh3_send_lock_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_cond_wait_fail(void) {
+  return &g_mock_msh3_cond_wait_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_header_add_fail(void) {
+  return &g_mock_msh3_header_add_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_cb_mutex_lock_fail(void) {
+  return &g_mock_msh3_cb_mutex_lock_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_parse_url_alloc_fail(void) {
+  return &g_mock_msh3_parse_url_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_msh3_extra_events(void) {
+  return &g_mock_msh3_extra_events;
+}
+int *abstract_http_mock_get_g_mock_winhttp_open_fail(void) {
+  return &g_mock_winhttp_open_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_connect_fail(void) {
+  return &g_mock_winhttp_connect_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_open_request_fail(void) {
+  return &g_mock_winhttp_open_request_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_send_request_fail(void) {
+  return &g_mock_winhttp_send_request_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_write_data_fail(void) {
+  return &g_mock_winhttp_write_data_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_receive_response_fail(void) {
+  return &g_mock_winhttp_receive_response_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_query_headers_fail(void) {
+  return &g_mock_winhttp_query_headers_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_query_data_available_fail(void) {
+  return &g_mock_winhttp_query_data_available_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_read_data_fail(void) {
+  return &g_mock_winhttp_read_data_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_set_timeouts_fail(void) {
+  return &g_mock_winhttp_set_timeouts_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_set_option_fail(void) {
+  return &g_mock_winhttp_set_option_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_crack_url_fail(void) {
+  return &g_mock_winhttp_crack_url_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_add_request_headers_fail(void) {
+  return &g_mock_winhttp_add_request_headers_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_queue_work_item_fail(void) {
+  return &g_mock_winhttp_queue_work_item_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_context_init_fail(void) {
+  return &g_mock_winhttp_context_init_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_response_init_fail(void) {
+  return &g_mock_winhttp_response_init_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_status_code(void) {
+  return &g_mock_winhttp_status_code;
+}
+int *abstract_http_mock_get_g_mock_winhttp_cookie_count(void) {
+  return &g_mock_winhttp_cookie_count;
+}
+int *abstract_http_mock_get_g_mock_winhttp_read_chunks(void) {
+  return &g_mock_winhttp_read_chunks;
+}
+int *abstract_http_mock_get_g_mock_winhttp_total_body_realloc_fail(void) {
+  return &g_mock_winhttp_total_body_realloc_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_read_buf_alloc_fail(void) {
+  return &g_mock_winhttp_read_buf_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_res_alloc_fail(void) {
+  return &g_mock_winhttp_res_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_open_fail(void) {
+  return &g_mock_wininet_open_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_connect_fail(void) {
+  return &g_mock_wininet_connect_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_open_request_fail(void) {
+  return &g_mock_wininet_open_request_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_send_request_fail(void) {
+  return &g_mock_wininet_send_request_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_send_request_ex_fail(void) {
+  return &g_mock_wininet_send_request_ex_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_write_file_fail(void) {
+  return &g_mock_wininet_write_file_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_end_request_fail(void) {
+  return &g_mock_wininet_end_request_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_query_info_fail(void) {
+  return &g_mock_wininet_query_info_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_read_file_fail(void) {
+  return &g_mock_wininet_read_file_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_set_option_fail(void) {
+  return &g_mock_wininet_set_option_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_crack_url_fail(void) {
+  return &g_mock_wininet_crack_url_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_add_headers_fail(void) {
+  return &g_mock_wininet_add_headers_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_context_init_fail(void) {
+  return &g_mock_wininet_context_init_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_response_init_fail(void) {
+  return &g_mock_wininet_response_init_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_status_code(void) {
+  return &g_mock_wininet_status_code;
+}
+int *abstract_http_mock_get_g_mock_wininet_cookie_count(void) {
+  return &g_mock_wininet_cookie_count;
+}
+int *abstract_http_mock_get_g_mock_wininet_read_chunks(void) {
+  return &g_mock_wininet_read_chunks;
+}
+int *abstract_http_mock_get_g_mock_wininet_read_chunk_alloc_fail(void) {
+  return &g_mock_wininet_read_chunk_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_body_realloc_fail(void) {
+  return &g_mock_wininet_body_realloc_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_res_alloc_fail(void) {
+  return &g_mock_wininet_res_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_accept_fd(void) { return &g_mock_accept_fd; }
+int *abstract_http_mock_get_g_mock_server_reading(void) {
+  return &g_mock_server_reading;
+}
+const char **abstract_http_mock_get_g_mock_recv_data(void) {
+  return &g_mock_recv_data;
+}
 
 #undef malloc
 #undef calloc
@@ -404,14 +1314,34 @@ pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options) {
 int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
                                        fd_set *writefds, fd_set *errorfds,
                                        const struct timeval *timeout) {
+  static int s_mock_select_win_count = 0;
+  if (g_mock_select_fail == 1) {
+    WSASetLastError(WSAEINVAL);
+    return SOCKET_ERROR;
+  }
+  if (g_mock_select_fail == 2) {
+    if (++s_mock_select_win_count >= 2) {
+      s_mock_select_win_count = 0;
+      WSASetLastError(WSAEINVAL);
+      return SOCKET_ERROR;
+    }
+  }
 #else
 int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
                                 fd_set *errorfds, struct timeval *timeout) {
-#endif
+  static int s_mock_select_posix_count = 0;
   if (g_mock_select_fail == 1) {
     errno = C_ABSTRACT_HTTP_ERR_INVAL;
     return -1;
   }
+  if (g_mock_select_fail == 2) {
+    if (++s_mock_select_posix_count >= 2) {
+      s_mock_select_posix_count = 0;
+      errno = C_ABSTRACT_HTTP_ERR_INVAL;
+      return -1;
+    }
+  }
+#endif
   if (g_mock_select_error_fds == 1) {
     if (readfds)
       FD_ZERO(readfds);
@@ -460,7 +1390,7 @@ enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
   if (!s) {
     if (out)
       *out = NULL;
-    return 22; /* C_ABSTRACT_HTTP_ERR_INVAL */
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   {
     size_t len = strlen(s);
@@ -474,9 +1404,9 @@ enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
     if (out) {
       *out = d;
     } else {
-      c_abstract_http_mock_free(d);
+      free(d);
     }
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 }
 
@@ -565,6 +1495,8 @@ SOCKET WSAAPI c_abstract_http_mock_accept(SOCKET socket,
                                           int *address_len) {
   if (g_mock_accept_fail)
     return INVALID_SOCKET;
+  if (g_mock_accept_fd >= 0)
+    return (SOCKET)g_mock_accept_fd;
   return accept(socket, address, address_len);
 }
 
@@ -572,6 +1504,17 @@ int WSAAPI c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length,
                                      int flags) {
   if (g_mock_recv_fail)
     return SOCKET_ERROR;
+  if (g_mock_recv_data && !g_mock_server_reading) {
+    int len;
+    if (*g_mock_recv_data == '\0')
+      return 0;
+    len = (int)strlen(g_mock_recv_data);
+    if (len > length)
+      len = length;
+    memcpy(buffer, g_mock_recv_data, (size_t)len);
+    g_mock_recv_data += len;
+    return len;
+  }
   return recv(socket, buffer, length, flags);
 }
 
@@ -606,6 +1549,8 @@ int c_abstract_http_mock_accept(int socket, struct sockaddr *address,
                                 socklen_t *address_len) {
   if (g_mock_accept_fail)
     return -1;
+  if (g_mock_accept_fd >= 0)
+    return g_mock_accept_fd;
   return accept(socket, address, address_len);
 }
 
@@ -613,6 +1558,17 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
                                   int flags) {
   if (g_mock_recv_fail)
     return -1;
+  if (g_mock_recv_data && !g_mock_server_reading) {
+    size_t len;
+    if (*g_mock_recv_data == '\0')
+      return 0;
+    len = strlen(g_mock_recv_data);
+    if (len > length)
+      len = length;
+    memcpy(buffer, g_mock_recv_data, len);
+    g_mock_recv_data += len;
+    return (ssize_t)len;
+  }
   return recv(socket, buffer, length, flags);
 }
 

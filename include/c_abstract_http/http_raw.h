@@ -45,6 +45,15 @@ C_ABSTRACT_HTTP_API void
 http_raw_context_free(struct HttpTransportContext *ctx);
 
 /**
+ * @brief Apply configuration to a raw socket transport context.
+ * @param ctx Transport context.
+ * @param config Configuration to apply.
+ * @return 0 on success.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_raw_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config);
+
+/**
  * @brief Send an HTTP request synchronously using raw sockets.
  * @param ctx Transport context.
  * @param req Request to send.

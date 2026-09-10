@@ -174,6 +174,24 @@ struct ws_parser_ctx {
 };
 
 /**
+ * @brief Internal async task context for WebSocket reading.
+ */
+struct c_abstract_http_ws_async_ctx {
+  /** @brief HTTP client handle */
+  struct HttpClient *client;
+  /** @brief HTTP request */
+  struct HttpRequest *req;
+  /** @brief User callback for messages */
+  c_abstract_http_ws_on_message on_msg;
+  /** @brief User callback for errors */
+  c_abstract_http_ws_on_error on_err;
+  /** @brief User callback for closures */
+  c_abstract_http_ws_on_close on_close;
+  /** @brief Opaque user data */
+  void *user_data;
+};
+
+/**
  * @brief Initialize a WebSocket parser context.
  * @param ctx The parser context to initialize.
  * @param on_msg The callback for completed messages.

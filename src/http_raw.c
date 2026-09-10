@@ -10,8 +10,14 @@
 #if defined(__MSDOS__) || defined(__DOS__) || defined(DOS) || defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS) || 1
 
 #if defined(_WIN32)
+#ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#define RAW_CLOSESOCKET(s) closesocket(s)
+typedef SOCKET raw_socket_t;
+#define RAW_INVALID_SOCKET INVALID_SOCKET
 #else
 #include <unistd.h>
 #include <sys/types.h>
@@ -20,8 +26,21 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <fcntl.h>
+#define RAW_CLOSESOCKET(s) close(s)
+typedef int raw_socket_t;
+#define RAW_INVALID_SOCKET (-1)
 #endif
 /* clang-format on */
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_raw_send_fail;
+extern int g_mock_raw_connect_fail;
+extern int g_mock_raw_gethostbyname_fail;
+extern int g_mock_raw_nonblocking_fail;
+extern int g_mock_raw_blocking_fail;
+extern int g_mock_raw_realloc_fail;
+extern int g_mock_raw_response_init_fail;
+#endif
 
 enum c_abstract_http_error http_raw_global_init(void) {
 #if defined(_WIN32)
@@ -41,7 +60,7 @@ enum c_abstract_http_error http_raw_global_cleanup(void) {
 }
 
 struct RawCtx {
-  int timeout_ms;
+  long timeout_ms;
   struct HttpConfig config;
 };
 
@@ -68,7 +87,7 @@ http_raw_context_init(struct HttpTransportContext **ctx) {
     return rc;
   }
 
-  c->timeout_ms = 30000;
+  c->timeout_ms = 30000L;
   *ctx = (struct HttpTransportContext *)c;
   LOG_DEBUG("http_raw_context_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -89,36 +108,104 @@ http_raw_config_apply(struct HttpTransportContext *ctx,
   struct RawCtx *c = (struct RawCtx *)ctx;
   if (!c || !config)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  c->config = *config;
   if (config->timeout_ms > 0)
     c->timeout_ms = config->timeout_ms;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error make_socket_nonblocking(int sock) {
+/**
+ * @brief Convert a 16-bit integer from host to network byte order.
+ * @param hostshort Value in host byte order.
+ * @return Value in network byte order.
+ */
+static unsigned short raw_htons(unsigned short hostshort) {
+  unsigned short out;
+  unsigned char *p = (unsigned char *)&out;
+  p[0] = (unsigned char)(hostshort >> 8);
+  p[1] = (unsigned char)(hostshort & 0xFF);
+  return out;
+}
+
+/**
+ * @brief Configure socket to be non-blocking.
+ * @param sock Socket descriptor.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code otherwise.
+ */
+static enum c_abstract_http_error make_socket_nonblocking(raw_socket_t sock) {
 #if defined(_WIN32)
   u_long mode = 1;
-  return ioctlsocket(sock, FIONBIO, &mode);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_nonblocking_fail == 1 || g_mock_raw_nonblocking_fail == 2)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
+  if (ioctlsocket(sock, (long)FIONBIO, &mode) != 0)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #else
-  int flags = fcntl(sock, F_GETFL, 0);
+  int flags;
+  int setfl_res;
+  flags = fcntl(sock, F_GETFL, 0);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_nonblocking_fail == 1)
+    flags = -1;
+#endif
   if (flags < 0)
-    return -1;
-  return fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+    return C_ABSTRACT_HTTP_ERR_IO;
+  setfl_res = fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_nonblocking_fail == 2)
+    setfl_res = -1;
+#endif
+  if (setfl_res < 0)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #endif
 }
 
-static enum c_abstract_http_error make_socket_blocking(int sock) {
+/**
+ * @brief Configure socket to be blocking.
+ * @param sock Socket descriptor.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code otherwise.
+ */
+static enum c_abstract_http_error make_socket_blocking(raw_socket_t sock) {
 #if defined(_WIN32)
   u_long mode = 0;
-  return ioctlsocket(sock, FIONBIO, &mode);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_blocking_fail == 1 || g_mock_raw_blocking_fail == 2)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
+  if (ioctlsocket(sock, (long)FIONBIO, &mode) != 0)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #else
-  int flags = fcntl(sock, F_GETFL, 0);
+  int flags;
+  int setfl_res;
+  flags = fcntl(sock, F_GETFL, 0);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_blocking_fail == 1)
+    flags = -1;
+#endif
   if (flags < 0)
-    return -1;
-  return fcntl(sock, F_SETFL, flags & ~O_NONBLOCK);
+    return C_ABSTRACT_HTTP_ERR_IO;
+  setfl_res = fcntl(sock, F_SETFL, flags & ~O_NONBLOCK);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_blocking_fail == 2)
+    setfl_res = -1;
+#endif
+  if (setfl_res < 0)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  return C_ABSTRACT_HTTP_SUCCESS;
 #endif
 }
 
+/**
+ * @brief Parse a URL into host, port, and path components.
+ * @param url Input URL string.
+ * @param host Output pointer to allocated host string.
+ * @param port Output pointer to port number.
+ * @param path Output pointer to allocated path string.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code otherwise.
+ */
 static enum c_abstract_http_error parse_url(const char *url, char **host,
                                             int *port, char **path) {
   const char *p;
@@ -127,7 +214,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   size_t host_len;
 
   if (!url)
-    return -1;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   if (strncmp(url, "http://", 7) == 0) {
     p = url + 7;
     *port = 80;
@@ -135,7 +222,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
     p = url + 8;
     *port = 443;
   } else {
-    return -1;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
   port_start = strchr(p, ':');
@@ -148,9 +235,6 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   if (port_start) {
     host_len = (size_t)(port_start - p);
     *port = atoi(port_start + 1);
-    if (!path_start) {
-      path_start = strchr(port_start, '/');
-    }
   } else if (path_start) {
     host_len = (size_t)(path_start - p);
   } else {
@@ -159,7 +243,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 
   *host = (char *)malloc(host_len + 1);
   if (!*host)
-    return -1;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   memcpy(*host, p, host_len);
   (*host)[host_len] = '\0';
 
@@ -168,14 +252,14 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
     *path = (char *)malloc(path_len + 1);
     if (!*path) {
       free(*host);
-      return -1;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     memcpy(*path, path_start, path_len + 1);
   } else {
     *path = (char *)malloc(2);
     if (!*path) {
       free(*host);
-      return -1;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     /* MSVC Safe Path */
@@ -186,13 +270,13 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 #endif
   }
 
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
                                          const struct HttpRequest *req,
                                          struct HttpResponse **res) {
-  int sock = -1;
+  raw_socket_t sock = RAW_INVALID_SOCKET;
   char *host = NULL;
   int port = 80;
   char *path = NULL;
@@ -209,6 +293,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   size_t body_len = 0;
   char *body = NULL;
   size_t body_cap = 0;
+  int conn_res = 0;
 
   (void)ctx;
   LOG_DEBUG("http_raw_send: Entering");
@@ -222,7 +307,12 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     return rc;
   }
 
-  he = gethostbyname(host);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_gethostbyname_fail)
+    he = NULL;
+  else
+#endif
+    he = gethostbyname(host);
   if (!he) {
     free(host);
     free(path);
@@ -230,7 +320,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   }
 
   sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock < 0) {
+  if (sock == RAW_INVALID_SOCKET) {
     free(host);
     free(path);
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -238,32 +328,46 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
-  addr.sin_port = htons(port);
+  addr.sin_port = raw_htons((unsigned short)port);
   memcpy(&addr.sin_addr, he->h_addr_list[0], (size_t)he->h_length);
 
   if ((rc = make_socket_nonblocking(sock)) != C_ABSTRACT_HTTP_SUCCESS) {
     free(host);
     free(path);
-#if defined(_WIN32)
-    closesocket(sock);
-#else
-    close(sock);
-#endif
+    RAW_CLOSESOCKET(sock);
     return rc;
   }
 
-  if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_connect_fail == 1) {
+    RAW_CLOSESOCKET(sock);
+    free(host);
+    free(path);
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+
+  conn_res = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_connect_fail == 2) {
+    conn_res = -1;
+#if defined(_WIN32)
+    WSASetLastError(WSAECONNREFUSED);
+#else
+    errno = ECONNREFUSED;
+#endif
+  } else if (g_mock_raw_connect_fail == 3) {
+    conn_res = 0;
+  }
+#endif
+  if (conn_res < 0) {
 #if defined(_WIN32)
     if (WSAGetLastError() != WSAEWOULDBLOCK)
 #else
     if (errno != EINPROGRESS)
 #endif
     {
-#if defined(_WIN32)
-      closesocket(sock);
-#else
-      close(sock);
-#endif
+      RAW_CLOSESOCKET(sock);
       free(host);
       free(path);
       return C_ABSTRACT_HTTP_ERR_IO;
@@ -279,15 +383,11 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     FD_ZERO(&fdset);
     FD_SET(sock, &fdset);
     tv.tv_sec = rctx->timeout_ms / 1000;
-    tv.tv_usec = (rctx->timeout_ms % 1000) * 1000;
+    tv.tv_usec = (int)((rctx->timeout_ms % 1000) * 1000);
 
-    res_sel = select(sock + 1, NULL, &fdset, NULL, &tv);
+    res_sel = select((int)(sock + 1), NULL, &fdset, NULL, &tv);
     if (res_sel <= 0) {
-#if defined(_WIN32)
-      closesocket(sock);
-#else
-      close(sock);
-#endif
+      RAW_CLOSESOCKET(sock);
       free(host);
       free(path);
       return C_ABSTRACT_HTTP_ERR_IO;
@@ -295,11 +395,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   }
 
   if ((rc = make_socket_blocking(sock)) != C_ABSTRACT_HTTP_SUCCESS) {
-#if defined(_WIN32)
-    closesocket(sock);
-#else
-    close(sock);
-#endif
+    RAW_CLOSESOCKET(sock);
     free(host);
     free(path);
     return rc;
@@ -307,11 +403,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 
   request_buf = (char *)malloc(req_cap);
   if (!request_buf) {
-#if defined(_WIN32)
-    closesocket(sock);
-#else
-    close(sock);
-#endif
+    RAW_CLOSESOCKET(sock);
     free(host);
     free(path);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -355,14 +447,15 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
       if (req_len + line_len >= req_cap) {
         char *new_buf;
         req_cap *= 2;
-        new_buf = (char *)realloc(request_buf, req_cap);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+        if (g_mock_raw_realloc_fail == 1)
+          new_buf = NULL;
+        else
+#endif
+          new_buf = (char *)realloc(request_buf, req_cap);
         if (!new_buf) {
           free(request_buf);
-#if defined(_WIN32)
-          closesocket(sock);
-#else
-          close(sock);
-#endif
+          RAW_CLOSESOCKET(sock);
           return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
         request_buf = new_buf;
@@ -394,14 +487,15 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     if (req_len + strlen(len_buf) + req->body_len >= req_cap) {
       char *new_buf;
       req_cap = req_len + strlen(len_buf) + req->body_len + 1;
-      new_buf = (char *)realloc(request_buf, req_cap);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+      if (g_mock_raw_realloc_fail == 2)
+        new_buf = NULL;
+      else
+#endif
+        new_buf = (char *)realloc(request_buf, req_cap);
       if (!new_buf) {
         free(request_buf);
-#if defined(_WIN32)
-        closesocket(sock);
-#else
-        close(sock);
-#endif
+        RAW_CLOSESOCKET(sock);
         return C_ABSTRACT_HTTP_ERR_NOMEM;
       }
       request_buf = new_buf;
@@ -430,61 +524,65 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   p = request_buf;
   len = req_len;
   while (len > 0) {
-    int s_rc = send(sock, p, (int)len, 0);
+    long s_rc;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_raw_send_fail) {
+      rc_send = C_ABSTRACT_HTTP_ERR_IO;
+      break;
+    }
+#endif
+#if defined(_WIN32)
+    s_rc = (long)send(sock, p, (int)len, 0);
+#else
+    s_rc = (long)send(sock, p, len, 0);
+#endif
     if (s_rc <= 0) {
       rc_send = C_ABSTRACT_HTTP_ERR_IO;
       break;
     }
-    p += s_rc;
-    len -= s_rc;
+    p += (size_t)s_rc;
+    len -= (size_t)s_rc;
   }
 
   free(request_buf);
 
   if (rc_send != C_ABSTRACT_HTTP_SUCCESS) {
-#if defined(_WIN32)
-    closesocket(sock);
-#else
-    close(sock);
-#endif
+    RAW_CLOSESOCKET(sock);
     return rc_send;
   }
 
   *res = calloc(1, sizeof(struct HttpResponse));
   if (!*res) {
-#if defined(_WIN32)
-    closesocket(sock);
-#else
-    close(sock);
-#endif
+    RAW_CLOSESOCKET(sock);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   {
     enum c_abstract_http_error rc_init = http_response_init(*res);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_raw_response_init_fail)
+      rc_init = C_ABSTRACT_HTTP_ERR_NOMEM;
+#endif
     if (rc_init != C_ABSTRACT_HTTP_SUCCESS) {
       free(*res);
       *res = NULL;
-#if defined(_WIN32)
-      closesocket(sock);
-#else
-      close(sock);
-#endif
+      RAW_CLOSESOCKET(sock);
       return rc_init;
     }
   }
 
   body_cap = 8192;
-  body = (char *)malloc(body_cap);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_realloc_fail == 4)
+    body = NULL;
+  else
+#endif
+    body = (char *)malloc(body_cap);
   if (!body) {
     http_response_free(*res);
     free(*res);
     *res = NULL;
-#if defined(_WIN32)
-    closesocket(sock);
-#else
-    close(sock);
-#endif
+    RAW_CLOSESOCKET(sock);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
@@ -498,15 +596,15 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     FD_ZERO(&fdset);
     FD_SET(sock, &fdset);
     tv.tv_sec = rctx->timeout_ms / 1000;
-    tv.tv_usec = (rctx->timeout_ms % 1000) * 1000;
+    tv.tv_usec = (int)((rctx->timeout_ms % 1000) * 1000);
 
-    res_sel = select(sock + 1, &fdset, NULL, NULL, &tv);
+    res_sel = select((int)(sock + 1), &fdset, NULL, NULL, &tv);
     if (res_sel <= 0) {
       rc_send = C_ABSTRACT_HTTP_ERR_IO;
       break;
     }
 
-    r_rc = recv(sock, recv_buf, sizeof(recv_buf), 0);
+    r_rc = (int)recv(sock, recv_buf, sizeof(recv_buf), 0);
     if (r_rc < 0) {
       rc_send = C_ABSTRACT_HTTP_ERR_IO;
       break;
@@ -522,10 +620,19 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
         break;
       }
     } else {
-      if (body_len + (size_t)r_rc > body_cap) {
+      if (body_len + (size_t)r_rc + 1 > body_cap
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+          || g_mock_raw_realloc_fail == 3
+#endif
+      ) {
         char *new_body;
-        body_cap = (body_len + (size_t)r_rc) * 2;
-        new_body = (char *)realloc(body, body_cap);
+        body_cap = (body_len + (size_t)r_rc + 1) * 2;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+        if (g_mock_raw_realloc_fail == 3)
+          new_body = NULL;
+        else
+#endif
+          new_body = (char *)realloc(body, body_cap);
         if (!new_body) {
           rc_send = C_ABSTRACT_HTTP_ERR_NOMEM;
           break;
@@ -537,11 +644,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     }
   }
 
-#if defined(_WIN32)
-  closesocket(sock);
-#else
-  close(sock);
-#endif
+  RAW_CLOSESOCKET(sock);
 
   if (rc_send != C_ABSTRACT_HTTP_SUCCESS) {
     http_response_free(*res);
@@ -553,14 +656,16 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 
   /* Very rudimentary HTTP parser */
   if (!req->on_chunk && body_len > 0) {
-    char *header_end = strstr(body, "\r\n\r\n");
+    char *header_end;
+    body[body_len] = '\0';
+    header_end = strstr(body, "\r\n\r\n");
     if (header_end) {
       char *p_nl;
       size_t header_len = (size_t)(header_end - body) + 4;
       size_t actual_body_len = body_len - header_len;
 
       /* parse status */
-      if (strncmp(body, "HTTP/1.", 8) == 0) {
+      if (strncmp(body, "HTTP/1.", 7) == 0) {
         (*res)->status_code = atoi(body + 9);
       } else {
         (*res)->status_code = 200;
@@ -568,7 +673,13 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 
       /* copy body down */
       if (actual_body_len > 0) {
-        char *real_body = (char *)malloc(actual_body_len + 1);
+        char *real_body;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+        if (g_mock_raw_realloc_fail == 6)
+          real_body = NULL;
+        else
+#endif
+          real_body = (char *)malloc(actual_body_len + 1);
         if (real_body) {
           memcpy(real_body, body + header_len, actual_body_len);
           real_body[actual_body_len] = '\0';
@@ -579,32 +690,41 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 
       /* We don't parse full headers here for the rudimentary raw fallback */
       p_nl = strstr(body, "\r\n");
-      if (p_nl && p_nl < header_end) {
+      if (p_nl < header_end) {
         p_nl += 2;
         while (p_nl < header_end) {
+          char *colon;
           char *next_nl = strstr(p_nl, "\r\n");
-          if (next_nl) {
-            char *colon = strchr(p_nl, ':');
-            if (colon && colon < next_nl) {
-              *colon = '\0';
-              *next_nl = '\0';
+          colon = strchr(p_nl, ':');
+          if (colon && colon < next_nl) {
+            *colon = '\0';
+            *next_nl = '\0';
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+            if (g_mock_raw_realloc_fail == 5)
+              rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+            else
+#endif
               rc = http_headers_add(&(*res)->headers, p_nl, colon + 1);
-              if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-                ABSTRACT_HTTP_CLOSESOCKET(sockfd);
-                free(response_buffer);
-                return rc;
-              }
+            if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+              http_response_free(*res);
+              free(*res);
+              *res = NULL;
+              free(body);
+              return rc;
             }
-            p_nl = next_nl + 2;
-          } else {
-            break;
           }
+          p_nl = next_nl + 2;
         }
       }
     } else {
       /* no headers? */
       (*res)->status_code = 200;
-      (*res)->body = malloc(body_len + 1);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+      if (g_mock_raw_realloc_fail == 7)
+        (*res)->body = NULL;
+      else
+#endif
+        (*res)->body = malloc(body_len + 1);
       if ((*res)->body) {
         memcpy((*res)->body, body, body_len);
         ((char *)(*res)->body)[body_len] = '\0';
