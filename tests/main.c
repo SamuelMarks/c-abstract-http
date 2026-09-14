@@ -95,7 +95,7 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
+#include <winsock2.h>
 #endif
 #if defined(__linux__) || defined(__APPLE__)
 #include <signal.h>

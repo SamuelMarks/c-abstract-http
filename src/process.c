@@ -138,6 +138,7 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
   STARTUPINFOA siStartInfo;
   BOOL bSuccess = FALSE;
   char szCmdline[MAX_PATH];
+  char szModule[MAX_PATH];
   struct AbstractHttpProcess *p;
 
   LOG_DEBUG("abstract_http_process_spawn: Entering");
@@ -171,7 +172,6 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
   SetHandleInformation((HANDLE)child_to_parent->read_handle,
                        HANDLE_FLAG_INHERIT, 0);
 
-  char szModule[MAX_PATH];
   GetModuleFileNameA(NULL, szModule, MAX_PATH);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(szCmdline, MAX_PATH, "\"%s\" --test-worker", szModule);
@@ -200,6 +200,7 @@ enum c_abstract_http_error
 abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
                                     int *exit_code) {
   DWORD dwExitCode = 0;
+  DWORD dwWait;
 
   LOG_DEBUG("abstract_http_process_wait_and_free: Entering");
   if (g_process_hooks.wait_and_free) {
@@ -222,7 +223,7 @@ abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
   }
 #endif
 
-  DWORD dwWait = WaitForSingleObject(proc->hProcess, 15000);
+  dwWait = WaitForSingleObject(proc->hProcess, 15000);
   if (dwWait == WAIT_TIMEOUT) {
     LOG_DEBUG(
         "abstract_http_process_wait_and_free: Child timed out, terminating");

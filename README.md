@@ -110,18 +110,14 @@ First-class integration with the **`c-multiplatform`** framework is provided out
 
 The library guarantees 100% C code compliance routing HTTP/3 frames. The following table showcases pure C network engines capable of driving QUIC/H3 streams which have been integrated as native abstraction backends:
 
-```text
-+-----------+--------------------+-----------------------------------------------+----------------+
-| Name      | QUIC Backend       | Description                                   | Implemented    |
-+-----------+--------------------+-----------------------------------------------+----------------+
-| libcurl   | ngtcp2/quiche/msh3 | The industry standard multi-protocol library. | Yes            |
-| msh3      | MsQuic             | Minimalist HTTP/3 built on MsQuic.            | Yes            |
-| lsquic    | Built-in           | High-performance stack by LiteSpeed.          | Yes            |
-| picoquic  | Built-in (h3zero)  | Fast and easy-to-embed QUIC & HTTP/3 stack.   | Yes            |
-| nghttp3   | Agnostic (ngtcp2)  | Lightweight framing state machine.            | Yes            |
-| xquic     | Built-in           | Alibaba's stack optimized for mobile/weak net.| No             |
-+-----------+--------------------+-----------------------------------------------+----------------+
-```
+| Name | QUIC Backend | Description | Implemented |
+| :--- | :--- | :--- | :---: |
+| libcurl | ngtcp2/quiche/msh3 | The industry standard multi-protocol library. | Yes |
+| msh3 | MsQuic | Minimalist HTTP/3 built on MsQuic. | Yes |
+| lsquic | Built-in | High-performance stack by LiteSpeed. | Yes |
+| picoquic | Built-in (h3zero) | Fast and easy-to-embed QUIC & HTTP/3 stack. | Yes |
+| nghttp3 | Agnostic (ngtcp2) | Lightweight framing state machine. | Yes |
+| xquic | Built-in | Alibaba's stack optimized for mobile/weak net. | No |
 
 ## CMake Configuration Options
 
