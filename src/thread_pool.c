@@ -199,7 +199,7 @@ thread_create(abstract_http_thread_t *thread,
 }
 
 static void thread_join(abstract_http_thread_t thread) {
-  WaitForSingleObject(thread, INFINITE);
+  WaitForSingleObject(thread, 10000);
   CloseHandle(thread);
 }
 

@@ -91,16 +91,18 @@
 #if defined(_MSC_VER)
 #include <crtdbg.h>
 #endif
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
 #if defined(__linux__) || defined(__APPLE__)
 #include <signal.h>
 #endif
 /* clang-format on */
 
 GREATEST_MAIN_DEFS();
-
-#if defined(_MSC_VER)
-#include <libloaderapi.h>
-#endif
 
 int main(int argc, char **argv) {
   int i;
@@ -114,12 +116,19 @@ int main(int argc, char **argv) {
     }
   }
 
+#if defined(_WIN32)
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX |
+               SEM_NOOPENFILEERRORBOX);
+#endif
 #if defined(_MSC_VER)
   if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
+    _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
+    _CrtSetReportFile(_CRT_WARN, (_HFILE)(size_t)2);
     _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
     _CrtSetReportFile(_CRT_ASSERT, (_HFILE)(size_t)2);
     _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
     _CrtSetReportFile(_CRT_ERROR, (_HFILE)(size_t)2);
+    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
   }
 #endif
   GREATEST_MAIN_BEGIN();

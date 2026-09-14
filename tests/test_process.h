@@ -112,7 +112,6 @@ TEST test_process_spawn_wait(void) {
   struct AbstractHttpIpcPipe parent_to_child, child_to_parent;
   struct AbstractHttpProcess *proc = NULL;
   int exit_code = 0;
-  printf("I AM EXECUTING\n");
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_ipc_pipe_init(&parent_to_child));

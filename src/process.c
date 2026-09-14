@@ -171,11 +171,12 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
   SetHandleInformation((HANDLE)child_to_parent->read_handle,
                        HANDLE_FLAG_INHERIT, 0);
 
-  GetModuleFileNameA(NULL, szCmdline, MAX_PATH);
+  char szModule[MAX_PATH];
+  GetModuleFileNameA(NULL, szModule, MAX_PATH);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  strcat_s(szCmdline, MAX_PATH, " --test-worker");
+  sprintf_s(szCmdline, MAX_PATH, "\"%s\" --test-worker", szModule);
 #else
-  strcat(szCmdline, " --test-worker");
+  snprintf(szCmdline, sizeof(szCmdline), "\"%s\" --test-worker", szModule);
 #endif
 
   bSuccess = CreateProcessA(NULL, szCmdline, NULL, NULL, TRUE, 0, NULL, NULL,
@@ -221,7 +222,13 @@ abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
   }
 #endif
 
-  WaitForSingleObject(proc->hProcess, INFINITE);
+  DWORD dwWait = WaitForSingleObject(proc->hProcess, 15000);
+  if (dwWait == WAIT_TIMEOUT) {
+    LOG_DEBUG(
+        "abstract_http_process_wait_and_free: Child timed out, terminating");
+    TerminateProcess(proc->hProcess, 1);
+    WaitForSingleObject(proc->hProcess, 5000);
+  }
   if (exit_code) {
     GetExitCodeProcess(proc->hProcess, &dwExitCode);
     *exit_code = (int)dwExitCode;
@@ -375,17 +382,18 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
     if (execv("/proc/self/exe", argv) == -1) {
       _exit(1);
     }
-  } else {
-    close((int)(size_t)parent_to_child->read_handle);
-    parent_to_child->read_handle = NULL;
-    close((int)(size_t)child_to_parent->write_handle);
-    child_to_parent->write_handle = NULL;
-
-    p->pid = pid;
-    *proc = p;
-    LOG_DEBUG("abstract_http_process_spawn: Success");
     return C_ABSTRACT_HTTP_SUCCESS;
   }
+
+  close((int)(size_t)parent_to_child->read_handle);
+  parent_to_child->read_handle = NULL;
+  close((int)(size_t)child_to_parent->write_handle);
+  child_to_parent->write_handle = NULL;
+
+  p->pid = pid;
+  *proc = p;
+  LOG_DEBUG("abstract_http_process_spawn: Success");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error

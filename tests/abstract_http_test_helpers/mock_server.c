@@ -91,7 +91,7 @@ static void cond_init(HANDLE *c) { *c = CreateEvent(NULL, FALSE, FALSE, NULL); }
 static void cond_signal(HANDLE *c) { SetEvent(*c); }
 static int cond_wait(HANDLE *c, mutex_t *m) {
   LeaveCriticalSection(m);
-  WaitForSingleObject(*c, INFINITE);
+  WaitForSingleObject(*c, 5000);
   EnterCriticalSection(m);
   return 0;
 }
@@ -99,7 +99,7 @@ static int cond_wait(HANDLE *c, mutex_t *m) {
 static void cond_init(cond_t *c) { InitializeConditionVariable(c); }
 static void cond_signal(cond_t *c) { WakeConditionVariable(c); }
 static int cond_wait(cond_t *c, mutex_t *m) {
-  return SleepConditionVariableCS(c, m, INFINITE) ? 0 : 1;
+  return SleepConditionVariableCS(c, m, 5000) ? 0 : 1;
 }
 #endif
 
@@ -273,6 +273,19 @@ void mock_server_destroy(MockServerPtr server) {
   /* Stop thread if running */
   if (server->running) {
     server->running = 0;
+    /* Connect to loopback to unblock accept() */
+    if (server->port > 0) {
+      socket_t trigger_fd = socket(AF_INET, SOCK_STREAM, 0);
+      if (trigger_fd != INVALID_SOCK) {
+        struct sockaddr_in sa;
+        memset(&sa, 0, sizeof(sa));
+        sa.sin_family = AF_INET;
+        sa.sin_port = htons((uint16_t)server->port);
+        sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        connect(trigger_fd, (struct sockaddr *)&sa, sizeof(sa));
+        close_socket(trigger_fd);
+      }
+    }
     /* Force accept to unblock by shutting down and closing socket */
     if (server->server_fd != INVALID_SOCK) {
 #if defined(_WIN32)
@@ -285,7 +298,7 @@ void mock_server_destroy(MockServerPtr server) {
     }
 
 #if defined(_WIN32)
-    WaitForSingleObject(server->thread, INFINITE);
+    WaitForSingleObject(server->thread, 5000);
     CloseHandle(server->thread);
 #else
     pthread_join(server->thread, NULL);
@@ -396,7 +409,9 @@ int mock_server_wait_for_request(MockServerPtr server,
 
   mutex_lock(&server->lock);
   while (!server->has_request && server->running) {
-    cond_wait(&server->cond_req_ready, &server->lock);
+    if (cond_wait(&server->cond_req_ready, &server->lock) != 0) {
+      break;
+    }
   }
 
   if (server->has_request && server->captured_request) {
