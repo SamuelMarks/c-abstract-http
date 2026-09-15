@@ -236,6 +236,11 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
 #endif
 #endif
 
+#if defined(_WIN32)
+    shutdown(client_fd, SD_SEND);
+#else
+    shutdown(client_fd, SHUT_WR);
+#endif
     close_socket(client_fd);
   }
 

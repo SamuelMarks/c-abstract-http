@@ -5,9 +5,12 @@ import re
 import sys
 import glob
 
+
 def main():
     try:
-        repo_root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], text=True).strip()
+        repo_root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], text=True
+        ).strip()
         os.chdir(repo_root)
     except Exception:
         print("Not a git repository, exiting.")
@@ -19,11 +22,13 @@ def main():
 
     print("--> Configuring CMake for coverage...")
     cmake_cmd = [
-        "cmake", "-B", build_dir,
+        "cmake",
+        "-B",
+        build_dir,
         "-DC_ABSTRACT_HTTP_ENABLE_COVERAGE=ON",
         "-DBUILD_TESTING=ON",
         "-DC_ABSTRACT_HTTP_ENABLE_WEBSOCKETS=ON",
-        "-DC_ABSTRACT_HTTP_ENABLE_SSE=ON"
+        "-DC_ABSTRACT_HTTP_ENABLE_SSE=ON",
     ]
 
     if os.name == "nt":
@@ -31,14 +36,20 @@ def main():
             os.environ["PATH"] = r"C:\usr\cygwin64\bin;" + os.environ.get("PATH", "")
             cmake_cmd.extend(["-G", "Unix Makefiles", "-DCMAKE_C_COMPILER=gcc"])
         elif os.path.exists(r"C:\usr\msys64\ucrt64\bin\gcc.exe"):
-            os.environ["PATH"] = r"C:\usr\msys64\ucrt64\bin;" + os.environ.get("PATH", "")
+            os.environ["PATH"] = r"C:\usr\msys64\ucrt64\bin;" + os.environ.get(
+                "PATH", ""
+            )
             cmake_cmd.extend(["-G", "MinGW Makefiles", "-DCMAKE_C_COMPILER=gcc"])
         elif os.path.exists(r"C:\usr\msys64\mingw64\bin\gcc.exe"):
-            os.environ["PATH"] = r"C:\usr\msys64\mingw64\bin;" + os.environ.get("PATH", "")
+            os.environ["PATH"] = r"C:\usr\msys64\mingw64\bin;" + os.environ.get(
+                "PATH", ""
+            )
             cmake_cmd.extend(["-G", "MinGW Makefiles", "-DCMAKE_C_COMPILER=gcc"])
 
     try:
-        subprocess.run(cmake_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(
+            cmake_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True
+        )
     except subprocess.CalledProcessError:
         print("Warning: CMake configuration failed. Skipping coverage update.")
         sys.exit(0)
@@ -48,17 +59,42 @@ def main():
 
     print("--> Building tests...")
     try:
-        subprocess.run(["cmake", "--build", build_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(
+            ["cmake", "--build", build_dir],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
     except subprocess.CalledProcessError:
         print("Warning: Build failed. Skipping coverage update.")
         sys.exit(0)
 
     print("--> Running tests...")
+    for root, _, files in os.walk(build_dir):
+        for file in files:
+            if file.endswith(".gcda"):
+                try:
+                    os.remove(os.path.join(root, file))
+                except OSError:
+                    pass
+    for file in glob.glob("*.gcov"):
+        try:
+            os.remove(file)
+        except OSError:
+            pass
     try:
         tests_dir = build_dir
-        subprocess.run(["ctest", "--output-on-failure"], cwd=tests_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        subprocess.run(
+            ["ctest", "--output-on-failure"],
+            cwd=tests_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
     except subprocess.CalledProcessError:
-        print("Warning: Tests failed. Badge will still be updated based on whatever ran.")
+        print(
+            "Warning: Tests failed. Badge will still be updated based on whatever ran."
+        )
     except FileNotFoundError:
         print("Warning: ctest not found. Skipping tests.")
 
@@ -68,8 +104,12 @@ def main():
 
     src_files = glob.glob("src/*.c")
     for f in src_files:
-        obj_path = os.path.join(build_dir, "CMakeFiles", "c-abstract-http.dir", f + ".o")
-        obj_path_windows = os.path.join(build_dir, "CMakeFiles", "c-abstract-http.dir", f + ".obj")
+        obj_path = os.path.join(
+            build_dir, "CMakeFiles", "c-abstract-http.dir", f + ".o"
+        )
+        obj_path_windows = os.path.join(
+            build_dir, "CMakeFiles", "c-abstract-http.dir", f + ".obj"
+        )
 
         obj_to_use = None
         if os.path.exists(obj_path):
@@ -79,26 +119,28 @@ def main():
 
         if obj_to_use is not None:
             try:
-                subprocess.check_output(["gcov", "-o", obj_to_use, f], text=True, stderr=subprocess.DEVNULL)
+                subprocess.check_output(
+                    ["gcov", "-o", obj_to_use, f], text=True, stderr=subprocess.DEVNULL
+                )
                 gcov_file = os.path.basename(f) + ".gcov"
                 if os.path.exists(gcov_file):
                     executed = 0
                     missed = 0
                     exclude_block = False
-                    with open(gcov_file, 'r') as gf:
+                    with open(gcov_file, "r") as gf:
                         for gline in gf:
-                            if 'LCOV_EXCL_START' in gline:
+                            if "LCOV_EXCL_START" in gline:
                                 exclude_block = True
                                 continue
-                            if 'LCOV_EXCL_STOP' in gline:
+                            if "LCOV_EXCL_STOP" in gline:
                                 exclude_block = False
                                 continue
-                            if exclude_block or 'LCOV_EXCL_LINE' in gline:
+                            if exclude_block or "LCOV_EXCL_LINE" in gline:
                                 continue
-                            if gline.startswith('    #####'):
+                            if gline.startswith("    #####"):
                                 missed += 1
                             else:
-                                m = re.match(r'^\s*(\d+):\s*\d+:', gline)
+                                m = re.match(r"^\s*(\d+):\s*\d+:", gline)
                                 if m:
                                     executed += 1
                     total = executed + missed
@@ -128,16 +170,23 @@ def main():
         with open("README.md", "r", encoding="utf-8") as f:
             content = f.read()
 
-        content = re.sub(r"coverage-\d+%25-[a-z]+", f"coverage-{coverage_formatted}%25-{color}", content)
+        content = re.sub(
+            r"coverage-\d+%25-[a-z]+",
+            f"coverage-{coverage_formatted}%25-{color}",
+            content,
+        )
 
         docs_percent = "100"
         docs_color = "brightgreen"
-        content = re.sub(r"docs-\d+%25-[a-z]+", f"docs-{docs_percent}%25-{docs_color}", content)
+        content = re.sub(
+            r"docs-\d+%25-[a-z]+", f"docs-{docs_percent}%25-{docs_color}", content
+        )
 
         with open("README.md", "w", encoding="utf-8") as f:
             f.write(content)
 
     print("==> Badges Updated Successfully.")
+
 
 if __name__ == "__main__":
     main()

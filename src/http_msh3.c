@@ -1052,7 +1052,9 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
 #endif
   memset(&addr, 0, sizeof(addr));
   if (result) {
-    memcpy(&addr, result->ai_addr, result->ai_addrlen);
+    if (result->ai_addrlen > 0) {
+      memcpy(&addr, result->ai_addr, (size_t)result->ai_addrlen);
+    }
     freeaddrinfo(result);
   }
 
