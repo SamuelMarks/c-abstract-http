@@ -100,6 +100,8 @@ extern void abstract_http_mock_server_signal_ready(MockServerPtr server);
 extern void abstract_http_mock_server_run_thread_once(MockServerPtr server);
 extern void abstract_http_mock_server_force_running(MockServerPtr server,
                                                     int running);
+extern void abstract_http_mock_server_force_port(MockServerPtr server,
+                                                 int port);
 
 #ifdef __cplusplus
 }

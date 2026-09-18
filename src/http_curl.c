@@ -51,6 +51,7 @@ int g_mock_curl_setopt_count = 0;
 int g_mock_curl_init_fail = 0;
 int g_mock_http_response_init_fail = 0;
 int g_mock_http_loop_fail = 0;
+int g_mock_curl_check_multi_info_fail = 0;
 
 #undef http_response_init
 #define http_response_init(res)                                                \
@@ -99,17 +100,28 @@ int g_mock_http_loop_fail = 0;
   (g_mock_curl_perform_res != CURLE_OK ? g_mock_curl_perform_res               \
                                        : (curl_easy_perform)(handle))
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+static int check_mock_setopt_fail(void) {
+  if (g_mock_curl_setopt_fail) {
+    if (g_mock_curl_setopt_count == 0) {
+      g_mock_curl_setopt_count--;
+      return 1;
+    }
+    g_mock_curl_setopt_count--;
+  }
+  return 0;
+}
+
 #undef ABSTRACT_HTTP_CURL_EASY_SETOPT
 #define ABSTRACT_HTTP_CURL_EASY_SETOPT(handle, option, param)                  \
-  (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0                  \
-       ? CURLE_OUT_OF_MEMORY                                                   \
-       : (curl_easy_setopt)(handle, option, param))
+  (check_mock_setopt_fail() ? CURLE_OUT_OF_MEMORY                              \
+                            : (curl_easy_setopt)(handle, option, param))
 
 #undef ABSTRACT_HTTP_CURL_MULTI_SETOPT
 #define ABSTRACT_HTTP_CURL_MULTI_SETOPT(handle, option, param)                 \
-  (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0                  \
-       ? CURLM_OUT_OF_MEMORY                                                   \
-       : (curl_multi_setopt)(handle, option, param))
+  (check_mock_setopt_fail() ? CURLM_OUT_OF_MEMORY                              \
+                            : (curl_multi_setopt)(handle, option, param))
+#endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 int g_mock_curl_multi_add_fail = 0;
@@ -140,22 +152,27 @@ static CURLMcode mock_curl_multi_add_handle(CURLM *multi, CURL *handle) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 extern struct curl_slist *g_mock_curl_cookies;
-#undef ABSTRACT_HTTP_CURL_EASY_GETINFO
-#define ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, info, param)                     \
-  ((info) == CURLINFO_COOKIELIST && g_mock_curl_cookies                        \
-       ? (memcpy((param), &g_mock_curl_cookies, sizeof(struct curl_slist *)),  \
-          (CURLcode)CURLE_OK)                                                  \
-       : (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0           \
-              ? (CURLcode)CURLE_OUT_OF_MEMORY                                  \
-              : (curl_easy_getinfo)(curl, info, param)))
 
-#undef curl_slist_free_all
-#define curl_slist_free_all(list)                                              \
-  do {                                                                         \
-    if ((list) == g_mock_curl_cookies)                                         \
-      g_mock_curl_cookies = NULL;                                              \
-    (curl_slist_free_all)(list);                                               \
-  } while (0)
+static CURLcode mock_curl_easy_getinfo(CURL *curl, CURLINFO info, void *param) {
+  if (info == CURLINFO_COOKIELIST) {
+    if (g_mock_curl_cookies) {
+      struct curl_slist *copy = NULL;
+      struct curl_slist *each = g_mock_curl_cookies;
+      while (each) {
+        copy = curl_slist_append(copy, each->data);
+        each = each->next;
+      }
+      memcpy(param, &copy, sizeof(struct curl_slist *));
+      return CURLE_OK;
+    }
+    *(struct curl_slist **)param = NULL;
+    return CURLE_OK;
+  }
+  return (curl_easy_getinfo)(curl, info, param);
+}
+
+#undef ABSTRACT_HTTP_CURL_EASY_GETINFO
+#define ABSTRACT_HTTP_CURL_EASY_GETINFO mock_curl_easy_getinfo
 #else
 #undef ABSTRACT_HTTP_CURL_EASY_GETINFO
 #define ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, info, param)                     \
@@ -211,7 +228,7 @@ static size_t math_write_memory_callback(void *contents, size_t size,
   struct CurlWriteContext *ctx = (struct CurlWriteContext *)userp;
   char *ptr;
 
-  if (ctx->req && ctx->req->on_chunk) {
+  if (ctx->req->on_chunk) {
     int rc =
         ctx->req->on_chunk(ctx->req->on_chunk_user_data, contents, realsize);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -257,19 +274,19 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FORMAT_HEADER(const char *key,
                                                               char **_out_val) {
   size_t len = strlen(key) + 2 + strlen(value) + 1;
   char *buf = (char *)malloc(len);
-  if (buf) {
+  if (!buf) {
+    *_out_val = NULL;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    /* MSVC Safe Path */
-    sprintf_s(buf, len, "%s: %s", key, value);
+  /* MSVC Safe Path */
+  sprintf_s(buf, len, "%s: %s", key, value);
 #else
-    /* Standard POSIX / GCC Path */
-    sprintf(buf, "%s: %s", key, value);
+  /* Standard POSIX / GCC Path */
+  sprintf(buf, "%s: %s", key, value);
 #endif
-  }
-  {
-    *_out_val = buf;
-    return C_ABSTRACT_HTTP_SUCCESS;
-  }
+  *_out_val = buf;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static enum c_abstract_http_error ABSTRACT_HTTP_MAP_CURL_ERROR(CURLcode res) {
@@ -357,10 +374,8 @@ http_curl_context_init(struct HttpTransportContext **const ctx) {
 void http_curl_context_free(struct HttpTransportContext *const ctx) {
   LOG_DEBUG("http_curl_context_free: Entering");
   if (ctx) {
-    if (ctx->curl)
-      curl_easy_cleanup(ctx->curl);
-    if (ctx->multi)
-      ABSTRACT_HTTP_CURL_MULTI_CLEANUP(ctx->multi);
+    curl_easy_cleanup(ctx->curl);
+    ABSTRACT_HTTP_CURL_MULTI_CLEANUP(ctx->multi);
     free(ctx);
   }
   LOG_DEBUG("http_curl_context_free: Exiting");
@@ -370,7 +385,9 @@ enum c_abstract_http_error
 http_curl_config_apply(struct HttpTransportContext *ctx,
                        const struct HttpConfig *config) {
   long ssl_version_max = 0;
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM)
   long http_version = 0;
+#endif
   LOG_DEBUG("http_curl_config_apply: Entering");
   if (!ctx || !ctx->curl || !config) {
     LOG_DEBUG("http_curl_config_apply: Error EINVAL");
@@ -379,6 +396,7 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
 
   if (config->version_mask & HTTP_VERSION_3) {
 #if LIBCURL_VERSION_NUM >= 0x074200 /* 7.66.0 */
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM)
     http_version = CURL_HTTP_VERSION_3;
 #if LIBCURL_VERSION_NUM >= 0x075000 /* 7.80.0 */
     if (!((config->version_mask &
@@ -387,9 +405,15 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
       http_version = CURL_HTTP_VERSION_3ONLY;
     }
 #endif
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (check_mock_setopt_fail())
+      return C_ABSTRACT_HTTP_ERR_IO;
+#else
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
                                        http_version) != CURLE_OK)
       return C_ABSTRACT_HTTP_ERR_IO;
+#endif
 #else
     /* Fallback to default if libcurl is too old */
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
@@ -433,7 +457,7 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
       ssl_version = CURL_SSLVERSION_TLSv1_1;
     else if (config->tls_version_mask & HTTP_TLS_VERSION_1_2)
       ssl_version = CURL_SSLVERSION_TLSv1_2;
-    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_3)
+    else
       ssl_version = CURL_SSLVERSION_TLSv1_3;
 
 #if LIBCURL_VERSION_NUM >= 0x073600 /* 7.54.0 */
@@ -444,7 +468,7 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
       ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_2;
     else if (config->tls_version_mask & HTTP_TLS_VERSION_1_1)
       ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_1;
-    else if (config->tls_version_mask & HTTP_TLS_VERSION_1_0)
+    else
       ssl_version_max = CURL_SSLVERSION_MAX_TLSv1_0;
 
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_SSLVERSION,
@@ -489,24 +513,24 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
                                        config->proxy_url) != CURLE_OK)
       return C_ABSTRACT_HTTP_ERR_IO;
 
-    if (config->proxy_username && config->proxy_password) {
-      if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_PROXYUSERNAME,
-                                         config->proxy_username) != CURLE_OK)
-        return C_ABSTRACT_HTTP_ERR_IO;
-      if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_PROXYPASSWORD,
-                                         config->proxy_password) != CURLE_OK)
-        return C_ABSTRACT_HTTP_ERR_IO;
+    if (config->proxy_username) {
+      if (config->proxy_password) {
+        if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_PROXYUSERNAME,
+                                           config->proxy_username) != CURLE_OK)
+          return C_ABSTRACT_HTTP_ERR_IO;
+        if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_PROXYPASSWORD,
+                                           config->proxy_password) != CURLE_OK)
+          return C_ABSTRACT_HTTP_ERR_IO;
+      }
     }
   } else {
-    ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_PROXY, "");
+    (curl_easy_setopt)(ctx->curl, CURLOPT_PROXY, "");
   }
 
   if (config->cookie_jar) {
     ctx->cookie_jar = config->cookie_jar;
     /* Enable curl's cookie engine without reading a file */
-    if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_COOKIEFILE, "") !=
-        CURLE_OK)
-      return C_ABSTRACT_HTTP_ERR_IO;
+    (curl_easy_setopt)(ctx->curl, CURLOPT_COOKIEFILE, "");
     /* Instruct curl to write cookies to a dummy state (handled manually or via
      * curl's getinfo later) */
   } else {
@@ -543,19 +567,18 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
   write_ctx->req = req;
   write_ctx->user_aborted = 0;
 
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_CUSTOMREQUEST, NULL);
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POSTFIELDS, NULL);
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POSTFIELDSIZE, 0L);
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_UPLOAD, 0L);
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_NOBODY, 0L);
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_HTTPGET, 1L);
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_READFUNCTION, NULL);
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_READDATA, NULL);
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_INFILESIZE_LARGE,
-                                 (curl_off_t)-1);
+  (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, NULL);
+  (curl_easy_setopt)(curl, CURLOPT_POSTFIELDS, NULL);
+  (curl_easy_setopt)(curl, CURLOPT_POSTFIELDSIZE, 0L);
+  (curl_easy_setopt)(curl, CURLOPT_UPLOAD, 0L);
+  (curl_easy_setopt)(curl, CURLOPT_NOBODY, 0L);
+  (curl_easy_setopt)(curl, CURLOPT_HTTPGET, 1L);
+  (curl_easy_setopt)(curl, CURLOPT_READFUNCTION, NULL);
+  (curl_easy_setopt)(curl, CURLOPT_READDATA, NULL);
+  (curl_easy_setopt)(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)-1);
 
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_URL, req->url);
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_NOSIGNAL, 1L);
+  (curl_easy_setopt)(curl, CURLOPT_URL, req->url);
+  (curl_easy_setopt)(curl, CURLOPT_NOSIGNAL, 1L);
 
   if (req->read_chunk) {
     switch (req->method) {
@@ -563,22 +586,21 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
     case HTTP_POST:
     case HTTP_PATCH:
     case HTTP_QUERY:
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_UPLOAD, 1L);
+      (curl_easy_setopt)(curl, CURLOPT_UPLOAD, 1L);
       if (req->method == HTTP_PUT) {
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+        (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "PUT");
       } else if (req->method == HTTP_POST) {
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_CUSTOMREQUEST, "POST");
+        (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "POST");
       } else if (req->method == HTTP_PATCH) {
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
-      } else if (req->method == HTTP_QUERY) {
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_CUSTOMREQUEST, "QUERY");
+        (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+      } else {
+        (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "QUERY");
       }
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_READFUNCTION,
-                                     math_curl_read_callback);
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_READDATA, (void *)req);
+      (curl_easy_setopt)(curl, CURLOPT_READFUNCTION, math_curl_read_callback);
+      (curl_easy_setopt)(curl, CURLOPT_READDATA, (void *)req);
       if (req->expected_body_len > 0) {
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_INFILESIZE_LARGE,
-                                       (curl_off_t)req->expected_body_len);
+        (curl_easy_setopt)(curl, CURLOPT_INFILESIZE_LARGE,
+                           (curl_off_t)req->expected_body_len);
       }
       break;
     default:
@@ -587,48 +609,52 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
   } else {
     switch (req->method) {
     case HTTP_GET:
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_HTTPGET, 1L);
+      (curl_easy_setopt)(curl, CURLOPT_HTTPGET, 1L);
       break;
     case HTTP_POST:
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POST, 1L);
-      if (payload && payload_len > 0) {
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POSTFIELDS, payload);
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POSTFIELDSIZE,
-                                       (long)payload_len);
+      (curl_easy_setopt)(curl, CURLOPT_POST, 1L);
+      if (payload) {
+        if (payload_len > 0) {
+          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDS, payload);
+          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
+        }
       }
       break;
     case HTTP_PUT:
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_CUSTOMREQUEST, "PUT");
-      if (payload && payload_len > 0) {
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POSTFIELDS, payload);
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POSTFIELDSIZE,
-                                       (long)payload_len);
+      (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+      if (payload) {
+        if (payload_len > 0) {
+          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDS, payload);
+          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
+        }
       }
       break;
     case HTTP_DELETE:
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+      (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
       break;
     case HTTP_HEAD:
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_NOBODY, 1L);
+      (curl_easy_setopt)(curl, CURLOPT_NOBODY, 1L);
       break;
     case HTTP_PATCH:
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
-      if (payload && payload_len > 0) {
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POSTFIELDS, payload);
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POSTFIELDSIZE,
-                                       (long)payload_len);
+      (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+      if (payload) {
+        if (payload_len > 0) {
+          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDS, payload);
+          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
+        }
       }
       break;
     case HTTP_QUERY:
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_CUSTOMREQUEST, "QUERY");
-      if (payload && payload_len > 0) {
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POSTFIELDS, payload);
-        ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_POSTFIELDSIZE,
-                                       (long)payload_len);
+      (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "QUERY");
+      if (payload) {
+        if (payload_len > 0) {
+          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDS, payload);
+          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
+        }
       }
       break;
     default:
-      ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_HTTPGET, 1L);
+      (curl_easy_setopt)(curl, CURLOPT_HTTPGET, 1L);
       break;
     }
   }
@@ -637,13 +663,11 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
     char *h_str = NULL;
     enum c_abstract_http_error rc_h = ABSTRACT_HTTP_FORMAT_HEADER(
         req->headers.headers[i].key, req->headers.headers[i].value, &h_str);
-    if (rc_h != C_ABSTRACT_HTTP_SUCCESS || !h_str) {
+    if (rc_h != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("ABSTRACT_HTTP_SETUP_CURL_REQUEST: Error ENOMEM in "
                 "ABSTRACT_HTTP_FORMAT_HEADER");
-      if (*out_headers) {
-        curl_slist_free_all(*out_headers);
-        *out_headers = NULL;
-      }
+      curl_slist_free_all(*out_headers);
+      *out_headers = NULL;
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       break;
     }
@@ -652,10 +676,8 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
     if (!new_list) {
       LOG_DEBUG("ABSTRACT_HTTP_SETUP_CURL_REQUEST: Error ENOMEM in "
                 "ABSTRACT_HTTP_CURL_SLIST_APPEND");
-      if (*out_headers) {
-        curl_slist_free_all(*out_headers);
-        *out_headers = NULL;
-      }
+      curl_slist_free_all(*out_headers);
+      *out_headers = NULL;
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
       break;
     }
@@ -667,7 +689,7 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
     return rc;
   }
 
-  ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_HTTPHEADER, *out_headers);
+  (curl_easy_setopt)(curl, CURLOPT_HTTPHEADER, *out_headers);
 
   if (ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_WRITEFUNCTION,
                                      math_write_memory_callback) != CURLE_OK)
@@ -721,9 +743,8 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FINISH_CURL_REQUEST(
   /* Sync cookies back to jar if provided */
   if (ctx->cookie_jar) {
     struct curl_slist *cookies = NULL;
-    if (ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, CURLINFO_COOKIELIST, &cookies) ==
-            CURLE_OK &&
-        cookies) {
+    ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, CURLINFO_COOKIELIST, &cookies);
+    if (cookies) {
       const struct curl_slist *each = cookies;
       while (each) {
         char domain[256], flag[16], path[256], secure[16], name[256],
@@ -769,14 +790,14 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FINISH_CURL_REQUEST(
   *out_res = new_res;
 
 cleanup:
-  if (rc != C_ABSTRACT_HTTP_SUCCESS && new_res) {
-    http_response_free(new_res);
-    free(new_res);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (new_res) {
+      http_response_free(new_res);
+      free(new_res);
+    }
   }
-  if (headers)
-    curl_slist_free_all(headers);
-  if (write_ctx->chunk.memory)
-    free(write_ctx->chunk.memory);
+  curl_slist_free_all(headers);
+  free(write_ctx->chunk.memory);
 
   if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("ABSTRACT_HTTP_FINISH_CURL_REQUEST: Success");
@@ -806,10 +827,8 @@ enum c_abstract_http_error http_curl_send(struct HttpTransportContext *ctx,
     LOG_DEBUG(
         "http_curl_send: Error ABSTRACT_HTTP_SETUP_CURL_REQUEST failed with %d",
         rc);
-    if (write_ctx.chunk.memory)
-      free(write_ctx.chunk.memory);
-    if (headers)
-      curl_slist_free_all(headers);
+    free(write_ctx.chunk.memory);
+    curl_slist_free_all(headers);
     return rc;
   }
 
@@ -840,52 +859,74 @@ struct CurlMultiTask {
   const struct HttpRequest *req;
 };
 
-static void ABSTRACT_HTTP_CHECK_MULTI_INFO(struct HttpTransportContext *ctx) {
+static enum c_abstract_http_error
+ABSTRACT_HTTP_CHECK_MULTI_INFO(struct HttpTransportContext *ctx) {
   CURLMsg *msg;
   int msgs_left;
-  while ((msg = ABSTRACT_HTTP_CURL_MULTI_INFO_READ(ctx->multi, &msgs_left))) {
-    if (msg->msg == CURLMSG_DONE) {
-      CURL *easy = msg->easy_handle;
-      CURLcode res_code = msg->data.result;
-      struct CurlMultiTask *task = NULL;
-
-      ABSTRACT_HTTP_CURL_EASY_GETINFO(easy, CURLINFO_PRIVATE, &task);
-      if (task) {
-        struct HttpResponse *res = NULL;
-        int rc = ABSTRACT_HTTP_FINISH_CURL_REQUEST(
-            task->ctx, easy, task->req, &task->write_ctx, task->headers,
-            res_code, &res);
-        task->future->response = res;
-        task->future->error_code = rc;
-        task->future->is_ready = 1;
-        free(task);
-      }
-      ABSTRACT_HTTP_CURL_MULTI_REMOVE_HANDLE(ctx->multi, easy);
-      curl_easy_cleanup(easy);
-    }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_curl_check_multi_info_fail) {
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
+#endif
+  while ((msg = ABSTRACT_HTTP_CURL_MULTI_INFO_READ(ctx->multi, &msgs_left))) {
+    CURL *easy = msg->easy_handle;
+    CURLcode res_code = msg->data.result;
+    struct CurlMultiTask *task = NULL;
+
+    ABSTRACT_HTTP_CURL_EASY_GETINFO(easy, CURLINFO_PRIVATE, &task);
+    {
+      struct HttpResponse *res = NULL;
+      int rc = ABSTRACT_HTTP_FINISH_CURL_REQUEST(task->ctx, easy, task->req,
+                                                 &task->write_ctx,
+                                                 task->headers, res_code, &res);
+      task->future->response = res;
+      task->future->error_code = rc;
+      task->future->is_ready = 1;
+      free(task);
+    }
+    ABSTRACT_HTTP_CURL_MULTI_REMOVE_HANDLE(ctx->multi, easy);
+    curl_easy_cleanup(easy);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static void multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
                            void *user_data) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)user_data;
   int running_handles;
+  enum c_abstract_http_error rc;
   (void)loop;
   (void)timer_id;
   ABSTRACT_HTTP_CURL_MULTI_SOCKET_ACTION(ctx->multi, CURL_SOCKET_TIMEOUT, 0,
                                          &running_handles);
-  ABSTRACT_HTTP_CHECK_MULTI_INFO(ctx);
+  rc = ABSTRACT_HTTP_CHECK_MULTI_INFO(ctx);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    LOG_DEBUG("multi_timer_cb: check_multi_info failed");
+  }
 }
 
 static void multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
                             void *user_data);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-void abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
-                                        int events, void *user_data);
-void abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
-                                        int events, void *user_data) {
+enum c_abstract_http_error
+abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
+                                  void *user_data);
+enum c_abstract_http_error
+abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
+                                  void *user_data) {
+  multi_timer_cb(loop, timer_id, user_data);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+enum c_abstract_http_error
+abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
+                                   int events, void *user_data);
+enum c_abstract_http_error
+abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
+                                   int events, void *user_data) {
   multi_socket_cb(loop, fd, events, user_data);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif
 
@@ -894,6 +935,7 @@ static void multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)user_data;
   int action = 0;
   int running_handles;
+  enum c_abstract_http_error rc;
   (void)loop;
   if (events & HTTP_LOOP_READ)
     action |= CURL_CSELECT_IN;
@@ -904,7 +946,10 @@ static void multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
 
   ABSTRACT_HTTP_CURL_MULTI_SOCKET_ACTION(ctx->multi, fd, action,
                                          &running_handles);
-  ABSTRACT_HTTP_CHECK_MULTI_INFO(ctx);
+  rc = ABSTRACT_HTTP_CHECK_MULTI_INFO(ctx);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    LOG_DEBUG("multi_socket_cb: check_multi_info failed");
+  }
 }
 
 static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
@@ -1010,9 +1055,10 @@ int abstract_http_test_multi_socket_function(struct HttpTransportContext *ctx,
  * @brief Set timer ID for test verification.
  * @param ctx Context pointer.
  * @param timer_id Timer ID value.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-void abstract_http_test_set_timer_id(struct HttpTransportContext *ctx,
-                                     int timer_id);
+enum c_abstract_http_error
+abstract_http_test_set_timer_id(struct HttpTransportContext *ctx, int timer_id);
 
 /**
  * @brief Get timer ID for test verification.
@@ -1025,9 +1071,11 @@ int abstract_http_test_get_timer_id(struct HttpTransportContext *ctx);
  * @brief Set event loop for test verification.
  * @param ctx Context pointer.
  * @param loop Event loop pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-void abstract_http_test_set_loop(struct HttpTransportContext *ctx,
-                                 struct ModalityEventLoop *loop);
+enum c_abstract_http_error
+abstract_http_test_set_loop(struct HttpTransportContext *ctx,
+                            struct ModalityEventLoop *loop);
 
 int abstract_http_test_multi_timer_function(struct HttpTransportContext *ctx,
                                             long timeout_ms) {
@@ -1040,18 +1088,26 @@ int abstract_http_test_multi_socket_function(struct HttpTransportContext *ctx,
   return multi_socket_function(ctx->curl, s, what, ctx, socketp);
 }
 
-void abstract_http_test_set_timer_id(struct HttpTransportContext *ctx,
-                                     int timer_id) {
+enum c_abstract_http_error
+abstract_http_test_set_timer_id(struct HttpTransportContext *ctx,
+                                int timer_id) {
+  if (!ctx)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   ctx->timer_id = timer_id;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 int abstract_http_test_get_timer_id(struct HttpTransportContext *ctx) {
   return ctx->timer_id;
 }
 
-void abstract_http_test_set_loop(struct HttpTransportContext *ctx,
-                                 struct ModalityEventLoop *loop) {
+enum c_abstract_http_error
+abstract_http_test_set_loop(struct HttpTransportContext *ctx,
+                            struct ModalityEventLoop *loop) {
+  if (!ctx)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   ctx->loop = loop;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif
 
@@ -1070,13 +1126,25 @@ enum c_abstract_http_error http_curl_send_multi(
   ctx->loop = loop;
 
   if (ABSTRACT_HTTP_CURL_MULTI_SETOPT(ctx->multi, CURLMOPT_SOCKETFUNCTION,
-                                      multi_socket_function) != CURLM_OK ||
-      ABSTRACT_HTTP_CURL_MULTI_SETOPT(ctx->multi, CURLMOPT_SOCKETDATA, ctx) !=
-          CURLM_OK ||
-      ABSTRACT_HTTP_CURL_MULTI_SETOPT(ctx->multi, CURLMOPT_TIMERFUNCTION,
-                                      multi_timer_function) != CURLM_OK ||
-      ABSTRACT_HTTP_CURL_MULTI_SETOPT(ctx->multi, CURLMOPT_TIMERDATA, ctx) !=
-          CURLM_OK) {
+                                      multi_socket_function) != CURLM_OK) {
+    LOG_DEBUG(
+        "http_curl_send_multi: Error ABSTRACT_HTTP_CURL_MULTI_SETOPT failed");
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (ABSTRACT_HTTP_CURL_MULTI_SETOPT(ctx->multi, CURLMOPT_SOCKETDATA, ctx) !=
+      CURLM_OK) {
+    LOG_DEBUG(
+        "http_curl_send_multi: Error ABSTRACT_HTTP_CURL_MULTI_SETOPT failed");
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (ABSTRACT_HTTP_CURL_MULTI_SETOPT(ctx->multi, CURLMOPT_TIMERFUNCTION,
+                                      multi_timer_function) != CURLM_OK) {
+    LOG_DEBUG(
+        "http_curl_send_multi: Error ABSTRACT_HTTP_CURL_MULTI_SETOPT failed");
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (ABSTRACT_HTTP_CURL_MULTI_SETOPT(ctx->multi, CURLMOPT_TIMERDATA, ctx) !=
+      CURLM_OK) {
     LOG_DEBUG(
         "http_curl_send_multi: Error ABSTRACT_HTTP_CURL_MULTI_SETOPT failed");
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -1111,10 +1179,8 @@ enum c_abstract_http_error http_curl_send_multi(
       LOG_DEBUG("http_curl_send_multi: Error ABSTRACT_HTTP_SETUP_CURL_REQUEST "
                 "failed %d",
                 rc);
-      if (task->headers)
-        curl_slist_free_all(task->headers);
-      if (task->write_ctx.chunk.memory)
-        free(task->write_ctx.chunk.memory);
+      curl_slist_free_all(task->headers);
+      free(task->write_ctx.chunk.memory);
       curl_easy_cleanup(task->easy);
       free(task);
       futures[i]->internal_state = NULL;
@@ -1123,10 +1189,8 @@ enum c_abstract_http_error http_curl_send_multi(
 
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(task->easy, CURLOPT_PRIVATE, task) !=
         CURLE_OK) {
-      if (task->headers)
-        curl_slist_free_all(task->headers);
-      if (task->write_ctx.chunk.memory)
-        free(task->write_ctx.chunk.memory);
+      curl_slist_free_all(task->headers);
+      free(task->write_ctx.chunk.memory);
       curl_easy_cleanup(task->easy);
       free(task);
       futures[i]->internal_state = NULL;
@@ -1138,10 +1202,8 @@ enum c_abstract_http_error http_curl_send_multi(
 
       LOG_DEBUG("http_curl_send_multi: Error "
                 "ABSTRACT_HTTP_CURL_MULTI_ADD_HANDLE failed");
-      if (task->headers)
-        curl_slist_free_all(task->headers);
-      if (task->write_ctx.chunk.memory)
-        free(task->write_ctx.chunk.memory);
+      curl_slist_free_all(task->headers);
+      free(task->write_ctx.chunk.memory);
       curl_easy_cleanup(task->easy);
       free(task);
       futures[i]->internal_state = NULL;
@@ -1156,15 +1218,11 @@ enum c_abstract_http_error http_curl_send_multi(
     for (j = 0; j < i; ++j) {
       struct CurlMultiTask *task =
           (struct CurlMultiTask *)futures[j]->internal_state;
-      if (task) {
-        if (task->headers)
-          curl_slist_free_all(task->headers);
-        if (task->write_ctx.chunk.memory)
-          free(task->write_ctx.chunk.memory);
-        ABSTRACT_HTTP_CURL_MULTI_REMOVE_HANDLE(ctx->multi, task->easy);
-        curl_easy_cleanup(task->easy);
-        free(task);
-      }
+      curl_slist_free_all(task->headers);
+      free(task->write_ctx.chunk.memory);
+      ABSTRACT_HTTP_CURL_MULTI_REMOVE_HANDLE(ctx->multi, task->easy);
+      curl_easy_cleanup(task->easy);
+      free(task);
     }
     return rc;
   }

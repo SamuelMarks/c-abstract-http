@@ -415,22 +415,25 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void c_abstract_http_sse_async_task(void *arg) {
+enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg) {
   enum c_abstract_http_error err;
   struct c_abstract_http_sse_async_ctx *ctx =
       (struct c_abstract_http_sse_async_ctx *)arg;
   volatile int exit_flag = 0;
   if (!ctx)
-    return;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   err = c_abstract_http_sse_sync_read_loop(ctx->client, ctx->req, ctx->on_evt,
                                            ctx->on_err, ctx->on_close,
                                            ctx->user_data, &exit_flag);
-  if (err != C_ABSTRACT_HTTP_SUCCESS && ctx->on_err) {
-    ctx->on_err(err, ctx->user_data);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    if (ctx->on_err) {
+      ctx->on_err(err, ctx->user_data);
+    }
     free(ctx);
-    return;
+    return err;
   }
   free(ctx);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error c_abstract_http_sse_async_register(

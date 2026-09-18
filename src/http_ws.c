@@ -126,7 +126,10 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
     /* Wait for data or close */
     rc = abstract_http_cond_wait(sctx->cond, sctx->mutex);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      (void)!abstract_http_mutex_unlock(sctx->mutex);
+      enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
+      if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        LOG_DEBUG("ws_read_chunk_cb: unlock error %d", (int)u_rc);
+      }
       LOG_DEBUG("ws_read_chunk_cb: returning -1 due to internal error %d", rc);
       return -1;
     }
@@ -743,28 +746,31 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static void c_abstract_http_ws_async_task(void *arg) {
+static enum c_abstract_http_error c_abstract_http_ws_async_task(void *arg) {
   enum c_abstract_http_error err;
   struct c_abstract_http_ws_async_ctx *ctx =
       (struct c_abstract_http_ws_async_ctx *)arg;
   volatile int exit_flag = 0;
   if (!ctx)
-    return;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   err = c_abstract_http_ws_sync_read_loop(ctx->client, ctx->req, ctx->on_msg,
                                           ctx->on_err, ctx->on_close,
                                           ctx->user_data, &exit_flag);
-  if (err != C_ABSTRACT_HTTP_SUCCESS && ctx->on_err) {
-    ctx->on_err(err, ctx->user_data);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    if (ctx->on_err) {
+      ctx->on_err(err, ctx->user_data);
+    }
     free(ctx);
-    return;
+    return err;
   }
   free(ctx);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-void abstract_http_test_ws_async_task(void *arg);
-void abstract_http_test_ws_async_task(void *arg) {
-  c_abstract_http_ws_async_task(arg);
+enum c_abstract_http_error abstract_http_test_ws_async_task(void *arg);
+enum c_abstract_http_error abstract_http_test_ws_async_task(void *arg) {
+  return c_abstract_http_ws_async_task(arg);
 }
 #endif
 
@@ -919,7 +925,10 @@ c_abstract_http_ws_send(struct HttpRequest *req,
 
   rc = abstract_http_cond_signal(sctx->cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    (void)!abstract_http_mutex_unlock(sctx->mutex);
+    enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
+    if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("c_abstract_http_ws_send: unlock error %d", (int)u_rc);
+    }
     free(masked_payload);
     return rc;
   }
@@ -957,7 +966,10 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
   sctx->close_requested = 1;
   rc = abstract_http_cond_signal(sctx->cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    (void)!abstract_http_mutex_unlock(sctx->mutex);
+    enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
+    if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("c_abstract_http_ws_close: unlock error %d", (int)u_rc);
+    }
     return rc;
   }
   rc = abstract_http_mutex_unlock(sctx->mutex);

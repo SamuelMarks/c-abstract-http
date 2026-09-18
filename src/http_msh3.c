@@ -62,6 +62,8 @@ extern int *abstract_http_mock_get_g_mock_msh3_header_add_fail(void);
 extern int *abstract_http_mock_get_g_mock_msh3_cb_mutex_lock_fail(void);
 extern int *abstract_http_mock_get_g_mock_msh3_parse_url_alloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_msh3_extra_events(void);
+extern int *abstract_http_mock_get_g_mock_msh3_zero_addrlen(void);
+extern int *abstract_http_mock_get_g_mock_msh3_cond_wait_loop(void);
 
 #define g_mock_msh3_api_open_fail                                              \
   (*abstract_http_mock_get_g_mock_msh3_api_open_fail())
@@ -106,6 +108,10 @@ extern int *abstract_http_mock_get_g_mock_msh3_extra_events(void);
   (*abstract_http_mock_get_g_mock_msh3_parse_url_alloc_fail())
 #define g_mock_msh3_extra_events                                               \
   (*abstract_http_mock_get_g_mock_msh3_extra_events())
+#define g_mock_msh3_zero_addrlen                                               \
+  (*abstract_http_mock_get_g_mock_msh3_zero_addrlen())
+#define g_mock_msh3_cond_wait_loop                                             \
+  (*abstract_http_mock_get_g_mock_msh3_cond_wait_loop())
 #endif
 
 #if !defined(C_ABSTRACT_HTTP_HAVE_REAL_MSH3)
@@ -432,7 +438,12 @@ enum c_abstract_http_error http_msh3_global_init(void) {
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
-  (void)!abstract_http_mutex_unlock(g_msh3_mutex);
+  {
+    enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(g_msh3_mutex);
+    if (u_rc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = u_rc;
+    }
+  }
   return rc;
 }
 
@@ -722,7 +733,7 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
     }
     if (rc == C_ABSTRACT_HTTP_SUCCESS) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (!g_mock_msh3_cond_wait_fail)
+      if (!g_mock_msh3_cond_wait_fail && !g_mock_msh3_cond_wait_loop)
 #endif
       {
         rctx->is_complete = 1;
@@ -731,8 +742,20 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
           ev->SHUTDOWN_COMPLETE.ConnectionErrorCode != 0) {
         rctx->error_code = C_ABSTRACT_HTTP_ERR_IO;
       }
-      (void)!abstract_http_cond_signal(rctx->cond);
-      (void)!abstract_http_mutex_unlock(rctx->mutex);
+      {
+        enum c_abstract_http_error dummy_rc =
+            abstract_http_cond_signal(rctx->cond);
+        if (dummy_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          LOG_DEBUG("msh3_request_cb: abstract_http_cond_signal failed");
+        }
+      }
+      {
+        enum c_abstract_http_error dummy_rc =
+            abstract_http_mutex_unlock(rctx->mutex);
+        if (dummy_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          LOG_DEBUG("msh3_request_cb: abstract_http_mutex_unlock failed");
+        }
+      }
     } else {
       LOG_DEBUG(
           "msh3_request_cb: Error abstract_http_mutex_lock failed with %d",
@@ -1048,6 +1071,8 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
   if (g_mock_msh3_getaddrinfo_null_result) {
     freeaddrinfo(result);
     result = NULL;
+  } else if (g_mock_msh3_zero_addrlen) {
+    result->ai_addrlen = 0;
   }
 #endif
   memset(&addr, 0, sizeof(addr));
@@ -1185,6 +1210,11 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
       }
       if (rc == C_ABSTRACT_HTTP_SUCCESS) {
         while (!rctx.is_complete) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+          if (g_mock_msh3_cond_wait_loop) {
+            rctx.is_complete = 1;
+          }
+#endif
           rc = abstract_http_cond_wait(rctx.cond, rctx.mutex);
           if (rc != C_ABSTRACT_HTTP_SUCCESS) {
             LOG_DEBUG(
@@ -1194,7 +1224,14 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
             break;
           }
         }
-        (void)!abstract_http_mutex_unlock(rctx.mutex);
+        {
+          enum c_abstract_http_error dummy_rc =
+              abstract_http_mutex_unlock(rctx.mutex);
+          if (dummy_rc != C_ABSTRACT_HTTP_SUCCESS &&
+              rctx.error_code == C_ABSTRACT_HTTP_SUCCESS) {
+            rctx.error_code = dummy_rc;
+          }
+        }
       } else {
         LOG_DEBUG(
             "http_msh3_send: Error abstract_http_mutex_lock failed with %d",

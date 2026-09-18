@@ -19,6 +19,11 @@ repos:
         language: python
         pass_filenames: false
         types_or: [c, c++]
+      - id: compdb
+        name: Build Compilation Database
+        entry: python -c "import os, subprocess, sys; [os.environ.pop(k, None) for k in ['GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE']]; sys.exit(subprocess.run(['cmake', '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON', '-S', '.', '-B', 'build']).returncode)"
+        language: python
+        pass_filenames: false
       - id: build-gcc
         name: Build (GCC)
         entry: python -c "import os; p = '../c-ci/precommit_matrix.py'; exec(open(p).read() if os.path.exists(p) else __import__('urllib.request').request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" build gcc
@@ -74,6 +79,12 @@ repos:
         entry: python -c "import os; p = '../c-ci/precommit_matrix.py'; exec(open(p).read() if os.path.exists(p) else __import__('urllib.request').request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" valgrind clang
         language: python
         pass_filenames: false
+      - id: check-no-discard-void-clang
+        name: Check No-Discard Void Casts
+        entry: python -c "import glob, os, sys, urllib.request; p = next((x for x in ['/opt/homebrew/opt/llvm/lib/libclang.dylib', '/opt/homebrew/lib/libclang.dylib', '/usr/local/lib/libclang.dylib'] + sorted(glob.glob('/opt/homebrew/Cellar/llvm*/*/lib/libclang.dylib'), reverse=True) if os.path.exists(x)), None); bdir = next((d for d in ('build', 'build_local_apple_clang', 'build_gcc', 'build-strict') if os.path.exists(d + '/compile_commands.json')), None); args = [sys.argv[0]]; (args.extend(['--libclang-path', p]) if p and '--libclang-path' not in sys.argv else None); (args.extend(['--build-dir', bdir]) if bdir and '--build-dir' not in sys.argv else None); args.extend(sys.argv[1:]); sys.argv = args; exec(urllib.request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/refs/heads/master/precommit_hooks/check_no_discard_void_clang.py').read().decode('utf-8'))"
+        language: python
+        additional_dependencies: [clang]
+        types_or: [c, c++]
       - id: update-shields
         name: Update README Shields
         entry: python -c "import os; p = '../c-ci/precommit_matrix.py'; exec(open(p).read() if os.path.exists(p) else __import__('urllib.request').request.urlopen('https://raw.githubusercontent.com/SamuelMarks/c-ci/master/precommit_matrix.py').read())" shields

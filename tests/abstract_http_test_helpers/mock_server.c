@@ -78,6 +78,7 @@ typedef CONDITION_VARIABLE cond_t;
 #define SOCK_ERROR SOCKET_ERROR
 #define THREAD_FUNC_RETURN unsigned __stdcall
 #define THREAD_FUNC_ARG void *
+typedef unsigned thread_ret_t;
 
 static void sleep_ms(int ms) { Sleep((DWORD)ms); }
 
@@ -122,6 +123,7 @@ typedef pthread_cond_t cond_t;
 #define SOCK_ERROR (-1)
 #define THREAD_FUNC_RETURN void *
 #define THREAD_FUNC_ARG void *
+typedef void *thread_ret_t;
 
 static void sleep_ms(int ms) { usleep((unsigned int)(ms * 1000)); }
 
@@ -271,6 +273,11 @@ int mock_server_init(MockServerPtr *out) {
   return 0;
 }
 
+static unsigned short portable_ntohs(unsigned short netshort) {
+  const unsigned char *b = (const unsigned char *)&netshort;
+  return (unsigned short)(((unsigned short)b[0] << 8) | (unsigned short)b[1]);
+}
+
 void mock_server_destroy(MockServerPtr server) {
   if (!server)
     return;
@@ -285,7 +292,7 @@ void mock_server_destroy(MockServerPtr server) {
         struct sockaddr_in sa;
         memset(&sa, 0, sizeof(sa));
         sa.sin_family = AF_INET;
-        sa.sin_port = htons((uint16_t)server->port);
+        sa.sin_port = portable_ntohs((unsigned short)server->port);
         sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         connect(trigger_fd, (struct sockaddr *)&sa, sizeof(sa));
         close_socket(trigger_fd);
@@ -324,11 +331,6 @@ void mock_server_destroy(MockServerPtr server) {
 
   free(server);
   platform_cleanup();
-}
-
-static unsigned short portable_ntohs(unsigned short netshort) {
-  const unsigned char *b = (const unsigned char *)&netshort;
-  return (unsigned short)(((unsigned short)b[0] << 8) | (unsigned short)b[1]);
 }
 
 int mock_server_start(MockServerPtr server) {
@@ -414,9 +416,7 @@ int mock_server_wait_for_request(MockServerPtr server,
 
   mutex_lock(&server->lock);
   while (!server->has_request && server->running) {
-    if (cond_wait(&server->cond_req_ready, &server->lock) != 0) {
-      break;
-    }
+    (void)cond_wait(&server->cond_req_ready, &server->lock);
   }
 
   if (server->has_request && server->captured_request) {
@@ -506,5 +506,11 @@ void abstract_http_mock_server_force_running(MockServerPtr server,
                                              int running) {
   if (server) {
     server->running = running;
+  }
+}
+
+void abstract_http_mock_server_force_port(MockServerPtr server, int port) {
+  if (server) {
+    server->port = port;
   }
 }

@@ -108,8 +108,9 @@ C_ABSTRACT_HTTP_API void abstract_http_cond_free(struct AbstractHttpCond *cond);
 /**
  * @brief Thread pool task callback signature.
  * @param[in] arg User-provided argument.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-typedef void (*abstract_http_thread_task_cb)(void *arg);
+typedef enum c_abstract_http_error (*abstract_http_thread_task_cb)(void *arg);
 
 /**
  * @brief Hooks for integrating with an external thread pool.

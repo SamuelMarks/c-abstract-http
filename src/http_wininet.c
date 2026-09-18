@@ -48,6 +48,13 @@ extern int *abstract_http_mock_get_g_mock_wininet_read_chunks(void);
 extern int *abstract_http_mock_get_g_mock_wininet_read_chunk_alloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_wininet_body_realloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_wininet_res_alloc_fail(void);
+extern int *abstract_http_mock_get_g_mock_wininet_close_fail(void);
+extern int *abstract_http_mock_get_g_mock_wininet_cookie_set_fail(void);
+
+#define g_mock_wininet_close_fail                                              \
+  (*abstract_http_mock_get_g_mock_wininet_close_fail())
+#define g_mock_wininet_cookie_set_fail                                         \
+  (*abstract_http_mock_get_g_mock_wininet_cookie_set_fail())
 
 #define g_mock_wininet_open_fail                                               \
   (*abstract_http_mock_get_g_mock_wininet_open_fail())
@@ -182,6 +189,14 @@ static HINTERNET InternetOpenW(const wchar_t *lpszAgent, DWORD dwAccessType,
 
 static BOOL InternetCloseHandle(HINTERNET hInternet) {
   (void)hInternet;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_wininet_close_fail > 0) {
+    if (--g_mock_wininet_close_fail == 0) {
+      return 0;
+    }
+    return 1;
+  }
+#endif
   return 1;
 }
 
@@ -236,16 +251,24 @@ static BOOL InternetCrackUrlW(const wchar_t *lpszUrl, DWORD dwUrlLength,
   if (!p) {
     return 0;
   }
-  if (p - lpszUrl == 5 && wcsncmp(lpszUrl, L"https", 5) == 0) {
-    lpUrlComponents->nScheme = INTERNET_SCHEME_HTTPS;
-    lpUrlComponents->nPort = 443;
+  if (p - lpszUrl == 5) {
+    if (wcsncmp(lpszUrl, L"https", 5) == 0) {
+      lpUrlComponents->nScheme = INTERNET_SCHEME_HTTPS;
+      lpUrlComponents->nPort = 443;
+    } else {
+      lpUrlComponents->nScheme = INTERNET_SCHEME_HTTP;
+      lpUrlComponents->nPort = 80;
+    }
   } else {
     lpUrlComponents->nScheme = INTERNET_SCHEME_HTTP;
     lpUrlComponents->nPort = 80;
   }
   host_start = p + 3;
   p = host_start;
-  while (*p && *p != L':' && *p != L'/') {
+  while (*p) {
+    if (*p == L':' || *p == L'/') {
+      break;
+    }
     p++;
   }
   host_end = p;
@@ -259,29 +282,21 @@ static BOOL InternetCrackUrlW(const wchar_t *lpszUrl, DWORD dwUrlLength,
     lpUrlComponents->nPort = (INTERNET_PORT)port_val;
   }
   host_len = (size_t)(host_end - host_start);
-  if (lpUrlComponents->lpszHostName &&
-      lpUrlComponents->dwHostNameLength > host_len) {
-    memcpy(lpUrlComponents->lpszHostName, host_start,
-           host_len * sizeof(wchar_t));
-    lpUrlComponents->lpszHostName[host_len] = L'\0';
-    lpUrlComponents->dwHostNameLength = (DWORD)host_len;
-  }
+  memcpy(lpUrlComponents->lpszHostName, host_start, host_len * sizeof(wchar_t));
+  lpUrlComponents->lpszHostName[host_len] = L'\0';
+  lpUrlComponents->dwHostNameLength = (DWORD)host_len;
+
   if (*p == L'/') {
     path_start = p;
     path_len = wcslen(path_start);
-    if (lpUrlComponents->lpszUrlPath &&
-        lpUrlComponents->dwUrlPathLength > path_len) {
-      memcpy(lpUrlComponents->lpszUrlPath, path_start,
-             path_len * sizeof(wchar_t));
-      lpUrlComponents->lpszUrlPath[path_len] = L'\0';
-      lpUrlComponents->dwUrlPathLength = (DWORD)path_len;
-    }
+    memcpy(lpUrlComponents->lpszUrlPath, path_start,
+           path_len * sizeof(wchar_t));
+    lpUrlComponents->lpszUrlPath[path_len] = L'\0';
+    lpUrlComponents->dwUrlPathLength = (DWORD)path_len;
   } else {
-    if (lpUrlComponents->lpszUrlPath && lpUrlComponents->dwUrlPathLength >= 2) {
-      lpUrlComponents->lpszUrlPath[0] = L'/';
-      lpUrlComponents->lpszUrlPath[1] = L'\0';
-      lpUrlComponents->dwUrlPathLength = 1;
-    }
+    lpUrlComponents->lpszUrlPath[0] = L'/';
+    lpUrlComponents->lpszUrlPath[1] = L'\0';
+    lpUrlComponents->dwUrlPathLength = 1;
   }
   return 1;
 }
@@ -372,9 +387,7 @@ static BOOL InternetWriteFile(HINTERNET hFile, LPCVOID lpBuffer,
     return 0;
   }
 #endif
-  if (lpdwNumberOfBytesWritten) {
-    *lpdwNumberOfBytesWritten = dwNumberOfBytesToWrite;
-  }
+  *lpdwNumberOfBytesWritten = dwNumberOfBytesToWrite;
   return 1;
 }
 
@@ -419,35 +432,30 @@ static BOOL HttpQueryInfoW(HINTERNET hRequest, DWORD dwInfoLevel,
   }
 #endif
   if ((dwInfoLevel & 0xFFFF) == HTTP_QUERY_STATUS_CODE) {
-    if (lpBuffer) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      DWORD code =
-          g_mock_wininet_status_code ? (DWORD)g_mock_wininet_status_code : 200;
+    DWORD code =
+        g_mock_wininet_status_code ? (DWORD)g_mock_wininet_status_code : 200;
 #else
-      DWORD code = 200;
+    DWORD code = 200;
 #endif
-      memcpy(lpBuffer, &code, sizeof(DWORD));
-    }
-    if (lpdwBufferLength) {
-      *lpdwBufferLength = sizeof(DWORD);
-    }
+    memcpy(lpBuffer, &code, sizeof(DWORD));
+    *lpdwBufferLength = sizeof(DWORD);
     return 1;
   }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_wininet_cookie_count > 0) {
-    const wchar_t cookie_val[] = L"mock_cookie=456; path=/";
-    DWORD needed_bytes = (DWORD)(sizeof(cookie_val));
+    const wchar_t cookie_val1[] = L"mock_cookie=456; path=/";
+    const wchar_t cookie_val2[] = L"mock_cookie2=789";
+    const wchar_t *cookie_val =
+        (g_mock_wininet_cookie_count == 1) ? cookie_val2 : cookie_val1;
+    DWORD needed_bytes = (DWORD)((wcslen(cookie_val) + 1) * sizeof(wchar_t));
     if (!lpBuffer) {
-      if (lpdwBufferLength) {
-        *lpdwBufferLength = needed_bytes;
-      }
+      *lpdwBufferLength = needed_bytes;
       SetLastError(ERROR_INSUFFICIENT_BUFFER);
       return 0;
     }
     memcpy(lpBuffer, cookie_val, needed_bytes);
-    if (lpdwBufferLength) {
-      *lpdwBufferLength = needed_bytes;
-    }
+    *lpdwBufferLength = needed_bytes;
     g_mock_wininet_cookie_count--;
     SetLastError(0);
     return 1;
@@ -467,20 +475,14 @@ static BOOL InternetReadFile(HINTERNET hFile, LPVOID lpBuffer,
   }
   if (g_mock_wininet_read_chunks > 0) {
     g_mock_wininet_read_chunks--;
-    if (lpBuffer && dwNumberOfBytesToRead > 0) {
-      memset(lpBuffer, 'I', 10);
-    }
-    if (lpdwNumberOfBytesRead) {
-      *lpdwNumberOfBytesRead = 10;
-    }
+    memset(lpBuffer, 'I', 10);
+    *lpdwNumberOfBytesRead = 10;
     return 1;
   }
 #endif
   (void)lpBuffer;
   (void)dwNumberOfBytesToRead;
-  if (lpdwNumberOfBytesRead) {
-    *lpdwNumberOfBytesRead = 0;
-  }
+  *lpdwNumberOfBytesRead = 0;
   return 1;
 }
 #endif
@@ -525,11 +527,15 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
-static void safe_close_handle(HINTERNET *h) {
-  if (h && *h) {
-    InternetCloseHandle(*h);
+static enum c_abstract_http_error safe_close_handle(HINTERNET *h) {
+  if (*h) {
+    if (!InternetCloseHandle(*h)) {
+      *h = NULL;
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
     *h = NULL;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static enum c_abstract_http_error method_to_wide(enum HttpMethod method,
@@ -580,7 +586,7 @@ headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
   wchar_t *p;
 
   *out = NULL;
-  if (!headers || headers->count == 0) {
+  if (headers->count == 0) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
 
@@ -705,18 +711,12 @@ http_wininet_context_init(struct HttpTransportContext **ctx) {
 void http_wininet_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wininet_context_free: Entering");
   if (ctx) {
-    if (ctx->hInternet) {
-      InternetCloseHandle(ctx->hInternet);
-      ctx->hInternet = NULL;
-    }
-    if (ctx->proxy_username) {
-      free(ctx->proxy_username);
-      ctx->proxy_username = NULL;
-    }
-    if (ctx->proxy_password) {
-      free(ctx->proxy_password);
-      ctx->proxy_password = NULL;
-    }
+    InternetCloseHandle(ctx->hInternet);
+    ctx->hInternet = NULL;
+    free(ctx->proxy_username);
+    ctx->proxy_username = NULL;
+    free(ctx->proxy_password);
+    ctx->proxy_password = NULL;
     http_config_free(&ctx->config);
     free(ctx);
   }
@@ -867,6 +867,7 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
   size_t bodySize = 0;
   DWORD bytesRead = 0;
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  enum c_abstract_http_error close_rc;
 
   LOG_DEBUG("http_wininet_send: Entering");
 
@@ -1067,33 +1068,38 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
 
     while (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
       wchar_t *pwszCookie = (wchar_t *)malloc(cbCookie);
-      if (pwszCookie) {
-        if (HttpQueryInfoW(hRequest, HTTP_QUERY_SET_COOKIE, pwszCookie,
-                           &cbCookie, &dwIndex)) {
-          char cbuf[4096];
-          size_t cwritten = 0;
-          wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten);
-          {
-            char *eq = strchr(cbuf, '=');
-            if (eq) {
-              const char *name = cbuf;
-              const char *val = eq + 1;
-              char *semi = strchr(val, ';');
-              *eq = '\0';
-              if (semi) {
-                *semi = '\0';
-              }
+      HttpQueryInfoW(hRequest, HTTP_QUERY_SET_COOKIE, pwszCookie, &cbCookie,
+                     &dwIndex);
+      {
+        char cbuf[4096];
+        size_t cwritten = 0;
+        wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten);
+        {
+          char *eq = strchr(cbuf, '=');
+          const char *name = cbuf;
+          const char *val = eq + 1;
+          char *semi = strchr(val, ';');
+          enum c_abstract_http_error dummy_rc;
+          *eq = '\0';
+          if (semi) {
+            *semi = '\0';
+          }
 
-              {
-                enum c_abstract_http_error rc_cookie =
-                    http_cookie_jar_set(ctx->cookie_jar, name, val);
-                (void)rc_cookie;
-              }
+          {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+            if (g_mock_wininet_cookie_set_fail) {
+              dummy_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+            } else
+#endif
+              dummy_rc = http_cookie_jar_set(ctx->cookie_jar, name, val);
+            if (dummy_rc != C_ABSTRACT_HTTP_SUCCESS) {
+              LOG_DEBUG("http_wininet_send: http_cookie_jar_set failed with %d",
+                        (int)dummy_rc);
             }
           }
         }
-        free(pwszCookie);
       }
+      free(pwszCookie);
       cbCookie = 0;
       HttpQueryInfoW(hRequest, HTTP_QUERY_SET_COOKIE, NULL, &cbCookie,
                      &dwIndex);
@@ -1104,10 +1110,8 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
   readChunk = (char *)malloc(4096);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_wininet_read_chunk_alloc_fail) {
-    if (readChunk) {
-      free(readChunk);
-      readChunk = NULL;
-    }
+    free(readChunk);
+    readChunk = NULL;
   }
 #endif
   if (!readChunk) {
@@ -1137,10 +1141,8 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
       char *new_buf = (char *)realloc(bodyBuf, bodySize + bytesRead + 1);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
       if (g_mock_wininet_body_realloc_fail) {
-        if (new_buf) {
-          free(new_buf);
-          new_buf = NULL;
-        }
+        free(new_buf);
+        new_buf = NULL;
       }
 #endif
       if (!new_buf) {
@@ -1159,10 +1161,8 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
   *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_wininet_res_alloc_fail) {
-    if (*res) {
-      free(*res);
-      *res = NULL;
-    }
+    free(*res);
+    *res = NULL;
   }
 #endif
   if (!*res) {
@@ -1190,26 +1190,24 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
   bodyBuf = NULL;
 
 cleanup:
-  safe_close_handle(&hRequest);
-  safe_close_handle(&hConnect);
-  if (bodyBuf) {
-    free(bodyBuf);
+  close_rc = safe_close_handle(&hRequest);
+  if (close_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = close_rc;
+    }
   }
-  if (readChunk) {
-    free(readChunk);
+  close_rc = safe_close_handle(&hConnect);
+  if (close_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = close_rc;
+    }
   }
-  if (wUrl) {
-    free(wUrl);
-  }
-  if (wHost) {
-    free(wHost);
-  }
-  if (wPath) {
-    free(wPath);
-  }
-  if (wHeaders) {
-    free(wHeaders);
-  }
+  free(bodyBuf);
+  free(readChunk);
+  free(wUrl);
+  free(wHost);
+  free(wPath);
+  free(wHeaders);
 
   if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wininet_send: Success");

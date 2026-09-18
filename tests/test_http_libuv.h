@@ -53,6 +53,15 @@ c_abstract_http_test_libuv_method_str(enum HttpMethod method,
 extern enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void);
 #endif
 
+static int libuv_mock_upload_cb_err(void *user_data, void *buf, size_t buf_len,
+                                    size_t *out_read) {
+  (void)user_data;
+  (void)buf;
+  (void)buf_len;
+  (void)out_read;
+  return -1;
+}
+
 /**
  * @brief Helper to initialize request for testing.
  *
@@ -198,7 +207,12 @@ TEST test_libuv_send_invalid_arguments(void) {
   req.parts.count = 1;
   req.body = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
+  req.body = "x";
+  req.body_len = 0;
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
   req.parts.count = 0;
+  req.body = NULL;
 
   /* Invalid URL */
   req.url = NULL;
@@ -232,6 +246,28 @@ TEST test_libuv_send_connection_failure(void) {
          rc == (enum c_abstract_http_error)EHOSTUNREACH ||
          rc == C_ABSTRACT_HTTP_ERR_IO);
   ASSERT(res == NULL);
+
+  /* Test with timeout_ms = 0 */
+  config.timeout_ms = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &config));
+  rc = http_libuv_send(ctx, &req, &res);
+  ASSERT(rc != C_ABSTRACT_HTTP_SUCCESS);
+  ASSERT(res == NULL);
+
+  /* Test with body_len == 0 but req.body non-null */
+  req.body = "dummy";
+  req.body_len = 0;
+  rc = http_libuv_send(ctx, &req, &res);
+  ASSERT(rc != C_ABSTRACT_HTTP_SUCCESS);
+  ASSERT(res == NULL);
+  req.body = NULL;
+
+  /* Test with read_chunk error */
+  req.read_chunk = libuv_mock_upload_cb_err;
+  rc = http_libuv_send(ctx, &req, &res);
+  ASSERT(rc != C_ABSTRACT_HTTP_SUCCESS);
+  ASSERT(res == NULL);
+  req.read_chunk = NULL;
 
   http_config_free(&config);
   http_request_free(&req);

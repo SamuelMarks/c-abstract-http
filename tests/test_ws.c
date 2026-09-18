@@ -1442,6 +1442,16 @@ TEST test_ws_read_chunk_more(void) {
                                &out_read));
   g_mock_cond_fail = 0;
   sctx->close_requested = 1;
+
+  /* Cond wait failure with mutex unlock failure in ws_read_chunk_cb */
+  sctx->close_requested = 0;
+  g_mock_cond_fail = 1;
+  g_mock_mutex_fail = 2;
+  ASSERT_EQ(-1, req.read_chunk(req.read_chunk_user_data, buf, sizeof(buf),
+                               &out_read));
+  g_mock_cond_fail = 0;
+  g_mock_mutex_fail = 0;
+  sctx->close_requested = 1;
 #endif
 
   c_abstract_http_ws_free(&req);
@@ -1576,6 +1586,15 @@ TEST test_ws_send_branches(void) {
                                     small_buf, 4));
   g_mock_cond_fail = 0;
 
+  /* Cond signal failure with mutex unlock failure */
+  g_mock_cond_fail = 2;
+  g_mock_mutex_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                    small_buf, 4));
+  g_mock_cond_fail = 0;
+  g_mock_mutex_fail = 0;
+
   /* Mutex unlock failure */
   g_mock_mutex_fail = 2;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
@@ -1626,6 +1645,14 @@ TEST test_ws_close_branches(void) {
   g_mock_cond_fail = 4;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_close(&req, 1000));
   g_mock_cond_fail = 0;
+  sctx->close_requested = 0;
+
+  /* Cond signal failure with mutex unlock failure in close */
+  g_mock_cond_fail = 4;
+  g_mock_mutex_fail = 4;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_close(&req, 1000));
+  g_mock_cond_fail = 0;
+  g_mock_mutex_fail = 0;
   sctx->close_requested = 0;
 
   /* Mutex unlock failure in close */
@@ -1814,15 +1841,20 @@ TEST test_ws_free_partial(void) {
 }
 
 #if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__)
-static void ws_cond_wake_cb(void *arg) {
+static enum c_abstract_http_error ws_cond_wake_cb(void *arg) {
   struct HttpRequest *req = (struct HttpRequest *)arg;
+  enum c_abstract_http_error rc;
+  if (!req) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
 #if defined(_WIN32)
   Sleep(30);
 #else
   usleep(30000);
 #endif
-  (void)!c_abstract_http_ws_send(req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
-                                 (const unsigned char *)"hi", 2);
+  rc = c_abstract_http_ws_send(req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                               (const unsigned char *)"hi", 2);
+  return rc;
 }
 
 TEST test_ws_read_chunk_cond_wait_success(void) {
@@ -1830,6 +1862,8 @@ TEST test_ws_read_chunk_cond_wait_success(void) {
   struct AbstractHttpThreadPool *pool = NULL;
   char buf[32];
   size_t out_read = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, ws_cond_wake_cb(NULL));
 
   memset(&req, 0, sizeof(req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
@@ -1849,9 +1883,9 @@ TEST test_ws_read_chunk_cond_wait_success(void) {
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern void abstract_http_test_ws_async_task(void *arg);
+extern enum c_abstract_http_error abstract_http_test_ws_async_task(void *arg);
 TEST test_ws_async_task_null(void) {
-  abstract_http_test_ws_async_task(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_test_ws_async_task(NULL));
   PASS();
 }
 
@@ -1874,7 +1908,7 @@ TEST test_ws_async_task_branches(void) {
   ctx1->on_err = NULL;
   ctx1->on_close = NULL;
   ctx1->user_data = NULL;
-  abstract_http_test_ws_async_task(ctx1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_test_ws_async_task(ctx1));
   c_abstract_http_ws_free(&req);
   http_request_free(&req);
 
@@ -1889,7 +1923,7 @@ TEST test_ws_async_task_branches(void) {
   ctx2->on_err = NULL;
   ctx2->on_close = NULL;
   ctx2->user_data = NULL;
-  abstract_http_test_ws_async_task(ctx2);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, abstract_http_test_ws_async_task(ctx2));
   c_abstract_http_ws_free(&req);
   http_request_free(&req);
 

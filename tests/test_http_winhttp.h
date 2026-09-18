@@ -237,6 +237,13 @@ TEST test_winhttp_send_null_checks(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
+  {
+    void *saved = *(void **)ctx;
+    *(void **)ctx = NULL;
+    rc = http_winhttp_send(ctx, &req, &res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
+    *(void **)ctx = saved;
+  }
 
   http_request_free(&req);
   http_winhttp_context_free(ctx);
@@ -1054,13 +1061,152 @@ TEST test_winhttp_coverage_branches(void) {
   }
 
   /* 11. Cookie parsing in response with semicolon */
-  g_mock_winhttp_cookie_count = 1;
+  g_mock_winhttp_cookie_count = 2;
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
     http_response_free(res);
     free(res);
     res = NULL;
+  }
+
+  /* 11b. Cookie set failure */
+  g_mock_winhttp_cookie_count = 1;
+  g_mock_winhttp_cookie_set_fail = 1;
+  rc = http_winhttp_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  g_mock_winhttp_cookie_set_fail = 0;
+
+  /* 11c. Close handle failure */
+  g_mock_winhttp_close_fail = 1;
+  rc = http_winhttp_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  g_mock_winhttp_close_fail = 2;
+  rc = http_winhttp_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  /* Close handle failure when rc is already an error */
+  g_mock_winhttp_close_fail = 1;
+  g_mock_winhttp_send_request_fail = 1;
+  rc = http_winhttp_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  g_mock_winhttp_send_request_fail = 0;
+  g_mock_winhttp_close_fail = 0;
+  /* Close handle failure on hConnect when rc is already an error */
+  g_mock_winhttp_close_fail = 2;
+  g_mock_winhttp_send_request_fail = 1;
+  rc = http_winhttp_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  g_mock_winhttp_send_request_fail = 0;
+  g_mock_winhttp_close_fail = 0;
+
+  /* 11d. 5-char scheme other than https */
+  {
+    char *u = NULL;
+    c_abstract_http_strdup("gtest://127.0.0.1:8080/test", &u);
+    req.url = u;
+    rc = http_winhttp_send(ctx, &req, &res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    if (res) {
+      http_response_free(res);
+      free(res);
+      res = NULL;
+    }
+    free(u);
+  }
+
+  /* 11e. URL without port */
+  {
+    char *u = NULL;
+    c_abstract_http_strdup("http://127.0.0.1/test", &u);
+    req.url = u;
+    rc = http_winhttp_send(ctx, &req, &res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    if (res) {
+      http_response_free(res);
+      free(res);
+      res = NULL;
+    }
+    free(u);
+  }
+
+  /* 11f. URL without port and without path */
+  {
+    char *u = NULL;
+    c_abstract_http_strdup("http://127.0.0.1", &u);
+    req.url = u;
+    rc = http_winhttp_send(ctx, &req, &res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    if (res) {
+      http_response_free(res);
+      free(res);
+      res = NULL;
+    }
+    free(u);
+    c_abstract_http_strdup("http://127.0.0.1:8080/test", &u);
+    req.url = u;
+  }
+
+  /* 11g. Config timeouts and proxy permutations */
+  {
+    struct HttpConfig cfg;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+    cfg.timeout_ms = 0;
+    cfg.connect_timeout_ms = 10;
+    rc = http_winhttp_config_apply(ctx, &cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    cfg.connect_timeout_ms = 0;
+    cfg.read_timeout_ms = 10;
+    rc = http_winhttp_config_apply(ctx, &cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    cfg.read_timeout_ms = 0;
+    cfg.write_timeout_ms = 10;
+    rc = http_winhttp_config_apply(ctx, &cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    cfg.write_timeout_ms = 0;
+    rc = http_winhttp_config_apply(ctx, &cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    /* Proxy username without password */
+    c_abstract_http_strdup("http://127.0.0.1:8080", &cfg.proxy_url);
+    c_abstract_http_strdup("user", &cfg.proxy_username);
+    cfg.proxy_password = NULL;
+    rc = http_winhttp_config_apply(ctx, &cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    http_config_free(&cfg);
+  }
+
+  /* 11h. Cookie jar with count == 0 */
+  {
+    struct HttpCookieJar empty_jar;
+    struct HttpConfig cfg;
+    memset(&empty_jar, 0, sizeof(empty_jar));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+    cfg.cookie_jar = &empty_jar;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+    rc = http_winhttp_send(ctx, &req, &res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    if (res) {
+      http_response_free(res);
+      free(res);
+      res = NULL;
+    }
+    cfg.cookie_jar = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+    http_config_free(&cfg);
   }
 
   /* 12. Send multi with loop wakeup failure and queue fail */
@@ -1084,6 +1230,9 @@ TEST test_winhttp_coverage_branches(void) {
     futures[0] = &f1;
 
     rc = http_winhttp_send_multi(ctx, loop, &multi, futures);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+    rc = http_winhttp_send_multi(ctx, NULL, &multi, futures);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
     g_mock_winhttp_queue_work_item_fail = 1;

@@ -839,6 +839,11 @@ static enum c_abstract_http_error get_method_cmd(enum HttpMethod method,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+static void dummy_libevent_chunk_cb(struct evhttp_request *req, void *arg) {
+  (void)req;
+  (void)arg;
+}
+
 enum c_abstract_http_error
 c_abstract_http_test_libevent_method_cmd(enum HttpMethod method, int *out_cmd);
 enum c_abstract_http_error c_abstract_http_test_libevent_evbuffer(void);
@@ -873,6 +878,7 @@ enum c_abstract_http_error c_abstract_http_test_libevent_evbuffer(void) {
   evbuffer_remove(NULL, out, 1);
   evbuffer_remove(&buf, NULL, 1);
   evbuffer_remove(&buf, out, 0);
+  evbuffer_remove(&buf, out, 1);
   evbuffer_get_length(NULL);
 
   evbuffer_add(&buf, "hello", 5);
@@ -894,6 +900,67 @@ enum c_abstract_http_error c_abstract_http_test_libevent_evbuffer(void) {
 
   evhttp_make_request(NULL, NULL, 0, NULL);
   event_base_dispatch(NULL);
+
+  event_base_free(NULL);
+  event_base_loopbreak(NULL);
+
+  {
+    struct event_base base_dummy;
+    struct evhttp_connection *c;
+    memset(&base_dummy, 0, sizeof(base_dummy));
+    c = evhttp_connection_base_new(&base_dummy, NULL, NULL, 80);
+    evhttp_connection_free(c);
+  }
+
+  evhttp_connection_set_timeout(NULL, 10);
+  evhttp_connection_free(NULL);
+
+  {
+    struct evhttp_request *r = (struct evhttp_request *)calloc(1, sizeof(*r));
+    r->output_headers.count = 1;
+    r->output_headers.entries[0].key = NULL;
+    r->output_headers.entries[0].val = NULL;
+    evhttp_request_free(r);
+  }
+  evhttp_request_free(NULL);
+  evhttp_request_set_chunked_cb(NULL, NULL);
+  evhttp_request_get_response_code(NULL);
+
+  {
+    struct event_base base_test;
+    struct evhttp_connection conn_test;
+    struct evhttp_request req_test;
+
+    memset(&base_test, 0, sizeof(base_test));
+    memset(&conn_test, 0, sizeof(conn_test));
+    memset(&req_test, 0, sizeof(req_test));
+
+    conn_test.base = &base_test;
+    evhttp_make_request(&conn_test, &req_test, 0, NULL);
+    evhttp_make_request(&conn_test, NULL, 0, NULL);
+    conn_test.base = NULL;
+    evhttp_make_request(&conn_test, &req_test, 0, NULL);
+    conn_test.base = &base_test;
+
+    base_test.req = NULL;
+    event_base_dispatch(&base_test);
+
+    base_test.req = &req_test;
+    base_test.conn = NULL;
+    base_test.loop_break = 1;
+    req_test.chunk_cb = dummy_libevent_chunk_cb;
+    event_base_dispatch(&base_test);
+
+    base_test.conn = &conn_test;
+    conn_test.port = 80;
+    base_test.loop_break = 0;
+    req_test.chunk_cb = NULL;
+    event_base_dispatch(&base_test);
+
+    conn_test.port = 59999;
+    event_base_dispatch(&base_test);
+  }
+
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -1067,6 +1134,34 @@ static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
     free(buf);
   }
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Expose http_chunked_cb testing helper.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+enum c_abstract_http_error c_abstract_http_test_libevent_chunked_cb(void);
+
+enum c_abstract_http_error c_abstract_http_test_libevent_chunked_cb(void) {
+  struct libevent_state dummy_st;
+  struct HttpRequest dummy_req;
+  struct evhttp_request dummy_req_ev;
+
+  memset(&dummy_st, 0, sizeof(dummy_st));
+  memset(&dummy_req, 0, sizeof(dummy_req));
+  memset(&dummy_req_ev, 0, sizeof(dummy_req_ev));
+
+  dummy_st.req = &dummy_req;
+  http_chunked_cb(&dummy_req_ev, &dummy_st);
+
+  evbuffer_add(&dummy_req_ev.input_buffer, "x", 1);
+  http_chunked_cb(&dummy_req_ev, &dummy_st);
+  evbuffer_free_internal(&dummy_req_ev.input_buffer);
+
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
 
 /**
  * @brief Send an HTTP request using libevent.

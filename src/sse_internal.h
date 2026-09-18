@@ -35,7 +35,7 @@ struct c_abstract_http_sse_async_ctx {
 
 /** @brief c_abstract_http_sse_async_task(void *arg) (function) of file
  * sse_internal.h */
-void c_abstract_http_sse_async_task(void *arg);
+enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg);
 
 /**
  * @brief Context structure for parsing incoming Server-Sent Events.

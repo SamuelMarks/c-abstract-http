@@ -85,7 +85,10 @@ enum c_abstract_http_error test_fuzz_ws_run(const uint8_t *data, size_t size,
   }
 
   if (data != NULL && size > 0) {
-    (void)ws_parser_feed(&ctx, data, size);
+    rc = ws_parser_feed(&ctx, data, size);
+    if (out_rc != NULL) {
+      *out_rc = (int)rc;
+    }
   }
 
   ws_parser_destroy(&ctx);
@@ -101,8 +104,11 @@ enum c_abstract_http_error test_fuzz_ws_run(const uint8_t *data, size_t size,
  * @return 0 on completion.
  */
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-  int rc;
-  (void)test_fuzz_ws_run(data, size, &rc);
+  int rc = 0;
+  enum c_abstract_http_error err = test_fuzz_ws_run(data, size, &rc);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return (int)err;
+  }
   return 0;
 }
 #endif

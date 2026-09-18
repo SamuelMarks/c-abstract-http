@@ -46,6 +46,12 @@ extern int g_mock_strcasecmp_fail;
 extern int g_mock_headers_init_fail;
 extern int g_mock_parts_init_fail;
 extern int g_mock_multi_init_fail;
+extern int *abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail(void);
+extern int *abstract_http_mock_get_g_mock_urlencode_append_fail(void);
+#define g_mock_sprintf_s_wrapper_fail                                          \
+  (*abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail())
+#define g_mock_urlencode_append_fail                                           \
+  (*abstract_http_mock_get_g_mock_urlencode_append_fail())
 #endif
 
 static enum c_abstract_http_error
@@ -67,13 +73,28 @@ strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+static enum c_abstract_http_error
+sprintf_s_wrapper(size_t *out_written, char *buf, size_t start, size_t cap,
+                  const char *fmt, ...)
 #if defined(__GNUC__) || defined(__clang__)
-__attribute__((format(printf, 4, 5)))
+    __attribute__((format(printf, 5, 6)))
 #endif
-static size_t
-sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fmt, ...) {
+    ;
+
+static enum c_abstract_http_error sprintf_s_wrapper(size_t *out_written,
+                                                    char *buf, size_t start,
+                                                    size_t cap, const char *fmt,
+                                                    ...) {
   size_t written;
   va_list args;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_sprintf_s_wrapper_fail > 0) {
+    if (--g_mock_sprintf_s_wrapper_fail == 0)
+      return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+  if (!out_written || !buf || start > cap)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   va_start(args, fmt);
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   written = (size_t)vsprintf_s(buf + start, cap - start, fmt, args);
@@ -82,7 +103,8 @@ sprintf_s_wrapper(char *buf, size_t start, size_t cap, const char *fmt, ...) {
       (size_t)c89stringutils_vsnprintf(buf + start, cap - start, fmt, args);
 #endif
   va_end(args);
-  return written;
+  *out_written = written;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error http_headers_init(struct HttpHeaders *headers) {
@@ -354,6 +376,7 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
   size_t estimated_size = 0;
   char *buffer = NULL;
   size_t pos = 0;
+  enum c_abstract_http_error rc;
 
   if (!req || req->parts.count == 0)
     return C_ABSTRACT_HTTP_SUCCESS; /* Nothing to flatten */
@@ -424,46 +447,78 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
      * is ok */
     /* Using safe wrapper logic */
     /* --boundary\r\n */
-    written =
-        sprintf_s_wrapper(buffer, pos, estimated_size, "--%s\r\n", boundary);
-    pos += (size_t)written;
+    rc = sprintf_s_wrapper(&written, buffer, pos, estimated_size, "--%s\r\n",
+                           boundary);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buffer);
+      return rc;
+    }
+    pos += written;
 
     /* Header */
-    written = sprintf_s_wrapper(buffer, pos, estimated_size,
-                                "Content-Disposition: form-data; name=\"%s\"",
-                                part->name);
-    pos += (size_t)written;
+    rc = sprintf_s_wrapper(&written, buffer, pos, estimated_size,
+                           "Content-Disposition: form-data; name=\"%s\"",
+                           part->name);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buffer);
+      return rc;
+    }
+    pos += written;
 
     if (part->filename) {
-      written = sprintf_s_wrapper(buffer, pos, estimated_size,
-                                  "; filename=\"%s\"", part->filename);
-      pos += (size_t)written;
+      rc = sprintf_s_wrapper(&written, buffer, pos, estimated_size,
+                             "; filename=\"%s\"", part->filename);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(buffer);
+        return rc;
+      }
+      pos += written;
     }
-    written = sprintf_s_wrapper(buffer, pos, estimated_size, "\r\n");
-    pos += (size_t)written;
+    rc = sprintf_s_wrapper(&written, buffer, pos, estimated_size, "\r\n");
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buffer);
+      return rc;
+    }
+    pos += written;
 
     /* Content-Type */
     if (part->content_type) {
-      written = sprintf_s_wrapper(buffer, pos, estimated_size,
-                                  "Content-Type: %s\r\n", part->content_type);
-      pos += (size_t)written;
+      rc = sprintf_s_wrapper(&written, buffer, pos, estimated_size,
+                             "Content-Type: %s\r\n", part->content_type);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(buffer);
+        return rc;
+      }
+      pos += written;
     } else if (part->filename) {
-      written = sprintf_s_wrapper(buffer, pos, estimated_size,
-                                  "Content-Type: application/octet-stream\r\n");
-      pos += (size_t)written;
+      rc = sprintf_s_wrapper(&written, buffer, pos, estimated_size,
+                             "Content-Type: application/octet-stream\r\n");
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(buffer);
+        return rc;
+      }
+      pos += written;
     }
 
     for (h = 0; h < part->headers.count; ++h) {
       const struct HttpHeader *hdr = &part->headers.headers[h];
 
-      written = sprintf_s_wrapper(buffer, pos, estimated_size, "%s: %s\r\n",
-                                  hdr->key, hdr->value);
-      pos += (size_t)written;
+      rc = sprintf_s_wrapper(&written, buffer, pos, estimated_size,
+                             "%s: %s\r\n", hdr->key, hdr->value);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(buffer);
+        return rc;
+      }
+      pos += written;
     }
 
     /* End of headers */
-    written = sprintf_s_wrapper(buffer, pos, estimated_size, "\r\n");
-    pos += (size_t)written;
+    rc = sprintf_s_wrapper(&written, buffer, pos, estimated_size, "\r\n");
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buffer);
+      return rc;
+    }
+    pos += written;
 
     /* Data */
     if (part->data_len > 0) {
@@ -472,15 +527,24 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
     }
 
     /* End of part */
-    written = sprintf_s_wrapper(buffer, pos, estimated_size, "\r\n");
-    pos += (size_t)written;
+    rc = sprintf_s_wrapper(&written, buffer, pos, estimated_size, "\r\n");
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buffer);
+      return rc;
+    }
+    pos += written;
   }
 
   /* Final Boundary */
   {
-    size_t written =
-        sprintf_s_wrapper(buffer, pos, estimated_size, "--%s--\r\n", boundary);
-    pos += (size_t)written;
+    size_t written;
+    rc = sprintf_s_wrapper(&written, buffer, pos, estimated_size, "--%s--\r\n",
+                           boundary);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buffer);
+      return rc;
+    }
+    pos += written;
   }
 
   /* 4. Update Request */
@@ -965,11 +1029,26 @@ static size_t math_urlencode_len(const char *src) {
   return len;
 }
 
-static void urlencode_append(char **dest, const char *src) {
+static enum c_abstract_http_error urlencode_append(char **dest,
+                                                   const char *src) {
   static const char *hex = "0123456789ABCDEF";
   const char *p;
-  char *q = *dest;
+  char *q;
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_urlencode_append_fail > 0) {
+    if (--g_mock_urlencode_append_fail == 0)
+      return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+
+  if (!dest || !*dest)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+
+  if (!src)
+    return C_ABSTRACT_HTTP_SUCCESS;
+
+  q = *dest;
   for (p = src; *p; p++) {
     unsigned char c = (unsigned char)*p;
     if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -985,6 +1064,7 @@ static void urlencode_append(char **dest, const char *src) {
     }
   }
   *dest = q;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error http_request_init_oauth2_password_grant(
@@ -1034,34 +1114,58 @@ enum c_abstract_http_error http_request_init_oauth2_password_grant(
   /* grant_type=password */
   memcpy(p, "grant_type=", 11);
   p += 11;
-  urlencode_append(&p, grant_type);
+  rc = urlencode_append(&p, grant_type);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   /* &username=... */
   memcpy(p, "&username=", 10);
   p += 10;
-  urlencode_append(&p, username);
+  rc = urlencode_append(&p, username);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   /* &password=... */
   memcpy(p, "&password=", 10);
   p += 10;
-  urlencode_append(&p, password);
+  rc = urlencode_append(&p, password);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   if (client_id) {
     memcpy(p, "&client_id=", 11);
     p += 11;
-    urlencode_append(&p, client_id);
+    rc = urlencode_append(&p, client_id);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (client_secret) {
     memcpy(p, "&client_secret=", 15);
     p += 15;
-    urlencode_append(&p, client_secret);
+    rc = urlencode_append(&p, client_secret);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (scope) {
     memcpy(p, "&scope=", 7);
     p += 7;
-    urlencode_append(&p, scope);
+    rc = urlencode_append(&p, scope);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   *p = '\0';
@@ -1117,29 +1221,49 @@ enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(
   /* grant_type=refresh_token */
   memcpy(p, "grant_type=", 11);
   p += 11;
-  urlencode_append(&p, grant_type);
+  rc = urlencode_append(&p, grant_type);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   /* &refresh_token=... */
   memcpy(p, "&refresh_token=", 15);
   p += 15;
-  urlencode_append(&p, refresh_token);
+  rc = urlencode_append(&p, refresh_token);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   if (client_id) {
     memcpy(p, "&client_id=", 11);
     p += 11;
-    urlencode_append(&p, client_id);
+    rc = urlencode_append(&p, client_id);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (client_secret) {
     memcpy(p, "&client_secret=", 15);
     p += 15;
-    urlencode_append(&p, client_secret);
+    rc = urlencode_append(&p, client_secret);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (scope) {
     memcpy(p, "&scope=", 7);
     p += 7;
-    urlencode_append(&p, scope);
+    rc = urlencode_append(&p, scope);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   *p = '\0';
@@ -1197,35 +1321,59 @@ enum c_abstract_http_error http_request_init_oauth2_authorization_code_grant(
   /* grant_type=authorization_code */
   memcpy(p, "grant_type=", 11);
   p += 11;
-  urlencode_append(&p, grant_type);
+  rc = urlencode_append(&p, grant_type);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   /* &code=... */
   memcpy(p, "&code=", 6);
   p += 6;
-  urlencode_append(&p, code);
+  rc = urlencode_append(&p, code);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   if (redirect_uri) {
     memcpy(p, "&redirect_uri=", 14);
     p += 14;
-    urlencode_append(&p, redirect_uri);
+    rc = urlencode_append(&p, redirect_uri);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (client_id) {
     memcpy(p, "&client_id=", 11);
     p += 11;
-    urlencode_append(&p, client_id);
+    rc = urlencode_append(&p, client_id);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (client_secret) {
     memcpy(p, "&client_secret=", 15);
     p += 15;
-    urlencode_append(&p, client_secret);
+    rc = urlencode_append(&p, client_secret);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (code_verifier) {
     memcpy(p, "&code_verifier=", 15);
     p += 15;
-    urlencode_append(&p, code_verifier);
+    rc = urlencode_append(&p, code_verifier);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   *p = '\0';
@@ -1279,24 +1427,40 @@ enum c_abstract_http_error http_request_init_oauth2_client_credentials_grant(
   /* grant_type=client_credentials */
   memcpy(p, "grant_type=", 11);
   p += 11;
-  urlencode_append(&p, grant_type);
+  rc = urlencode_append(&p, grant_type);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   if (client_id) {
     memcpy(p, "&client_id=", 11);
     p += 11;
-    urlencode_append(&p, client_id);
+    rc = urlencode_append(&p, client_id);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (client_secret) {
     memcpy(p, "&client_secret=", 15);
     p += 15;
-    urlencode_append(&p, client_secret);
+    rc = urlencode_append(&p, client_secret);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (scope) {
     memcpy(p, "&scope=", 7);
     p += 7;
-    urlencode_append(&p, scope);
+    rc = urlencode_append(&p, scope);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   *p = '\0';
@@ -1347,17 +1511,29 @@ enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(
   /* grant_type=... */
   memcpy(p, "grant_type=", 11);
   p += 11;
-  urlencode_append(&p, grant_type);
+  rc = urlencode_append(&p, grant_type);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   /* &assertion=... */
   memcpy(p, "&assertion=", 11);
   p += 11;
-  urlencode_append(&p, assertion);
+  rc = urlencode_append(&p, assertion);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   if (scope) {
     memcpy(p, "&scope=", 7);
     p += 7;
-    urlencode_append(&p, scope);
+    rc = urlencode_append(&p, scope);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   *p = '\0';
@@ -1404,12 +1580,20 @@ http_request_init_oauth2_device_authorization_request(
   p = body;
   memcpy(p, "client_id=", 10);
   p += 10;
-  urlencode_append(&p, client_id);
+  rc = urlencode_append(&p, client_id);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   if (scope) {
     memcpy(p, "&scope=", 7);
     p += 7;
-    urlencode_append(&p, scope);
+    rc = urlencode_append(&p, scope);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   *p = '\0';
@@ -1456,15 +1640,27 @@ enum c_abstract_http_error http_request_init_oauth2_device_access_token_request(
   p = body;
   memcpy(p, "grant_type=", 11);
   p += 11;
-  urlencode_append(&p, grant_type);
+  rc = urlencode_append(&p, grant_type);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   memcpy(p, "&client_id=", 11);
   p += 11;
-  urlencode_append(&p, client_id);
+  rc = urlencode_append(&p, client_id);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   memcpy(p, "&device_code=", 13);
   p += 13;
-  urlencode_append(&p, device_code);
+  rc = urlencode_append(&p, device_code);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   *p = '\0';
   req->body = body;
@@ -1516,24 +1712,40 @@ enum c_abstract_http_error http_request_init_oauth2_token_revocation(
   p = body;
   memcpy(p, "token=", 6);
   p += 6;
-  urlencode_append(&p, token);
+  rc = urlencode_append(&p, token);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   if (token_type_hint) {
     memcpy(p, "&token_type_hint=", 17);
     p += 17;
-    urlencode_append(&p, token_type_hint);
+    rc = urlencode_append(&p, token_type_hint);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (client_id) {
     memcpy(p, "&client_id=", 11);
     p += 11;
-    urlencode_append(&p, client_id);
+    rc = urlencode_append(&p, client_id);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (client_secret) {
     memcpy(p, "&client_secret=", 15);
     p += 15;
-    urlencode_append(&p, client_secret);
+    rc = urlencode_append(&p, client_secret);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   *p = '\0';
@@ -1586,24 +1798,40 @@ enum c_abstract_http_error http_request_init_oauth2_token_introspection(
   p = body;
   memcpy(p, "token=", 6);
   p += 6;
-  urlencode_append(&p, token);
+  rc = urlencode_append(&p, token);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(body);
+    return rc;
+  }
 
   if (token_type_hint) {
     memcpy(p, "&token_type_hint=", 17);
     p += 17;
-    urlencode_append(&p, token_type_hint);
+    rc = urlencode_append(&p, token_type_hint);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (client_id) {
     memcpy(p, "&client_id=", 11);
     p += 11;
-    urlencode_append(&p, client_id);
+    rc = urlencode_append(&p, client_id);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   if (client_secret) {
     memcpy(p, "&client_secret=", 15);
     p += 15;
-    urlencode_append(&p, client_secret);
+    rc = urlencode_append(&p, client_secret);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(body);
+      return rc;
+    }
   }
 
   *p = '\0';
@@ -1618,6 +1846,7 @@ enum c_abstract_http_error http_oauth2_build_authorization_url(
     const char *redirect_uri, const char *scope, const char *state,
     const char *code_challenge, const char *code_challenge_method,
     char **out_url) {
+  enum c_abstract_http_error rc;
   size_t len = 0;
   char *url = NULL;
   char *p = NULL;
@@ -1655,40 +1884,68 @@ enum c_abstract_http_error http_oauth2_build_authorization_url(
   *p++ = has_query ? '&' : '?';
   memcpy(p, "response_type=", 14);
   p += 14;
-  urlencode_append(&p, response_type);
+  rc = urlencode_append(&p, response_type);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(url);
+    return rc;
+  }
 
   memcpy(p, "&client_id=", 11);
   p += 11;
-  urlencode_append(&p, client_id);
+  rc = urlencode_append(&p, client_id);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(url);
+    return rc;
+  }
 
   if (redirect_uri) {
     memcpy(p, "&redirect_uri=", 14);
     p += 14;
-    urlencode_append(&p, redirect_uri);
+    rc = urlencode_append(&p, redirect_uri);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(url);
+      return rc;
+    }
   }
 
   if (scope) {
     memcpy(p, "&scope=", 7);
     p += 7;
-    urlencode_append(&p, scope);
+    rc = urlencode_append(&p, scope);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(url);
+      return rc;
+    }
   }
 
   if (state) {
     memcpy(p, "&state=", 7);
     p += 7;
-    urlencode_append(&p, state);
+    rc = urlencode_append(&p, state);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(url);
+      return rc;
+    }
   }
 
   if (code_challenge) {
     memcpy(p, "&code_challenge=", 16);
     p += 16;
-    urlencode_append(&p, code_challenge);
+    rc = urlencode_append(&p, code_challenge);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(url);
+      return rc;
+    }
   }
 
   if (code_challenge_method) {
     memcpy(p, "&code_challenge_method=", 23);
     p += 23;
-    urlencode_append(&p, code_challenge_method);
+    rc = urlencode_append(&p, code_challenge_method);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(url);
+      return rc;
+    }
   }
 
   *p = '\0';
@@ -2046,13 +2303,57 @@ enum c_abstract_http_error http_client_send_multi(
   return rc;
 }
 
-void c_abstract_http_log_debug(const char *fmt, ...);
+enum c_abstract_http_error c_abstract_http_log_debug(const char *fmt, ...);
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((format(printf, 1, 2)))
 #endif
-void c_abstract_http_log_debug(const char *fmt, ...) {
+enum c_abstract_http_error
+c_abstract_http_log_debug(const char *fmt, ...) {
+#ifdef DEBUG
   va_list args;
+  if (!fmt)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   va_start(args, fmt);
   vfprintf(stderr, fmt, args);
   va_end(args);
+#else
+  if (!fmt)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Expose internal http_types helpers for test coverage.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+enum c_abstract_http_error c_abstract_http_test_http_types_helpers(void);
+
+enum c_abstract_http_error c_abstract_http_test_http_types_helpers(void) {
+  size_t written;
+  char buf[32];
+  char *p;
+  char *null_p;
+
+  written = 0;
+  p = buf;
+  null_p = NULL;
+
+  /* Test sprintf_s_wrapper invalid parameter branches */
+  sprintf_s_wrapper(NULL, buf, 0, sizeof(buf), "test");
+  sprintf_s_wrapper(&written, NULL, 0, sizeof(buf), "test");
+  sprintf_s_wrapper(&written, buf, 10, 5, "test");
+
+  /* Test urlencode_append branches */
+  urlencode_append(NULL, "test");
+  urlencode_append(&null_p, "test");
+  urlencode_append(&p, NULL);
+
+  /* Test c_abstract_http_log_debug with NULL fmt */
+  c_abstract_http_log_debug(NULL);
+
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif

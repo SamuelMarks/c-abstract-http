@@ -808,6 +808,7 @@ endif()
             pthread_mutex_init=c_abstract_http_mock_pthread_mutex_init
             pthread_cond_init=c_abstract_http_mock_pthread_cond_init
             pthread_create=c_abstract_http_mock_pthread_create
+            pthread_join=c_abstract_http_mock_pthread_join
             pipe=c_abstract_http_mock_pipe
             fork=c_abstract_http_mock_fork
             waitpid=c_abstract_http_mock_waitpid

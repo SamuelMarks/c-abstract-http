@@ -24,10 +24,17 @@ struct CoroutineTestState {
 
 static void test_co_cb(void *arg) {
   struct CoroutineTestState *state = (struct CoroutineTestState *)arg;
+  enum c_abstract_http_error rc;
   state->counter++;
-  (void)!abstract_http_coroutine_yield();
+  rc = abstract_http_coroutine_yield();
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return;
+  }
   state->counter++;
-  (void)!abstract_http_coroutine_yield();
+  rc = abstract_http_coroutine_yield();
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return;
+  }
   state->counter++;
 }
 
@@ -84,6 +91,14 @@ TEST test_coroutine_execution(void) {
 
 static void dummy_coroutine_cb(void *arg) { (void)arg; }
 
+static int g_mock_yield_fail_after_first = 0;
+static int mock_co_yield_fail_after_first(void) {
+  if (g_mock_yield_fail_after_first++ > 0) {
+    return (int)C_ABSTRACT_HTTP_ERR_IO;
+  }
+  return 0;
+}
+
 TEST test_coroutine_errors(void) {
   struct AbstractHttpCoroutine *co = NULL;
   enum c_abstract_http_error rc =
@@ -116,6 +131,32 @@ TEST test_coroutine_errors(void) {
   dummy_coroutine_cb(NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_set_hooks(NULL));
 
+  {
+    struct CoroutineTestState direct_state;
+    direct_state.counter = 0;
+    test_co_cb(&direct_state);
+    ASSERT_EQ(1, direct_state.counter);
+  }
+
+  {
+    struct AbstractHttpCoroutineHooks hooks;
+    struct CoroutineTestState direct_state;
+    memset(&hooks, 0, sizeof(hooks));
+    g_mock_yield_fail_after_first = 0;
+    hooks.yield = mock_co_yield_fail_after_first;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_coroutine_set_hooks(&hooks));
+    direct_state.counter = 0;
+    test_co_cb(&direct_state);
+    ASSERT_EQ(2, direct_state.counter);
+
+    {
+      struct AbstractHttpCoroutineHooks z;
+      memset(&z, 0, sizeof(z));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_set_hooks(&z));
+    }
+  }
+
   PASS();
 }
 
@@ -137,6 +178,7 @@ mock_co_resume(struct AbstractHttpCoroutine *co) {
   return 0;
 }
 static int mock_co_yield(void) { return 0; }
+
 static int mock_co_is_done(const struct AbstractHttpCoroutine *co,
                            int *out_is_done) {
   printf("mock_co_is_done CALLED\n");
@@ -231,12 +273,36 @@ TEST test_coroutine_pthread_create_fail(void) {
 }
 #endif
 
+#if !defined(_WIN32) && !defined(__WIN32__) && !defined(__WINDOWS__)
+extern enum c_abstract_http_error
+c_abstract_http_test_coroutine_reset_fallback(void);
+
 TEST test_coroutine_fallback_paths(void) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   struct AbstractHttpCoroutine *co = NULL;
 
   struct CoroutineTestState state;
   state.counter = 0;
+
+#if defined(ABSTRACT_HTTP_NO_UCONTEXT) && !defined(_WIN32)
+  /* coverage for init_fallback_key failure in coroutine_init and
+   * coroutine_yield */
+  {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_coroutine_reset_fallback());
+
+    g_mock_pthread_fail = 1;
+    rc = abstract_http_coroutine_init(&co, 0, dummy_coroutine_cb, NULL);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_coroutine_reset_fallback());
+
+    rc = abstract_http_coroutine_yield();
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+    g_mock_pthread_fail = 0;
+  }
+#endif
 
   /* coverage for C_ABSTRACT_HTTP_ERR_NOMEM */
   g_mock_alloc_count = 0;
@@ -287,6 +353,7 @@ TEST test_coroutine_edge_cases(void) {
   PASS();
 }
 #endif
+#endif /* C_ABSTRACT_HTTP_TEST_OOM */
 
 SUITE(coroutine_suite) {
 
@@ -298,7 +365,9 @@ SUITE(coroutine_suite) {
   RUN_TEST(test_coroutine_execution);
   RUN_TEST(test_coroutine_hooks);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if !defined(_WIN32) && !defined(__WIN32__) && !defined(__WINDOWS__)
   RUN_TEST(test_coroutine_fallback_paths);
+#endif
 #if !defined(_WIN32) && !defined(__WIN32__) && !defined(__WINDOWS__) &&        \
     !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS) &&               \
     defined(ABSTRACT_HTTP_NO_UCONTEXT)

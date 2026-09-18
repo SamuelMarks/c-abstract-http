@@ -39,8 +39,11 @@ TEST test_serialize_deserialize_request(void) {
   req_in.url =
       (c_abstract_http_mock_strdup("http://example.com/api", &_ast_strdup_0),
        _ast_strdup_0);
-  (void)!http_headers_add(&req_in.headers, "Content-Type", "application/json");
-  (void)!http_headers_add(&req_in.headers, "X-Custom", "test_val");
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      http_headers_add(&req_in.headers, "Content-Type", "application/json"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req_in.headers, "X-Custom", "test_val"));
 
   req_in.body_len = 13;
   req_in.body = malloc(req_in.body_len);
@@ -1013,6 +1016,60 @@ TEST test_process_deserialize_oom(void) {
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_INVAL, rc, "%d");
   PASS();
 }
+
+extern enum c_abstract_http_error
+abstract_http_process_test_write_helpers(int step);
+
+TEST test_process_serialize_step_failures(void) {
+  struct HttpRequest req;
+  struct HttpResponse res;
+  char *buf = NULL;
+  size_t len = 0;
+  int step;
+
+  for (step = 0; step < 6; ++step) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              abstract_http_process_test_write_helpers(step));
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_process_test_write_helpers(6));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.method = HTTP_GET;
+  req.url = "http://example.com/";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Header", "Val"));
+  req.body = "body";
+  req.body_len = 4;
+
+  for (step = 1; step <= 6; ++step) {
+    g_mock_serialize_fail = step;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              abstract_http_ipc_serialize_request(&req, &buf, &len));
+    g_mock_serialize_fail = 0;
+  }
+  req.url = NULL;
+  req.body = NULL;
+  http_request_free(&req);
+
+  memset(&res, 0, sizeof(res));
+  res.status_code = 200;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&res.headers, "Header", "Val"));
+  res.body = "body";
+  res.body_len = 4;
+
+  for (step = 1; step <= 5; ++step) {
+    g_mock_serialize_fail = step;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              abstract_http_ipc_serialize_response(&res, &buf, &len));
+    g_mock_serialize_fail = 0;
+  }
+  res.body = NULL;
+  http_response_free(&res);
+
+  PASS();
+}
 #endif
 
 SUITE(process_suite) {
@@ -1021,6 +1078,7 @@ SUITE(process_suite) {
   RUN_TEST(test_process_serialize_null_key_value);
   RUN_TEST(test_process_serialize_body_len_no_body);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  RUN_TEST(test_process_serialize_step_failures);
   RUN_TEST(test_process_write_partial);
 #endif
   RUN_TEST(test_process_null_header_keys);

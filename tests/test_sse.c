@@ -85,7 +85,7 @@ TEST test_sse_parse_basic_data(void) {
   {
     struct c_abstract_http_sse_event empty_ev;
     memset(&empty_ev, 0, sizeof(empty_ev));
-    (void)!test_sse_on_event(&empty_ev, &ctx);
+    ASSERT_EQ(0, test_sse_on_event(&empty_ev, &ctx));
     ASSERT_STR_EQ("", ctx.last_event);
     ASSERT_STR_EQ("", ctx.last_data);
     memset(&ctx, 0, sizeof(ctx));
@@ -1077,47 +1077,63 @@ TEST test_sse_sync_loop_oom_branches(void) {
   int i;
 
   for (i = 0; i < 10; i++) {
+    enum c_abstract_http_error sse_rc;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = test_sse_mock_send_empty;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
-    (void)!c_abstract_http_sse_sync_read_loop(
+    sse_rc = c_abstract_http_sse_sync_read_loop(
         &client, &req, test_sse_on_event, NULL, test_sse_on_close, &ctx, NULL);
+    if (sse_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      /* expected under OOM */
+    }
     g_mock_alloc_fail = 0;
     http_request_free(&req);
   }
 
   for (i = 0; i < 10; i++) {
+    enum c_abstract_http_error sse_rc;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = test_sse_mock_send_empty;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
-    (void)!c_abstract_http_sse_sync_read_loop(&client, &req, test_sse_on_event,
-                                              test_sse_on_error,
-                                              test_sse_on_close, &ctx, NULL);
+    sse_rc = c_abstract_http_sse_sync_read_loop(
+        &client, &req, test_sse_on_event, test_sse_on_error, test_sse_on_close,
+        &ctx, NULL);
+    if (sse_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      /* expected under OOM */
+    }
     g_mock_alloc_fail = 0;
     http_request_free(&req);
   }
 
   for (i = 0; i < 15; i++) {
+    enum c_abstract_http_error sse_rc;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = mock_send_success_huge_body;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
-    (void)!c_abstract_http_sse_sync_read_loop(
+    sse_rc = c_abstract_http_sse_sync_read_loop(
         &client, &req, test_sse_on_event, NULL, test_sse_on_close, &ctx, NULL);
+    if (sse_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      /* expected under OOM */
+    }
     g_mock_alloc_fail = 0;
     http_request_free(&req);
   }
 
   for (i = 0; i < 15; i++) {
+    enum c_abstract_http_error sse_rc;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = mock_send_success_huge_body;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = i;
-    (void)!c_abstract_http_sse_sync_read_loop(&client, &req, test_sse_on_event,
-                                              test_sse_on_error,
-                                              test_sse_on_close, &ctx, NULL);
+    sse_rc = c_abstract_http_sse_sync_read_loop(
+        &client, &req, test_sse_on_event, test_sse_on_error, test_sse_on_close,
+        &ctx, NULL);
+    if (sse_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      /* expected under OOM */
+    }
     g_mock_alloc_fail = 0;
     http_request_free(&req);
   }

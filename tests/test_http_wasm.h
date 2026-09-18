@@ -404,6 +404,10 @@ TEST test_wasm_send_headers_and_body(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern enum c_abstract_http_error c_abstract_http_test_wasm_helpers(void);
+#endif
+
 /**
  * @brief Test failure paths for http_wasm_send under OOM/simulated errors.
  *
@@ -417,6 +421,7 @@ TEST test_wasm_send_failures(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   enum c_abstract_http_error rc;
   int read_called;
+  struct HttpConfig cfg0;
 #endif
   ctx = NULL;
   res = NULL;
@@ -517,6 +522,72 @@ TEST test_wasm_send_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   ASSERT(res == NULL);
   req.read_chunk = NULL;
+
+  /* Run test wasm helpers */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_wasm_helpers());
+
+  /* Simulated hdrs_buf malloc failure */
+  g_mock_alloc_count = 4;
+  g_mock_alloc_fail = 1;
+  rc = http_wasm_send(ctx, &req, &res);
+  g_mock_alloc_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+
+  /* Simulated fetch timeout cases */
+  g_mock_wasm_fetch_timeout = 2;
+  rc = http_wasm_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  g_mock_wasm_fetch_timeout = 3;
+  rc = http_wasm_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  g_mock_wasm_fetch_timeout = 0;
+
+  /* Simulated zero length headers */
+  g_mock_wasm_headers_len_zero = 1;
+  rc = http_wasm_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  g_mock_wasm_headers_len_zero = 2;
+  rc = http_wasm_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  g_mock_wasm_headers_len_zero = 0;
+
+  /* Simulated timeout_ms == 0 */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg0));
+  cfg0.timeout_ms = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_config_apply(ctx, &cfg0));
+  rc = http_wasm_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  http_config_free(&cfg0);
 #endif
 
   http_request_free(&req);

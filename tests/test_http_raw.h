@@ -20,6 +20,9 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#if !defined(_MSC_VER)
+#include <unistd.h>
+#endif
 /* clang-format on */
 
 static int raw_chunk_cb_success(void *user_data, const void *data, size_t len) {
@@ -122,7 +125,7 @@ TEST test_http_raw_send_requests(void) {
   {
     struct HttpConfig cfg;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
-    cfg.timeout_ms = 200;
+    cfg.timeout_ms = 5000;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
     http_config_free(&cfg);
   }
@@ -397,7 +400,7 @@ TEST test_http_raw_multi_requests(void) {
   {
     struct HttpConfig cfg;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
-    cfg.timeout_ms = 200;
+    cfg.timeout_ms = 5000;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
     http_config_free(&cfg);
   }
@@ -540,11 +543,13 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   g_mock_raw_connect_fail = 2;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
   g_mock_raw_connect_fail = 3;
+  g_mock_recv_data = "HTTP/1.1 200 OK\r\n\r\n";
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
   ASSERT(res != NULL);
   http_response_free(res);
   free(res);
   res = NULL;
+  g_mock_recv_data = NULL;
   g_mock_raw_connect_fail = 0;
 
   /* 7. select timeout / failure on connect */

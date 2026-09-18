@@ -469,23 +469,48 @@ enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
 
 /* --- Simple Binary Serialization --- */
 
-static void write_int(char **p, int val) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_serialize_fail;
+#endif
+
+static enum c_abstract_http_error write_int(char **p, int val) {
+  if (!p || !*p)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_serialize_fail > 0 && --g_mock_serialize_fail == 0)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   memcpy(*p, &val, sizeof(int));
   *p += sizeof(int);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static void write_size(char **p, size_t val) {
+static enum c_abstract_http_error write_size(char **p, size_t val) {
+  if (!p || !*p)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_serialize_fail > 0 && --g_mock_serialize_fail == 0)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   memcpy(*p, &val, sizeof(size_t));
   *p += sizeof(size_t);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static void write_str(char **p, const char *str) {
-  size_t len = str ? strlen(str) : 0;
-  write_size(p, len);
+static enum c_abstract_http_error write_str(char **p, const char *str) {
+  size_t len;
+  enum c_abstract_http_error rc;
+  if (!p || !*p)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  len = str ? strlen(str) : 0;
+  rc = write_size(p, len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
   if (len > 0) {
     memcpy(*p, str, len);
     *p += len;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static enum c_abstract_http_error parse_int(const char **p, const char *end,
@@ -537,6 +562,7 @@ abstract_http_ipc_serialize_request(const struct HttpRequest *req,
   size_t i;
   size_t est_size = sizeof(int) + sizeof(size_t);
   char *buf, *p;
+  enum c_abstract_http_error rc;
 
   if (!req || !out_buf || !out_len)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -558,14 +584,38 @@ abstract_http_ipc_serialize_request(const struct HttpRequest *req,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = buf;
-  write_int(&p, (int)req->method);
-  write_str(&p, req->url);
-  write_size(&p, req->headers.count);
-  for (i = 0; i < req->headers.count; ++i) {
-    write_str(&p, req->headers.headers[i].key);
-    write_str(&p, req->headers.headers[i].value);
+  rc = write_int(&p, (int)req->method);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(buf);
+    return rc;
   }
-  write_size(&p, req->body_len);
+  rc = write_str(&p, req->url);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(buf);
+    return rc;
+  }
+  rc = write_size(&p, req->headers.count);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(buf);
+    return rc;
+  }
+  for (i = 0; i < req->headers.count; ++i) {
+    rc = write_str(&p, req->headers.headers[i].key);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      return rc;
+    }
+    rc = write_str(&p, req->headers.headers[i].value);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      return rc;
+    }
+  }
+  rc = write_size(&p, req->body_len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(buf);
+    return rc;
+  }
   if (req->body_len > 0 && req->body) {
     memcpy(p, req->body, req->body_len);
     p += req->body_len;
@@ -649,6 +699,7 @@ abstract_http_ipc_serialize_response(const struct HttpResponse *res,
   size_t i;
   size_t est_size = sizeof(int) + sizeof(size_t);
   char *buf, *p;
+  enum c_abstract_http_error rc;
 
   if (!res || !out_buf || !out_len)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -669,13 +720,33 @@ abstract_http_ipc_serialize_response(const struct HttpResponse *res,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   p = buf;
-  write_int(&p, res->status_code);
-  write_size(&p, res->headers.count);
-  for (i = 0; i < res->headers.count; ++i) {
-    write_str(&p, res->headers.headers[i].key);
-    write_str(&p, res->headers.headers[i].value);
+  rc = write_int(&p, res->status_code);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(buf);
+    return rc;
   }
-  write_size(&p, res->body_len);
+  rc = write_size(&p, res->headers.count);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(buf);
+    return rc;
+  }
+  for (i = 0; i < res->headers.count; ++i) {
+    rc = write_str(&p, res->headers.headers[i].key);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      return rc;
+    }
+    rc = write_str(&p, res->headers.headers[i].value);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      return rc;
+    }
+  }
+  rc = write_size(&p, res->body_len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(buf);
+    return rc;
+  }
   if (res->body_len > 0 && res->body) {
     memcpy(p, res->body, res->body_len);
     p += res->body_len;
@@ -786,5 +857,33 @@ enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void) {
     return rc;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Expose internal write helpers for branch coverage.
+ *
+ * @param step Integer selecting the helper test case to execute.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error enum on failure.
+ */
+enum c_abstract_http_error abstract_http_process_test_write_helpers(int step);
+enum c_abstract_http_error abstract_http_process_test_write_helpers(int step) {
+  char *null_p = NULL;
+
+  switch (step) {
+  case 0:
+    return write_int(NULL, 0);
+  case 1:
+    return write_int(&null_p, 0);
+  case 2:
+    return write_size(NULL, 0);
+  case 3:
+    return write_size(&null_p, 0);
+  case 4:
+    return write_str(NULL, "test");
+  case 5:
+    return write_str(&null_p, "test");
+  default:
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
 }
 #endif

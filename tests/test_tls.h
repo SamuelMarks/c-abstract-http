@@ -24,12 +24,20 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 
 static struct AbstractHttpTlsKey *tls_key = NULL;
 
- static void test_tls_task_cb(void *arg) {
-   int *result = (int *)arg;
-   int thread_local_val = *result; /* use arg as init val */
-   void *out_val = NULL;
+static enum c_abstract_http_error test_tls_task_cb(void *arg) {
+  int *result = (int *)arg;
+  int thread_local_val;
+  void *out_val = NULL;
+  enum c_abstract_http_error rc;
 
-   { enum c_abstract_http_error rc_test = abstract_http_tls_set(tls_key, &thread_local_val); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
+  if (!result)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  thread_local_val = *result;
+
+  rc = abstract_http_tls_set(tls_key, &thread_local_val);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
 /* simulate some context switch */
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
@@ -37,13 +45,15 @@ static struct AbstractHttpTlsKey *tls_key = NULL;
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   delay(5);
 #else
-   usleep(5 * 1000);
+  usleep(5 * 1000);
 #endif
 
-   if (abstract_http_tls_get(tls_key, &out_val) == 0 && out_val != NULL) {
-     *result = *(int *)out_val;
-   }
- }
+  rc = abstract_http_tls_get(tls_key, &out_val);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS && out_val != NULL) {
+    *result = *(int *)out_val;
+  }
+  return rc;
+}
 
  TEST test_tls_isolation(void) {
    struct AbstractHttpThreadPool *pool = NULL;
@@ -108,6 +118,11 @@ TEST test_tls_oom(void) {
 #endif
 
 TEST test_tls_errors(void) {
+  int val = 42;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, test_tls_task_cb(NULL));
+  tls_key = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, test_tls_task_cb(&val));
+
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             abstract_http_tls_key_create(NULL, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_tls_set(NULL, NULL));

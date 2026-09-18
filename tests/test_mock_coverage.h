@@ -28,7 +28,7 @@ typedef SOCKET MOCK_SOCKET_T;
 
 TEST test_mock_alloc_coverage(void) {
 
-  dummy_cb_thread(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, dummy_cb_thread(NULL));
   dummy_cb_pthread(NULL);
 
   g_mock_select_fail = 1;
@@ -73,7 +73,10 @@ TEST test_mock_alloc_more(void) {
   abstract_http_mock_get_g_mock_headers_init_fail();
   abstract_http_mock_get_g_mock_parts_init_fail();
   abstract_http_mock_get_g_mock_multi_init_fail();
+  abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail();
+  abstract_http_mock_get_g_mock_urlencode_append_fail();
   abstract_http_mock_get_g_mock_mask_key_fail();
+  abstract_http_mock_get_g_mock_serialize_fail();
   abstract_http_mock_get_g_mock_pack_header_fail();
   abstract_http_mock_get_g_mock_accept_fd();
   abstract_http_mock_get_g_mock_server_reading();
@@ -120,10 +123,19 @@ TEST test_mock_alloc_more(void) {
   abstract_http_mock_get_g_mock_wininet_read_chunk_alloc_fail();
   abstract_http_mock_get_g_mock_wininet_body_realloc_fail();
   abstract_http_mock_get_g_mock_wininet_res_alloc_fail();
+  abstract_http_mock_get_g_mock_wasm_fetch_fail();
+  abstract_http_mock_get_g_mock_wasm_fetch_timeout();
+  abstract_http_mock_get_g_mock_wasm_config_init_fail();
+  abstract_http_mock_get_g_mock_wasm_response_init_fail();
+  abstract_http_mock_get_g_mock_wasm_header_add_fail();
+  abstract_http_mock_get_g_mock_wasm_headers_len_zero();
+  abstract_http_mock_get_g_mock_msh3_zero_addrlen();
+  abstract_http_mock_get_g_mock_msh3_cond_wait_loop();
 
 #if !defined(_WIN32)
   {
     pthread_t dummy_thread;
+    memset(&dummy_thread, 0, sizeof(dummy_thread));
     g_mock_pthread_fail = 1;
     ASSERT_EQ(1, c_abstract_http_mock_pthread_create(&dummy_thread, NULL,
                                                      dummy_cb_pthread, NULL));
@@ -262,7 +274,7 @@ TEST test_mock_alloc_more(void) {
   PASS();
 }
 
-static void trigger_req_cb(void *arg) {
+static enum c_abstract_http_error trigger_req_cb(void *arg) {
   MockServerPtr srv = (MockServerPtr)arg;
 #if !defined(_WIN32)
   struct timespec ts;
@@ -274,6 +286,7 @@ static void trigger_req_cb(void *arg) {
 #endif
   abstract_http_mock_server_force_request(srv, "async_wait");
   abstract_http_mock_server_signal_ready(srv);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 TEST test_mock_server_coverage(void) {
@@ -602,6 +615,8 @@ TEST test_mock_server_coverage(void) {
     abstract_http_mock_server_run_thread_once((MockServerPtr)s2);
 
     /* Test force running without server_fd for mock_server_destroy */
+    abstract_http_mock_server_force_port(NULL, 0);
+    abstract_http_mock_server_force_port((MockServerPtr)s2, 0);
     abstract_http_mock_server_force_running(NULL, 1);
     abstract_http_mock_server_force_running((MockServerPtr)s2, 1);
     abstract_http_mock_server_force_fd((MockServerPtr)s2, -1);
@@ -614,6 +629,17 @@ TEST test_mock_server_coverage(void) {
     mock_server_init((MockServerPtr *)&s_fd);
     abstract_http_mock_server_force_fd((MockServerPtr)s_fd, 12345);
     mock_server_destroy((MockServerPtr)s_fd);
+  }
+
+  {
+    struct MockServer_ *s_port = NULL;
+    mock_server_init((MockServerPtr *)&s_port);
+    abstract_http_mock_server_force_port((MockServerPtr)s_port, 9999);
+    abstract_http_mock_server_force_fd((MockServerPtr)s_port, -1);
+    abstract_http_mock_server_force_running((MockServerPtr)s_port, 1);
+    g_mock_socket_fail = 1;
+    mock_server_destroy((MockServerPtr)s_port);
+    g_mock_socket_fail = 0;
   }
 
   /* Test wait_for_request when server is stopped and has no request */
@@ -735,6 +761,8 @@ TEST test_fuzz_harness_coverage(void) {
   /* fuzz_sse valid event */
   rc = test_fuzz_sse_run(sse_valid, sizeof(sse_valid) - 1, &out_rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  rc = test_fuzz_sse_run(sse_valid, sizeof(sse_valid) - 1, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* fuzz_sse error trigger */
   rc = test_fuzz_sse_run(sse_err, sizeof(sse_err) - 1, &out_rc);
@@ -778,6 +806,8 @@ TEST test_fuzz_harness_coverage(void) {
 
   /* fuzz_ws valid message */
   rc = test_fuzz_ws_run(ws_valid, sizeof(ws_valid), &out_rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  rc = test_fuzz_ws_run(ws_valid, sizeof(ws_valid), NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* fuzz_ws error frame */

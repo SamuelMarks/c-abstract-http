@@ -131,6 +131,24 @@ TEST test_msh3_global_lifecycle(void) {
   rc = http_msh3_global_init();
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   g_mock_msh3_api_open_fail = 0;
+
+  /* Test unlock failure in global_init */
+  g_mock_mutex_fail = 2;
+  rc = http_msh3_global_init();
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  g_mock_mutex_fail = 0;
+  rc = http_msh3_global_cleanup();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+
+  /* Test unlock failure in global_init when rc is already an error */
+  g_mock_msh3_api_open_fail = 1;
+  g_mock_mutex_fail = 2;
+  rc = http_msh3_global_init();
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
+  g_mock_msh3_api_open_fail = 0;
+  g_mock_mutex_fail = 0;
+  rc = http_msh3_global_cleanup();
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 #endif
 
   PASS();
@@ -477,6 +495,18 @@ TEST test_msh3_send_failures(void) {
   }
   g_mock_msh3_getaddrinfo_null_result = 0;
 
+  /* getaddrinfo zero addrlen */
+  g_mock_msh3_zero_addrlen = 1;
+  res = NULL;
+  rc = http_msh3_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  g_mock_msh3_zero_addrlen = 0;
+
   /* connection open failure */
   g_mock_msh3_conn_open_fail = 1;
   res = NULL;
@@ -533,6 +563,20 @@ TEST test_msh3_send_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   ASSERT(res == NULL);
   g_mock_msh3_cond_wait_fail = 0;
+  g_mock_cond_fail = 0;
+
+  /* cond wait loop iteration */
+  g_mock_msh3_cond_wait_loop = 1;
+  g_mock_cond_fail = 5;
+  res = NULL;
+  rc = http_msh3_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  g_mock_msh3_cond_wait_loop = 0;
   g_mock_cond_fail = 0;
 
   /* shutdown error */
@@ -612,6 +656,36 @@ TEST test_msh3_send_failures(void) {
     res = NULL;
   }
   g_mock_msh3_extra_events = 0;
+
+  /* cond_signal failure in callback */
+  g_mock_cond_fail = 2;
+  res = NULL;
+  rc = http_msh3_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  g_mock_cond_fail = 0;
+
+  /* mutex_unlock failure in callback and send loop */
+  g_mock_mutex_fail = 2;
+  res = NULL;
+  rc = http_msh3_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  ASSERT_EQ(NULL, res);
+  g_mock_mutex_fail = 0;
+
+  /* shutdown error paired with mutex unlock failure */
+  g_mock_msh3_shutdown_error = 1;
+  g_mock_mutex_fail = 2;
+  res = NULL;
+  rc = http_msh3_send(ctx, &req, &res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  ASSERT_EQ(NULL, res);
+  g_mock_msh3_shutdown_error = 0;
+  g_mock_mutex_fail = 0;
 #endif
 
   http_request_free(&req);

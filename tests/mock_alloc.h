@@ -72,6 +72,8 @@ extern int *abstract_http_mock_get_g_mock_strcasecmp_fail(void);
 extern int *abstract_http_mock_get_g_mock_headers_init_fail(void);
 extern int *abstract_http_mock_get_g_mock_parts_init_fail(void);
 extern int *abstract_http_mock_get_g_mock_multi_init_fail(void);
+extern int *abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail(void);
+extern int *abstract_http_mock_get_g_mock_urlencode_append_fail(void);
 extern int *abstract_http_mock_get_g_mock_mask_key_fail(void);
 extern int *abstract_http_mock_get_g_mock_pack_header_fail(void);
 extern int *abstract_http_mock_get_g_mock_raw_send_fail(void);
@@ -96,6 +98,7 @@ extern int *abstract_http_mock_get_g_mock_wasm_fetch_timeout(void);
 extern int *abstract_http_mock_get_g_mock_wasm_config_init_fail(void);
 extern int *abstract_http_mock_get_g_mock_wasm_response_init_fail(void);
 extern int *abstract_http_mock_get_g_mock_wasm_header_add_fail(void);
+extern int *abstract_http_mock_get_g_mock_wasm_headers_len_zero(void);
 extern int *abstract_http_mock_get_g_mock_fetch_global_init_fail(void);
 extern int *abstract_http_mock_get_g_mock_fetch_context_init_fail(void);
 extern int *abstract_http_mock_get_g_mock_fetch_config_init_fail(void);
@@ -203,6 +206,8 @@ extern int *abstract_http_mock_get_g_mock_msh3_header_add_fail(void);
 extern int *abstract_http_mock_get_g_mock_msh3_cb_mutex_lock_fail(void);
 extern int *abstract_http_mock_get_g_mock_msh3_parse_url_alloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_msh3_extra_events(void);
+extern int *abstract_http_mock_get_g_mock_msh3_zero_addrlen(void);
+extern int *abstract_http_mock_get_g_mock_msh3_cond_wait_loop(void);
 extern int *abstract_http_mock_get_g_mock_winhttp_open_fail(void);
 extern int *abstract_http_mock_get_g_mock_winhttp_connect_fail(void);
 extern int *abstract_http_mock_get_g_mock_winhttp_open_request_fail(void);
@@ -225,6 +230,8 @@ extern int *abstract_http_mock_get_g_mock_winhttp_read_chunks(void);
 extern int *abstract_http_mock_get_g_mock_winhttp_total_body_realloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_winhttp_read_buf_alloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_winhttp_res_alloc_fail(void);
+extern int *abstract_http_mock_get_g_mock_winhttp_close_fail(void);
+extern int *abstract_http_mock_get_g_mock_winhttp_cookie_set_fail(void);
 extern int *abstract_http_mock_get_g_mock_wininet_open_fail(void);
 extern int *abstract_http_mock_get_g_mock_wininet_connect_fail(void);
 extern int *abstract_http_mock_get_g_mock_wininet_open_request_fail(void);
@@ -241,10 +248,13 @@ extern int *abstract_http_mock_get_g_mock_wininet_context_init_fail(void);
 extern int *abstract_http_mock_get_g_mock_wininet_response_init_fail(void);
 extern int *abstract_http_mock_get_g_mock_wininet_status_code(void);
 extern int *abstract_http_mock_get_g_mock_wininet_cookie_count(void);
+extern int *abstract_http_mock_get_g_mock_serialize_fail(void);
 extern int *abstract_http_mock_get_g_mock_wininet_read_chunks(void);
 extern int *abstract_http_mock_get_g_mock_wininet_read_chunk_alloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_wininet_body_realloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_wininet_res_alloc_fail(void);
+extern int *abstract_http_mock_get_g_mock_wininet_close_fail(void);
+extern int *abstract_http_mock_get_g_mock_wininet_cookie_set_fail(void);
 extern int *abstract_http_mock_get_g_mock_accept_fd(void);
 extern int *abstract_http_mock_get_g_mock_server_reading(void);
 extern const char **abstract_http_mock_get_g_mock_recv_data(void);
@@ -343,7 +353,10 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_headers_init_fail (*abstract_http_mock_get_g_mock_headers_init_fail())
 #define g_mock_parts_init_fail (*abstract_http_mock_get_g_mock_parts_init_fail())
 #define g_mock_multi_init_fail (*abstract_http_mock_get_g_mock_multi_init_fail())
+#define g_mock_sprintf_s_wrapper_fail (*abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail())
+#define g_mock_urlencode_append_fail (*abstract_http_mock_get_g_mock_urlencode_append_fail())
 #define g_mock_mask_key_fail (*abstract_http_mock_get_g_mock_mask_key_fail())
+#define g_mock_serialize_fail (*abstract_http_mock_get_g_mock_serialize_fail())
 #define g_mock_pack_header_fail (*abstract_http_mock_get_g_mock_pack_header_fail())
 #define g_mock_raw_send_fail (*abstract_http_mock_get_g_mock_raw_send_fail())
 #define g_mock_raw_connect_fail (*abstract_http_mock_get_g_mock_raw_connect_fail())
@@ -367,6 +380,7 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_wasm_config_init_fail (*abstract_http_mock_get_g_mock_wasm_config_init_fail())
 #define g_mock_wasm_response_init_fail (*abstract_http_mock_get_g_mock_wasm_response_init_fail())
 #define g_mock_wasm_header_add_fail (*abstract_http_mock_get_g_mock_wasm_header_add_fail())
+#define g_mock_wasm_headers_len_zero (*abstract_http_mock_get_g_mock_wasm_headers_len_zero())
 #define g_mock_fetch_global_init_fail (*abstract_http_mock_get_g_mock_fetch_global_init_fail())
 #define g_mock_fetch_context_init_fail (*abstract_http_mock_get_g_mock_fetch_context_init_fail())
 #define g_mock_fetch_config_init_fail (*abstract_http_mock_get_g_mock_fetch_config_init_fail())
@@ -474,6 +488,8 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_msh3_cb_mutex_lock_fail (*abstract_http_mock_get_g_mock_msh3_cb_mutex_lock_fail())
 #define g_mock_msh3_parse_url_alloc_fail (*abstract_http_mock_get_g_mock_msh3_parse_url_alloc_fail())
 #define g_mock_msh3_extra_events (*abstract_http_mock_get_g_mock_msh3_extra_events())
+#define g_mock_msh3_zero_addrlen (*abstract_http_mock_get_g_mock_msh3_zero_addrlen())
+#define g_mock_msh3_cond_wait_loop (*abstract_http_mock_get_g_mock_msh3_cond_wait_loop())
 #define g_mock_winhttp_open_fail (*abstract_http_mock_get_g_mock_winhttp_open_fail())
 #define g_mock_winhttp_connect_fail (*abstract_http_mock_get_g_mock_winhttp_connect_fail())
 #define g_mock_winhttp_open_request_fail (*abstract_http_mock_get_g_mock_winhttp_open_request_fail())
@@ -496,6 +512,8 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_winhttp_total_body_realloc_fail (*abstract_http_mock_get_g_mock_winhttp_total_body_realloc_fail())
 #define g_mock_winhttp_read_buf_alloc_fail (*abstract_http_mock_get_g_mock_winhttp_read_buf_alloc_fail())
 #define g_mock_winhttp_res_alloc_fail (*abstract_http_mock_get_g_mock_winhttp_res_alloc_fail())
+#define g_mock_winhttp_close_fail (*abstract_http_mock_get_g_mock_winhttp_close_fail())
+#define g_mock_winhttp_cookie_set_fail (*abstract_http_mock_get_g_mock_winhttp_cookie_set_fail())
 #define g_mock_wininet_open_fail (*abstract_http_mock_get_g_mock_wininet_open_fail())
 #define g_mock_wininet_connect_fail (*abstract_http_mock_get_g_mock_wininet_connect_fail())
 #define g_mock_wininet_open_request_fail (*abstract_http_mock_get_g_mock_wininet_open_request_fail())
@@ -516,6 +534,8 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_wininet_read_chunk_alloc_fail (*abstract_http_mock_get_g_mock_wininet_read_chunk_alloc_fail())
 #define g_mock_wininet_body_realloc_fail (*abstract_http_mock_get_g_mock_wininet_body_realloc_fail())
 #define g_mock_wininet_res_alloc_fail (*abstract_http_mock_get_g_mock_wininet_res_alloc_fail())
+#define g_mock_wininet_close_fail (*abstract_http_mock_get_g_mock_wininet_close_fail())
+#define g_mock_wininet_cookie_set_fail (*abstract_http_mock_get_g_mock_wininet_cookie_set_fail())
 #define g_mock_accept_fd (*abstract_http_mock_get_g_mock_accept_fd())
 #define g_mock_server_reading (*abstract_http_mock_get_g_mock_server_reading())
 #define g_mock_recv_data (*abstract_http_mock_get_g_mock_recv_data())
@@ -529,7 +549,7 @@ typedef unsigned __int64 uint64_t;
 
 uint64_t c_abstract_http_mock_math_get_current_time_ms(void);
 
-void dummy_cb_thread(void *arg);
+enum c_abstract_http_error dummy_cb_thread(void *arg);
 void *dummy_cb_pthread(void *arg);
 extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
                                                               char **out);

@@ -173,6 +173,42 @@ TEST test_apple_oom_branches(void) {
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_IO, rc_val, "%d");
   }
   http_request_free(&req);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://fail_extract_response", &req.url));
+  req.method = HTTP_GET;
+  {
+    int rc_val = http_apple_send(ctx, &req, &res);
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_val, "%d");
+  }
+  http_request_free(&req);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://fail_body_malloc", &req.url));
+  req.method = HTTP_GET;
+  {
+    int rc_val = http_apple_send(ctx, &req, &res);
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_val, "%d");
+  }
+  http_request_free(&req);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://fail_cb_edges", &req.url));
+  req.method = HTTP_GET;
+  {
+    int rc_val = http_apple_send(ctx, &req, &res);
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, rc_val, "%d");
+  }
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  http_request_free(&req);
 #endif
 
   http_apple_context_free(ctx);
@@ -207,6 +243,22 @@ TEST test_apple_oom(void) {
 
   req.url = "http://example.com";
   req.method = HTTP_GET;
+
+  /* Invalid URL string creating NULL CFURL */
+  req.url = "ht tp:// bad";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
+
+  /* Non-null body with body_len == 0 */
+  req.url = "http://example.com";
+  req.body = (void *)"dummy";
+  req.body_len = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  req.body = NULL;
 
   /* Test 124: malloc for *res fails */
   g_mock_alloc_fail = 1;
@@ -422,7 +474,8 @@ TEST test_apple_send_all_methods(void) {
 
     if (i == 8) {
       /* Invalid method may fail differently, let's just see if it crashes */
-      (void)http_apple_send(ctx, &req, &res);
+      enum c_abstract_http_error rc_invalid = http_apple_send(ctx, &req, &res);
+      ASSERT(rc_invalid != C_ABSTRACT_HTTP_SUCCESS);
     } else {
       enum c_abstract_http_error rc = http_apple_send(ctx, &req, &res);
       ASSERT(rc != 0);
@@ -587,6 +640,30 @@ TEST test_apple_send_multi(void) {
   /* Test invalid args */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_apple_send_multi(NULL, loop, &multi, futures));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_apple_send_multi(ctx, loop, NULL, futures));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_apple_send_multi(ctx, loop, &multi, NULL));
+
+  /* Test NULL loop */
+  future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  future2 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[0] = future1;
+  futures[1] = future2;
+  g_mock_pthread_create_sync = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_apple_send_multi(ctx, NULL, &multi, futures));
+  g_mock_pthread_create_sync = 0;
+  if (future1->response) {
+    http_response_free(future1->response);
+    free(future1->response);
+  }
+  if (future2->response) {
+    http_response_free(future2->response);
+    free(future2->response);
+  }
+  free(future1);
+  free(future2);
 
   http_multi_request_free(&multi);
   http_request_free(&req1);
@@ -670,6 +747,45 @@ TEST test_apple_send_multi_branches(void) {
   }
 
   /* Test fail_multi_url_str */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
+  req1.url = "ht tp:// bad";
+  req1.method = HTTP_GET;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req1));
+  future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[0] = future1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_apple_send_multi(ctx, loop, &multi, futures));
+  while (!future1->is_ready) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, future1->error_code);
+  free(future1);
+  http_multi_request_free(&multi);
+
+  /* Test non-null body with body_len == 0 in multi */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
+  req1.url = "http://example.com";
+  req1.method = HTTP_POST;
+  req1.body = (void *)"dummy";
+  req1.body_len = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req1));
+  future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[0] = future1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_apple_send_multi(ctx, loop, &multi, futures));
+  while (!future1->is_ready) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+  }
+  if (future1->response) {
+    http_response_free(future1->response);
+    free(future1->response);
+  }
+  free(future1);
+  http_multi_request_free(&multi);
+  req1.body = NULL;
+
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
   ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,

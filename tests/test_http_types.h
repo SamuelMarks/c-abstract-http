@@ -72,8 +72,10 @@ struct ServerArgs {
 };
 
 #if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
-static void server_task(void *arg) {
+static enum c_abstract_http_error server_task(void *arg) {
   struct ServerArgs *args = (struct ServerArgs *)arg;
+  if (!args)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   args->rc =
 
       http_oauth2_localhost_intercept(args->port, "HTTP/1.1 200 OK\r\n\r\nOK",
@@ -82,6 +84,7 @@ static void server_task(void *arg) {
                                       &args->state, &args->err,
 
                                       &args->err_desc);
+  return args->rc;
 }
 #endif
 #endif
@@ -112,6 +115,8 @@ TEST test_oauth2_localhost_intercept(void) {
                     "description=bad HTTP/1.1\r\n\r\n";
   int connected = 0;
   int i;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, server_task(NULL));
 
   memset(&args, 0, sizeof(args));
   args.port = 18080;
@@ -1004,14 +1009,16 @@ TEST test_http_send_multi(void) {
   reqs_ptrs[0] = &reqs[0];
   reqs_ptrs[1] = &reqs[1];
 
-  (void)!http_client_init(&client);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
   client.config.modality = MODALITY_SYNC;
   for (i = 0; i < 2; ++i) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&reqs[i]));
   }
 
-  (void)!http_client_send_multi(&client, (struct HttpRequest *const *)reqs_ptrs,
-                                2, futures, NULL, NULL, 0);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_client_send_multi(&client,
+                                   (struct HttpRequest *const *)reqs_ptrs, 2,
+                                   futures, NULL, NULL, 0));
 
   for (i = 0; i < 2; ++i) {
     http_request_free(&reqs[i]);
@@ -1080,7 +1087,7 @@ TEST test_http_types_leftover_errs(void) {
   http_request_free(&req);
   memset(&req, 0, sizeof(req));
   /* cookie jar errs */
-  (void)!http_cookie_jar_init(&jar);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
@@ -1277,7 +1284,7 @@ TEST test_http_types_leftover_errs(void) {
 TEST test_http_cookie_jar_set_val_oom(void) {
   struct HttpCookieJar jar;
 
-  (void)!http_cookie_jar_init(&jar);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 2; /* fails allocation of value, the 3rd alloc */
@@ -1350,15 +1357,16 @@ TEST test_http_types_more_errs_2(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_request_set_auth_bearer(&req, NULL));
 
-  (void)!http_parts_init(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_parts_init(NULL));
   http_parts_free(NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_request_add_part(NULL, "f", NULL, NULL, "d", 1));
-  (void)!http_request_add_part_header_last(NULL, "k", "v");
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_request_add_part_header_last(NULL, "k", "v"));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_multi_request_init(NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_multi_request_add(NULL, &req));
   http_response_free(NULL);
-  (void)!http_future_init(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_future_init(NULL));
   http_future_free(NULL);
 
   for (i = 0; i < 10; i++) {
@@ -1582,7 +1590,8 @@ TEST test_http_types_final_errs(void) {
   {
     c_abstract_http_error_t rc_send =
         http_client_send_multi(&client, &req_ptr, 1, futures, NULL, NULL, 0);
-    (void)rc_send;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc_send);
   }
   g_mock_alloc_fail = 0;
   http_request_free(&req);
@@ -1667,8 +1676,9 @@ TEST test_http_types_oom_bruteforce_all(void) {
   /* Additional tests */
   for (i = 0; i < 5; i++) {
     struct HttpCookieJar jar;
-    (void)!http_cookie_jar_init(&jar);
-    (void)!http_cookie_jar_set(&jar, "name1", "val1");
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_cookie_jar_set(&jar, "name1", "val1"));
     g_mock_alloc_fail = 1;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     g_mock_alloc_count = i;
@@ -1679,8 +1689,9 @@ TEST test_http_types_oom_bruteforce_all(void) {
   }
   for (i = 0; i < 5; i++) {
     struct HttpCookieJar jar;
-    (void)!http_cookie_jar_init(&jar);
-    (void)!http_cookie_jar_set(&jar, "name1", "val1");
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_cookie_jar_set(&jar, "name1", "val1"));
     g_mock_alloc_fail = 1;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     g_mock_alloc_count = i;
@@ -1721,11 +1732,10 @@ TEST test_http_types_oom_bruteforce_all(void) {
   {
     struct HttpResponse res;
     memset(&res, 0, sizeof(res));
-    (void)res;
-    (void)res;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(&res));
-    rc = http_response_save_to_file(&res, "out.txt");
-    (void)rc;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_response_save_to_file(&res, "out.txt"));
+    http_response_free(&res);
   }
   for (i = 0; i < 5; i++) {
     struct HttpFuture f;
@@ -1733,8 +1743,6 @@ TEST test_http_types_oom_bruteforce_all(void) {
     struct HttpRequest req2;
     struct HttpRequest *reqs[1];
     struct HttpClient client = {0};
-    memset(&f, 0, sizeof(f));
-    (void)f;
     memset(&f, 0, sizeof(f));
     futures[0] = &f;
     reqs[0] = &req2;
@@ -1752,7 +1760,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_request_add_part(&req, "field", "file.txt", NULL, "data", 4));
-  (void)!http_request_flatten_parts(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_flatten_parts(&req));
   http_request_free(&req);
 
   for (i = 0; i < 10; i++) {
@@ -2641,9 +2649,158 @@ TEST test_http_types_complete_coverage(void) {
 
   PASS();
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern enum c_abstract_http_error c_abstract_http_test_http_types_helpers(void);
+
+TEST test_http_types_oauth_and_multipart_failures(void) {
+  int i;
+  struct HttpRequest req;
+  enum c_abstract_http_error rc;
+
+  /* 1. Internal helpers */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_http_types_helpers());
+
+  /* 2. Multipart sprintf_s_wrapper failure branches */
+  for (i = 1; i <= 16; ++i) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_request_add_part(&req, "field1", "file1.txt", "text/plain",
+                                    "data1", 5));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_request_add_part_header_last(&req, "X-Custom", "val"));
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_request_add_part(&req, "field2", "file2.bin", NULL, NULL, 0));
+    g_mock_sprintf_s_wrapper_fail = i;
+    rc = http_request_flatten_parts(&req);
+    g_mock_sprintf_s_wrapper_fail = 0;
+    (void)rc;
+    http_request_free(&req);
+  }
+
+  /* 3. OAuth2 urlencode_append failure branches */
+  /* password grant: 1..6 */
+  for (i = 1; i <= 6; ++i) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    g_mock_urlencode_append_fail = i;
+    rc = http_request_init_oauth2_password_grant(
+        &req, "http://endpoint", "user", "pass", "cid", "sec", "scope");
+    g_mock_urlencode_append_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+    http_request_free(&req);
+  }
+
+  /* refresh token grant: 1..5 */
+  for (i = 1; i <= 5; ++i) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    g_mock_urlencode_append_fail = i;
+    rc = http_request_init_oauth2_refresh_token_grant(
+        &req, "http://endpoint", "tok", "cid", "sec", "scope");
+    g_mock_urlencode_append_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+    http_request_free(&req);
+  }
+
+  /* authorization code grant: 1..6 */
+  for (i = 1; i <= 6; ++i) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    g_mock_urlencode_append_fail = i;
+    rc = http_request_init_oauth2_authorization_code_grant(
+        &req, "http://endpoint", "code", "http://redir", "cid", "sec",
+        "verifier");
+    g_mock_urlencode_append_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+    http_request_free(&req);
+  }
+
+  /* client credentials grant: 1..4 */
+  for (i = 1; i <= 4; ++i) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    g_mock_urlencode_append_fail = i;
+    rc = http_request_init_oauth2_client_credentials_grant(
+        &req, "http://endpoint", "cid", "sec", "scope");
+    g_mock_urlencode_append_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+    http_request_free(&req);
+  }
+
+  /* jwt bearer grant: 1..3 */
+  for (i = 1; i <= 3; ++i) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    g_mock_urlencode_append_fail = i;
+    rc = http_request_init_oauth2_jwt_bearer_grant(&req, "http://endpoint",
+                                                   "assertion", "scope");
+    g_mock_urlencode_append_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+    http_request_free(&req);
+  }
+
+  /* device authorization request: 1..2 */
+  for (i = 1; i <= 2; ++i) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    g_mock_urlencode_append_fail = i;
+    rc = http_request_init_oauth2_device_authorization_request(
+        &req, "http://endpoint", "cid", "scope");
+    g_mock_urlencode_append_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+    http_request_free(&req);
+  }
+
+  /* device access token request: 1..3 */
+  for (i = 1; i <= 3; ++i) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    g_mock_urlencode_append_fail = i;
+    rc = http_request_init_oauth2_device_access_token_request(
+        &req, "http://endpoint", "cid", "devcode");
+    g_mock_urlencode_append_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+    http_request_free(&req);
+  }
+
+  /* token revocation: 1..4 */
+  for (i = 1; i <= 4; ++i) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    g_mock_urlencode_append_fail = i;
+    rc = http_request_init_oauth2_token_revocation(&req, "http://endpoint",
+                                                   "tok", "hint", "cid", "sec");
+    g_mock_urlencode_append_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+    http_request_free(&req);
+  }
+
+  /* token introspection: 1..4 */
+  for (i = 1; i <= 4; ++i) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    g_mock_urlencode_append_fail = i;
+    rc = http_request_init_oauth2_token_introspection(
+        &req, "http://endpoint", "tok", "hint", "cid", "sec");
+    g_mock_urlencode_append_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+    http_request_free(&req);
+  }
+
+  /* build authorization url: 1..7 */
+  for (i = 1; i <= 7; ++i) {
+    char *out_url = NULL;
+    g_mock_urlencode_append_fail = i;
+    rc = http_oauth2_build_authorization_url("http://endpoint", "cid", "code",
+                                             "http://redir", "scope", "state",
+                                             "challenge", "method", &out_url);
+    g_mock_urlencode_append_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  }
+
+  PASS();
+}
+#endif
+
 #endif
 
 SUITE(http_types_suite) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  RUN_TEST(test_http_types_oauth_and_multipart_failures);
+#endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_complete_coverage);
 #endif

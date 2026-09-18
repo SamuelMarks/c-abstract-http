@@ -53,6 +53,8 @@ extern int *abstract_http_mock_get_g_mock_winhttp_read_chunks(void);
 extern int *abstract_http_mock_get_g_mock_winhttp_total_body_realloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_winhttp_read_buf_alloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_winhttp_res_alloc_fail(void);
+extern int *abstract_http_mock_get_g_mock_winhttp_close_fail(void);
+extern int *abstract_http_mock_get_g_mock_winhttp_cookie_set_fail(void);
 
 #define g_mock_winhttp_open_fail                                               \
   (*abstract_http_mock_get_g_mock_winhttp_open_fail())
@@ -98,6 +100,10 @@ extern int *abstract_http_mock_get_g_mock_winhttp_res_alloc_fail(void);
   (*abstract_http_mock_get_g_mock_winhttp_read_buf_alloc_fail())
 #define g_mock_winhttp_res_alloc_fail                                          \
   (*abstract_http_mock_get_g_mock_winhttp_res_alloc_fail())
+#define g_mock_winhttp_close_fail                                              \
+  (*abstract_http_mock_get_g_mock_winhttp_close_fail())
+#define g_mock_winhttp_cookie_set_fail                                         \
+  (*abstract_http_mock_get_g_mock_winhttp_cookie_set_fail())
 #endif
 
 #if !defined(_WIN32) || (defined(_MSC_VER) && _MSC_VER < 1600)
@@ -204,6 +210,14 @@ static HINTERNET WinHttpOpen(const wchar_t *pszAgentW, DWORD dwAccessType,
 
 static BOOL WinHttpCloseHandle(HINTERNET hInternet) {
   (void)hInternet;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_winhttp_close_fail > 0) {
+    if (--g_mock_winhttp_close_fail == 0) {
+      return 0;
+    }
+    return 1;
+  }
+#endif
   return 1;
 }
 
@@ -256,16 +270,24 @@ static BOOL WinHttpCrackUrl(const wchar_t *pwszUrl, DWORD dwUrlLength,
   if (!p) {
     return 0;
   }
-  if (p - pwszUrl == 5 && wcsncmp(pwszUrl, L"https", 5) == 0) {
-    lpUrlComponents->nScheme = INTERNET_SCHEME_HTTPS;
-    lpUrlComponents->nPort = 443;
+  if (p - pwszUrl == 5) {
+    if (wcsncmp(pwszUrl, L"https", 5) == 0) {
+      lpUrlComponents->nScheme = INTERNET_SCHEME_HTTPS;
+      lpUrlComponents->nPort = 443;
+    } else {
+      lpUrlComponents->nScheme = INTERNET_SCHEME_HTTP;
+      lpUrlComponents->nPort = 80;
+    }
   } else {
     lpUrlComponents->nScheme = INTERNET_SCHEME_HTTP;
     lpUrlComponents->nPort = 80;
   }
   host_start = p + 3;
   p = host_start;
-  while (*p && *p != L':' && *p != L'/') {
+  while (*p) {
+    if (*p == L':' || *p == L'/') {
+      break;
+    }
     p++;
   }
   host_end = p;
@@ -279,29 +301,21 @@ static BOOL WinHttpCrackUrl(const wchar_t *pwszUrl, DWORD dwUrlLength,
     lpUrlComponents->nPort = (INTERNET_PORT)port_val;
   }
   host_len = (size_t)(host_end - host_start);
-  if (lpUrlComponents->lpszHostName &&
-      lpUrlComponents->dwHostNameLength > host_len) {
-    memcpy(lpUrlComponents->lpszHostName, host_start,
-           host_len * sizeof(wchar_t));
-    lpUrlComponents->lpszHostName[host_len] = L'\0';
-    lpUrlComponents->dwHostNameLength = (DWORD)host_len;
-  }
+  memcpy(lpUrlComponents->lpszHostName, host_start, host_len * sizeof(wchar_t));
+  lpUrlComponents->lpszHostName[host_len] = L'\0';
+  lpUrlComponents->dwHostNameLength = (DWORD)host_len;
+
   if (*p == L'/') {
     path_start = p;
     path_len = wcslen(path_start);
-    if (lpUrlComponents->lpszUrlPath &&
-        lpUrlComponents->dwUrlPathLength > path_len) {
-      memcpy(lpUrlComponents->lpszUrlPath, path_start,
-             path_len * sizeof(wchar_t));
-      lpUrlComponents->lpszUrlPath[path_len] = L'\0';
-      lpUrlComponents->dwUrlPathLength = (DWORD)path_len;
-    }
+    memcpy(lpUrlComponents->lpszUrlPath, path_start,
+           path_len * sizeof(wchar_t));
+    lpUrlComponents->lpszUrlPath[path_len] = L'\0';
+    lpUrlComponents->dwUrlPathLength = (DWORD)path_len;
   } else {
-    if (lpUrlComponents->lpszUrlPath && lpUrlComponents->dwUrlPathLength >= 2) {
-      lpUrlComponents->lpszUrlPath[0] = L'/';
-      lpUrlComponents->lpszUrlPath[1] = L'\0';
-      lpUrlComponents->dwUrlPathLength = 1;
-    }
+    lpUrlComponents->lpszUrlPath[0] = L'/';
+    lpUrlComponents->lpszUrlPath[1] = L'\0';
+    lpUrlComponents->dwUrlPathLength = 1;
   }
   return 1;
 }
@@ -386,9 +400,7 @@ static BOOL WinHttpWriteData(HINTERNET hRequest, LPCVOID lpBuffer,
     return 0;
   }
 #endif
-  if (lpdwNumberOfBytesWritten) {
-    *lpdwNumberOfBytesWritten = dwNumberOfBytesToWrite;
-  }
+  *lpdwNumberOfBytesWritten = dwNumberOfBytesToWrite;
   return 1;
 }
 
@@ -415,35 +427,30 @@ static BOOL WinHttpQueryHeaders(HINTERNET hRequest, DWORD dwInfoLevel,
   }
 #endif
   if ((dwInfoLevel & 0xFFFF) == WINHTTP_QUERY_STATUS_CODE) {
-    if (lpBuffer) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      DWORD code =
-          g_mock_winhttp_status_code ? (DWORD)g_mock_winhttp_status_code : 200;
+    DWORD code =
+        g_mock_winhttp_status_code ? (DWORD)g_mock_winhttp_status_code : 200;
 #else
-      DWORD code = 200;
+    DWORD code = 200;
 #endif
-      memcpy(lpBuffer, &code, sizeof(DWORD));
-    }
-    if (lpdwBufferLength) {
-      *lpdwBufferLength = sizeof(DWORD);
-    }
+    memcpy(lpBuffer, &code, sizeof(DWORD));
+    *lpdwBufferLength = sizeof(DWORD);
     return 1;
   }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_winhttp_cookie_count > 0) {
-    const wchar_t cookie_val[] = L"mock_cookie=123; path=/";
-    DWORD needed_bytes = (DWORD)(sizeof(cookie_val));
+    const wchar_t cookie_val1[] = L"mock_cookie=123; path=/";
+    const wchar_t cookie_val2[] = L"mock_cookie2=456";
+    const wchar_t *cookie_val =
+        (g_mock_winhttp_cookie_count == 1) ? cookie_val2 : cookie_val1;
+    DWORD needed_bytes = (DWORD)((wcslen(cookie_val) + 1) * sizeof(wchar_t));
     if (!lpBuffer) {
-      if (lpdwBufferLength) {
-        *lpdwBufferLength = needed_bytes;
-      }
+      *lpdwBufferLength = needed_bytes;
       SetLastError(ERROR_INSUFFICIENT_BUFFER);
       return 0;
     }
     memcpy(lpBuffer, cookie_val, needed_bytes);
-    if (lpdwBufferLength) {
-      *lpdwBufferLength = needed_bytes;
-    }
+    *lpdwBufferLength = needed_bytes;
     g_mock_winhttp_cookie_count--;
     SetLastError(0);
     return 1;
@@ -463,15 +470,11 @@ static BOOL WinHttpQueryDataAvailable(HINTERNET hRequest,
   if (g_mock_winhttp_read_chunks > 0) {
     DWORD avail = (g_mock_winhttp_read_chunks == 3) ? 9000 : 10;
     g_mock_winhttp_read_chunks--;
-    if (lpdwNumberOfBytesAvailable) {
-      *lpdwNumberOfBytesAvailable = avail;
-    }
+    *lpdwNumberOfBytesAvailable = avail;
     return 1;
   }
 #endif
-  if (lpdwNumberOfBytesAvailable) {
-    *lpdwNumberOfBytesAvailable = 0;
-  }
+  *lpdwNumberOfBytesAvailable = 0;
   return 1;
 }
 
@@ -484,12 +487,8 @@ static BOOL WinHttpReadData(HINTERNET hRequest, LPVOID lpBuffer,
     return 0;
   }
 #endif
-  if (lpBuffer && dwNumberOfBytesToRead > 0) {
-    memset(lpBuffer, 'W', dwNumberOfBytesToRead);
-  }
-  if (lpdwNumberOfBytesRead) {
-    *lpdwNumberOfBytesRead = dwNumberOfBytesToRead;
-  }
+  memset(lpBuffer, 'W', dwNumberOfBytesToRead);
+  *lpdwNumberOfBytesRead = dwNumberOfBytesToRead;
   return 1;
 }
 
@@ -501,9 +500,7 @@ static BOOL QueueUserWorkItem(LPTHREAD_START_ROUTINE Function, PVOID Context,
     return 0;
   }
 #endif
-  if (Function) {
-    Function(Context);
-  }
+  Function(Context);
   return 1;
 }
 #endif
@@ -586,11 +583,15 @@ static enum c_abstract_http_error method_to_wide(enum HttpMethod method,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static void safe_close_handle(HINTERNET *h) {
-  if (h && *h) {
-    WinHttpCloseHandle(*h);
+static enum c_abstract_http_error safe_close_handle(HINTERNET *h) {
+  if (*h) {
+    if (!WinHttpCloseHandle(*h)) {
+      *h = NULL;
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
     *h = NULL;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static enum c_abstract_http_error
@@ -601,7 +602,7 @@ headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
   wchar_t *p;
 
   *out = NULL;
-  if (!headers || headers->count == 0) {
+  if (headers->count == 0) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
 
@@ -722,10 +723,8 @@ http_winhttp_context_init(struct HttpTransportContext **ctx) {
 void http_winhttp_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_winhttp_context_free: Entering");
   if (ctx) {
-    if (ctx->hSession) {
-      WinHttpCloseHandle(ctx->hSession);
-      ctx->hSession = NULL;
-    }
+    WinHttpCloseHandle(ctx->hSession);
+    ctx->hSession = NULL;
     http_config_free(&ctx->config);
     free(ctx);
   }
@@ -880,6 +879,7 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
   size_t totalSize = 0;
   DWORD dwDownloaded = 0;
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  enum c_abstract_http_error close_rc;
 
   LOG_DEBUG("http_winhttp_send: Entering");
   if (!ctx || !ctx->hSession || !req || !res || !req->url) {
@@ -1040,10 +1040,8 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
   readBuf = (char *)malloc(8192);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_winhttp_read_buf_alloc_fail) {
-    if (readBuf) {
-      free(readBuf);
-      readBuf = NULL;
-    }
+    free(readBuf);
+    readBuf = NULL;
   }
 #endif
   if (!readBuf) {
@@ -1051,7 +1049,7 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
     goto cleanup;
   }
 
-  do {
+  for (;;) {
     dwSize = 0;
     if (!WinHttpQueryDataAvailable(hRequest, &dwSize)) {
       rc = C_ABSTRACT_HTTP_ERR_IO;
@@ -1069,44 +1067,36 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
       goto cleanup;
     }
 
-    if (dwDownloaded > 0) {
-      if (req->on_chunk) {
-        int cb_rc =
-            req->on_chunk(req->on_chunk_user_data, readBuf, dwDownloaded);
-        if (cb_rc != 0) {
-          rc = (enum c_abstract_http_error)cb_rc;
-          goto cleanup;
-        }
-      } else {
-        char *new_ptr =
-            (char *)realloc(totalBody, totalSize + dwDownloaded + 1);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-        if (g_mock_winhttp_total_body_realloc_fail) {
-          if (new_ptr) {
-            free(new_ptr);
-            new_ptr = NULL;
-          }
-        }
-#endif
-        if (!new_ptr) {
-          rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-          goto cleanup;
-        }
-        totalBody = new_ptr;
-        memcpy(totalBody + totalSize, readBuf, dwDownloaded);
-        totalSize += dwDownloaded;
-        totalBody[totalSize] = '\0';
+    if (req->on_chunk) {
+      int cb_rc = req->on_chunk(req->on_chunk_user_data, readBuf, dwDownloaded);
+      if (cb_rc != 0) {
+        rc = (enum c_abstract_http_error)cb_rc;
+        goto cleanup;
       }
+    } else {
+      char *new_ptr = (char *)realloc(totalBody, totalSize + dwDownloaded + 1);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+      if (g_mock_winhttp_total_body_realloc_fail) {
+        free(new_ptr);
+        new_ptr = NULL;
+      }
+#endif
+      if (!new_ptr) {
+        rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+        goto cleanup;
+      }
+      totalBody = new_ptr;
+      memcpy(totalBody + totalSize, readBuf, dwDownloaded);
+      totalSize += dwDownloaded;
+      totalBody[totalSize] = '\0';
     }
-  } while (dwDownloaded > 0);
+  }
 
   *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_winhttp_res_alloc_fail) {
-    if (*res) {
-      free(*res);
-      *res = NULL;
-    }
+    free(*res);
+    *res = NULL;
   }
 #endif
   if (!*res) {
@@ -1136,33 +1126,36 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
 
     while (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
       wchar_t *pwszCookie = (wchar_t *)malloc(cbCookie);
-      if (pwszCookie) {
-        if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_SET_COOKIE,
-                                WINHTTP_HEADER_NAME_BY_INDEX, pwszCookie,
-                                &cbCookie, &dwIndex)) {
-          char cbuf[4096];
-          size_t cwritten = 0;
-          wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten);
-          {
-            char *eq = strchr(cbuf, '=');
-            if (eq) {
-              const char *name = cbuf;
-              const char *val = eq + 1;
-              char *semi = strchr(val, ';');
-              *eq = '\0';
-              if (semi) {
-                *semi = '\0';
-              }
-              {
-                enum c_abstract_http_error rc_cookie =
-                    http_cookie_jar_set(ctx->cookie_jar, name, val);
-                (void)rc_cookie;
-              }
-            }
+      WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_SET_COOKIE,
+                          WINHTTP_HEADER_NAME_BY_INDEX, pwszCookie, &cbCookie,
+                          &dwIndex);
+      {
+        char cbuf[4096];
+        size_t cwritten = 0;
+        wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten);
+        {
+          char *eq = strchr(cbuf, '=');
+          const char *name = cbuf;
+          const char *val = eq + 1;
+          char *semi = strchr(val, ';');
+          enum c_abstract_http_error dummy_rc;
+          *eq = '\0';
+          if (semi) {
+            *semi = '\0';
+          }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+          if (g_mock_winhttp_cookie_set_fail) {
+            dummy_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+          } else
+#endif
+            dummy_rc = http_cookie_jar_set(ctx->cookie_jar, name, val);
+          if (dummy_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            LOG_DEBUG("http_winhttp_send: http_cookie_jar_set failed with %d",
+                      (int)dummy_rc);
           }
         }
-        free(pwszCookie);
       }
+      free(pwszCookie);
       cbCookie = 0;
       WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_SET_COOKIE,
                           WINHTTP_HEADER_NAME_BY_INDEX,
@@ -1176,26 +1169,24 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
   totalBody = NULL;
 
 cleanup:
-  safe_close_handle(&hRequest);
-  safe_close_handle(&hConnect);
-  if (wUrl) {
-    free(wUrl);
+  close_rc = safe_close_handle(&hRequest);
+  if (close_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = close_rc;
+    }
   }
-  if (wHeaders) {
-    free(wHeaders);
+  close_rc = safe_close_handle(&hConnect);
+  if (close_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = close_rc;
+    }
   }
-  if (hostName) {
-    free(hostName);
-  }
-  if (urlPath) {
-    free(urlPath);
-  }
-  if (readBuf) {
-    free(readBuf);
-  }
-  if (totalBody) {
-    free(totalBody);
-  }
+  free(wUrl);
+  free(wHeaders);
+  free(hostName);
+  free(urlPath);
+  free(readBuf);
+  free(totalBody);
 
   return rc;
 }

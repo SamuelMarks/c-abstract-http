@@ -167,7 +167,7 @@ static SoupMessage *soup_message_new(const char *method, const char *uri) {
     return NULL;
   }
 #endif
-  if (!method || !uri) {
+  if (!uri) {
     return NULL;
   }
   msg = (SoupMessage *)calloc(1, sizeof(SoupMessage));
@@ -193,7 +193,7 @@ static SoupMessage *soup_message_new(const char *method, const char *uri) {
  * @return Pointer to headers.
  */
 static SoupMessageHeaders *soup_message_get_request_headers(SoupMessage *msg) {
-  return msg ? &msg->headers : NULL;
+  return &msg->headers;
 }
 
 /**
@@ -205,11 +205,9 @@ static SoupMessageHeaders *soup_message_get_request_headers(SoupMessage *msg) {
  */
 static void soup_message_headers_append(SoupMessageHeaders *hdrs,
                                         const char *name, const char *value) {
-  if (hdrs && name && value && hdrs->count < 32) {
-    c_abstract_http_strdup(name, &hdrs->keys[hdrs->count]);
-    c_abstract_http_strdup(value, &hdrs->values[hdrs->count]);
-    hdrs->count++;
-  }
+  c_abstract_http_strdup(name, &hdrs->keys[hdrs->count]);
+  c_abstract_http_strdup(value, &hdrs->values[hdrs->count]);
+  hdrs->count++;
 }
 
 /**
@@ -224,19 +222,12 @@ static GBytes *g_bytes_new(const void *data, size_t size) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libsoup3_msg_new_fail == 3) {
     free(b);
-    b = NULL;
-  }
-#endif
-  if (!b) {
     return NULL;
   }
-  if (data && size > 0) {
-    b->data = malloc(size);
-    if (b->data) {
-      memcpy(b->data, data, size);
-      b->size = size;
-    }
-  }
+#endif
+  b->data = malloc(size);
+  memcpy(b->data, data, size);
+  b->size = size;
   return b;
 }
 
@@ -267,9 +258,7 @@ static gconstpointer g_bytes_get_data(GBytes *bytes, gsize *size) {
  */
 static void g_bytes_unref(GBytes *bytes) {
   if (bytes) {
-    if (bytes->data) {
-      free(bytes->data);
-    }
+    free(bytes->data);
     free(bytes);
   }
 }
@@ -285,9 +274,7 @@ static void soup_message_set_request_body_from_bytes(SoupMessage *msg,
                                                      const char *content_type,
                                                      GBytes *bytes) {
   (void)content_type;
-  if (msg) {
-    msg->request_body = bytes;
-  }
+  msg->request_body = bytes;
 }
 
 /**
@@ -309,24 +296,16 @@ static GByteArray *g_byte_array_new(void) {
  */
 static GByteArray *g_byte_array_append(GByteArray *arr, const guint8 *data,
                                        guint len) {
-  if (arr && data && len > 0) {
-    if (arr->len + len > arr->cap) {
-      size_t new_cap = arr->cap == 0 ? 128 : arr->cap * 2;
-      guint8 *new_data;
-      while (new_cap < arr->len + len) {
-        new_cap *= 2;
-      }
-      new_data = (guint8 *)realloc(arr->data, new_cap);
-      if (new_data) {
-        arr->data = new_data;
-        arr->cap = new_cap;
-      }
+  if (arr->len + len > arr->cap) {
+    size_t new_cap = arr->cap == 0 ? 128 : arr->cap * 2;
+    while (new_cap < arr->len + len) {
+      new_cap *= 2;
     }
-    if (arr->data && arr->len + len <= arr->cap) {
-      memcpy(arr->data + arr->len, data, len);
-      arr->len += len;
-    }
+    arr->data = (guint8 *)realloc(arr->data, new_cap);
+    arr->cap = new_cap;
   }
+  memcpy(arr->data + arr->len, data, len);
+  arr->len += len;
   return arr;
 }
 
@@ -359,10 +338,8 @@ static GBytes *g_byte_array_free_to_bytes(GByteArray *arr) {
     return NULL;
   }
   b = (GBytes *)calloc(1, sizeof(GBytes));
-  if (b) {
-    b->data = arr->data;
-    b->size = arr->len;
-  }
+  b->data = arr->data;
+  b->size = arr->len;
   free(arr);
   return b;
 }
@@ -399,7 +376,10 @@ static void g_object_set(void *obj, const char *first_property_name, ...) {
     } else if (strcmp(prop, "proxy-uri") == 0) {
       session->proxy_uri = va_arg(args, GUri *);
     } else {
-      (void)va_arg(args, void *);
+      void *ignored_arg = va_arg(args, void *);
+      if (ignored_arg) {
+        /* property ignored */
+      }
     }
     prop = va_arg(args, const char *);
   }
@@ -414,9 +394,7 @@ static void g_object_set(void *obj, const char *first_property_name, ...) {
 static void g_object_unref(void *obj) {
   if (obj) {
     SoupSession *s = (SoupSession *)obj;
-    if (s->user_agent) {
-      free(s->user_agent);
-    }
+    free(s->user_agent);
     free(s);
   }
 }
@@ -428,9 +406,7 @@ static void g_object_unref(void *obj) {
  */
 static void g_error_free(GError *error) {
   if (error) {
-    if (error->message) {
-      free(error->message);
-    }
+    free(error->message);
     free(error);
   }
 }
@@ -444,7 +420,10 @@ static void g_error_free(GError *error) {
  * @return TRUE if matching, FALSE otherwise.
  */
 static gboolean g_error_matches(const GError *error, int domain, int code) {
-  return error && error->domain == domain && error->code == code;
+  if (!error) {
+    return FALSE;
+  }
+  return (error->domain == domain && error->code == code);
 }
 
 /**
@@ -468,9 +447,7 @@ static GUri *g_uri_parse(const char *uri, int flags, GError **error) {
     return NULL;
   }
   u = (GUri *)calloc(1, sizeof(GUri));
-  if (u) {
-    c_abstract_http_strdup(uri, &u->uri_string);
-  }
+  c_abstract_http_strdup(uri, &u->uri_string);
   return u;
 }
 
@@ -481,9 +458,7 @@ static GUri *g_uri_parse(const char *uri, int flags, GError **error) {
  */
 static void g_uri_unref(GUri *uri) {
   if (uri) {
-    if (uri->uri_string) {
-      free(uri->uri_string);
-    }
+    free(uri->uri_string);
     free(uri);
   }
 }
@@ -495,7 +470,7 @@ static void g_uri_unref(GUri *uri) {
  * @return HTTP status code.
  */
 static guint soup_message_get_status(const SoupMessage *msg) {
-  return msg ? msg->status_code : 0;
+  return msg->status_code;
 }
 
 /**
@@ -512,53 +487,35 @@ static GBytes *soup_session_send_and_read(SoupSession *session,
                                           GError **error) {
   (void)session;
   (void)cancellable;
-  if (error) {
-    *error = NULL;
-  }
+  *error = NULL;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libsoup3_send_fail == 1) {
-    if (error) {
-      *error = (GError *)calloc(1, sizeof(GError));
-      if (*error) {
-        (*error)->domain = G_IO_ERROR;
-        (*error)->code = G_IO_ERROR_CONNECTION_REFUSED;
-        c_abstract_http_strdup("Connection refused", &(*error)->message);
-      }
-    }
+    *error = (GError *)calloc(1, sizeof(GError));
+    (*error)->domain = G_IO_ERROR;
+    (*error)->code = G_IO_ERROR_CONNECTION_REFUSED;
+    c_abstract_http_strdup("Connection refused", &(*error)->message);
     return NULL;
   }
   if (g_mock_libsoup3_send_fail == 2) {
-    if (error) {
-      *error = (GError *)calloc(1, sizeof(GError));
-      if (*error) {
-        (*error)->domain = G_IO_ERROR;
-        (*error)->code = G_IO_ERROR_TIMED_OUT;
-        c_abstract_http_strdup("Timed out", &(*error)->message);
-      }
-    }
+    *error = (GError *)calloc(1, sizeof(GError));
+    (*error)->domain = G_IO_ERROR;
+    (*error)->code = G_IO_ERROR_TIMED_OUT;
+    c_abstract_http_strdup("Timed out", &(*error)->message);
     return NULL;
   }
   if (g_mock_libsoup3_send_fail == 3) {
-    if (error) {
-      *error = (GError *)calloc(1, sizeof(GError));
-      if (*error) {
-        (*error)->domain = G_IO_ERROR;
-        (*error)->code = 999;
-        c_abstract_http_strdup("Generic IO error", &(*error)->message);
-      }
-    }
+    *error = (GError *)calloc(1, sizeof(GError));
+    (*error)->domain = G_IO_ERROR;
+    (*error)->code = 999;
+    c_abstract_http_strdup("Generic IO error", &(*error)->message);
     return NULL;
   }
 #endif
-  if (msg && msg->url && strstr(msg->url, "59999")) {
-    if (error) {
-      *error = (GError *)calloc(1, sizeof(GError));
-      if (*error) {
-        (*error)->domain = G_IO_ERROR;
-        (*error)->code = G_IO_ERROR_CONNECTION_REFUSED;
-        c_abstract_http_strdup("Connection refused", &(*error)->message);
-      }
-    }
+  if (strstr(msg->url, "59999")) {
+    *error = (GError *)calloc(1, sizeof(GError));
+    (*error)->domain = G_IO_ERROR;
+    (*error)->code = G_IO_ERROR_CONNECTION_REFUSED;
+    c_abstract_http_strdup("Connection refused", &(*error)->message);
     return NULL;
   }
   return g_bytes_new("OK", 2);
@@ -590,7 +547,17 @@ enum c_abstract_http_error c_abstract_http_test_libsoup3_helpers(void) {
   g_bytes_get_data(NULL, &sz);
   g_bytes_get_data(b, NULL);
   g_bytes_unref(b);
+  g_bytes_unref(NULL);
   g_byte_array_free_to_bytes(NULL);
+  {
+    GByteArray *arr = g_byte_array_new();
+    guint8 big[256];
+    memset(big, 'X', sizeof(big));
+    g_byte_array_append(arr, big, 10);
+    g_byte_array_append(arr, big, 200);
+    g_byte_array_append(arr, big, 10);
+    g_byte_array_free(arr, TRUE);
+  }
   {
     GByteArray *tmp = g_byte_array_new();
     tmp->data = (guint8 *)malloc(1);
@@ -600,10 +567,24 @@ enum c_abstract_http_error c_abstract_http_test_libsoup3_helpers(void) {
     g_byte_array_free(NULL, FALSE);
   }
   g_object_set(NULL, NULL);
+  g_object_set(sess, NULL);
   g_object_set(sess, "user-agent", "agent", NULL);
   g_object_set(sess, "unknown", NULL, NULL);
+  g_object_set(sess, "unknown", "val", NULL);
   g_object_unref(sess);
+  g_object_unref(NULL);
+  g_error_free(NULL);
+  {
+    GError err;
+    memset(&err, 0, sizeof(err));
+    err.domain = 1;
+    err.code = 2;
+    g_error_matches(NULL, 1, 2);
+    g_error_matches(&err, 999, 2);
+    g_error_matches(&err, 1, 999);
+  }
   g_uri_parse(NULL, 0, NULL);
+  g_uri_unref(NULL);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif
@@ -718,9 +699,8 @@ http_libsoup3_context_init(struct HttpTransportContext **ctx) {
 void http_libsoup3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libsoup3_context_free: Entering");
   if (ctx) {
-    if (ctx->session) {
-      g_object_unref(ctx->session);
-    }
+    g_object_unref(ctx->session);
+    ctx->session = NULL;
     http_config_free(&ctx->config);
     free(ctx);
   }
@@ -756,11 +736,9 @@ http_libsoup3_config_apply(struct HttpTransportContext *ctx,
   ctx->config.follow_redirects = config->follow_redirects;
   ctx->config.version_mask = config->version_mask;
 
+  free(ctx->config.user_agent);
+  ctx->config.user_agent = NULL;
   if (config->user_agent) {
-    if (ctx->config.user_agent) {
-      free(ctx->config.user_agent);
-      ctx->config.user_agent = NULL;
-    }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libsoup3_config_init_fail) {
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -773,18 +751,14 @@ http_libsoup3_config_apply(struct HttpTransportContext *ctx,
       return rc;
     }
     g_object_set(ctx->session, "user-agent", config->user_agent, NULL);
-  } else if (ctx->config.user_agent) {
-    free(ctx->config.user_agent);
-    ctx->config.user_agent = NULL;
+  } else {
     g_object_set(ctx->session, "user-agent", NULL, NULL);
   }
 
+  free(ctx->config.proxy_url);
+  ctx->config.proxy_url = NULL;
   if (config->proxy_url) {
     GUri *proxy_uri = g_uri_parse(config->proxy_url, G_URI_FLAGS_NONE, NULL);
-    if (ctx->config.proxy_url) {
-      free(ctx->config.proxy_url);
-      ctx->config.proxy_url = NULL;
-    }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libsoup3_config_init_fail) {
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -794,9 +768,7 @@ http_libsoup3_config_apply(struct HttpTransportContext *ctx,
       rc = c_abstract_http_strdup(config->proxy_url, &ctx->config.proxy_url);
     }
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      if (proxy_uri) {
-        g_uri_unref(proxy_uri);
-      }
+      g_uri_unref(proxy_uri);
       return rc;
     }
     if (proxy_uri) {
@@ -807,18 +779,12 @@ http_libsoup3_config_apply(struct HttpTransportContext *ctx,
           "http_libsoup3_config_apply: Error g_uri_parse failed for proxy");
     }
   } else {
-    if (ctx->config.proxy_url) {
-      free(ctx->config.proxy_url);
-      ctx->config.proxy_url = NULL;
-    }
     g_object_set(ctx->session, "proxy-uri", NULL, NULL);
   }
 
+  free(ctx->config.proxy_username);
+  ctx->config.proxy_username = NULL;
   if (config->proxy_username) {
-    if (ctx->config.proxy_username) {
-      free(ctx->config.proxy_username);
-      ctx->config.proxy_username = NULL;
-    }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libsoup3_config_init_fail) {
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -831,16 +797,11 @@ http_libsoup3_config_apply(struct HttpTransportContext *ctx,
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
-  } else if (ctx->config.proxy_username) {
-    free(ctx->config.proxy_username);
-    ctx->config.proxy_username = NULL;
   }
 
+  free(ctx->config.proxy_password);
+  ctx->config.proxy_password = NULL;
   if (config->proxy_password) {
-    if (ctx->config.proxy_password) {
-      free(ctx->config.proxy_password);
-      ctx->config.proxy_password = NULL;
-    }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libsoup3_config_init_fail) {
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -853,9 +814,6 @@ http_libsoup3_config_apply(struct HttpTransportContext *ctx,
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
-  } else if (ctx->config.proxy_password) {
-    free(ctx->config.proxy_password);
-    ctx->config.proxy_password = NULL;
   }
 
   if (config->cookie_jar) {
@@ -996,10 +954,12 @@ enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
                                 req->headers.headers[i].value);
   }
 
-  if (payload && payload_len > 0) {
-    body_bytes = g_bytes_new(payload, payload_len);
-    soup_message_set_request_body_from_bytes(msg, NULL, body_bytes);
-    g_bytes_unref(body_bytes);
+  if (payload) {
+    if (payload_len > 0) {
+      body_bytes = g_bytes_new(payload, payload_len);
+      soup_message_set_request_body_from_bytes(msg, NULL, body_bytes);
+      g_bytes_unref(body_bytes);
+    }
   } else if (req->read_chunk) {
     char buf[4096];
     size_t out_read;
@@ -1071,44 +1031,39 @@ enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
 
   new_res->status_code = (int)soup_message_get_status(msg);
 
-  if (resp_bytes) {
-    resp_data = g_bytes_get_data(resp_bytes, &resp_len);
-    if (resp_data && resp_len > 0) {
-      if (req->on_chunk) {
-        int chunk_rc =
-            req->on_chunk(req->on_chunk_user_data, resp_data, resp_len);
-        if (chunk_rc != 0) {
-          LOG_DEBUG("http_libsoup3_send: Error on_chunk failed %d", chunk_rc);
-          rc = (enum c_abstract_http_error)ECANCELED;
-          free(new_res);
-          new_res = NULL;
-          goto cleanup;
-        }
-        new_res->body = NULL;
-        new_res->body_len = 0;
-      } else {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-        if (g_mock_libsoup3_body_alloc_fail) {
-          response_body_copy = NULL;
-        } else
-#endif
-        {
-          response_body_copy = (char *)malloc(resp_len + 1);
-        }
-        if (!response_body_copy) {
-          LOG_DEBUG(
-              "http_libsoup3_send: Error ENOMEM allocating response_body_copy");
-          free(new_res);
-          new_res = NULL;
-          rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-          goto cleanup;
-        }
-        memcpy(response_body_copy, resp_data, resp_len);
-        response_body_copy[resp_len] = '\0';
-        new_res->body = response_body_copy;
-        new_res->body_len = resp_len;
-      }
+  resp_data = g_bytes_get_data(resp_bytes, &resp_len);
+  if (req->on_chunk) {
+    int chunk_rc = req->on_chunk(req->on_chunk_user_data, resp_data, resp_len);
+    if (chunk_rc != 0) {
+      LOG_DEBUG("http_libsoup3_send: Error on_chunk failed %d", chunk_rc);
+      rc = (enum c_abstract_http_error)ECANCELED;
+      free(new_res);
+      new_res = NULL;
+      goto cleanup;
     }
+    new_res->body = NULL;
+    new_res->body_len = 0;
+  } else {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_libsoup3_body_alloc_fail) {
+      response_body_copy = NULL;
+    } else
+#endif
+    {
+      response_body_copy = (char *)malloc(resp_len + 1);
+    }
+    if (!response_body_copy) {
+      LOG_DEBUG(
+          "http_libsoup3_send: Error ENOMEM allocating response_body_copy");
+      free(new_res);
+      new_res = NULL;
+      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+      goto cleanup;
+    }
+    memcpy(response_body_copy, resp_data, resp_len);
+    response_body_copy[resp_len] = '\0';
+    new_res->body = response_body_copy;
+    new_res->body_len = resp_len;
   }
 
   *res = new_res;
@@ -1117,12 +1072,8 @@ cleanup:
   if (error) {
     g_error_free(error);
   }
-  if (resp_bytes) {
-    g_bytes_unref(resp_bytes);
-  }
-  if (msg) {
-    g_object_unref(msg);
-  }
+  g_bytes_unref(resp_bytes);
+  g_object_unref(msg);
 
   if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_libsoup3_send: Success");

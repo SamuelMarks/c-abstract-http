@@ -140,7 +140,10 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
 #undef g_mock_headers_init_fail
 #undef g_mock_parts_init_fail
 #undef g_mock_multi_init_fail
+#undef g_mock_sprintf_s_wrapper_fail
+#undef g_mock_urlencode_append_fail
 #undef g_mock_mask_key_fail
+#undef g_mock_serialize_fail
 #undef g_mock_pack_header_fail
 #undef g_mock_raw_send_fail
 #undef g_mock_raw_connect_fail
@@ -164,6 +167,7 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
 #undef g_mock_wasm_config_init_fail
 #undef g_mock_wasm_response_init_fail
 #undef g_mock_wasm_header_add_fail
+#undef g_mock_wasm_headers_len_zero
 #undef g_mock_fetch_global_init_fail
 #undef g_mock_fetch_context_init_fail
 #undef g_mock_fetch_config_init_fail
@@ -271,6 +275,8 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
 #undef g_mock_msh3_cb_mutex_lock_fail
 #undef g_mock_msh3_parse_url_alloc_fail
 #undef g_mock_msh3_extra_events
+#undef g_mock_msh3_zero_addrlen
+#undef g_mock_msh3_cond_wait_loop
 #undef g_mock_winhttp_open_fail
 #undef g_mock_winhttp_connect_fail
 #undef g_mock_winhttp_open_request_fail
@@ -293,6 +299,8 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
 #undef g_mock_winhttp_total_body_realloc_fail
 #undef g_mock_winhttp_read_buf_alloc_fail
 #undef g_mock_winhttp_res_alloc_fail
+#undef g_mock_winhttp_close_fail
+#undef g_mock_winhttp_cookie_set_fail
 #undef g_mock_wininet_open_fail
 #undef g_mock_wininet_connect_fail
 #undef g_mock_wininet_open_request_fail
@@ -313,6 +321,8 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
 #undef g_mock_wininet_read_chunk_alloc_fail
 #undef g_mock_wininet_body_realloc_fail
 #undef g_mock_wininet_res_alloc_fail
+#undef g_mock_wininet_close_fail
+#undef g_mock_wininet_cookie_set_fail
 #undef g_mock_accept_fd
 #undef g_mock_server_reading
 #undef g_mock_recv_data
@@ -343,7 +353,10 @@ int g_mock_strcasecmp_fail = 0;
 int g_mock_headers_init_fail = 0;
 int g_mock_parts_init_fail = 0;
 int g_mock_multi_init_fail = 0;
+int g_mock_sprintf_s_wrapper_fail = 0;
+int g_mock_urlencode_append_fail = 0;
 int g_mock_mask_key_fail = 0;
+int g_mock_serialize_fail = 0;
 int g_mock_pack_header_fail = 0;
 int g_mock_raw_send_fail = 0;
 int g_mock_raw_connect_fail = 0;
@@ -367,6 +380,7 @@ int g_mock_wasm_fetch_timeout = 0;
 int g_mock_wasm_config_init_fail = 0;
 int g_mock_wasm_response_init_fail = 0;
 int g_mock_wasm_header_add_fail = 0;
+int g_mock_wasm_headers_len_zero = 0;
 int g_mock_fetch_global_init_fail = 0;
 int g_mock_fetch_context_init_fail = 0;
 int g_mock_fetch_config_init_fail = 0;
@@ -474,6 +488,8 @@ int g_mock_msh3_header_add_fail = 0;
 int g_mock_msh3_cb_mutex_lock_fail = 0;
 int g_mock_msh3_parse_url_alloc_fail = 0;
 int g_mock_msh3_extra_events = 0;
+int g_mock_msh3_zero_addrlen = 0;
+int g_mock_msh3_cond_wait_loop = 0;
 int g_mock_winhttp_open_fail = 0;
 int g_mock_winhttp_connect_fail = 0;
 int g_mock_winhttp_open_request_fail = 0;
@@ -496,6 +512,8 @@ int g_mock_winhttp_read_chunks = 0;
 int g_mock_winhttp_total_body_realloc_fail = 0;
 int g_mock_winhttp_read_buf_alloc_fail = 0;
 int g_mock_winhttp_res_alloc_fail = 0;
+int g_mock_winhttp_close_fail = 0;
+int g_mock_winhttp_cookie_set_fail = 0;
 int g_mock_wininet_open_fail = 0;
 int g_mock_wininet_connect_fail = 0;
 int g_mock_wininet_open_request_fail = 0;
@@ -516,6 +534,8 @@ int g_mock_wininet_read_chunks = 0;
 int g_mock_wininet_read_chunk_alloc_fail = 0;
 int g_mock_wininet_body_realloc_fail = 0;
 int g_mock_wininet_res_alloc_fail = 0;
+int g_mock_wininet_close_fail = 0;
+int g_mock_wininet_cookie_set_fail = 0;
 int g_mock_accept_fd = -1;
 int g_mock_server_reading = 0;
 const char *g_mock_recv_data = NULL;
@@ -580,8 +600,17 @@ int *abstract_http_mock_get_g_mock_parts_init_fail(void) {
 int *abstract_http_mock_get_g_mock_multi_init_fail(void) {
   return &g_mock_multi_init_fail;
 }
+int *abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail(void) {
+  return &g_mock_sprintf_s_wrapper_fail;
+}
+int *abstract_http_mock_get_g_mock_urlencode_append_fail(void) {
+  return &g_mock_urlencode_append_fail;
+}
 int *abstract_http_mock_get_g_mock_mask_key_fail(void) {
   return &g_mock_mask_key_fail;
+}
+int *abstract_http_mock_get_g_mock_serialize_fail(void) {
+  return &g_mock_serialize_fail;
 }
 int *abstract_http_mock_get_g_mock_pack_header_fail(void) {
   return &g_mock_pack_header_fail;
@@ -651,6 +680,9 @@ int *abstract_http_mock_get_g_mock_wasm_response_init_fail(void) {
 }
 int *abstract_http_mock_get_g_mock_wasm_header_add_fail(void) {
   return &g_mock_wasm_header_add_fail;
+}
+int *abstract_http_mock_get_g_mock_wasm_headers_len_zero(void) {
+  return &g_mock_wasm_headers_len_zero;
 }
 int *abstract_http_mock_get_g_mock_fetch_global_init_fail(void) {
   return &g_mock_fetch_global_init_fail;
@@ -973,6 +1005,12 @@ int *abstract_http_mock_get_g_mock_msh3_parse_url_alloc_fail(void) {
 int *abstract_http_mock_get_g_mock_msh3_extra_events(void) {
   return &g_mock_msh3_extra_events;
 }
+int *abstract_http_mock_get_g_mock_msh3_zero_addrlen(void) {
+  return &g_mock_msh3_zero_addrlen;
+}
+int *abstract_http_mock_get_g_mock_msh3_cond_wait_loop(void) {
+  return &g_mock_msh3_cond_wait_loop;
+}
 int *abstract_http_mock_get_g_mock_winhttp_open_fail(void) {
   return &g_mock_winhttp_open_fail;
 }
@@ -1039,6 +1077,12 @@ int *abstract_http_mock_get_g_mock_winhttp_read_buf_alloc_fail(void) {
 int *abstract_http_mock_get_g_mock_winhttp_res_alloc_fail(void) {
   return &g_mock_winhttp_res_alloc_fail;
 }
+int *abstract_http_mock_get_g_mock_winhttp_close_fail(void) {
+  return &g_mock_winhttp_close_fail;
+}
+int *abstract_http_mock_get_g_mock_winhttp_cookie_set_fail(void) {
+  return &g_mock_winhttp_cookie_set_fail;
+}
 int *abstract_http_mock_get_g_mock_wininet_open_fail(void) {
   return &g_mock_wininet_open_fail;
 }
@@ -1098,6 +1142,12 @@ int *abstract_http_mock_get_g_mock_wininet_body_realloc_fail(void) {
 }
 int *abstract_http_mock_get_g_mock_wininet_res_alloc_fail(void) {
   return &g_mock_wininet_res_alloc_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_close_fail(void) {
+  return &g_mock_wininet_close_fail;
+}
+int *abstract_http_mock_get_g_mock_wininet_cookie_set_fail(void) {
+  return &g_mock_wininet_cookie_set_fail;
 }
 int *abstract_http_mock_get_g_mock_accept_fd(void) { return &g_mock_accept_fd; }
 int *abstract_http_mock_get_g_mock_server_reading(void) {
@@ -1255,15 +1305,19 @@ int c_abstract_http_mock_pthread_create(pthread_t *thread,
                                         void *arg) {
   if (g_mock_pthread_fail == 1)
     return 1;
-  if (g_mock_pthread_fail == 2 && g_mock_alloc_count-- == 0)
+  if ((g_mock_pthread_fail == 2 || g_mock_pthread_fail == 6) &&
+      g_mock_alloc_count-- == 0)
     return 1;
   return pthread_create(thread, attr, start_routine, arg);
 }
 
 int c_abstract_http_mock_pthread_join(pthread_t thread, void **value_ptr) {
-  if (g_mock_pthread_fail == 3)
+  if (g_mock_pthread_fail == 3 || g_mock_pthread_fail == 6)
     return 1;
-  return pthread_join(thread, value_ptr);
+  if (thread != (pthread_t)0) {
+    return pthread_join(thread, value_ptr);
+  }
+  return 0;
 }
 
 int c_abstract_http_mock_pipe(int fildes[2]) {
@@ -1374,7 +1428,10 @@ uint64_t c_abstract_http_mock_math_get_current_time_ms(void) {
   return now;
 }
 
-void dummy_cb_thread(void *arg) { (void)arg; }
+enum c_abstract_http_error dummy_cb_thread(void *arg) {
+  (void)arg;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 void *dummy_cb_pthread(void *arg) {
   (void)arg;
   return NULL;
@@ -1594,20 +1651,21 @@ int c_abstract_http_mock_select_darwin_extsn(int nfds, fd_set *readfds,
 int g_mock_timer_heap_swap_fail = 0;
 
 #ifdef __MINGW32__
+typedef void (*mock_fn_ptr_t)(void);
 void (*__imp_c_abstract_http_mock_select)(void) =
-    (void (*)(void)) & c_abstract_http_mock_select;
+    (mock_fn_ptr_t)&c_abstract_http_mock_select;
 void (*__imp_c_abstract_http_mock_socket)(void) =
-    (void (*)(void)) & c_abstract_http_mock_socket;
+    (mock_fn_ptr_t)&c_abstract_http_mock_socket;
 void (*__imp_c_abstract_http_mock_bind)(void) =
-    (void (*)(void)) & c_abstract_http_mock_bind;
+    (mock_fn_ptr_t)&c_abstract_http_mock_bind;
 void (*__imp_c_abstract_http_mock_listen)(void) =
-    (void (*)(void)) & c_abstract_http_mock_listen;
+    (mock_fn_ptr_t)&c_abstract_http_mock_listen;
 void (*__imp_c_abstract_http_mock_accept)(void) =
-    (void (*)(void)) & c_abstract_http_mock_accept;
+    (mock_fn_ptr_t)&c_abstract_http_mock_accept;
 void (*__imp_c_abstract_http_mock_getsockname)(void) =
-    (void (*)(void)) & c_abstract_http_mock_getsockname;
+    (mock_fn_ptr_t)&c_abstract_http_mock_getsockname;
 void (*__imp_c_abstract_http_mock_recv)(void) =
-    (void (*)(void)) & c_abstract_http_mock_recv;
+    (mock_fn_ptr_t)&c_abstract_http_mock_recv;
 #endif
 struct curl_slist;
 struct curl_slist *g_mock_curl_cookies = 0;

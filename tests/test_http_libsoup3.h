@@ -242,6 +242,17 @@ TEST test_libsoup3_config_application(void) {
   }
 #endif
 
+  config.timeout_ms = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_config_apply(ctx, &config));
+
+  {
+    void *saved = *(void **)ctx;
+    *(void **)ctx = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_libsoup3_config_apply(ctx, &config));
+    *(void **)ctx = saved;
+  }
+
   free(_ast_strdup_agent);
   free(_ast_strdup_proxy);
   free(_ast_strdup_user);
@@ -266,11 +277,41 @@ TEST test_libsoup3_send_invalid_arguments(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_send(ctx, NULL, &res));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_send(ctx, &req, NULL));
 
+  {
+    void *saved = *(void **)ctx;
+    *(void **)ctx = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_send(ctx, &req, &res));
+    *(void **)ctx = saved;
+  }
+
   /* Multipart with no body */
   req.parts.count = 1;
   req.body = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_send(ctx, &req, &res));
+
+  /* Multipart with body */
+  req.body = (void *)"x";
+  req.body_len = 1;
+  req.url = "http://example.com";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_send(ctx, &req, &res));
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
   req.parts.count = 0;
+
+  /* Body with body_len == 0 */
+  req.body = (void *)"x";
+  req.body_len = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_send(ctx, &req, &res));
+  if (res) {
+    http_response_free(res);
+    free(res);
+    res = NULL;
+  }
+  req.body = NULL;
+  req.url = NULL;
 
   /* Invalid method */
   req.method = (enum HttpMethod)999;

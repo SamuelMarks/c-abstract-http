@@ -84,9 +84,15 @@ enum c_abstract_http_error test_fuzz_sse_run(const uint8_t *data, size_t size,
   }
 
   if (data != NULL && size > 0) {
-    (void)sse_parser_feed(&ctx, (const char *)data, size);
+    rc = sse_parser_feed(&ctx, (const char *)data, size);
+    if (out_rc != NULL) {
+      *out_rc = (int)rc;
+    }
   } else {
-    (void)ctx.on_close(ctx.user_data);
+    rc = (enum c_abstract_http_error)ctx.on_close(ctx.user_data);
+    if (out_rc != NULL) {
+      *out_rc = (int)rc;
+    }
   }
 
   sse_parser_destroy(&ctx);
@@ -102,8 +108,11 @@ enum c_abstract_http_error test_fuzz_sse_run(const uint8_t *data, size_t size,
  * @return 0 on completion.
  */
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-  int rc;
-  (void)test_fuzz_sse_run(data, size, &rc);
+  int rc = 0;
+  enum c_abstract_http_error err = test_fuzz_sse_run(data, size, &rc);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return (int)err;
+  }
   return 0;
 }
 #endif

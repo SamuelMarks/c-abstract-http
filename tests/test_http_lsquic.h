@@ -116,6 +116,7 @@ TEST test_lsquic_config_application(void) {
   config.proxy_url = NULL;
   config.proxy_username = NULL;
   config.proxy_password = NULL;
+  config.timeout_ms = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_config_apply(ctx, &config));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -301,6 +302,9 @@ TEST test_lsquic_send_multi(void) {
             http_lsquic_send_multi(NULL, NULL, NULL, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_lsquic_send_multi(ctx, NULL, NULL, NULL));
+  memset(&multi, 0, sizeof(multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_lsquic_send_multi(ctx, NULL, &multi, NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
@@ -334,6 +338,14 @@ TEST test_lsquic_send_multi(void) {
   if (f2.response) {
     http_response_free(f2.response);
     free(f2.response);
+  }
+
+  futures[1] = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_lsquic_send_multi(ctx, NULL, &multi, futures));
+  if (f1.response) {
+    http_response_free(f1.response);
+    free(f1.response);
   }
 
   http_request_free(&req1);

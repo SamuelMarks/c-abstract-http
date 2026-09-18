@@ -251,20 +251,6 @@ static int lsquic_stream_read(lsquic_stream_t *s, void *buf, size_t len) {
   return 0;
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-enum c_abstract_http_error c_abstract_http_test_lsquic_helpers(void);
-
-/**
- * @brief Expose internal helpers for test coverage.
- *
- * @return C_ABSTRACT_HTTP_SUCCESS on success.
- */
-enum c_abstract_http_error c_abstract_http_test_lsquic_helpers(void) {
-  lsquic_stream_read(NULL, NULL, 0);
-  return C_ABSTRACT_HTTP_SUCCESS;
-}
-#endif
-
 #endif /* !defined(C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC) */
 
 static int g_lsquic_init_count = 0;
@@ -403,6 +389,55 @@ static void lsq_on_close(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
     rctx->is_complete = 1;
   }
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_alloc_fail;
+extern int g_mock_alloc_count;
+
+/**
+ * @brief Expose internal helpers for test coverage.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
+enum c_abstract_http_error c_abstract_http_test_lsquic_helpers(void);
+
+enum c_abstract_http_error c_abstract_http_test_lsquic_helpers(void) {
+  char small_buf[1];
+  struct lsquic_req_ctx null_res_rctx;
+
+  lsquic_engine_init_settings(NULL, 0);
+  {
+    lsquic_engine_t *dummy_engine = lsquic_engine_new(0, NULL);
+    lsquic_engine_destroy(dummy_engine);
+  }
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  {
+    lsquic_engine_t *dummy_engine = lsquic_engine_new(0, NULL);
+    lsquic_engine_destroy(dummy_engine);
+  }
+  g_mock_alloc_fail = 0;
+  lsquic_engine_destroy(NULL);
+  lsquic_stream_wantwrite(NULL, 0);
+  lsquic_stream_wantread(NULL, 0);
+  lsquic_stream_close(NULL);
+  lsquic_stream_read(NULL, NULL, 0);
+  lsquic_stream_read(NULL, small_buf, 0);
+
+  memset(&null_res_rctx, 0, sizeof(null_res_rctx));
+  lsq_on_read(NULL, NULL);
+  lsq_on_read(NULL, (lsquic_stream_ctx_t *)&null_res_rctx);
+  lsq_on_close(NULL, NULL);
+
+  g_mock_lsquic_read_fail = 1;
+  lsq_on_read(NULL, NULL);
+  g_mock_lsquic_read_fail = 2;
+  lsq_on_read(NULL, NULL);
+  g_mock_lsquic_read_fail = 0;
+
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
 
 static struct lsquic_stream_if lsq_stream_if;
 

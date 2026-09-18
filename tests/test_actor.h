@@ -342,8 +342,9 @@ TEST test_actor_oom(void) {
     int i;
     for (i = 0; i < 15; i++) {
       /* 15 + dummy = 16 actors */
-      (void)!abstract_http_actor_spawn(bus, "test", dummy_handler, NULL,
-                                       &actor);
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_SUCCESS,
+          abstract_http_actor_spawn(bus, "test", dummy_handler, NULL, &actor));
     }
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
@@ -356,8 +357,9 @@ TEST test_actor_oom(void) {
     }
 
     /* Now successfully spawn one so the next tests don't shift */
-    (void)!abstract_http_actor_spawn(bus, "test_success", dummy_handler, NULL,
-                                     &actor);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_actor_spawn(bus, "test_success", dummy_handler,
+                                        NULL, &actor));
   }
 
   /* Test actor spawn OOM on calloc */

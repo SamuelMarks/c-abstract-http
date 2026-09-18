@@ -218,6 +218,20 @@ abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
   *out_is_done = co->is_done;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Resets fallback initialization state for testing.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
+enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void);
+
+enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
 #elif !defined(ABSTRACT_HTTP_NO_UCONTEXT) /* POSIX ucontext */
 
 /** @brief Internal struct AbstractHttpCoroutine */
@@ -409,6 +423,19 @@ abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
   *out_is_done = co->is_done;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Resets fallback initialization state for testing.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
+enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void);
+
+enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
 #else
 
 /** @brief Internal struct AbstractHttpCoroutine */
@@ -429,11 +456,28 @@ struct AbstractHttpCoroutine {
 static pthread_key_t co_fallback_key;
 static int co_fallback_initialized = 0;
 
-static void init_fallback_key(void) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Resets fallback initialization state for testing.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
+enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void);
+
+enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void) {
+  co_fallback_initialized = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
+static enum c_abstract_http_error init_fallback_key(void) {
   if (!co_fallback_initialized) {
-    pthread_key_create(&co_fallback_key, NULL);
+    if (pthread_key_create(&co_fallback_key, NULL) != 0) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
     co_fallback_initialized = 1;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static void *co_thread_func(void *arg) {
@@ -464,9 +508,13 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
                              size_t stack_size, abstract_http_coroutine_cb cb,
                              void *arg) {
   struct AbstractHttpCoroutine *c;
+  enum c_abstract_http_error k_rc;
 
   (void)stack_size;
-  init_fallback_key();
+  k_rc = init_fallback_key();
+  if (k_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return k_rc;
+  }
 
   if (g_coroutine_hooks.init) {
     return g_coroutine_hooks.init(co, stack_size, cb, arg);
@@ -568,13 +616,17 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
 
 enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   struct AbstractHttpCoroutine *co;
+  enum c_abstract_http_error k_rc;
   LOG_DEBUG("abstract_http_coroutine_yield (fallback): Entering");
   if (g_coroutine_hooks.yield) {
     LOG_DEBUG("abstract_http_coroutine_yield (fallback): Hooking");
     return g_coroutine_hooks.yield();
   }
 
-  init_fallback_key();
+  k_rc = init_fallback_key();
+  if (k_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return k_rc;
+  }
   co = (struct AbstractHttpCoroutine *)pthread_getspecific(co_fallback_key);
   if (!co)
     return C_ABSTRACT_HTTP_ERR_INVAL;

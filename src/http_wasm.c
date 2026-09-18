@@ -16,6 +16,9 @@ extern int g_mock_wasm_fetch_timeout;
 extern int g_mock_wasm_config_init_fail;
 extern int g_mock_wasm_response_init_fail;
 extern int g_mock_wasm_header_add_fail;
+extern int g_mock_wasm_headers_len_zero;
+extern int g_mock_alloc_fail;
+extern int g_mock_alloc_count;
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -54,8 +57,18 @@ static void emscripten_fetch_close(emscripten_fetch_t *fetch) {
 static size_t
 emscripten_fetch_get_response_headers_length(emscripten_fetch_t *fetch) {
   static const char hdr[] =
-      "Content-Type: text/plain\nNoColonHeader\r\nLast: header";
+      "\nContent-Type: text/plain\nNoColonHeader\r\nLast: header\n";
+  static const char hdr_no_nl[] = "Header: val";
   (void)fetch;
+  (void)hdr_no_nl;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_wasm_headers_len_zero == 1) {
+    return 0;
+  }
+  if (g_mock_wasm_headers_len_zero == 2) {
+    return sizeof(hdr_no_nl) - 1;
+  }
+#endif
   return sizeof(hdr) - 1;
 }
 
@@ -63,10 +76,20 @@ static void
 emscripten_fetch_get_response_headers(emscripten_fetch_t *fetch, char *dst,
                                       size_t dst_size) {
   static const char hdr[] =
-      "Content-Type: text/plain\nNoColonHeader\r\nLast: header";
+      "\nContent-Type: text/plain\nNoColonHeader\r\nLast: header\n";
+  static const char hdr_no_nl[] = "Header: val";
+  const char *h = hdr;
+  size_t h_size = sizeof(hdr);
   (void)fetch;
-  if (dst && dst_size >= sizeof(hdr)) {
-    memcpy(dst, hdr, sizeof(hdr));
+  (void)hdr_no_nl;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_wasm_headers_len_zero == 2) {
+    h = hdr_no_nl;
+    h_size = sizeof(hdr_no_nl);
+  }
+#endif
+  if (dst && dst_size >= h_size) {
+    memcpy(dst, h, h_size);
   }
 }
 
@@ -82,10 +105,23 @@ static emscripten_fetch_t *emscripten_fetch(const emscripten_fetch_attr_t *attr,
   }
   if (g_mock_wasm_fetch_timeout) {
     f = (emscripten_fetch_t *)calloc(1, sizeof(*f));
-    if (f) {
-      f->status = 0;
+    if (!f) {
+      return NULL;
+    }
+    f->status = 0;
+    if (g_mock_wasm_fetch_timeout == 1) {
       f->numBytes = 0;
       f->readyState = 1;
+    } else if (g_mock_wasm_fetch_timeout == 2) {
+      f->numBytes = 5;
+      f->readyState = 4;
+      f->data = (char *)malloc(6);
+      if (f->data) {
+        memcpy((void *)f->data, "12345", 6);
+      }
+    } else {
+      f->numBytes = 0;
+      f->readyState = 4;
     }
     return f;
   }
@@ -449,28 +485,32 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
         {
           char *p = hdrs_buf;
           const char *end = hdrs_buf + hdrs_len;
-          while (p < end && *p) {
-            char *line_end = strchr(p, 13);
-            if (!line_end) {
-              line_end = strchr(p, 10);
-            }
+          while (p < end) {
+            char *line_end = strchr(p, 10);
             if (line_end) {
               *line_end = '\0';
+              if (line_end > p && *(line_end - 1) == 13) {
+                *(line_end - 1) = '\0';
+              }
             }
             {
               char *colon = strchr(p, ':');
               if (colon) {
+                enum c_abstract_http_error add_rc;
                 char *val = colon + 1;
                 *colon = '\0';
                 while (*val == ' ')
                   val++;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-                if (g_mock_wasm_header_add_fail ||
-                    http_headers_add(&(*res)->headers, p, val) != 0)
+                if (g_mock_wasm_header_add_fail) {
+                  add_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+                } else {
+                  add_rc = http_headers_add(&(*res)->headers, p, val);
+                }
 #else
-                if (http_headers_add(&(*res)->headers, p, val) != 0)
+                add_rc = http_headers_add(&(*res)->headers, p, val);
 #endif
-                {
+                if (add_rc != C_ABSTRACT_HTTP_SUCCESS) {
                   LOG_DEBUG("http_wasm_send: Error http_headers_add failed");
                   rc = C_ABSTRACT_HTTP_ERR_NOMEM;
                   free(hdrs_buf);
@@ -480,8 +520,6 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
             }
             if (line_end) {
               p = line_end + 1;
-              if (*p == 10)
-                p++;
             } else {
               break;
             }
@@ -559,3 +597,63 @@ enum c_abstract_http_error http_wasm_send_multi(
 
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Expose internal wasm helpers for test coverage.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
+enum c_abstract_http_error c_abstract_http_test_wasm_helpers(void);
+
+enum c_abstract_http_error c_abstract_http_test_wasm_helpers(void) {
+  emscripten_fetch_attr_t attr;
+  emscripten_fetch_t *f;
+  char buf[64];
+
+  (void)buf;
+#if !defined(__EMSCRIPTEN__)
+  emscripten_fetch_close(NULL);
+  emscripten_fetch_get_response_headers(NULL, NULL, 0);
+  emscripten_fetch_get_response_headers(NULL, buf, 0);
+#endif
+
+  emscripten_fetch_attr_init(&attr);
+#if defined(_MSC_VER)
+  strcpy_s(attr.requestMethod, sizeof(attr.requestMethod), "HEAD");
+#else
+  strcpy(attr.requestMethod, "HEAD");
+#endif
+  f = emscripten_fetch(&attr, "http://example.com");
+  emscripten_fetch_close(f);
+
+#if defined(_MSC_VER)
+  strcpy_s(attr.requestMethod, sizeof(attr.requestMethod), "GET");
+#else
+  strcpy(attr.requestMethod, "GET");
+#endif
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  f = emscripten_fetch(&attr, "http://example.com");
+  emscripten_fetch_close(f);
+  g_mock_alloc_fail = 0;
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  g_mock_wasm_fetch_timeout = 1;
+  f = emscripten_fetch(&attr, "http://example.com");
+  emscripten_fetch_close(f);
+  g_mock_wasm_fetch_timeout = 0;
+  g_mock_alloc_fail = 0;
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  g_mock_wasm_fetch_timeout = 2;
+  f = emscripten_fetch(&attr, "http://example.com");
+  emscripten_fetch_close(f);
+  g_mock_wasm_fetch_timeout = 0;
+  g_mock_alloc_fail = 0;
+
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif

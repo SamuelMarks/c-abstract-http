@@ -31,8 +31,9 @@ TEST test_transport_factory(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, transport_factory_cleanup_client(&client));
   ASSERT(client.transport == NULL);
 
-  (void)!transport_factory_cleanup_client(
-      &client); /* test client->transport == NULL case */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            transport_factory_cleanup_client(
+                &client)); /* test client->transport == NULL case */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   g_mock_alloc_count = 0;
