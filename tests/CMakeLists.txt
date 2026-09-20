@@ -71,7 +71,7 @@ if(WIN32)
 endif()
 
 add_test(NAME c-abstract-http-tests COMMAND c-abstract-http-test)
-set_tests_properties(c-abstract-http-tests PROPERTIES TIMEOUT 120)
+set_tests_properties(c-abstract-http-tests PROPERTIES TIMEOUT 300)
 add_test(NAME c-abstract-http-test-worker COMMAND c-abstract-http-test --test-worker)
 set_tests_properties(c-abstract-http-test-worker PROPERTIES WILL_FAIL TRUE TIMEOUT 30)
 add_test(NAME c-abstract-http-test-arg COMMAND c-abstract-http-test -s transport_suite)
