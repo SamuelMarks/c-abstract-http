@@ -18,6 +18,7 @@
 #define RAW_CLOSESOCKET(s) closesocket(s)
 typedef SOCKET raw_socket_t;
 #define RAW_INVALID_SOCKET INVALID_SOCKET
+#define RAW_FD_SET(s, set) FD_SET(s, set)
 #else
 #include <unistd.h>
 #include <sys/types.h>
@@ -29,6 +30,7 @@ typedef SOCKET raw_socket_t;
 #define RAW_CLOSESOCKET(s) close(s)
 typedef int raw_socket_t;
 #define RAW_INVALID_SOCKET (-1)
+#define RAW_FD_SET(s, set) FD_SET((size_t)(s), (set))
 #endif
 /* clang-format on */
 
@@ -381,7 +383,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     struct RawCtx *rctx = (struct RawCtx *)ctx;
 
     FD_ZERO(&fdset);
-    FD_SET(sock, &fdset);
+    RAW_FD_SET(sock, &fdset);
     tv.tv_sec = rctx->timeout_ms / 1000;
     tv.tv_usec = (int)((rctx->timeout_ms % 1000) * 1000);
 
@@ -594,7 +596,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     struct RawCtx *rctx = (struct RawCtx *)ctx;
 
     FD_ZERO(&fdset);
-    FD_SET(sock, &fdset);
+    RAW_FD_SET(sock, &fdset);
     tv.tv_sec = rctx->timeout_ms / 1000;
     tv.tv_usec = (int)((rctx->timeout_ms % 1000) * 1000);
 

@@ -1017,6 +1017,8 @@ TEST test_curl_send_upload_chunked_abort(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Expect", ""));
   req.method = HTTP_POST;
   req.read_chunk = curl_mock_upload_cb_abort;
   req.read_chunk_user_data = &up_state;

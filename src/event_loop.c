@@ -45,6 +45,11 @@
       }                                                                        \
     }                                                                          \
   } while ((void)0, 0)
+#define ABSTRACT_HTTP_FD_SET(d, s) FD_SET(d, s)
+#define ABSTRACT_HTTP_FD_ISSET(d, s) FD_ISSET(d, s)
+#else
+#define ABSTRACT_HTTP_FD_SET(d, s) FD_SET((size_t)(d), (s))
+#define ABSTRACT_HTTP_FD_ISSET(d, s) FD_ISSET((size_t)(d), (s))
 #endif
 
 /** @brief Internal struct TimerNode */
@@ -535,6 +540,7 @@ static enum c_abstract_http_error
 process_timers(struct ModalityEventLoop *loop) {
   enum c_abstract_http_error rc;
   abstract_http_int64_t now;
+  struct TimerNode min_elem;
 
   now = math_get_current_time_ms();
 
@@ -549,13 +555,16 @@ process_timers(struct ModalityEventLoop *loop) {
     }
 
     /* Remove min element */
-    loop->timers[0] = loop->timers[loop->timer_count - 1];
-    loop->timer_count--;
-    if (loop->timer_count > 0) {
+    if (loop->timer_count > 1) {
+      min_elem = loop->timers[0];
+      loop->timers[0] = loop->timers[loop->timer_count - 1];
       rc = timer_heap_down(loop, 0);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        loop->timers[0] = min_elem;
         return rc;
+      }
     }
+    loop->timer_count--;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -617,7 +626,7 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
 
   /* Setup wakeup pipe */
 #if !defined(_WIN32)
-  FD_SET(loop->wakeup_pipe[0], &read_fds);
+  ABSTRACT_HTTP_FD_SET(loop->wakeup_pipe[0], &read_fds);
   max_fd = loop->wakeup_pipe[0];
 #endif
 
@@ -626,11 +635,11 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
     if (loop->fds[i].active) {
       active_fds++;
       if (loop->fds[i].events & HTTP_LOOP_READ)
-        FD_SET(loop->fds[i].fd, &read_fds);
+        ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &read_fds);
       if (loop->fds[i].events & HTTP_LOOP_WRITE)
-        FD_SET(loop->fds[i].fd, &write_fds);
+        ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &write_fds);
       if (loop->fds[i].events & HTTP_LOOP_ERROR)
-        FD_SET(loop->fds[i].fd, &error_fds);
+        ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &error_fds);
       if (loop->fds[i].fd > max_fd)
         max_fd = loop->fds[i].fd;
     }
@@ -656,7 +665,7 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
     ResetEvent(loop->wakeup_event);
   }
 #else
-  if (ret > 0 && FD_ISSET(loop->wakeup_pipe[0], &read_fds)) {
+  if (ret > 0 && ABSTRACT_HTTP_FD_ISSET(loop->wakeup_pipe[0], &read_fds)) {
     char buf[64];
     while (read(loop->wakeup_pipe[0], buf, sizeof(buf)) > 0) {
     }
@@ -668,11 +677,11 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
     for (i = 0; i < loop->fd_count; ++i) {
       if (loop->fds[i].active) {
         int revents = 0;
-        if (FD_ISSET(loop->fds[i].fd, &read_fds))
+        if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &read_fds))
           revents |= HTTP_LOOP_READ;
-        if (FD_ISSET(loop->fds[i].fd, &write_fds))
+        if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &write_fds))
           revents |= HTTP_LOOP_WRITE;
-        if (FD_ISSET(loop->fds[i].fd, &error_fds))
+        if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &error_fds))
           revents |= HTTP_LOOP_ERROR;
 
         if (revents) {
@@ -756,7 +765,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
 
     /* Setup wakeup pipe */
 #if !defined(_WIN32)
-    FD_SET(loop->wakeup_pipe[0], &read_fds);
+    ABSTRACT_HTTP_FD_SET(loop->wakeup_pipe[0], &read_fds);
     max_fd = loop->wakeup_pipe[0];
 #endif
 
@@ -765,11 +774,11 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
       if (loop->fds[i].active) {
         active_fds++;
         if (loop->fds[i].events & HTTP_LOOP_READ)
-          FD_SET(loop->fds[i].fd, &read_fds);
+          ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &read_fds);
         if (loop->fds[i].events & HTTP_LOOP_WRITE)
-          FD_SET(loop->fds[i].fd, &write_fds);
+          ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &write_fds);
         if (loop->fds[i].events & HTTP_LOOP_ERROR)
-          FD_SET(loop->fds[i].fd, &error_fds);
+          ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &error_fds);
         if (loop->fds[i].fd > max_fd)
           max_fd = loop->fds[i].fd;
       }
@@ -807,7 +816,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
       }
     }
 #else
-    if (ret > 0 && FD_ISSET(loop->wakeup_pipe[0], &read_fds)) {
+    if (ret > 0 && ABSTRACT_HTTP_FD_ISSET(loop->wakeup_pipe[0], &read_fds)) {
       char buf[64];
       while (read(loop->wakeup_pipe[0], buf, sizeof(buf)) > 0) {
       }
@@ -819,11 +828,11 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
       for (i = 0; i < loop->fd_count; ++i) {
         if (loop->fds[i].active) {
           int revents = 0;
-          if (FD_ISSET(loop->fds[i].fd, &read_fds))
+          if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &read_fds))
             revents |= HTTP_LOOP_READ;
-          if (FD_ISSET(loop->fds[i].fd, &write_fds))
+          if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &write_fds))
             revents |= HTTP_LOOP_WRITE;
-          if (FD_ISSET(loop->fds[i].fd, &error_fds))
+          if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &error_fds))
             revents |= HTTP_LOOP_ERROR;
 
           if (revents) {

@@ -879,14 +879,15 @@ c_abstract_http_ws_send(struct HttpRequest *req,
 
   rc = abstract_http_mutex_lock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(masked_payload);
     return rc;
   }
   if (sctx->close_requested) {
     rc = abstract_http_mutex_unlock(sctx->mutex);
+    free(masked_payload);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
-    free(masked_payload);
     return C_ABSTRACT_HTTP_ERR_INVAL;
     /* Cannot send after close */
   }
@@ -900,10 +901,10 @@ c_abstract_http_ws_send(struct HttpRequest *req,
       unsigned char *new_queue = (unsigned char *)realloc(sctx->queue, new_cap);
       if (!new_queue) {
         rc = abstract_http_mutex_unlock(sctx->mutex);
+        free(masked_payload);
         if (rc != C_ABSTRACT_HTTP_SUCCESS) {
           return rc;
         }
-        free(masked_payload);
 
         return C_ABSTRACT_HTTP_ERR_NOMEM;
       }

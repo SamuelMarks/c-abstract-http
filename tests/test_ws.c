@@ -1341,6 +1341,7 @@ TEST test_ws_sync_loop_branches(void) {
             c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL,
                                               NULL, NULL));
 
+  c_abstract_http_ws_free(&req);
   http_request_free(&req);
   http_client_free(&client);
   PASS();

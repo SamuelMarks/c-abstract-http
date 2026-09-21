@@ -579,12 +579,21 @@ abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
   for (i = 0; i < num_threads; ++i) {
     if (thread_create(&p->threads[i], worker_thread, p) != 0) {
       enum c_abstract_http_error berr;
+      enum c_abstract_http_error lerr;
       /* If we fail partway, trigger stop and join what we have */
+      lerr = abstract_http_mutex_lock(p->lock);
       p->stop = 1;
       berr = ABSTRACT_HTTP_COND_BROADCAST(p->cond);
       if (berr != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG("abstract_http_thread_pool_init: broadcast failed with %d",
                   (int)berr);
+      }
+      if (lerr == C_ABSTRACT_HTTP_SUCCESS) {
+        enum c_abstract_http_error uerr = abstract_http_mutex_unlock(p->lock);
+        if (uerr != C_ABSTRACT_HTTP_SUCCESS) {
+          LOG_DEBUG("abstract_http_thread_pool_init: unlock failed with %d",
+                    (int)uerr);
+        }
       }
       while (i > 0) {
         enum c_abstract_http_error j_rc;
