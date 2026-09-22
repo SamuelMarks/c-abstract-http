@@ -1313,12 +1313,6 @@ int c_abstract_http_mock_pthread_create(pthread_t *thread,
 
 int c_abstract_http_mock_pthread_join(pthread_t thread, void **value_ptr) {
   if (g_mock_pthread_fail == 3 || g_mock_pthread_fail == 6) {
-    if (thread != (pthread_t)0) {
-      int join_rc = pthread_join(thread, value_ptr);
-      if (join_rc != 0) {
-        return join_rc;
-      }
-    }
     return 1;
   }
   if (thread != (pthread_t)0) {
