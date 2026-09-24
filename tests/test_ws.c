@@ -1078,12 +1078,6 @@ TEST test_ws_stubs(void) {
   PASS();
 }
 
-static int mock_push(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
-  (void)ctx;
-  cb(arg); /* Run synchronously for test */
-  return 0;
-}
-
 static enum c_abstract_http_error
 mock_client_send(struct HttpTransportContext *ctx,
                  const struct HttpRequest *req, struct HttpResponse **res) {
@@ -1100,6 +1094,13 @@ static int mock_on_err(int rc, void *user_data) {
   return 0;
 }
 
+#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
+static int mock_push(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
+  (void)ctx;
+  cb(arg); /* Run synchronously for test */
+  return 0;
+}
+
 static int mock_push_fail(void *ctx, abstract_http_thread_task_cb cb,
                           void *arg) {
   (void)ctx;
@@ -1108,7 +1109,6 @@ static int mock_push_fail(void *ctx, abstract_http_thread_task_cb cb,
   return (int)C_ABSTRACT_HTTP_ERR_IO;
 }
 
-#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 TEST test_ws_async_register_success(void) {
   struct HttpClient client;
   struct HttpRequest req;

@@ -1305,17 +1305,31 @@ int c_abstract_http_mock_pthread_create(pthread_t *thread,
                                         void *arg) {
   if (g_mock_pthread_fail == 1)
     return 1;
-  if ((g_mock_pthread_fail == 2 || g_mock_pthread_fail == 6) &&
-      g_mock_alloc_count-- == 0)
+  if (g_mock_pthread_fail == 6) {
+    if (g_mock_alloc_count-- == 0) {
+      return 1;
+    }
+    if (thread) {
+      *thread = (pthread_t)(size_t)12345;
+    }
+    return 0;
+  }
+  if (g_mock_pthread_fail == 2 && g_mock_alloc_count-- == 0)
     return 1;
   return pthread_create(thread, attr, start_routine, arg);
 }
 
 int c_abstract_http_mock_pthread_join(pthread_t thread, void **value_ptr) {
-  if (g_mock_pthread_fail == 3 || g_mock_pthread_fail == 6) {
+  if (g_mock_pthread_fail == 3) {
+    if (thread != (pthread_t)0 && thread != (pthread_t)(size_t)12345) {
+      pthread_join(thread, value_ptr);
+    }
     return 1;
   }
-  if (thread != (pthread_t)0) {
+  if (g_mock_pthread_fail == 6) {
+    return 1;
+  }
+  if (thread != (pthread_t)0 && thread != (pthread_t)(size_t)12345) {
     return pthread_join(thread, value_ptr);
   }
   return 0;
