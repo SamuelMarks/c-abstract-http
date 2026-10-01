@@ -42,6 +42,7 @@ extern int g_mock_raw_nonblocking_fail;
 extern int g_mock_raw_blocking_fail;
 extern int g_mock_raw_realloc_fail;
 extern int g_mock_raw_response_init_fail;
+extern int g_mock_raw_res_alloc_fail;
 #endif
 
 enum c_abstract_http_error http_raw_global_init(void) {
@@ -95,13 +96,18 @@ http_raw_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_raw_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_raw_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_raw_context_free: Entering");
   if (ctx) {
-    http_config_free(&((struct RawCtx *)ctx)->config);
+    enum c_abstract_http_error rch =
+        http_config_free(&((struct RawCtx *)ctx)->config);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
     free(ctx);
   }
   LOG_DEBUG("http_raw_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -554,6 +560,12 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   }
 
   *res = calloc(1, sizeof(struct HttpResponse));
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_res_alloc_fail) {
+    free(*res);
+    *res = NULL;
+  }
+#endif
   if (!*res) {
     RAW_CLOSESOCKET(sock);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -581,7 +593,9 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 #endif
     body = (char *)malloc(body_cap);
   if (!body) {
-    http_response_free(*res);
+    enum c_abstract_http_error rch = http_response_free(*res);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
     free(*res);
     *res = NULL;
     RAW_CLOSESOCKET(sock);
@@ -615,8 +629,8 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     }
 
     if (req->on_chunk) {
-      int cb_rc =
-          req->on_chunk(req->on_chunk_user_data, recv_buf, (size_t)r_rc);
+      int cb_rc;
+      cb_rc = req->on_chunk(req->on_chunk_user_data, recv_buf, (size_t)r_rc);
       if (cb_rc != 0) {
         rc_send = cb_rc;
         break;
@@ -649,7 +663,9 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   RAW_CLOSESOCKET(sock);
 
   if (rc_send != C_ABSTRACT_HTTP_SUCCESS) {
-    http_response_free(*res);
+    enum c_abstract_http_error rch = http_response_free(*res);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
     free(*res);
     *res = NULL;
     free(body);
@@ -708,7 +724,9 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 #endif
               rc = http_headers_add(&(*res)->headers, p_nl, colon + 1);
             if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-              http_response_free(*res);
+              enum c_abstract_http_error rch = http_response_free(*res);
+              if (rch != C_ABSTRACT_HTTP_SUCCESS)
+                return rch;
               free(*res);
               *res = NULL;
               free(body);

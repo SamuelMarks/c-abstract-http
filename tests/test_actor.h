@@ -24,7 +24,7 @@ struct TestActorState {
 
  static int mock_actor_handler(struct AbstractHttpActor *actor, struct AbstractHttpMessage *msg) {
    struct TestActorState *state = NULL;
-   (void)msg;
+   if (msg) {}
    if (abstract_http_actor_get_state(actor, (void **)&state) != 0 || !state)
      return C_ABSTRACT_HTTP_ERR_INVAL;
 
@@ -51,7 +51,7 @@ struct TestActorState {
   struct AbstractHttpMessage msg;
    const char *name1 = NULL;
    const char *name2 = NULL;
-   (void)bus;
+   if (bus) {}
 
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_init(&bus));
    ASSERT_EQ(
@@ -101,8 +101,8 @@ struct TestActorState {
   }
    ASSERT_EQ(1, state1.shutdown);
 
-   abstract_http_message_bus_free(bus);
-   abstract_http_message_bus_free(NULL);
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(bus));
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(NULL));
    PASS();
  }
 
@@ -112,7 +112,7 @@ struct TestActorState {
    *bus = (struct AbstractHttpMessageBus *)(size_t)1;
    return 0;
  }
- static void mock_bus_free(struct AbstractHttpMessageBus *bus) { (void)bus; }
+ static void mock_bus_free(struct AbstractHttpMessageBus *bus) { if (bus) {} }
  static int mock_bus_process(struct AbstractHttpMessageBus *bus, int *out_processed) {
 
    if (!bus || !out_processed)
@@ -126,8 +126,7 @@ struct TestActorState {
 
    if (!bus || !name || !actor)
      return C_ABSTRACT_HTTP_ERR_INVAL;
-   (void)handler;
-   (void)state;
+   if (handler || state) {}
    *actor = (struct AbstractHttpActor *)(size_t)1;
    return 0;
  }
@@ -162,7 +161,7 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
   struct AbstractHttpMessage msg;
    void *state = NULL;
    const char *name = NULL;
-   (void)bus;
+   if (bus) {}
    memset(&msg, 0, sizeof(msg));
 
    hooks.bus_init = mock_bus_init;
@@ -184,8 +183,8 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_send(bus, &msg));
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_get_state(actor, &state));
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_get_name(actor, &name));
-   abstract_http_message_bus_free(bus);
-   abstract_http_message_bus_free(NULL);
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(bus));
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(NULL));
 
   {
     struct AbstractHttpActorHooks z;
@@ -199,7 +198,7 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
    struct AbstractHttpMessageBus *bus = NULL;
    struct AbstractHttpActor *actor = NULL;
   struct AbstractHttpMessage msg;
-   (void)bus;
+   if (bus) {}
    memset(&msg, 0, sizeof(msg));
 
    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_message_bus_init(NULL));
@@ -221,8 +220,8 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
    msg.receiver = NULL;
    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_actor_send(bus, &msg));
 
-   abstract_http_message_bus_free(bus);
-   abstract_http_message_bus_free(NULL);
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(bus));
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(NULL));
 
    { enum c_abstract_http_error rc_test = abstract_http_actor_set_hooks(NULL); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
 
@@ -230,16 +229,40 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
  }
 
  static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg) {
-   (void)self;
-   (void)msg;
+   if (self || msg) {}
    return 0;
-}
+ }
+
+ static int fail_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg) {
+   if (self || msg) {}
+   return C_ABSTRACT_HTTP_ERR_INVAL;
+ }
+
+ TEST test_actor_handler_fail(void) {
+   struct AbstractHttpMessageBus *bus = NULL;
+   struct AbstractHttpActor *actor = NULL;
+   struct AbstractHttpMessage msg;
+   int processed = 0;
+
+   memset(&msg, 0, sizeof(msg));
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_init(&bus));
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_spawn(bus, "failer", fail_handler, NULL, &actor));
+
+   msg.receiver = actor;
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_send(bus, &msg));
+
+   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_message_bus_process(bus, &processed));
+   ASSERT_EQ(0, processed);
+
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(bus));
+   PASS();
+ }
 
  TEST test_actor_capacity(void) {
    struct AbstractHttpMessageBus *bus = NULL;
    struct AbstractHttpActor *actor = NULL;
   int i;
-   (void)bus;
+   if (bus) {}
 
   /* manual coverage for dummy_handler */
    dummy_handler(NULL, NULL);
@@ -251,8 +274,8 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_spawn(bus, "test", dummy_handler, NULL, &actor));
    }
 
-   abstract_http_message_bus_free(bus);
-   abstract_http_message_bus_free(NULL);
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(bus));
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(NULL));
    PASS();
  }
 
@@ -261,7 +284,7 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
    struct AbstractHttpActor *actor = NULL;
    void *state = NULL;
    const char *name = NULL;
-   (void)bus;
+   if (bus) {}
 
    { enum c_abstract_http_error rc_test = abstract_http_message_bus_init(&bus); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
    { enum c_abstract_http_error rc_test = abstract_http_actor_spawn(bus, "myactor", dummy_handler, NULL, &actor); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
@@ -277,8 +300,8 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_actor_get_name(NULL, &name));
    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_actor_get_name(actor, NULL));
 
-   abstract_http_message_bus_free(bus);
-   abstract_http_message_bus_free(NULL);
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(bus));
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(NULL));
    PASS();
  }
 
@@ -293,7 +316,8 @@ TEST test_actor_oom(void) {
   struct AbstractHttpMessage msg;
   char *out_str = NULL;
   int str_rc;
-  (void)bus;
+  if (bus) {
+  }
 
   memset(&msg, 0, sizeof(msg));
 
@@ -379,8 +403,8 @@ TEST test_actor_oom(void) {
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
-  abstract_http_message_bus_free(bus);
-  abstract_http_message_bus_free(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(bus));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(NULL));
   PASS();
 }
 #endif
@@ -390,7 +414,8 @@ TEST test_actor_queued_free_and_tail(void) {
   struct AbstractHttpActor *actor = NULL;
   struct AbstractHttpMessage msg1;
   struct AbstractHttpMessage msg2;
-  (void)bus;
+  if (bus) {
+  }
 
   memset(&msg1, 0, sizeof(msg1));
   memset(&msg2, 0, sizeof(msg2));
@@ -408,8 +433,8 @@ TEST test_actor_queued_free_and_tail(void) {
   /* hits tail->next logic */
 
   /* don't process, just free, hitting lines 100-102 */
-  abstract_http_message_bus_free(bus);
-  abstract_http_message_bus_free(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(bus));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(NULL));
   PASS();
 }
 
@@ -418,7 +443,8 @@ TEST test_actor_mock_nulls(void) {
   struct AbstractHttpActor *actor = NULL;
   const char *name = NULL;
   void *state = NULL;
-  (void)bus;
+  if (bus) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, mock_bus_init(NULL));
   {
@@ -463,6 +489,7 @@ SUITE(actor_suite) {
   RUN_TEST(test_actor_hooks);
   RUN_TEST(test_actor_errors);
   RUN_TEST(test_actor_capacity);
+  RUN_TEST(test_actor_handler_fail);
   RUN_TEST(test_actor_mock_nulls);
 }
 

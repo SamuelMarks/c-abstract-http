@@ -262,7 +262,9 @@ TEST test_libevent_send_connection_failure(void) {
 static int libevent_mock_chunk_cb(void *user_data, const void *chunk,
                                   size_t chunk_len) {
   struct libevent_TestChunkState *state;
-  (void)chunk;
+  if (chunk) {
+    /* pass */
+  }
   state = (struct libevent_TestChunkState *)user_data;
   state->call_count++;
   state->total_bytes += chunk_len;
@@ -680,10 +682,9 @@ TEST test_libevent_methods(void) {
 
 static int dummy_libevent_chunk_reader_err(void *user_data, void *buf,
                                            size_t max_bytes, size_t *out_read) {
-  (void)user_data;
-  (void)buf;
-  (void)max_bytes;
-  (void)out_read;
+  if (user_data || buf || max_bytes || out_read) {
+    /* pass */
+  }
   return -1;
 }
 
@@ -691,8 +692,9 @@ static int dummy_libevent_chunk_reader_err(void *user_data, void *buf,
 static int dummy_libevent_chunk_reader(void *user_data, void *buf,
                                        size_t max_bytes, size_t *out_read) {
   int *called;
-  (void)buf;
-  (void)max_bytes;
+  if (buf || max_bytes) {
+    /* pass */
+  }
   called = (int *)user_data;
   if (*called == 0) {
     *called = 1;
@@ -728,7 +730,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("http://127.0.0.1:8080", &req.url));
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
     http_response_free(res);
     res = NULL;
@@ -748,7 +750,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup(long_url, &req.url));
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
     http_response_free(res);
     res = NULL;
@@ -765,7 +767,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup(long_url, &req.url));
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
     http_response_free(res);
     res = NULL;
@@ -777,7 +779,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("http://127.0.0.1", &req.url));
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
     http_response_free(res);
     res = NULL;
@@ -792,7 +794,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup(long_url, &req.url));
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
     http_response_free(res);
     res = NULL;
@@ -805,7 +807,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
       C_ABSTRACT_HTTP_SUCCESS,
       c_abstract_http_strdup("http://127.0.0.1/path:with:colons", &req.url));
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
     http_response_free(res);
     res = NULL;
@@ -821,7 +823,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("http://127.0.0.1:80/test", &req.url));
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
     http_response_free(res);
     res = NULL;
@@ -835,7 +837,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
   req.body = "test";
   req.body_len = 0;
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   req.body = NULL;
   req.body_len = 0;
   if (res) {
@@ -850,7 +852,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
             c_abstract_http_strdup("http://127.0.0.1:80/test", &req.url));
   req.read_chunk = dummy_libevent_chunk_reader_err;
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
     http_response_free(res);
     res = NULL;
@@ -866,7 +868,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
   req.body_len = 4;
   g_mock_libevent_buf_add_fail = 1;
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   g_mock_libevent_buf_add_fail = 0;
   req.body = NULL;
   req.body_len = 0;
@@ -885,7 +887,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
   req.read_chunk_user_data = &dummy_chunk_state;
   g_mock_libevent_buf_add_fail = 1;
   rc = http_libevent_send(ctx, &req, &res);
-  (void)rc;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
     http_response_free(res);
     res = NULL;

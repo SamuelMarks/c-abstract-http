@@ -696,15 +696,20 @@ http_libsoup3_context_init(struct HttpTransportContext **ctx) {
  *
  * @param[in] ctx Context to free.
  */
-void http_libsoup3_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_libsoup3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libsoup3_context_free: Entering");
   if (ctx) {
+    enum c_abstract_http_error rch;
     g_object_unref(ctx->session);
     ctx->session = NULL;
-    http_config_free(&ctx->config);
+    rch = http_config_free(&ctx->config);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
     free(ctx);
   }
   LOG_DEBUG("http_libsoup3_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**

@@ -27,16 +27,15 @@ extern "C" {
 
 static int raw_chunk_cb_success(void *user_data, const void *data, size_t len) {
   size_t *total = (size_t *)user_data;
-  (void)data;
-  if (total)
+  if (data && total)
     *total += len;
   return 0;
 }
 
 static int raw_chunk_cb_fail(void *user_data, const void *data, size_t len) {
-  (void)user_data;
-  (void)data;
-  (void)len;
+  if (user_data || data || len) {
+    /* pass */
+  }
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
@@ -50,8 +49,8 @@ TEST test_http_raw_lifecycle(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&ctx));
   ASSERT(ctx != NULL);
 
-  http_raw_context_free(NULL);
-  http_raw_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
 
@@ -72,8 +71,8 @@ TEST test_http_raw_config(void) {
   cfg.timeout_ms = 5000;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
 
-  http_config_free(&cfg);
-  http_raw_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
 
@@ -102,8 +101,8 @@ TEST test_http_raw_url_validation(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_raw_send(ctx, &req, &res));
 
   req.url = NULL;
-  http_request_free(&req);
-  http_raw_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
 
@@ -127,7 +126,7 @@ TEST test_http_raw_send_requests(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
     cfg.timeout_ms = 5000;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
-    http_config_free(&cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   }
 
   /* 1. Standard GET */
@@ -145,11 +144,11 @@ TEST test_http_raw_send_requests(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
   req.url = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 2. POST with body */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -160,12 +159,12 @@ TEST test_http_raw_send_requests(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
   req.url = NULL;
   req.body = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 2b. POST with body != NULL and body_len == 0 */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -176,12 +175,12 @@ TEST test_http_raw_send_requests(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
   req.url = NULL;
   req.body = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 3. Other methods: PUT, DELETE, PATCH, HEAD, OPTIONS */
   {
@@ -198,11 +197,11 @@ TEST test_http_raw_send_requests(void) {
       req.method = methods[m_idx];
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
       ASSERT(res != NULL);
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
       req.url = NULL;
-      http_request_free(&req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
     }
   }
 
@@ -218,11 +217,11 @@ TEST test_http_raw_send_requests(void) {
     req.url = url_no_path;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
     ASSERT(res != NULL);
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
     req.url = NULL;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   /* 5. URL with path containing colon: http://127.0.0.1:port/path:with:colons
@@ -239,11 +238,11 @@ TEST test_http_raw_send_requests(void) {
     req.url = url_colon_path;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
     ASSERT(res != NULL);
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
     req.url = NULL;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   /* 5b. URL with path containing colon without port:
@@ -256,12 +255,12 @@ TEST test_http_raw_send_requests(void) {
     ASSERT(raw_rc == C_ABSTRACT_HTTP_SUCCESS ||
            raw_rc == C_ABSTRACT_HTTP_ERR_IO);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
     req.url = NULL;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   /* 6. on_chunk streaming callback success */
@@ -273,11 +272,11 @@ TEST test_http_raw_send_requests(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
   ASSERT(res != NULL);
   ASSERT(chunk_bytes > 0);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
   req.url = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 7. on_chunk streaming callback failure */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -286,7 +285,7 @@ TEST test_http_raw_send_requests(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
   ASSERT(res == NULL);
   req.url = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 8. Large request buffer expansion (headers and body) */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -317,13 +316,13 @@ TEST test_http_raw_send_requests(void) {
     req.method = HTTP_POST;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
     ASSERT(res != NULL);
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
   req.url = NULL;
   req.body = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 9. HTTPS scheme URL parsing check */
   {
@@ -337,11 +336,11 @@ TEST test_http_raw_send_requests(void) {
     req.url = https_url;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
     ASSERT(res != NULL);
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
     req.url = NULL;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   /* 10. HTTP scheme URL without port: http://127.0.0.1/path */
@@ -353,12 +352,12 @@ TEST test_http_raw_send_requests(void) {
     ASSERT(raw_rc == C_ABSTRACT_HTTP_SUCCESS ||
            raw_rc == C_ABSTRACT_HTTP_ERR_IO);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
     req.url = NULL;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   /* 11. HTTP scheme URL without port and without path: http://127.0.0.1 */
@@ -370,16 +369,16 @@ TEST test_http_raw_send_requests(void) {
     ASSERT(raw_rc == C_ABSTRACT_HTTP_SUCCESS ||
            raw_rc == C_ABSTRACT_HTTP_ERR_IO);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
     req.url = NULL;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   mock_server_destroy(srv);
-  http_raw_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
 
@@ -402,8 +401,8 @@ TEST test_http_raw_send_network_errors(void) {
   ASSERT(res == NULL);
 
   req.url = NULL;
-  http_request_free(&req);
-  http_raw_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
 
@@ -423,7 +422,7 @@ TEST test_http_raw_multi_requests(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
     cfg.timeout_ms = 5000;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
-    http_config_free(&cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
 
@@ -464,9 +463,9 @@ TEST test_http_raw_multi_requests(void) {
   ASSERT(f1.response != NULL);
   ASSERT(f2.response != NULL);
 
-  http_response_free(f1.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
   free(f1.response);
-  http_response_free(f2.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
   free(f2.response);
 
   /* Multi with failing request */
@@ -478,13 +477,13 @@ TEST test_http_raw_multi_requests(void) {
   ASSERT_EQ(1, f1.is_ready);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, f1.error_code);
 
-  http_multi_request_free(&multi);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
   req1.url = NULL;
   req2.url = NULL;
-  http_request_free(&req1);
-  http_request_free(&req2);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
   mock_server_destroy(srv);
-  http_raw_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
 
@@ -567,7 +566,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   g_mock_recv_data = "HTTP/1.1 200 OK\r\n\r\n";
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
   g_mock_recv_data = NULL;
@@ -602,10 +601,9 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   g_mock_raw_send_fail = 0;
 
   /* 11. res calloc failure */
-  g_mock_alloc_fail = 1;
-  g_mock_alloc_count = 3;
+  g_mock_raw_res_alloc_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_raw_send(ctx, &req, &res));
-  g_mock_alloc_fail = 0;
+  g_mock_raw_res_alloc_fail = 0;
 
   /* 12. body malloc failure */
   g_mock_raw_realloc_fail = 4;
@@ -643,7 +641,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
     g_mock_raw_realloc_fail = 1;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_raw_send(ctx, &req, &res));
     g_mock_raw_realloc_fail = 0;
-    http_headers_free(&req.headers);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_free(&req.headers));
   }
 
   /* 15. realloc fail in body expansion */
@@ -684,7 +682,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
       ASSERT_EQ(200, res->status_code);
       ASSERT_EQ(9480, res->body_len);
       g_mock_recv_data = NULL;
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
       free(big_resp);
@@ -697,7 +695,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
   g_mock_recv_data = NULL;
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -708,7 +706,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   ASSERT_EQ(204, res->status_code);
   ASSERT_EQ(0, res->body_len);
   g_mock_recv_data = NULL;
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -719,7 +717,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
   g_mock_recv_data = NULL;
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -730,7 +728,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
   g_mock_recv_data = NULL;
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -740,7 +738,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   ASSERT(res != NULL);
   ASSERT_EQ(0, res->body_len);
   g_mock_recv_data = NULL;
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -750,7 +748,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
   g_mock_recv_data = NULL;
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -761,7 +759,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   ASSERT(res != NULL);
   g_mock_raw_realloc_fail = 0;
   g_mock_recv_data = NULL;
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -771,7 +769,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
   g_mock_recv_data = NULL;
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -783,7 +781,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   ASSERT_EQ(200, res->status_code);
   g_mock_raw_realloc_fail = 0;
   g_mock_recv_data = NULL;
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -794,9 +792,9 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   g_mock_raw_realloc_fail = 0;
 
   req.url = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   mock_server_destroy(srv);
-  http_raw_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
 #endif

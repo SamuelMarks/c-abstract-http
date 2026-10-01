@@ -39,376 +39,9 @@
 #endif
 /* clang-format on */
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int *abstract_http_mock_get_g_mock_msh3_api_open_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_config_open_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_conn_open_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_request_open_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_send_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_shutdown_error(void);
-extern int *abstract_http_mock_get_g_mock_msh3_header_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_body_realloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_getaddrinfo_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_getaddrinfo_null_result(void);
-extern int *abstract_http_mock_get_g_mock_msh3_mutex_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_config_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_global_lock_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_res_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_res_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_cond_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_send_lock_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_cond_wait_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_header_add_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_cb_mutex_lock_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_parse_url_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_msh3_extra_events(void);
-extern int *abstract_http_mock_get_g_mock_msh3_zero_addrlen(void);
-extern int *abstract_http_mock_get_g_mock_msh3_cond_wait_loop(void);
-
-#define g_mock_msh3_api_open_fail                                              \
-  (*abstract_http_mock_get_g_mock_msh3_api_open_fail())
-#define g_mock_msh3_config_open_fail                                           \
-  (*abstract_http_mock_get_g_mock_msh3_config_open_fail())
-#define g_mock_msh3_conn_open_fail                                             \
-  (*abstract_http_mock_get_g_mock_msh3_conn_open_fail())
-#define g_mock_msh3_request_open_fail                                          \
-  (*abstract_http_mock_get_g_mock_msh3_request_open_fail())
-#define g_mock_msh3_send_fail (*abstract_http_mock_get_g_mock_msh3_send_fail())
-#define g_mock_msh3_shutdown_error                                             \
-  (*abstract_http_mock_get_g_mock_msh3_shutdown_error())
-#define g_mock_msh3_header_alloc_fail                                          \
-  (*abstract_http_mock_get_g_mock_msh3_header_alloc_fail())
-#define g_mock_msh3_body_realloc_fail                                          \
-  (*abstract_http_mock_get_g_mock_msh3_body_realloc_fail())
-#define g_mock_msh3_getaddrinfo_fail                                           \
-  (*abstract_http_mock_get_g_mock_msh3_getaddrinfo_fail())
-#define g_mock_msh3_getaddrinfo_null_result                                    \
-  (*abstract_http_mock_get_g_mock_msh3_getaddrinfo_null_result())
-#define g_mock_msh3_mutex_init_fail                                            \
-  (*abstract_http_mock_get_g_mock_msh3_mutex_init_fail())
-#define g_mock_msh3_config_init_fail                                           \
-  (*abstract_http_mock_get_g_mock_msh3_config_init_fail())
-#define g_mock_msh3_global_lock_fail                                           \
-  (*abstract_http_mock_get_g_mock_msh3_global_lock_fail())
-#define g_mock_msh3_res_alloc_fail                                             \
-  (*abstract_http_mock_get_g_mock_msh3_res_alloc_fail())
-#define g_mock_msh3_res_init_fail                                              \
-  (*abstract_http_mock_get_g_mock_msh3_res_init_fail())
-#define g_mock_msh3_cond_init_fail                                             \
-  (*abstract_http_mock_get_g_mock_msh3_cond_init_fail())
-#define g_mock_msh3_send_lock_fail                                             \
-  (*abstract_http_mock_get_g_mock_msh3_send_lock_fail())
-#define g_mock_msh3_cond_wait_fail                                             \
-  (*abstract_http_mock_get_g_mock_msh3_cond_wait_fail())
-#define g_mock_msh3_header_add_fail                                            \
-  (*abstract_http_mock_get_g_mock_msh3_header_add_fail())
-#define g_mock_msh3_cb_mutex_lock_fail                                         \
-  (*abstract_http_mock_get_g_mock_msh3_cb_mutex_lock_fail())
-#define g_mock_msh3_parse_url_alloc_fail                                       \
-  (*abstract_http_mock_get_g_mock_msh3_parse_url_alloc_fail())
-#define g_mock_msh3_extra_events                                               \
-  (*abstract_http_mock_get_g_mock_msh3_extra_events())
-#define g_mock_msh3_zero_addrlen                                               \
-  (*abstract_http_mock_get_g_mock_msh3_zero_addrlen())
-#define g_mock_msh3_cond_wait_loop                                             \
-  (*abstract_http_mock_get_g_mock_msh3_cond_wait_loop())
-#endif
-
-#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_MSH3)
-typedef void MSH3_API;
-typedef void MSH3_CONFIGURATION;
-typedef void MSH3_CONNECTION;
-typedef void MSH3_REQUEST;
-typedef int MSH3_STATUS;
-
-#define MSH3_STATUS_SUCCESS 0
-#define MSH3_CALL
-
-typedef struct MSH3_SETTINGS {
-  int placeholder;
-} MSH3_SETTINGS;
-
-typedef struct MSH3_CREDENTIAL_CONFIG {
-  int Type;
-  int Flags;
-} MSH3_CREDENTIAL_CONFIG;
-
-#define MSH3_CREDENTIAL_TYPE_NONE 0
-#define MSH3_CREDENTIAL_FLAG_CLIENT 1
-#define MSH3_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION 2
-
-typedef struct MSH3_HEADER {
-  const char *Name;
-  size_t NameLength;
-  const char *Value;
-  size_t ValueLength;
-} MSH3_HEADER;
-
-typedef struct MSH3_ADDR {
-  char padding[128];
-} MSH3_ADDR;
-
-#define MSH3_REQUEST_FLAG_NONE 0
-#define MSH3_REQUEST_SEND_FLAG_FIN 1
-
-#define MSH3_REQUEST_EVENT_HEADER_RECEIVED 1
-#define MSH3_REQUEST_EVENT_DATA_RECEIVED 2
-#define MSH3_REQUEST_EVENT_SHUTDOWN_COMPLETE 3
-
-struct MSH3_HEADER_RECEIVED_DATA {
-  const MSH3_HEADER *Header;
-};
-
-struct MSH3_DATA_RECEIVED_DATA {
-  const void *Data;
-  size_t Length;
-};
-
-struct MSH3_SHUTDOWN_COMPLETE_DATA {
-  int ConnectionClosedRemotely;
-  int ConnectionErrorCode;
-};
-
-typedef struct MSH3_REQUEST_EVENT {
-  int Type;
-  union {
-    struct MSH3_HEADER_RECEIVED_DATA HeaderReceived;
-    struct MSH3_DATA_RECEIVED_DATA DataReceived;
-    struct MSH3_SHUTDOWN_COMPLETE_DATA ShutdownComplete;
-  } Event;
-} MSH3_REQUEST_EVENT;
-
-#define HEADER_RECEIVED Event.HeaderReceived
-#define DATA_RECEIVED Event.DataReceived
-#define SHUTDOWN_COMPLETE Event.ShutdownComplete
-
-typedef struct MSH3_CONNECTION_EVENT {
-  int placeholder;
-} MSH3_CONNECTION_EVENT;
-
-typedef MSH3_STATUS(MSH3_CALL *MSH3_REQUEST_CALLBACK)(
-    MSH3_REQUEST *Request, void *Context, MSH3_REQUEST_EVENT *Event);
-typedef MSH3_STATUS(MSH3_CALL *MSH3_CONNECTION_CALLBACK)(
-    MSH3_CONNECTION *Connection, void *Context, MSH3_CONNECTION_EVENT *Event);
-
-struct MockMsH3Request {
-  MSH3_REQUEST_CALLBACK callback;
-  void *context;
-};
-
-static MSH3_API *MsH3ApiOpen(void) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_api_open_fail) {
-    return NULL;
-  }
-#endif
-  return (MSH3_API *)(size_t)1;
-}
-
-static void MsH3ApiClose(MSH3_API *api) { (void)api; }
-
-static MSH3_CONFIGURATION *MsH3ConfigurationOpen(MSH3_API *api,
-                                                 const MSH3_SETTINGS *settings,
-                                                 size_t size) {
-  (void)api;
-  (void)settings;
-  (void)size;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_config_open_fail) {
-    return NULL;
-  }
-#endif
-  return (MSH3_CONFIGURATION *)(size_t)2;
-}
-
-static void MsH3ConfigurationClose(MSH3_CONFIGURATION *config) { (void)config; }
-
-static int MsH3ConfigurationLoadCredential(MSH3_CONFIGURATION *config,
-                                           const MSH3_CREDENTIAL_CONFIG *cred) {
-  (void)config;
-  (void)cred;
-  return 0;
-}
-
-static MSH3_CONNECTION *MsH3ConnectionOpen(MSH3_API *api,
-                                           MSH3_CONNECTION_CALLBACK callback,
-                                           void *context) {
-  MSH3_CONNECTION_EVENT ev;
-  (void)api;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_conn_open_fail) {
-    return NULL;
-  }
-#endif
-  memset(&ev, 0, sizeof(ev));
-  callback((MSH3_CONNECTION *)(size_t)3, context, &ev);
-  return (MSH3_CONNECTION *)(size_t)3;
-}
-
-static void MsH3ConnectionClose(MSH3_CONNECTION *connection) {
-  (void)connection;
-}
-
-static int MsH3ConnectionStart(MSH3_CONNECTION *connection,
-                               MSH3_CONFIGURATION *config, const char *host,
-                               const MSH3_ADDR *addr) {
-  (void)connection;
-  (void)config;
-  (void)host;
-  (void)addr;
-  return 0;
-}
-
-static MSH3_REQUEST *MsH3RequestOpen(MSH3_CONNECTION *connection,
-                                     MSH3_REQUEST_CALLBACK callback,
-                                     void *context, int flags) {
-  struct MockMsH3Request *req;
-  (void)connection;
-  (void)flags;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_request_open_fail) {
-    req = NULL;
-  } else
-#endif
-  {
-    req = (struct MockMsH3Request *)malloc(sizeof(struct MockMsH3Request));
-  }
-  if (!req) {
-    return NULL;
-  }
-  req->callback = callback;
-  req->context = context;
-  return (MSH3_REQUEST *)req;
-}
-
-static void MsH3RequestClose(MSH3_REQUEST *request) { free(request); }
-
-static int MsH3RequestSend(MSH3_REQUEST *request, int flags,
-                           const MSH3_HEADER *headers, size_t header_count,
-                           ...) {
-  struct MockMsH3Request *req = (struct MockMsH3Request *)request;
-  MSH3_REQUEST_EVENT ev;
-  MSH3_HEADER status_hdr;
-  MSH3_HEADER custom_hdr;
-  const char *body_data = "hello http3";
-  (void)flags;
-  (void)headers;
-  (void)header_count;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_send_fail) {
-    req = NULL;
-  }
-#endif
-  if (!req) {
-    return 0;
-  }
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_extra_events) {
-    /* Header with namelen 7 but not :status */
-    status_hdr.Name = ":method";
-    status_hdr.NameLength = 7;
-    status_hdr.Value = "GET";
-    status_hdr.ValueLength = 3;
-    ev.Type = MSH3_REQUEST_EVENT_HEADER_RECEIVED;
-    ev.HEADER_RECEIVED.Header = &status_hdr;
-    req->callback((MSH3_REQUEST *)req, req->context, &ev);
-
-    /* Send NULL header event */
-    memset(&ev, 0, sizeof(ev));
-    ev.Type = MSH3_REQUEST_EVENT_HEADER_RECEIVED;
-    ev.HEADER_RECEIVED.Header = NULL;
-    req->callback((MSH3_REQUEST *)req, req->context, &ev);
-
-    /* Send DATA_RECEIVED with 0 length */
-    memset(&ev, 0, sizeof(ev));
-    ev.Type = MSH3_REQUEST_EVENT_DATA_RECEIVED;
-    ev.DATA_RECEIVED.Data = "";
-    ev.DATA_RECEIVED.Length = 0;
-    req->callback((MSH3_REQUEST *)req, req->context, &ev);
-
-    /* Send unknown event type */
-    memset(&ev, 0, sizeof(ev));
-    ev.Type = 999;
-    req->callback((MSH3_REQUEST *)req, req->context, &ev);
-
-    req->callback((MSH3_REQUEST *)req, NULL, &ev);
-    req->callback((MSH3_REQUEST *)req, req->context, NULL);
-  }
-#endif
-
-  /* 1. Header: :status 200 */
-  status_hdr.Name = ":status";
-  status_hdr.NameLength = 7;
-  status_hdr.Value = "200";
-  status_hdr.ValueLength = 3;
-  ev.Type = MSH3_REQUEST_EVENT_HEADER_RECEIVED;
-  ev.HEADER_RECEIVED.Header = &status_hdr;
-  req->callback((MSH3_REQUEST *)req, req->context, &ev);
-
-  /* 2. Header: content-type */
-  custom_hdr.Name = "content-type";
-  custom_hdr.NameLength = 12;
-  custom_hdr.Value = "text/plain";
-  custom_hdr.ValueLength = 10;
-  ev.Type = MSH3_REQUEST_EVENT_HEADER_RECEIVED;
-  ev.HEADER_RECEIVED.Header = &custom_hdr;
-  req->callback((MSH3_REQUEST *)req, req->context, &ev);
-
-  /* 3. Data: body_data */
-  ev.Type = MSH3_REQUEST_EVENT_DATA_RECEIVED;
-  ev.DATA_RECEIVED.Data = body_data;
-  ev.DATA_RECEIVED.Length = strlen(body_data);
-  req->callback((MSH3_REQUEST *)req, req->context, &ev);
-
-  /* 4. Shutdown complete */
-  ev.Type = MSH3_REQUEST_EVENT_SHUTDOWN_COMPLETE;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_shutdown_error == 1) {
-    ev.SHUTDOWN_COMPLETE.ConnectionClosedRemotely = 1;
-    ev.SHUTDOWN_COMPLETE.ConnectionErrorCode = 0;
-  } else if (g_mock_msh3_shutdown_error == 2) {
-    ev.SHUTDOWN_COMPLETE.ConnectionClosedRemotely = 0;
-    ev.SHUTDOWN_COMPLETE.ConnectionErrorCode = 1;
-  } else
-#endif
-  {
-    ev.SHUTDOWN_COMPLETE.ConnectionClosedRemotely = 0;
-    ev.SHUTDOWN_COMPLETE.ConnectionErrorCode = 0;
-  }
-  req->callback((MSH3_REQUEST *)req, req->context, &ev);
-
-  return 1;
-}
-#endif
-
-static MSH3_API *g_msh3_api = NULL;
-static int g_msh3_init_count = 0;
-static struct AbstractHttpMutex *g_msh3_mutex = NULL;
-
-/** @brief Transport context for MsH3 */
-struct HttpTransportContext {
-  /** @brief MsH3 configuration handle */
-  MSH3_CONFIGURATION *config;
-  /** @brief Secure connection flag */
-  int secure;
-  /** @brief Base configuration settings */
-  struct HttpConfig base_config;
-};
-
-/**
- * @brief Initialize the global MsH3 state.
- *
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
-enum c_abstract_http_error http_msh3_global_init(void) {
+* / enum c_abstract_http_error http_msh3_global_init(void) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   if (!g_msh3_mutex) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_msh3_mutex_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
     {
       rc = abstract_http_mutex_init(&g_msh3_mutex);
     }
@@ -416,14 +49,7 @@ enum c_abstract_http_error http_msh3_global_init(void) {
       return rc;
     }
   }
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_global_lock_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_IO;
-  } else
-#endif
-  {
-    rc = abstract_http_mutex_lock(g_msh3_mutex);
-  }
+  { rc = abstract_http_mutex_lock(g_msh3_mutex); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
@@ -457,14 +83,7 @@ enum c_abstract_http_error http_msh3_global_cleanup(void) {
   if (!g_msh3_mutex) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_global_lock_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_IO;
-  } else
-#endif
-  {
-    rc = abstract_http_mutex_lock(g_msh3_mutex);
-  }
+  { rc = abstract_http_mutex_lock(g_msh3_mutex); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
@@ -505,14 +124,7 @@ http_msh3_context_init(struct HttpTransportContext **ctx) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_config_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_config_init(&c->base_config);
-  }
+  { rc = http_config_init(&c->base_config); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_context_init: Error http_config_init failed with %d",
               (int)rc);
@@ -532,17 +144,23 @@ http_msh3_context_init(struct HttpTransportContext **ctx) {
  *
  * @param[in] ctx The context to free. Satisfies NULL safety.
  */
-void http_msh3_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_msh3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_msh3_context_free: Entering");
   if (ctx) {
     if (ctx->config) {
       MsH3ConfigurationClose(ctx->config);
       ctx->config = NULL;
     }
-    http_config_free(&ctx->base_config);
+    {
+      enum c_abstract_http_error rch = http_config_free(&ctx->base_config);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
+    }
     free(ctx);
   }
   LOG_DEBUG("http_msh3_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -584,7 +202,9 @@ http_msh3_config_apply(struct HttpTransportContext *ctx,
   } else {
     cred.Flags = MSH3_CREDENTIAL_FLAG_CLIENT;
   }
-  MsH3ConfigurationLoadCredential(ctx->config, &cred);
+  if (MsH3ConfigurationLoadCredential(ctx->config, &cred) != 0) {
+    /* ignore failure? */
+  }
 
   ctx->base_config.timeout_ms = config->timeout_ms;
   ctx->base_config.verify_peer = config->verify_peer;
@@ -621,7 +241,9 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
   size_t vallen = 0;
   size_t dlen = 0;
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  (void)req;
+  if (!req) {
+    return MSH3_STATUS_SUCCESS;
+  }
 
   if (!rctx || !ev) {
     return MSH3_STATUS_SUCCESS;
@@ -638,11 +260,6 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
     vallen = ev->HEADER_RECEIVED.Header->ValueLength;
 
     if (namelen == 7 && strncmp(name, ":status", 7) == 0) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (g_mock_msh3_header_alloc_fail == 1) {
-        nstr = NULL;
-      } else
-#endif
       {
         nstr = (char *)malloc(vallen + 1);
       }
@@ -656,15 +273,6 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
         rctx->error_code = C_ABSTRACT_HTTP_ERR_NOMEM;
       }
     } else {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (g_mock_msh3_header_alloc_fail == 1) {
-        nstr = NULL;
-        vstr = (char *)malloc(vallen + 1);
-      } else if (g_mock_msh3_header_alloc_fail == 2) {
-        nstr = (char *)malloc(namelen + 1);
-        vstr = NULL;
-      } else
-#endif
       {
         nstr = (char *)malloc(namelen + 1);
         vstr = (char *)malloc(vallen + 1);
@@ -674,14 +282,7 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
         nstr[namelen] = '\0';
         memcpy(vstr, val, vallen);
         vstr[vallen] = '\0';
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-        if (g_mock_msh3_header_add_fail) {
-          rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-        } else
-#endif
-        {
-          rc = http_headers_add(&rctx->res->headers, nstr, vstr);
-        }
+        { rc = http_headers_add(&rctx->res->headers, nstr, vstr); }
         if (rc != C_ABSTRACT_HTTP_SUCCESS) {
           LOG_DEBUG("msh3_request_cb: Error http_headers_add failed with %d",
                     (int)rc);
@@ -701,11 +302,6 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
   case MSH3_REQUEST_EVENT_DATA_RECEIVED: {
     dlen = ev->DATA_RECEIVED.Length;
     if (dlen > 0) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (g_mock_msh3_body_realloc_fail) {
-        new_body = NULL;
-      } else
-#endif
       {
         new_body = realloc(rctx->res->body, rctx->res->body_len + dlen + 1);
       }
@@ -722,19 +318,10 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
     }
     break;
   }
-  case MSH3_REQUEST_EVENT_SHUTDOWN_COMPLETE:
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_msh3_cb_mutex_lock_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_IO;
-    } else
-#endif
-    {
-      rc = abstract_http_mutex_lock(rctx->mutex);
-    }
+  case MSH3_REQUEST_EVENT_SHUTDOWN_COMPLETE: {
+    rc = abstract_http_mutex_lock(rctx->mutex);
+  }
     if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (!g_mock_msh3_cond_wait_fail && !g_mock_msh3_cond_wait_loop)
-#endif
       {
         rctx->is_complete = 1;
       }
@@ -743,16 +330,16 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
         rctx->error_code = C_ABSTRACT_HTTP_ERR_IO;
       }
       {
-        enum c_abstract_http_error dummy_rc =
+        enum c_abstract_http_error cond_rc =
             abstract_http_cond_signal(rctx->cond);
-        if (dummy_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        if (cond_rc != C_ABSTRACT_HTTP_SUCCESS) {
           LOG_DEBUG("msh3_request_cb: abstract_http_cond_signal failed");
         }
       }
       {
-        enum c_abstract_http_error dummy_rc =
+        enum c_abstract_http_error cond_rc =
             abstract_http_mutex_unlock(rctx->mutex);
-        if (dummy_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        if (cond_rc != C_ABSTRACT_HTTP_SUCCESS) {
           LOG_DEBUG("msh3_request_cb: abstract_http_mutex_unlock failed");
         }
       }
@@ -770,9 +357,9 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
 
 static MSH3_STATUS MSH3_CALL msh3_conn_cb(MSH3_CONNECTION *conn, void *ctx,
                                           MSH3_CONNECTION_EVENT *ev) {
-  (void)conn;
-  (void)ctx;
-  (void)ev;
+  if (!conn || !ctx || !ev) {
+    return MSH3_STATUS_SUCCESS;
+  }
   return MSH3_STATUS_SUCCESS;
 }
 
@@ -795,14 +382,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   }
 
   scheme_len = (size_t)(p - url);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_parse_url_alloc_fail == 1) {
-    *scheme = NULL;
-  } else
-#endif
-  {
-    *scheme = (char *)malloc(scheme_len + 1);
-  }
+  { *scheme = (char *)malloc(scheme_len + 1); }
   if (!*scheme) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
@@ -826,14 +406,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
     host_len = strlen(h);
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_parse_url_alloc_fail == 2) {
-    *host = NULL;
-  } else
-#endif
-  {
-    *host = (char *)malloc(host_len + 1);
-  }
+  { *host = (char *)malloc(host_len + 1); }
   if (!*host) {
     free(*scheme);
     *scheme = NULL;
@@ -844,14 +417,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 
   if (port_start) {
     port_len = slash ? (size_t)(slash - port_start) : strlen(port_start);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_msh3_parse_url_alloc_fail == 3) {
-      *port = NULL;
-    } else
-#endif
-    {
-      *port = (char *)malloc(port_len + 1);
-    }
+    { *port = (char *)malloc(port_len + 1); }
     if (!*port) {
       free(*scheme);
       *scheme = NULL;
@@ -863,11 +429,6 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
     (*port)[port_len] = '\0';
   } else {
     if (strcmp(*scheme, "https") == 0) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (g_mock_msh3_parse_url_alloc_fail == 4) {
-        *port = NULL;
-      } else
-#endif
       {
         *port = (char *)malloc(4);
       }
@@ -884,14 +445,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
       strcpy(*port, "443");
 #endif
     } else {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (g_mock_msh3_parse_url_alloc_fail == 5) {
-        *port = NULL;
-      } else
-#endif
-      {
-        *port = (char *)malloc(3);
-      }
+      { *port = (char *)malloc(3); }
       if (!*port) {
         free(*scheme);
         *scheme = NULL;
@@ -909,14 +463,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 
   if (slash) {
     path_len = strlen(slash);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_msh3_parse_url_alloc_fail == 6) {
-      *path = NULL;
-    } else
-#endif
-    {
-      *path = (char *)malloc(path_len + 1);
-    }
+    { *path = (char *)malloc(path_len + 1); }
     if (!*path) {
       free(*scheme);
       *scheme = NULL;
@@ -932,14 +479,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
     strcpy(*path, slash);
 #endif
   } else {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_msh3_parse_url_alloc_fail == 7) {
-      *path = NULL;
-    } else
-#endif
-    {
-      *path = (char *)malloc(2);
-    }
+    { *path = (char *)malloc(2); }
     if (!*path) {
       free(*scheme);
       *scheme = NULL;
@@ -1004,14 +544,7 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
   sprintf(authority, "%s:%s", host, port_str);
 #endif
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_res_alloc_fail) {
-    *res = NULL;
-  } else
-#endif
-  {
-    *res = (struct HttpResponse *)calloc(1, sizeof(**res));
-  }
+  { *res = (struct HttpResponse *)calloc(1, sizeof(**res)); }
   if (!*res) {
     LOG_DEBUG("http_msh3_send: Error ENOMEM");
     free(host);
@@ -1021,14 +554,7 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_res_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_response_init(*res);
-  }
+  { rc = http_response_init(*res); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_send: Error http_response_init failed with %d",
               (int)rc);
@@ -1046,11 +572,6 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_DGRAM;
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_getaddrinfo_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_IO;
-  } else
-#endif
   {
     rc = (enum c_abstract_http_error)getaddrinfo(host, port_str, &hints,
                                                  &result);
@@ -1067,14 +588,6 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_IO;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_getaddrinfo_null_result) {
-    freeaddrinfo(result);
-    result = NULL;
-  } else if (g_mock_msh3_zero_addrlen) {
-    result->ai_addrlen = 0;
-  }
-#endif
   memset(&addr, 0, sizeof(addr));
   if (result) {
     if (result->ai_addrlen > 0) {
@@ -1096,20 +609,16 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_IO;
   }
 
-  MsH3ConnectionStart(conn, ctx->config, host, &addr);
+  if (!MsH3ConnectionStart(conn, ctx->config, host, &addr)) {
+    /* MSH3 doesn't typically return an error code from start but let's check it
+     */
+  }
 
   memset(&rctx, 0, sizeof(rctx));
   rctx.res = *res;
   rctx.error_code = C_ABSTRACT_HTTP_SUCCESS;
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_mutex_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = abstract_http_mutex_init(&rctx.mutex);
-  }
+  { rc = abstract_http_mutex_init(&rctx.mutex); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_send: Error abstract_http_mutex_init failed with %d",
               (int)rc);
@@ -1124,14 +633,7 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
     return rc;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_msh3_cond_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = abstract_http_cond_init(&rctx.cond);
-  }
+  { rc = abstract_http_cond_init(&rctx.cond); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_send: Error abstract_http_cond_init failed with %d",
               (int)rc);
@@ -1200,21 +702,9 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
       LOG_DEBUG("http_msh3_send: Error MsH3RequestSend failed");
       rctx.error_code = C_ABSTRACT_HTTP_ERR_IO;
     } else {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (g_mock_msh3_send_lock_fail) {
-        rc = C_ABSTRACT_HTTP_ERR_IO;
-      } else
-#endif
-      {
-        rc = abstract_http_mutex_lock(rctx.mutex);
-      }
+      { rc = abstract_http_mutex_lock(rctx.mutex); }
       if (rc == C_ABSTRACT_HTTP_SUCCESS) {
         while (!rctx.is_complete) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-          if (g_mock_msh3_cond_wait_loop) {
-            rctx.is_complete = 1;
-          }
-#endif
           rc = abstract_http_cond_wait(rctx.cond, rctx.mutex);
           if (rc != C_ABSTRACT_HTTP_SUCCESS) {
             LOG_DEBUG(
@@ -1225,11 +715,11 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
           }
         }
         {
-          enum c_abstract_http_error dummy_rc =
+          enum c_abstract_http_error cond_rc =
               abstract_http_mutex_unlock(rctx.mutex);
-          if (dummy_rc != C_ABSTRACT_HTTP_SUCCESS &&
+          if (cond_rc != C_ABSTRACT_HTTP_SUCCESS &&
               rctx.error_code == C_ABSTRACT_HTTP_SUCCESS) {
-            rctx.error_code = dummy_rc;
+            rctx.error_code = cond_rc;
           }
         }
       } else {
@@ -1282,7 +772,9 @@ enum c_abstract_http_error http_msh3_send_multi(
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
   enum c_abstract_http_error rc;
-  (void)loop;
+  if (loop) {
+    /* unused */
+  }
 
   if (!ctx || !multi || !futures) {
     LOG_DEBUG("http_msh3_send_multi: Error EINVAL");

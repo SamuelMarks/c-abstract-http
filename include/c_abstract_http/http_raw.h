@@ -40,8 +40,9 @@ http_raw_context_init(struct HttpTransportContext **ctx);
 /**
  * @brief Free a raw socket transport context.
  * @param ctx Context to free.
+ * @return 0 on success.
  */
-C_ABSTRACT_HTTP_API void
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_raw_context_free(struct HttpTransportContext *ctx);
 
 /**

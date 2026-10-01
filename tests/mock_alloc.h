@@ -83,6 +83,7 @@ extern int *abstract_http_mock_get_g_mock_raw_nonblocking_fail(void);
 extern int *abstract_http_mock_get_g_mock_raw_blocking_fail(void);
 extern int *abstract_http_mock_get_g_mock_raw_realloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_raw_response_init_fail(void);
+extern int *abstract_http_mock_get_g_mock_raw_res_alloc_fail(void);
 extern int *abstract_http_mock_get_g_mock_aria2_system_fail(void);
 extern int *abstract_http_mock_get_g_mock_aria2_fopen_fail(void);
 extern int *abstract_http_mock_get_g_mock_aria2_response_init_fail(void);
@@ -365,6 +366,7 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_raw_blocking_fail (*abstract_http_mock_get_g_mock_raw_blocking_fail())
 #define g_mock_raw_realloc_fail (*abstract_http_mock_get_g_mock_raw_realloc_fail())
 #define g_mock_raw_response_init_fail (*abstract_http_mock_get_g_mock_raw_response_init_fail())
+#define g_mock_raw_res_alloc_fail (*abstract_http_mock_get_g_mock_raw_res_alloc_fail())
 #define g_mock_aria2_system_fail (*abstract_http_mock_get_g_mock_aria2_system_fail())
 #define g_mock_aria2_fopen_fail (*abstract_http_mock_get_g_mock_aria2_fopen_fail())
 #define g_mock_aria2_response_init_fail (*abstract_http_mock_get_g_mock_aria2_response_init_fail())

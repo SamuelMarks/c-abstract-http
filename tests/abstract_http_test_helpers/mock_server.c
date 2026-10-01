@@ -211,6 +211,7 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
       bytes_read = (int)recv(client_fd, buffer, sizeof(buffer) - 1, 0);
       g_mock_server_reading = 0;
       if (bytes_read > 0) {
+        printf("MOCK SERVER GOT: %s\n", buffer);
         buffer[bytes_read] = '\0';
 
         mutex_lock(&s->lock);
@@ -367,7 +368,7 @@ int mock_server_start(MockServerPtr server) {
   }
 
   /* Listen */
-  if (listen(server->server_fd, 1) == SOCK_ERROR) {
+  if (listen(server->server_fd, SOMAXCONN) == SOCK_ERROR) {
     close_socket(server->server_fd);
     return -1;
   }
@@ -416,7 +417,12 @@ int mock_server_wait_for_request(MockServerPtr server,
 
   mutex_lock(&server->lock);
   while (!server->has_request && server->running) {
-    (void)cond_wait(&server->cond_req_ready, &server->lock);
+    int cw_rc;
+    cw_rc = cond_wait(&server->cond_req_ready, &server->lock);
+    if (cw_rc != 0) {
+      mutex_unlock(&server->lock);
+      return -1;
+    }
   }
 
   if (server->has_request && server->captured_request) {
@@ -497,8 +503,12 @@ void abstract_http_mock_server_signal_ready(MockServerPtr server) {
 
 void abstract_http_mock_server_run_thread_once(MockServerPtr server) {
   if (server) {
+    thread_ret_t mt_rc;
     server->running = 0;
-    (void)math_server_thread_func(server);
+    mt_rc = math_server_thread_func(server);
+    if (!mt_rc) {
+      /* pass */
+    }
   }
 }
 

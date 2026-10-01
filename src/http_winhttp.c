@@ -720,15 +720,20 @@ http_winhttp_context_init(struct HttpTransportContext **ctx) {
  *
  * @param[in] ctx Pointer to the context to free. Satisfies NULL-safety.
  */
-void http_winhttp_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_winhttp_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_winhttp_context_free: Entering");
   if (ctx) {
+    enum c_abstract_http_error rch;
     WinHttpCloseHandle(ctx->hSession);
     ctx->hSession = NULL;
-    http_config_free(&ctx->config);
+    rch = http_config_free(&ctx->config);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
     free(ctx);
   }
   LOG_DEBUG("http_winhttp_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -1138,20 +1143,20 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
           const char *name = cbuf;
           const char *val = eq + 1;
           char *semi = strchr(val, ';');
-          enum c_abstract_http_error dummy_rc;
+          enum c_abstract_http_error cookie_rc;
           *eq = '\0';
           if (semi) {
             *semi = '\0';
           }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
           if (g_mock_winhttp_cookie_set_fail) {
-            dummy_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+            cookie_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
           } else
 #endif
-            dummy_rc = http_cookie_jar_set(ctx->cookie_jar, name, val);
-          if (dummy_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            cookie_rc = http_cookie_jar_set(ctx->cookie_jar, name, val);
+          if (cookie_rc != C_ABSTRACT_HTTP_SUCCESS) {
             LOG_DEBUG("http_winhttp_send: http_cookie_jar_set failed with %d",
-                      (int)dummy_rc);
+                      (int)cookie_rc);
           }
         }
       }

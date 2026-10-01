@@ -121,7 +121,10 @@ static struct url *fetchParseURL(const char *url_str) {
  *
  * @param[in] u URL structure to free.
  */
-static void fetchFreeURL(struct url *u) { free(u); }
+static enum c_abstract_http_error fetchFreeURL(struct url *u) {
+  free(u);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 /**
  * @brief Send HTTP request stub using libfetch API.
@@ -388,13 +391,17 @@ http_fetch_context_init(struct HttpTransportContext **const ctx) {
  *
  * @param[in] ctx The context to free. Safe to pass NULL.
  */
-void http_fetch_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_fetch_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_fetch_context_free: Entering");
   if (ctx) {
-    http_config_free(&ctx->config);
+    enum c_abstract_http_error rch = http_config_free(&ctx->config);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
     free(ctx);
   }
   LOG_DEBUG("http_fetch_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -562,7 +569,11 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
     }
     if (!upload_body) {
       LOG_DEBUG("http_fetch_send: Error ENOMEM (upload_body)");
-      fetchFreeURL(u);
+      {
+        enum c_abstract_http_error rch = fetchFreeURL(u);
+        if (rch != C_ABSTRACT_HTTP_SUCCESS)
+          return rch;
+      }
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
 
@@ -575,7 +586,11 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
       if (read_rc != 0) {
         LOG_DEBUG("http_fetch_send: read_chunk aborted");
         free(upload_body);
-        fetchFreeURL(u);
+        {
+          enum c_abstract_http_error rch = fetchFreeURL(u);
+          if (rch != C_ABSTRACT_HTTP_SUCCESS)
+            return rch;
+        }
         return (enum c_abstract_http_error)read_rc;
       }
       if (out_read == 0) {
@@ -596,7 +611,11 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
         if (!new_buf) {
           LOG_DEBUG("http_fetch_send: Error ENOMEM reallocating upload_body");
           free(upload_body);
-          fetchFreeURL(u);
+          {
+            enum c_abstract_http_error rch = fetchFreeURL(u);
+            if (rch != C_ABSTRACT_HTTP_SUCCESS)
+              return rch;
+          }
           return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
         upload_body = new_buf;
@@ -613,7 +632,11 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   /* Flags e.g. 'd' for direct, etc. For now "" */
   f = fetchReqHTTP(u, method_str, "", NULL, body_ptr);
 
-  fetchFreeURL(u);
+  {
+    enum c_abstract_http_error rch = fetchFreeURL(u);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
+  }
 
   if (!f) {
     map_fetch_error(fetchLastErrCode, &rc);

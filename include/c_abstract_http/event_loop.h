@@ -89,7 +89,8 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_loop_init_external(
  * @brief Free an event loop context.
  * @param[in] loop The event loop context.
  */
-C_ABSTRACT_HTTP_API void http_loop_free(struct ModalityEventLoop *loop);
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+http_loop_free(struct ModalityEventLoop *loop);
 
 /**
  * @brief Run the event loop. Mimics Node's uv_run.

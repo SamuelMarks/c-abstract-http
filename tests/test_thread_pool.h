@@ -30,6 +30,44 @@ extern "C" {
 #include "mock_alloc.h"
 /* clang-format on */
 
+#if !defined(_WIN32)
+TEST test_thread_pool_init_lock_fail(void) {
+  struct AbstractHttpThreadPool *pool = NULL;
+  enum c_abstract_http_error rc;
+
+  /* Fail on second thread so it locks and unlocks during cleanup */
+  g_mock_pthread_fail = 2;
+  g_mock_alloc_count = 1;
+  /* Make lock fail during cleanup */
+  g_mock_mutex_fail = 1;
+
+  rc = abstract_http_thread_pool_init(&pool, 2);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+
+  g_mock_pthread_fail = 0;
+  g_mock_mutex_fail = 0;
+  PASS();
+}
+
+TEST test_thread_pool_init_unlock_fail(void) {
+  struct AbstractHttpThreadPool *pool = NULL;
+  enum c_abstract_http_error rc;
+
+  /* Fail on second thread so it locks and unlocks during cleanup */
+  g_mock_pthread_fail = 2;
+  g_mock_alloc_count = 1;
+  /* Make unlock fail during cleanup */
+  g_mock_mutex_fail = 2;
+
+  rc = abstract_http_thread_pool_init(&pool, 2);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+
+  g_mock_pthread_fail = 0;
+  g_mock_mutex_fail = 0;
+  PASS();
+}
+#endif
+
 extern enum c_abstract_http_error
 abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool);
 extern enum c_abstract_http_error
@@ -95,7 +133,7 @@ TEST test_thread_pool_execution(void) {
 
   ASSERT_EQ(50, counter);
 
-  abstract_http_mutex_free(lock);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mutex_free(lock));
   PASS();
 }
 
@@ -105,7 +143,7 @@ TEST test_mutex_lock_unlock(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mutex_lock(lock));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mutex_unlock(lock));
 
-  abstract_http_mutex_free(lock);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mutex_free(lock));
   PASS();
 }
 
@@ -128,7 +166,7 @@ TEST test_thread_pool_task_cb_branches(void) {
 #else
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, test_task_cb(tdata));
 #endif
-  abstract_http_mutex_free(lock);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mutex_free(lock));
   PASS();
 }
 
@@ -144,7 +182,7 @@ TEST test_thread_pool_errors(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_mutex_init(NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_mutex_lock(NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_mutex_unlock(NULL));
-  abstract_http_mutex_free(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mutex_free(NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_cond_init(NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_cond_wait(NULL, NULL));
@@ -154,13 +192,13 @@ TEST test_thread_pool_errors(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_cond_wait(cond, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_cond_signal(NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_cond_broadcast(NULL));
-  abstract_http_cond_free(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_cond_free(NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_cond_signal(cond));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_cond_broadcast(cond));
 
-  abstract_http_cond_free(cond);
-  abstract_http_mutex_free(lock);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_cond_free(cond));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mutex_free(lock));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_thread_pool_init(NULL, 1));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
@@ -285,15 +323,33 @@ TEST test_thread_pool_edge_cases(void) {
               abstract_http_thread_pool_push(test_pool, dummy_cb_thread, NULL));
     g_mock_mutex_fail = 0;
 
+    /* push: mutex_lock fail type 3 (fails on NEXT call) */
+    g_mock_mutex_fail = 3;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(test_pool, dummy_cb_thread, NULL));
+    g_mock_mutex_fail = 0;
+
     /* push: cond_signal fail */
     g_mock_cond_fail = 2;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               abstract_http_thread_pool_push(test_pool, dummy_cb_thread, NULL));
     g_mock_cond_fail = 0;
 
+    /* push: cond_signal fail type 4 (fails on NEXT call) */
+    g_mock_cond_fail = 4;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(test_pool, dummy_cb_thread, NULL));
+    g_mock_cond_fail = 0;
+
     /* push: unlock fail after signal */
     g_mock_mutex_fail = 2;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              abstract_http_thread_pool_push(test_pool, dummy_cb_thread, NULL));
+    g_mock_mutex_fail = 0;
+
+    /* push: unlock fail type 4 (fails on NEXT call) */
+    g_mock_mutex_fail = 4;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               abstract_http_thread_pool_push(test_pool, dummy_cb_thread, NULL));
     g_mock_mutex_fail = 0;
 
@@ -556,6 +612,10 @@ SUITE(thread_pool_suite) {
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
   RUN_TEST(test_thread_pool_pthread_create_failures);
+#if !defined(_WIN32)
+  RUN_TEST(test_thread_pool_init_unlock_fail);
+  RUN_TEST(test_thread_pool_init_lock_fail);
+#endif
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
   RUN_TEST(test_thread_pool_pthread_failures);

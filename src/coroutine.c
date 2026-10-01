@@ -131,12 +131,13 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
+enum c_abstract_http_error
+abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   LOG_DEBUG("abstract_http_coroutine_free: Entering");
   if (g_coroutine_hooks.free) {
     LOG_DEBUG("abstract_http_coroutine_free: Hooking");
     g_coroutine_hooks.free(co);
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   if (co) {
@@ -146,6 +147,7 @@ void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
     free(co);
   }
   LOG_DEBUG("abstract_http_coroutine_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -341,12 +343,13 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
+enum c_abstract_http_error
+abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   LOG_DEBUG("abstract_http_coroutine_free: Entering");
   if (g_coroutine_hooks.free) {
     LOG_DEBUG("abstract_http_coroutine_free: Hooking");
     g_coroutine_hooks.free(co);
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   if (co) {
@@ -354,6 +357,7 @@ void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
     free(co);
   }
   LOG_DEBUG("abstract_http_coroutine_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -545,15 +549,16 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
+enum c_abstract_http_error
+abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   LOG_DEBUG("abstract_http_coroutine_free (fallback): Entering");
   if (g_coroutine_hooks.free) {
     LOG_DEBUG("abstract_http_coroutine_free (fallback): Hooking");
     g_coroutine_hooks.free(co);
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   if (!co)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
 
   if (co->is_started && !co->is_done) {
     pthread_mutex_lock(&co->mutex);
@@ -570,6 +575,7 @@ void abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   pthread_cond_destroy(&co->cond_resume);
   pthread_cond_destroy(&co->cond_yield);
   free(co);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

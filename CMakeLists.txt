@@ -110,7 +110,6 @@ option(C_ABSTRACT_HTTP_USE_LSQUIC "Use lsquic instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_PICOQUIC "Use picoquic instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_NGHTTP3 "Use nghttp3 instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_MSH3 "Use msh3 instead of libcurl" OFF)
-option(C_ABSTRACT_HTTP_USE_ARIA2 "Use aria2 instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_LIBSOUP3 "Use libsoup3 instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_LIBUV "Use libuv instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_LIBEVENT "Use libevent instead of libcurl" OFF)
@@ -462,6 +461,9 @@ endif()
         set(WITH_MBEDTLS ON CACHE BOOL "" FORCE)
         set(PICOQUIC_FETCH_PTLS ON CACHE BOOL "" FORCE)
         c_abstract_http_resolve_dependency(picoquic https://github.com/private-octopus/picoquic.git master)
+        if(NOT picoquic_RESOLVED)
+            message(FATAL_ERROR "picoquic library is required when C_ABSTRACT_HTTP_USE_PICOQUIC is ON")
+        endif()
         target_include_directories(c-abstract-http PRIVATE "${CMAKE_BINARY_DIR}/_deps/picoquic-src/picoquic" "${CMAKE_BINARY_DIR}/_deps/picoquic-src/picoquic-mbedtls")
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
   target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
@@ -472,10 +474,17 @@ endif()
         target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_PICOQUIC)
     elseif(C_ABSTRACT_HTTP_USE_NGHTTP3)
         c_abstract_http_resolve_dependency(nghttp3 https://github.com/ngtcp2/nghttp3.git main)
+        if(NOT nghttp3_RESOLVED)
+            message(FATAL_ERROR "nghttp3 library is required when C_ABSTRACT_HTTP_USE_NGHTTP3 is ON")
+        endif()
         target_link_libraries(c-abstract-http INTERFACE nghttp3 c89stringutils cfs)
         target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_NGHTTP3)
     elseif(C_ABSTRACT_HTTP_USE_MSH3)
+        target_sources(c-abstract-http PRIVATE src/http_msh3.c)
         c_abstract_http_resolve_dependency(msh3 https://github.com/nibanks/msh3.git main)
+        if(NOT msh3_RESOLVED)
+            message(FATAL_ERROR "msh3 library is required when C_ABSTRACT_HTTP_USE_MSH3 is ON")
+        endif()
         target_link_libraries(c-abstract-http INTERFACE msh3 c89stringutils cfs)
         target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_MSH3)
     elseif(WIN32 AND NOT MINGW_TEST_CURL)
@@ -493,9 +502,12 @@ endif()
     elseif(C_ABSTRACT_HTTP_USE_ARIA2)
         target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_ARIA2)
     elseif(C_ABSTRACT_HTTP_USE_XQUIC)
-        target_sources(c-abstract-http PRIVATE
-            src/http_xquic.c
-        )
+        c_abstract_http_resolve_dependency(xquic https://github.com/alibaba/xquic.git master)
+        if(NOT xquic_RESOLVED)
+            message(FATAL_ERROR "xquic library is required when C_ABSTRACT_HTTP_USE_XQUIC is ON")
+        endif()
+        target_link_libraries(c-abstract-http INTERFACE xquic)
+        target_sources(c-abstract-http PRIVATE src/http_xquic.c)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_XQUIC)
     elseif(C_ABSTRACT_HTTP_USE_LIBSOUP3)
         find_package(PkgConfig REQUIRED)
@@ -540,20 +552,6 @@ else()
             src/process.c
             src/transport.c
             src/http_raw.c
-            src/http_aria2.c
-            src/http_xquic.c
-            src/http_picoquic.c
-            src/http_wasm.c
-            src/http_fetch.c
-            src/http_nghttp3.c
-            src/http_libevent.c
-            src/http_libuv.c
-            src/http_lsquic.c
-            src/http_libsoup3.c
-            src/http_android.c
-            src/http_msh3.c
-            src/http_winhttp.c
-            src/http_wininet.c
         )
         set_target_properties(c-abstract-http PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
         if(MINGW OR CYGWIN)
@@ -572,20 +570,6 @@ else()
             src/process.c
             src/transport.c
             src/http_raw.c
-            src/http_aria2.c
-            src/http_xquic.c
-            src/http_picoquic.c
-            src/http_wasm.c
-            src/http_fetch.c
-            src/http_nghttp3.c
-            src/http_libevent.c
-            src/http_libuv.c
-            src/http_lsquic.c
-            src/http_libsoup3.c
-            src/http_android.c
-            src/http_msh3.c
-            src/http_winhttp.c
-            src/http_wininet.c
         )
     endif()
 
@@ -639,9 +623,10 @@ endif()
 
 #Platform specific HTTP backends
     if(CMAKE_SYSTEM_NAME STREQUAL "Android" OR ANDROID)
-        # Android backend already included in main sources
+        target_sources(c-abstract-http PRIVATE src/http_android.c)
     elseif(EMSCRIPTEN)
 #Fetch API requires - s FETCH = 1
+        target_sources(c-abstract-http PRIVATE src/http_wasm.c)
         target_link_options(c-abstract-http PUBLIC "SHELL:-s FETCH=1")
     elseif(C_ABSTRACT_HTTP_USE_LIBUV)
         target_sources(c-abstract-http PRIVATE
@@ -695,14 +680,22 @@ target_link_libraries(c-abstract-http PUBLIC lsquic ssl crypto)
 endif()
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LSQUIC)
     elseif(C_ABSTRACT_HTTP_USE_PICOQUIC)
+        target_sources(c-abstract-http PRIVATE src/http_picoquic.c)
         c_abstract_http_resolve_dependency(picoquic https://github.com/private-octopus/picoquic.git master)
+        if(NOT picoquic_RESOLVED)
+            message(FATAL_ERROR "picoquic library is required when C_ABSTRACT_HTTP_USE_PICOQUIC is ON")
+        endif()
         target_link_libraries(c-abstract-http PUBLIC picoquic)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_PICOQUIC)
     elseif(C_ABSTRACT_HTTP_USE_NGHTTP3)
+        target_sources(c-abstract-http PRIVATE src/http_nghttp3.c)
         set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
         set(ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
         set(ENABLE_APP OFF CACHE BOOL "" FORCE)
         c_abstract_http_resolve_dependency(nghttp3 https://github.com/ngtcp2/nghttp3.git main)
+        if(NOT nghttp3_RESOLVED)
+            message(FATAL_ERROR "nghttp3 library is required when C_ABSTRACT_HTTP_USE_NGHTTP3 is ON")
+        endif()
         target_include_directories(c-abstract-http PRIVATE "${CMAKE_BINARY_DIR}/_deps/nghttp3-src/lib/includes" "${CMAKE_BINARY_DIR}/_deps/nghttp3-build/lib/includes")
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
   target_compile_definitions(c-abstract-http PRIVATE _ACRTIMP= _CRTIMP=
@@ -712,16 +705,22 @@ endif()
         target_link_libraries(c-abstract-http PUBLIC nghttp3)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_NGHTTP3 C_ABSTRACT_HTTP_HAVE_REAL_NGHTTP3)
     elseif(C_ABSTRACT_HTTP_USE_MSH3)
+        target_sources(c-abstract-http PRIVATE src/http_msh3.c)
         c_abstract_http_resolve_dependency(msh3 https://github.com/nibanks/msh3.git main)
+        if(NOT msh3_RESOLVED)
+            message(FATAL_ERROR "msh3 library is required when C_ABSTRACT_HTTP_USE_MSH3 is ON")
+        endif()
         target_link_libraries(c-abstract-http PUBLIC msh3)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_MSH3)
     elseif(C_ABSTRACT_HTTP_USE_ARIA2)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_ARIA2)
     elseif(WIN32 AND NOT MINGW_TEST_CURL)
         if(MSVC AND MSVC_VERSION LESS 1600)
+            target_sources(c-abstract-http PRIVATE src/http_wininet.c)
             target_link_libraries(c-abstract-http PUBLIC wininet ws2_32)
             target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_WININET)
         else()
+            target_sources(c-abstract-http PRIVATE src/http_winhttp.c)
             target_link_libraries(c-abstract-http PUBLIC winhttp wininet ws2_32 crypt32 advapi32 shlwapi bcrypt)
             target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_WINHTTP)
         endif()
@@ -743,6 +742,12 @@ endif()
             endif()
         endif()
     elseif(C_ABSTRACT_HTTP_USE_XQUIC)
+        c_abstract_http_resolve_dependency(xquic https://github.com/alibaba/xquic.git master)
+        if(NOT xquic_RESOLVED)
+            message(FATAL_ERROR "xquic library is required when C_ABSTRACT_HTTP_USE_XQUIC is ON")
+        endif()
+        target_link_libraries(c-abstract-http PUBLIC xquic)
+        target_sources(c-abstract-http PRIVATE src/http_xquic.c)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_XQUIC)
     elseif(C_ABSTRACT_HTTP_USE_LIBSOUP3)
         target_sources(c-abstract-http PRIVATE
@@ -762,6 +767,7 @@ endif()
         target_link_libraries(c-abstract-http PUBLIC ${LIBSOUP3_LIBRARIES})
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LIBSOUP3)
     elseif(C_ABSTRACT_HTTP_USE_LIBFETCH)
+        target_sources(c-abstract-http PRIVATE src/http_fetch.c)
         target_link_libraries(c-abstract-http PUBLIC fetch)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LIBFETCH C_ABSTRACT_HTTP_HAVE_REAL_FETCH)
     elseif(CMAKE_SYSTEM_NAME STREQUAL "DOS")

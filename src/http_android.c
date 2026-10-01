@@ -14,151 +14,7 @@
 #include "str.h"
 /* clang-format on */
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int *abstract_http_mock_get_g_mock_android_getenv_detached(void);
-extern int *abstract_http_mock_get_g_mock_android_getenv_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_attach_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_new_string_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_find_class_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_get_method_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_new_object_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_call_object_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_res_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_res_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_input_stream_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_error_stream_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_read_exception(void);
-extern int *abstract_http_mock_get_g_mock_android_body_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_body_realloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_final_body_realloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_android_cleanup_exception(void);
-extern int *abstract_http_mock_get_g_mock_android_read_chunks(void);
-extern int *abstract_http_mock_get_g_mock_android_status_code(void);
-extern int *abstract_http_mock_get_g_mock_android_config_init_fail(void);
-
-#define g_mock_android_getenv_detached                                         \
-  (*abstract_http_mock_get_g_mock_android_getenv_detached())
-#define g_mock_android_getenv_fail                                             \
-  (*abstract_http_mock_get_g_mock_android_getenv_fail())
-#define g_mock_android_attach_fail                                             \
-  (*abstract_http_mock_get_g_mock_android_attach_fail())
-#define g_mock_android_new_string_fail                                         \
-  (*abstract_http_mock_get_g_mock_android_new_string_fail())
-#define g_mock_android_find_class_fail                                         \
-  (*abstract_http_mock_get_g_mock_android_find_class_fail())
-#define g_mock_android_get_method_fail                                         \
-  (*abstract_http_mock_get_g_mock_android_get_method_fail())
-#define g_mock_android_new_object_fail                                         \
-  (*abstract_http_mock_get_g_mock_android_new_object_fail())
-#define g_mock_android_call_object_fail                                        \
-  (*abstract_http_mock_get_g_mock_android_call_object_fail())
-#define g_mock_android_res_alloc_fail                                          \
-  (*abstract_http_mock_get_g_mock_android_res_alloc_fail())
-#define g_mock_android_res_init_fail                                           \
-  (*abstract_http_mock_get_g_mock_android_res_init_fail())
-#define g_mock_android_input_stream_fail                                       \
-  (*abstract_http_mock_get_g_mock_android_input_stream_fail())
-#define g_mock_android_error_stream_fail                                       \
-  (*abstract_http_mock_get_g_mock_android_error_stream_fail())
-#define g_mock_android_read_exception                                          \
-  (*abstract_http_mock_get_g_mock_android_read_exception())
-#define g_mock_android_body_alloc_fail                                         \
-  (*abstract_http_mock_get_g_mock_android_body_alloc_fail())
-#define g_mock_android_body_realloc_fail                                       \
-  (*abstract_http_mock_get_g_mock_android_body_realloc_fail())
-#define g_mock_android_final_body_realloc_fail                                 \
-  (*abstract_http_mock_get_g_mock_android_final_body_realloc_fail())
-#define g_mock_android_cleanup_exception                                       \
-  (*abstract_http_mock_get_g_mock_android_cleanup_exception())
-#define g_mock_android_read_chunks                                             \
-  (*abstract_http_mock_get_g_mock_android_read_chunks())
-#define g_mock_android_status_code                                             \
-  (*abstract_http_mock_get_g_mock_android_status_code())
-#define g_mock_android_config_init_fail                                        \
-  (*abstract_http_mock_get_g_mock_android_config_init_fail())
-#endif
-
-#if !defined(__ANDROID__)
-typedef unsigned char jboolean;
-typedef signed char jbyte;
-typedef short jshort;
-typedef int jint;
-typedef long jlong;
-typedef float jfloat;
-typedef double jdouble;
-typedef jint jsize;
-
-typedef void *jobject;
-typedef jobject jclass;
-typedef jobject jstring;
-typedef jobject jarray;
-typedef jobject jbyteArray;
-typedef jobject jthrowable;
-typedef void *jmethodID;
-typedef void *jfieldID;
-
-#define JNI_OK 0
-#define JNI_ERR (-1)
-#define JNI_EDETACHED (-2)
-#define JNI_EVERSION (-3)
-#define JNI_ENOMEM (-4)
-#define JNI_VERSION_1_6 0x00010006
-#define JNI_ABORT 2
-
-struct JNINativeInterface_;
-typedef const struct JNINativeInterface_ *JNIEnv;
-
-struct JNIInvokeInterface_;
-typedef const struct JNIInvokeInterface_ *JavaVM;
-
-struct JNINativeInterface_ {
-  void *reserved0;
-  void *reserved1;
-  void *reserved2;
-  void *reserved3;
-  jclass (*FindClass)(JNIEnv *env, const char *name);
-  jmethodID (*GetMethodID)(JNIEnv *env, jclass clazz, const char *name,
-                           const char *sig);
-  jobject (*NewObject)(JNIEnv *env, jclass clazz, jmethodID methodID, ...);
-  jclass (*GetObjectClass)(JNIEnv *env, jobject obj);
-  jobject (*CallObjectMethod)(JNIEnv *env, jobject obj, jmethodID methodID,
-                              ...);
-  void (*CallVoidMethod)(JNIEnv *env, jobject obj, jmethodID methodID, ...);
-  jint (*CallIntMethod)(JNIEnv *env, jobject obj, jmethodID methodID, ...);
-  jboolean (*ExceptionCheck)(JNIEnv *env);
-  void (*ExceptionClear)(JNIEnv *env);
-  jstring (*NewStringUTF)(JNIEnv *env, const char *bytes);
-  void (*DeleteLocalRef)(JNIEnv *env, jobject localRef);
-  jbyteArray (*NewByteArray)(JNIEnv *env, jsize length);
-  jbyte *(*GetByteArrayElements)(JNIEnv *env, jbyteArray array,
-                                 jboolean *isCopy);
-  void (*ReleaseByteArrayElements)(JNIEnv *env, jbyteArray array, jbyte *elems,
-                                   jint mode);
-};
-
-struct JNIInvokeInterface_ {
-  void *reserved0;
-  void *reserved1;
-  void *reserved2;
-  jint (*DestroyJavaVM)(JavaVM *vm);
-  jint (*AttachCurrentThread)(JavaVM *vm, void **penv, void *args);
-  jint (*DetachCurrentThread)(JavaVM *vm);
-  jint (*GetEnv)(JavaVM *vm, void **penv, jint version);
-  jint (*AttachCurrentThreadAsDaemon)(JavaVM *vm, void **penv, void *args);
-};
-
-static jbyte g_mock_android_byte_buf[8192];
-static int g_mock_android_has_exception = 0;
-
-static jclass mock_FindClass(JNIEnv *env, const char *name) {
-  (void)env;
-  (void)name;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_find_class_fail) {
-    return NULL;
-  }
-#endif
-  return (jclass)(size_t)1;
+return (jclass)(size_t)1;
 }
 
 static jmethodID mock_GetMethodID(JNIEnv *env, jclass clazz, const char *name,
@@ -166,57 +22,22 @@ static jmethodID mock_GetMethodID(JNIEnv *env, jclass clazz, const char *name,
   (void)env;
   (void)clazz;
   (void)sig;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_get_method_fail == 1) {
-    return NULL;
-  }
-#endif
   if (strcmp(name, "getResponseCode") == 0) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_android_get_method_fail == 2) {
-      return NULL;
-    }
-#endif
     return (jmethodID)(size_t)10;
   }
   if (strcmp(name, "read") == 0) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_android_get_method_fail == 5) {
-      return NULL;
-    }
-#endif
     return (jmethodID)(size_t)20;
   }
   if (strcmp(name, "getInputStream") == 0) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_android_get_method_fail == 6) {
-      return NULL;
-    }
-#endif
     return (jmethodID)(size_t)30;
   }
   if (strcmp(name, "getErrorStream") == 0) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_android_get_method_fail == 7) {
-      return NULL;
-    }
-#endif
     return (jmethodID)(size_t)31;
   }
   if (strcmp(name, "openConnection") == 0) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_android_get_method_fail == 3) {
-      return NULL;
-    }
-#endif
     return (jmethodID)(size_t)40;
   }
   if (strcmp(name, "setRequestMethod") == 0) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_android_get_method_fail == 4) {
-      return NULL;
-    }
-#endif
     return (jmethodID)(size_t)50;
   }
   return (jmethodID)(size_t)1;
@@ -227,11 +48,6 @@ static jobject mock_NewObject(JNIEnv *env, jclass clazz, jmethodID methodID,
   (void)env;
   (void)clazz;
   (void)methodID;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_new_object_fail) {
-    return NULL;
-  }
-#endif
   return (jobject)(size_t)2;
 }
 
@@ -246,21 +62,6 @@ static jobject mock_CallObjectMethod(JNIEnv *env, jobject obj,
   (void)env;
   (void)obj;
   (void)methodID;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_call_object_fail) {
-    return NULL;
-  }
-  if (methodID == (jmethodID)(size_t)30 && g_mock_android_input_stream_fail) {
-    g_mock_android_input_stream_fail = 0;
-    g_mock_android_has_exception = 1;
-    return NULL;
-  }
-  if (methodID == (jmethodID)(size_t)31 && g_mock_android_error_stream_fail) {
-    g_mock_android_error_stream_fail = 0;
-    g_mock_android_has_exception = 1;
-    return NULL;
-  }
-#endif
   return (jobject)(size_t)4;
 }
 
@@ -275,33 +76,6 @@ static jint mock_CallIntMethod(JNIEnv *env, jobject obj, jmethodID methodID,
                                ...) {
   (void)env;
   (void)obj;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (methodID == (jmethodID)(size_t)10) {
-    if (g_mock_android_status_code) {
-      return (jint)g_mock_android_status_code;
-    }
-    return 200;
-  }
-  if (g_mock_android_read_exception) {
-    g_mock_android_read_exception = 0;
-    g_mock_android_has_exception = 1;
-    return 0;
-  }
-  if (g_mock_android_read_chunks == 99) {
-    g_mock_android_read_chunks = 0;
-    return 0;
-  }
-  if (g_mock_android_read_chunks > 0) {
-    g_mock_android_read_chunks--;
-    return 5000;
-  }
-  return -1;
-#else
-  if (methodID == (jmethodID)(size_t)10) {
-    return 200;
-  }
-  return -1;
-#endif
 }
 
 static jboolean mock_ExceptionCheck(JNIEnv *env) {
@@ -317,35 +91,17 @@ static void mock_ExceptionClear(JNIEnv *env) {
 static jstring mock_NewStringUTF(JNIEnv *env, const char *bytes) {
   (void)env;
   (void)bytes;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_new_string_fail == 1) {
-    return NULL;
-  }
-  if (g_mock_android_new_string_fail == 2 && strcmp(bytes, "GET") == 0) {
-    return NULL;
-  }
-#endif
   return (jstring)(size_t)5;
 }
 
 static void mock_DeleteLocalRef(JNIEnv *env, jobject localRef) {
   (void)env;
   (void)localRef;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_cleanup_exception) {
-    g_mock_android_has_exception = 1;
-  }
-#endif
 }
 
 static jbyteArray mock_NewByteArray(JNIEnv *env, jsize length) {
   (void)env;
   (void)length;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_res_alloc_fail == 2) {
-    return NULL;
-  }
-#endif
   return (jbyteArray)(size_t)6;
 }
 
@@ -390,11 +146,6 @@ static const JNIEnv g_mock_env = &g_mock_native_interface;
 static jint mock_AttachCurrentThread(JavaVM *vm, void **penv, void *args) {
   (void)vm;
   (void)args;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_attach_fail) {
-    return JNI_ERR;
-  }
-#endif
   *penv = (void *)&g_mock_env;
   return JNI_OK;
 }
@@ -407,15 +158,6 @@ static jint mock_DetachCurrentThread(JavaVM *vm) {
 static jint mock_GetEnv(JavaVM *vm, void **penv, jint version) {
   (void)vm;
   (void)version;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_getenv_fail) {
-    return JNI_ERR;
-  }
-  if (g_mock_android_getenv_detached) {
-    g_mock_android_getenv_detached = 0;
-    return JNI_EDETACHED;
-  }
-#endif
   *penv = (void *)&g_mock_env;
   return JNI_OK;
 }
@@ -457,9 +199,6 @@ static JavaVM *g_android_jvm = NULL;
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
 enum c_abstract_http_error http_android_global_init(void) {
-#if !defined(__ANDROID__)
-  g_android_jvm = (JavaVM *)&g_mock_jvm;
-#endif
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -522,14 +261,7 @@ http_android_context_init(struct HttpTransportContext **ctx) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_config_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_config_init(&(*ctx)->config);
-  }
+  { rc = http_config_init(&(*ctx)->config); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG(
         "http_android_context_init: Error http_config_init failed with %d",
@@ -554,11 +286,13 @@ http_android_context_init(struct HttpTransportContext **ctx) {
  *
  * @param[in] ctx The context to free. Satisfies NULL-safety.
  */
-void http_android_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_android_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_android_context_free: Entering");
   if (ctx) {
     http_config_free(&ctx->config);
     free(ctx);
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   LOG_DEBUG("http_android_context_free: Exiting");
 }
@@ -753,27 +487,13 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
     (*env)->ExceptionClear(env);
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_res_alloc_fail == 1) {
-    *res = NULL;
-  } else
-#endif
-  {
-    *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
-  }
+  { *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse)); }
   if (!*res) {
     rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     goto cleanup;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_android_res_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_response_init(*res);
-  }
+  { rc = http_response_init(*res); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     free(*res);
     *res = NULL;
@@ -815,14 +535,7 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
       goto cleanup;
     }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_android_body_alloc_fail) {
-      body = NULL;
-    } else
-#endif
-    {
-      body = (char *)malloc(body_cap);
-    }
+    { body = (char *)malloc(body_cap); }
 
     if (!body) {
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -841,14 +554,7 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
         if (read_len > 0) {
           if (body_len + (size_t)read_len > body_cap) {
             body_cap = (body_len + (size_t)read_len) * 2;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-            if (g_mock_android_body_realloc_fail) {
-              new_body = NULL;
-            } else
-#endif
-            {
-              new_body = (char *)realloc(body, body_cap);
-            }
+            { new_body = (char *)realloc(body, body_cap); }
             if (!new_body) {
               rc = C_ABSTRACT_HTTP_ERR_NOMEM;
               break;
@@ -865,11 +571,6 @@ enum c_abstract_http_error http_android_send(struct HttpTransportContext *ctx,
     }
 
     if (rc == C_ABSTRACT_HTTP_SUCCESS && body_len > 0) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (g_mock_android_final_body_realloc_fail) {
-        final_body = NULL;
-      } else
-#endif
       {
         final_body = (char *)realloc(body, body_len + 1);
       }

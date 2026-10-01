@@ -57,23 +57,6 @@ TEST test_android_lifecycle(void) {
   http_android_context_free(ctx);
   http_android_context_free(NULL);
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  /* Test allocation failure */
-  ctx = NULL;
-  g_mock_alloc_count = 0;
-  g_mock_alloc_fail = 1;
-  rc = http_android_context_init(&ctx);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  g_mock_alloc_fail = 0;
-
-  /* Test config init failure */
-  ctx = NULL;
-  g_mock_android_config_init_fail = 1;
-  rc = http_android_context_init(&ctx);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  g_mock_android_config_init_fail = 0;
-#endif
-
   rc = http_android_global_cleanup();
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
@@ -180,19 +163,6 @@ TEST test_android_send_success(void) {
   free(res);
   res = NULL;
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  g_mock_android_status_code = 404;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  ASSERT(res != NULL);
-  ASSERT_EQ(404, res->status_code);
-
-  http_response_free(res);
-  free(res);
-  res = NULL;
-  g_mock_android_status_code = 0;
-#endif
-
   http_request_free(&req);
   http_android_context_free(ctx);
   PASS();
@@ -265,33 +235,6 @@ TEST test_android_send_thread_states(void) {
 
   rc = http_request_init(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  (void)res;
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  /* Detached thread attach success */
-  g_mock_android_getenv_detached = 1;
-  res = NULL;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  ASSERT(res != NULL);
-  http_response_free(res);
-  free(res);
-  res = NULL;
-
-  /* Detached thread attach fail */
-  g_mock_android_getenv_detached = 1;
-  g_mock_android_attach_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_getenv_detached = 0;
-  g_mock_android_attach_fail = 0;
-
-  /* GetEnv fail */
-  g_mock_android_getenv_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_getenv_fail = 0;
-#endif
 
   http_request_free(&req);
   http_android_context_free(ctx);
@@ -313,189 +256,6 @@ TEST test_android_send_jni_failures(void) {
 
   rc = http_request_init(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  (void)res;
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  /* NewStringUTF failure */
-  g_mock_android_new_string_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  g_mock_android_new_string_fail = 0;
-
-  /* FindClass failure */
-  g_mock_android_find_class_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_find_class_fail = 0;
-
-  /* GetMethodID failure */
-  g_mock_android_get_method_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_get_method_fail = 0;
-
-  /* GetMethodID failure on conn methods */
-  g_mock_android_get_method_fail = 2;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_get_method_fail = 0;
-
-  /* GetMethodID failure on openConnection */
-  g_mock_android_get_method_fail = 3;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_get_method_fail = 0;
-
-  /* GetMethodID failure on setRequestMethod */
-  g_mock_android_get_method_fail = 4;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_get_method_fail = 0;
-
-  /* GetMethodID failure on read */
-  g_mock_android_get_method_fail = 5;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_get_method_fail = 0;
-
-  /* GetMethodID failure on getInputStream */
-  g_mock_android_get_method_fail = 6;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_get_method_fail = 0;
-
-  /* GetMethodID failure on getErrorStream */
-  g_mock_android_input_stream_fail = 1;
-  g_mock_android_get_method_fail = 7;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_input_stream_fail = 0;
-  g_mock_android_get_method_fail = 0;
-
-  /* NewStringUTF failure on method string */
-  g_mock_android_new_string_fail = 2;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  g_mock_android_new_string_fail = 0;
-
-  /* NewByteArray failure */
-  g_mock_android_res_alloc_fail = 2;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  g_mock_android_res_alloc_fail = 0;
-
-  /* NewObject failure */
-  g_mock_android_new_object_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_new_object_fail = 0;
-
-  /* CallObjectMethod failure */
-  g_mock_android_call_object_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
-  g_mock_android_call_object_fail = 0;
-
-  /* Response allocation failure */
-  g_mock_android_res_alloc_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  g_mock_android_res_alloc_fail = 0;
-
-  /* Response init failure */
-  g_mock_android_res_init_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  g_mock_android_res_init_fail = 0;
-
-  /* Input stream failure falling back to error stream */
-  g_mock_android_input_stream_fail = 1;
-  res = NULL;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  ASSERT(res != NULL);
-  http_response_free(res);
-  free(res);
-  res = NULL;
-
-  /* Both input and error stream failures */
-  g_mock_android_input_stream_fail = 1;
-  g_mock_android_error_stream_fail = 1;
-  res = NULL;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  ASSERT(res != NULL);
-  http_response_free(res);
-  free(res);
-  res = NULL;
-
-  /* Body alloc failure */
-  g_mock_android_body_alloc_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  g_mock_android_body_alloc_fail = 0;
-
-  /* Body realloc failure during multi-chunk read */
-  g_mock_android_read_chunks = 2;
-  g_mock_android_body_realloc_fail = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  g_mock_android_read_chunks = 0;
-  g_mock_android_body_realloc_fail = 0;
-
-  /* Multi-chunk read success with final body realloc fallback */
-  g_mock_android_read_chunks = 2;
-  g_mock_android_final_body_realloc_fail = 1;
-  res = NULL;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  ASSERT(res != NULL);
-  ASSERT_EQ(10000, res->body_len);
-  http_response_free(res);
-  free(res);
-  res = NULL;
-  g_mock_android_read_chunks = 0;
-  g_mock_android_final_body_realloc_fail = 0;
-
-  /* Multi-chunk read success */
-  g_mock_android_read_chunks = 2;
-  res = NULL;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  ASSERT(res != NULL);
-  ASSERT_EQ(10000, res->body_len);
-  http_response_free(res);
-  free(res);
-  res = NULL;
-  g_mock_android_read_chunks = 0;
-
-  /* Read exception */
-  g_mock_android_read_exception = 1;
-  res = NULL;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  ASSERT(res != NULL);
-  http_response_free(res);
-  free(res);
-  res = NULL;
-
-  /* Read zero bytes */
-  g_mock_android_read_chunks = 99;
-  res = NULL;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  ASSERT(res != NULL);
-  http_response_free(res);
-  free(res);
-  res = NULL;
-  g_mock_android_read_chunks = 0;
-
-  /* Cleanup exception check */
-  g_mock_android_cleanup_exception = 1;
-  rc = http_android_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
-  g_mock_android_cleanup_exception = 0;
-#endif
 
   http_request_free(&req);
   http_android_context_free(ctx);

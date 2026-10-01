@@ -120,10 +120,10 @@ enum c_abstract_http_error http_headers_init(struct HttpHeaders *headers) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_headers_free(struct HttpHeaders *headers) {
+enum c_abstract_http_error http_headers_free(struct HttpHeaders *headers) {
   size_t i;
   if (!headers)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
 
   if (headers->headers) {
     for (i = 0; i < headers->count; ++i) {
@@ -135,6 +135,7 @@ void http_headers_free(struct HttpHeaders *headers) {
   }
   headers->count = 0;
   headers->capacity = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #undef c_abstract_http_strdup
 extern enum c_abstract_http_error c_abstract_http_strdup(const char *s,
@@ -269,16 +270,21 @@ enum c_abstract_http_error http_parts_init(struct HttpParts *parts) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_parts_free(struct HttpParts *parts) {
+enum c_abstract_http_error http_parts_free(struct HttpParts *parts) {
   size_t i;
   if (!parts)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   if (parts->parts) {
     for (i = 0; i < parts->count; ++i) {
       free(parts->parts[i].name);
       free(parts->parts[i].filename);
       free(parts->parts[i].content_type);
-      http_headers_free(&parts->parts[i].headers);
+      {
+        enum c_abstract_http_error rc =
+            http_headers_free(&parts->parts[i].headers);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+          return rc;
+      }
       /* data ownership is typically external references for efficiency,
          but for safety in this generator we assume data pointers are managed
          by the source (e.g. read_to_file or literal).
@@ -289,6 +295,7 @@ void http_parts_free(struct HttpParts *parts) {
   }
   parts->count = 0;
   parts->capacity = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -324,7 +331,12 @@ http_request_add_part(struct HttpRequest *req, const char *name,
   p->parts[p->count].name =
       (c_abstract_http_strdup(name, &_ast_strdup_2), _ast_strdup_2);
   if (!p->parts[p->count].name) {
-    http_headers_free(&p->parts[p->count].headers);
+    {
+      enum c_abstract_http_error rch =
+          http_headers_free(&p->parts[p->count].headers);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
+    }
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
@@ -333,7 +345,12 @@ http_request_add_part(struct HttpRequest *req, const char *name,
         (c_abstract_http_strdup(filename, &_ast_strdup_3), _ast_strdup_3);
     if (!p->parts[p->count].filename) {
       free(p->parts[p->count].name);
-      http_headers_free(&p->parts[p->count].headers);
+      {
+        enum c_abstract_http_error rch =
+            http_headers_free(&p->parts[p->count].headers);
+        if (rch != C_ABSTRACT_HTTP_SUCCESS)
+          return rch;
+      }
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
@@ -345,7 +362,12 @@ http_request_add_part(struct HttpRequest *req, const char *name,
       if (p->parts[p->count].filename)
         free(p->parts[p->count].filename);
       free(p->parts[p->count].name);
-      http_headers_free(&p->parts[p->count].headers);
+      {
+        enum c_abstract_http_error rch =
+            http_headers_free(&p->parts[p->count].headers);
+        if (rch != C_ABSTRACT_HTTP_SUCCESS)
+          return rch;
+      }
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
@@ -589,10 +611,10 @@ enum c_abstract_http_error http_cookie_jar_init(struct HttpCookieJar *jar) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_cookie_jar_free(struct HttpCookieJar *jar) {
+enum c_abstract_http_error http_cookie_jar_free(struct HttpCookieJar *jar) {
   size_t i;
   if (!jar)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   if (jar->cookies) {
     for (i = 0; i < jar->count; ++i) {
       free(jar->cookies[i].name);
@@ -605,6 +627,7 @@ void http_cookie_jar_free(struct HttpCookieJar *jar) {
   }
   jar->count = 0;
   jar->capacity = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
@@ -711,9 +734,9 @@ enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_config_free(struct HttpConfig *config) {
+enum c_abstract_http_error http_config_free(struct HttpConfig *config) {
   if (!config)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   if (config->user_agent) {
     free(config->user_agent);
     config->user_agent = NULL;
@@ -730,6 +753,7 @@ void http_config_free(struct HttpConfig *config) {
     free(config->proxy_password);
     config->proxy_password = NULL;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error http_client_init(struct HttpClient *client) {
@@ -740,16 +764,21 @@ enum c_abstract_http_error http_client_init(struct HttpClient *client) {
   return http_config_init(&client->config);
 }
 
-void http_client_free(struct HttpClient *client) {
+enum c_abstract_http_error http_client_free(struct HttpClient *client) {
   if (!client)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
 
-  http_config_free(&client->config);
+  {
+    enum c_abstract_http_error rc = http_config_free(&client->config);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
 
   if (client->base_url) {
     free(client->base_url);
     client->base_url = NULL;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
@@ -772,15 +801,17 @@ enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
     return rc;
   rc = http_parts_init(&req->parts);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    http_headers_free(&req->headers);
+    enum c_abstract_http_error rch = http_headers_free(&req->headers);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
     return rc;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_request_free(struct HttpRequest *req) {
+enum c_abstract_http_error http_request_free(struct HttpRequest *req) {
   if (!req)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   if (req->url) {
     free(req->url);
     req->url = NULL;
@@ -789,8 +820,17 @@ void http_request_free(struct HttpRequest *req) {
     free(req->body);
     req->body = NULL;
   }
-  http_headers_free(&req->headers);
-  http_parts_free(&req->parts);
+  {
+    enum c_abstract_http_error rch = http_headers_free(&req->headers);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
+  }
+  {
+    enum c_abstract_http_error rcp = http_parts_free(&req->parts);
+    if (rcp != C_ABSTRACT_HTTP_SUCCESS)
+      return rcp;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -802,11 +842,13 @@ http_modality_context_init(struct ModalityContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_modality_context_free(struct ModalityContext *ctx) {
+enum c_abstract_http_error
+http_modality_context_free(struct ModalityContext *ctx) {
   if (!ctx)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   /* Modality specific cleanup would happen here later */
   ctx->internal_ctx = NULL;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error http_future_init(struct HttpFuture *future) {
@@ -819,13 +861,14 @@ enum c_abstract_http_error http_future_init(struct HttpFuture *future) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_future_free(struct HttpFuture *future) {
+enum c_abstract_http_error http_future_free(struct HttpFuture *future) {
   if (!future)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   /* if we owned future->response, we might free it, but usually user takes
    * ownership */
   future->response = NULL;
   future->internal_state = NULL;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -842,9 +885,10 @@ http_multi_request_init(struct HttpMultiRequest *multi) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_multi_request_free(struct HttpMultiRequest *multi) {
+enum c_abstract_http_error
+http_multi_request_free(struct HttpMultiRequest *multi) {
   if (!multi)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   if (multi->requests) {
     /* Does not free the actual HttpRequest objects, just the array */
     free(multi->requests);
@@ -852,6 +896,7 @@ void http_multi_request_free(struct HttpMultiRequest *multi) {
   }
   multi->count = 0;
   multi->capacity = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -2177,14 +2222,19 @@ enum c_abstract_http_error http_response_init(struct HttpResponse *res) {
   return http_headers_init(&res->headers);
 }
 
-void http_response_free(struct HttpResponse *res) {
+enum c_abstract_http_error http_response_free(struct HttpResponse *res) {
   if (!res)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   if (res->body) {
     free(res->body);
     res->body = NULL;
   }
-  http_headers_free(&res->headers);
+  {
+    enum c_abstract_http_error rch = http_headers_free(&res->headers);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -2246,7 +2296,9 @@ enum c_abstract_http_error http_client_send_multi(
   for (i = 0; i < num_requests; ++i) {
     rc = http_multi_request_add(&multi, requests[i]);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      http_multi_request_free(&multi);
+      enum c_abstract_http_error rch = http_multi_request_free(&multi);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
       return rc;
     }
   }
@@ -2257,11 +2309,15 @@ enum c_abstract_http_error http_client_send_multi(
     if (client->send_multi && client->loop) {
       rc = client->send_multi(client->transport, client->loop, &multi, futures);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        http_multi_request_free(&multi);
+        enum c_abstract_http_error rch = http_multi_request_free(&multi);
+        if (rch != C_ABSTRACT_HTTP_SUCCESS)
+          return rch;
         return rc;
       }
     } else {
-      http_multi_request_free(&multi);
+      enum c_abstract_http_error rch = http_multi_request_free(&multi);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
       return C_ABSTRACT_HTTP_ERR_NOTSUP;
     }
     break;
@@ -2287,7 +2343,9 @@ enum c_abstract_http_error http_client_send_multi(
         futures[i]->error_code = req_rc;
         futures[i]->is_ready = 1;
         if (fail_fast) {
-          http_multi_request_free(&multi);
+          enum c_abstract_http_error rch = http_multi_request_free(&multi);
+          if (rch != C_ABSTRACT_HTTP_SUCCESS)
+            return rch;
           return req_rc;
         }
       } else {
@@ -2299,7 +2357,11 @@ enum c_abstract_http_error http_client_send_multi(
     break;
   }
 
-  http_multi_request_free(&multi);
+  {
+    enum c_abstract_http_error rch = http_multi_request_free(&multi);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
+  }
   return rc;
 }
 

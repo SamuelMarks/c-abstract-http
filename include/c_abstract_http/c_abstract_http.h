@@ -33,25 +33,40 @@ extern "C" {
 
 #include "actor.h"
 
-#include "http_libsoup3.h"
-
-#include "http_curl.h"
-
-#include "http_winhttp.h"
-
+#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+#include "http_lsquic.h"
+#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#include "http_picoquic.h"
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+#include "http_nghttp3.h"
+#elif defined(C_ABSTRACT_HTTP_USE_MSH3)
+#include "http_msh3.h"
+#elif defined(C_ABSTRACT_HTTP_USE_WININET)
 #include "http_wininet.h"
-
+#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#include "http_winhttp.h"
+#elif defined(__APPLE__)
 #include "http_apple.h"
-
+#elif defined(__ANDROID__)
 #include "http_android.h"
-
-#include "http_aria2.h"
-
+#elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
+#include "http_xquic.h"
+#elif defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
 #include "http_wasm.h"
-
+#elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
+#include "http_libsoup3.h"
+#elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
 #include "http_libuv.h"
-
+#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
 #include "http_libevent.h"
+#elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
+#include "http_fetch.h"
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) || defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+#include "http_raw.h"
+#else
+#include "http_curl.h"
+#endif
 
 #ifdef C_ABSTRACT_HTTP_IMPLEMENTATION
 /* Single translation unit inclusion of the source */
@@ -77,7 +92,6 @@ extern "C" {
 #elif defined(__EMSCRIPTEN__)
 #include "../../src/http_wasm.c"
 #elif defined(C_ABSTRACT_HTTP_USE_ARIA2)
-#include "../../src/http_aria2.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include "../../src/http_libsoup3.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)

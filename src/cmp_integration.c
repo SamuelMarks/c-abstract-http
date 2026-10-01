@@ -87,7 +87,7 @@ enum c_abstract_http_error cmp_http_progress_adapter(size_t current_bytes,
 
   if (binding->cancel_requested) {
     LOG_DEBUG("cmp_http_progress_adapter: Cancel requested");
-    return 1; /* abort */
+    return C_ABSTRACT_HTTP_ERR_IO; /* abort */
   }
 
   if (binding->update_progress && total_bytes > 0) {

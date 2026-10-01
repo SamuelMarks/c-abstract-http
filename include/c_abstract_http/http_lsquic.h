@@ -56,7 +56,7 @@ http_lsquic_context_init(struct HttpTransportContext **ctx);
  *
  * @param[in] ctx The context to free.
  */
-C_ABSTRACT_HTTP_API void
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 http_lsquic_context_free(struct HttpTransportContext *ctx);
 
 /**

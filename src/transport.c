@@ -264,7 +264,11 @@ transport_factory_cleanup_client(struct HttpClient *client) {
     defined(__WIN32__) || defined(__WINDOWS__)
   http_winhttp_context_free(client->transport);
 #elif defined(__APPLE__)
-  http_apple_context_free(client->transport);
+  {
+    enum c_abstract_http_error rc = http_apple_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
 #elif defined(__ANDROID__)
   http_android_context_free(client->transport);
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
@@ -279,7 +283,11 @@ transport_factory_cleanup_client(struct HttpClient *client) {
   http_fetch_context_free(client->transport);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
     defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
-  http_raw_context_free(client->transport);
+  {
+    enum c_abstract_http_error rc = http_raw_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
 #else
   http_curl_context_free(client->transport);
 #endif

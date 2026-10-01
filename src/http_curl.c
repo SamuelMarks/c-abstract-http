@@ -371,7 +371,8 @@ http_curl_context_init(struct HttpTransportContext **const ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_curl_context_free(struct HttpTransportContext *const ctx) {
+enum c_abstract_http_error
+http_curl_context_free(struct HttpTransportContext *const ctx) {
   LOG_DEBUG("http_curl_context_free: Entering");
   if (ctx) {
     curl_easy_cleanup(ctx->curl);
@@ -379,6 +380,7 @@ void http_curl_context_free(struct HttpTransportContext *const ctx) {
     free(ctx);
   }
   LOG_DEBUG("http_curl_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -792,7 +794,9 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FINISH_CURL_REQUEST(
 cleanup:
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (new_res) {
-      http_response_free(new_res);
+      enum c_abstract_http_error rch = http_response_free(new_res);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
       free(new_res);
     }
   }

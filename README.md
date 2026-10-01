@@ -3,10 +3,10 @@ c-abstract-http
 
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Continuous Integration](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml/badge.svg)](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml)
-[![Test Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](#)
+[![Test Coverage](https://img.shields.io/badge/coverage-70%25-yellow.svg)](#)
 [![Doc Coverage](https://img.shields.io/badge/docs-100%25-brightgreen.svg)](#)
 
-A highly robust, cross-platform abstract HTTP network library for C. It unifies various platform-specific network and crypto libraries under a single strict C89 API. Designed with strict C89 compliance, memory safety, and high portability in mind, this library is suitable for deeply embedded environments, legacy systems, and modern high-performance backends. It now supports massive scale HTTP/3 integration spanning 4 native cross-platform engines, and features a completely pluggable Execution Modality engine (Actors, Coroutines, Multiprocessing, Async, Thread Pools) seamlessly integrated with frameworks like `c-multiplatform`.
+A highly robust, cross-platform abstract HTTP network library for C. It unifies various platform-specific network and crypto libraries under a single strict C89 API. Designed with strict C89 compliance, memory safety, and high portability in mind, this library is suitable for deeply embedded environments, legacy systems, and modern high-performance backends. It now supports massive scale HTTP/3 integration spanning 5 native cross-platform engines, and features a completely pluggable Execution Modality engine (Actors, Coroutines, Multiprocessing, Async, Thread Pools) seamlessly integrated with frameworks like `c-multiplatform`.
 
 ## Key Capabilities
 
@@ -49,7 +49,7 @@ You can override the default native backend on any platform by passing specific 
 - **`-DC_ABSTRACT_HTTP_USE_LSQUIC=ON`**: LiteSpeed's high-performance HTTP/3 and QUIC stack.
 - **`-DC_ABSTRACT_HTTP_USE_PICOQUIC=ON`**: Easy-to-embed, standalone QUIC & HTTP/3 stack via h3zero.
 - **`-DC_ABSTRACT_HTTP_USE_NGHTTP3=ON`**: Lightweight HTTP/3 framing state machine backend.
-- **`-DC_ABSTRACT_HTTP_USE_ARIA2=ON`**: Highly concurrent downloading utility backend.
+- **`-DC_ABSTRACT_HTTP_USE_XQUIC=ON`**: Alibaba's xquic HTTP/3 Backend.
 - **`-DC_ABSTRACT_HTTP_USE_LIBSOUP3=ON`**: Modern GTK4-friendly POSIX backend.
 - **`-DC_ABSTRACT_HTTP_USE_LIBUV=ON`**: Node.js-style asynchronous I/O backend.
 - **`-DC_ABSTRACT_HTTP_USE_LIBEVENT=ON`**: Fast event notification backend.
@@ -117,7 +117,7 @@ The library guarantees 100% C code compliance routing HTTP/3 frames. The followi
 | lsquic | Built-in | High-performance stack by LiteSpeed. | Yes |
 | picoquic | Built-in (h3zero) | Fast and easy-to-embed QUIC & HTTP/3 stack. | Yes |
 | nghttp3 | Agnostic (ngtcp2) | Lightweight framing state machine. | Yes |
-| xquic | Built-in | Alibaba's stack optimized for mobile/weak net. | No |
+| xquic | Built-in | Alibaba's stack optimized for mobile/weak net. | Yes |
 
 ## CMake Configuration Options
 
@@ -135,6 +135,7 @@ Configure your build precisely by passing these flags to CMake:
 | `C_ABSTRACT_HTTP_USE_LSQUIC` | OFF | Use lsquic (HTTP/3) instead of libcurl |
 | `C_ABSTRACT_HTTP_USE_PICOQUIC` | OFF | Use picoquic (HTTP/3) instead of libcurl |
 | `C_ABSTRACT_HTTP_USE_NGHTTP3` | OFF | Use nghttp3 (HTTP/3) instead of libcurl |
+| `C_ABSTRACT_HTTP_USE_XQUIC` | OFF | Use Alibaba xquic HTTP/3 Backend |
 | `C_ABSTRACT_HTTP_USE_LIBSOUP3` | OFF | Use libsoup3 instead of libcurl |
 | `C_ABSTRACT_HTTP_USE_LIBUV` | OFF | Use libuv instead of libcurl |
 | `C_ABSTRACT_HTTP_USE_LIBEVENT` | OFF | Use libevent instead of libcurl |

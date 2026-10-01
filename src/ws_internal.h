@@ -210,7 +210,8 @@ enum c_abstract_http_error ws_parser_init(struct ws_parser_ctx *ctx,
  * @brief Destroy a WebSocket parser context and free its buffers.
  * @param ctx The parser context to destroy.
  */
-void ws_parser_destroy(struct ws_parser_ctx *ctx);
+NO_DISCARD enum c_abstract_http_error
+ws_parser_destroy(struct ws_parser_ctx *ctx);
 
 /**
  * @brief Feed raw network bytes into the WebSocket parser.

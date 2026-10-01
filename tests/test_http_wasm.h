@@ -58,9 +58,8 @@ static int wasm_mock_read_chunk(void *user_data, void *buf, size_t max_len,
  */
 static int wasm_mock_on_chunk_success(void *user_data, const void *data,
                                       size_t len) {
-  (void)user_data;
-  (void)data;
-  (void)len;
+  if (user_data || data || len) {
+  }
   return 0;
 }
 
@@ -74,9 +73,8 @@ static int wasm_mock_on_chunk_success(void *user_data, const void *data,
  */
 static int wasm_mock_on_chunk_fail(void *user_data, const void *data,
                                    size_t len) {
-  (void)user_data;
-  (void)data;
-  (void)len;
+  if (user_data || data || len) {
+  }
   return -1;
 }
 
@@ -91,10 +89,8 @@ static int wasm_mock_on_chunk_fail(void *user_data, const void *data,
  */
 static int wasm_mock_read_chunk_fail(void *user_data, void *buf, size_t max_len,
                                      size_t *out_read) {
-  (void)user_data;
-  (void)buf;
-  (void)max_len;
-  (void)out_read;
+  if (user_data || buf || max_len || out_read) {
+  }
   return -1;
 }
 
@@ -425,7 +421,8 @@ TEST test_wasm_send_failures(void) {
 #endif
   ctx = NULL;
   res = NULL;
-  (void)res;
+  if (res) {
+  }
   _ast_strdup_0 = NULL;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   read_called = 0;

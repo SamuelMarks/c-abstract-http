@@ -50,14 +50,14 @@ TEST test_apple_oom_branches(void) {
             c_abstract_http_mock_strdup("http://fail_url_str", &req.url));
   req.method = HTTP_GET;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_mock_strdup("http://fail_url", &req.url));
   req.method = HTTP_GET;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* fail_url_ref removed because urlRef parsing was optimized out */
 
@@ -69,7 +69,7 @@ TEST test_apple_oom_branches(void) {
     int debug_rc = http_apple_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, debug_rc);
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -79,14 +79,14 @@ TEST test_apple_oom_branches(void) {
             c_abstract_http_mock_strdup("test", (char **)&req.body));
   req.body_len = 4;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_mock_strdup("http://fail_read_stream", &req.url));
   req.method = HTTP_GET;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(
@@ -94,7 +94,7 @@ TEST test_apple_oom_branches(void) {
       c_abstract_http_mock_strdup("http://fail_read_stream_open", &req.url));
   req.method = HTTP_GET;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -103,7 +103,7 @@ TEST test_apple_oom_branches(void) {
   req.read_chunk = (http_read_chunk_fn)1;
   req.expected_body_len = 10;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -118,23 +118,23 @@ TEST test_apple_oom_branches(void) {
     req.on_chunk_user_data = &calls;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_apple_send(ctx, &req, &res));
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_mock_strdup("http://fail_stream_client", &req.url));
   req.method = HTTP_GET;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_mock_strdup("http://fail_cb_edges", &req.url));
   req.method = HTTP_GET;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -144,14 +144,14 @@ TEST test_apple_oom_branches(void) {
             c_abstract_http_mock_strdup("http://fail_after_body", &req.url));
   req.method = HTTP_GET;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_mock_strdup("http://fail_read_negative", &req.url));
   req.method = HTTP_GET;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -161,7 +161,7 @@ TEST test_apple_oom_branches(void) {
     int rc_val = http_apple_send(ctx, &req, &res);
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_val, "%d");
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(
@@ -172,7 +172,7 @@ TEST test_apple_oom_branches(void) {
     int rc_val = http_apple_send(ctx, &req, &res);
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_IO, rc_val, "%d");
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(
@@ -183,7 +183,7 @@ TEST test_apple_oom_branches(void) {
     int rc_val = http_apple_send(ctx, &req, &res);
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_val, "%d");
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -193,7 +193,7 @@ TEST test_apple_oom_branches(void) {
     int rc_val = http_apple_send(ctx, &req, &res);
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_val, "%d");
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -204,14 +204,14 @@ TEST test_apple_oom_branches(void) {
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, rc_val, "%d");
   }
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 #endif
 
-  http_apple_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
   PASS();
 }
 #endif
@@ -254,7 +254,7 @@ TEST test_apple_oom(void) {
   req.body_len = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -276,7 +276,7 @@ TEST test_apple_oom(void) {
   }
   g_mock_headers_init_fail = 0;
 
-  http_apple_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
   PASS();
 }
 #endif
@@ -323,9 +323,9 @@ TEST test_apple_send_mock_server(void) {
   ASSERT_EQ(200, res->status_code);
   ASSERT(res->body_len > 0);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   res = NULL;
 
   /* On-chunk request */
@@ -349,15 +349,15 @@ TEST test_apple_send_mock_server(void) {
   ASSERT_EQ(200, res->status_code);
   ASSERT(on_chunk_calls > 0);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             mock_server_wait_for_request(server, &mock_req));
   mock_server_request_cleanup(&mock_req);
 
-  http_apple_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
   mock_server_destroy(server);
 #endif
   PASS();
@@ -375,8 +375,8 @@ TEST test_apple_lifecycle(void) {
   ASSERT(ctx != NULL);
 
   /* Free */
-  http_apple_context_free(ctx);
-  http_apple_context_free(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_global_cleanup());
 
@@ -397,8 +397,8 @@ TEST test_apple_config(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_config_apply(ctx, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
 
-  http_config_free(&cfg);
-  http_apple_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
   PASS();
 }
 
@@ -435,8 +435,8 @@ TEST test_apple_send_invalid(void) {
   ASSERT_EQ(ENOSYS, http_apple_send(ctx, &req, &res));
 #endif
 
-  http_request_free(&req);
-  http_apple_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
   PASS();
 }
 
@@ -458,7 +458,7 @@ TEST test_apple_send_all_methods(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
   cfg.verify_peer = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
-  http_config_free(&cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
 
   for (i = 0; i < 9; i++) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -480,10 +480,10 @@ TEST test_apple_send_all_methods(void) {
       enum c_abstract_http_error rc = http_apple_send(ctx, &req, &res);
       ASSERT(rc != 0);
     }
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
-  http_apple_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
   PASS();
 }
 
@@ -523,7 +523,7 @@ TEST test_apple_read_chunk(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
   cfg.verify_peer = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
-  http_config_free(&cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
 
   /* Success chunk */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -540,9 +540,9 @@ TEST test_apple_read_chunk(void) {
 
   /* Will fail to connect but it hits the read_chunk loop */
   ASSERT(http_apple_send(ctx, &req, &res) != C_ABSTRACT_HTTP_SUCCESS);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -562,14 +562,14 @@ TEST test_apple_read_chunk(void) {
 
   /* Will fail with C_ABSTRACT_HTTP_ERR_IO */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
 
-  http_apple_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
   PASS();
 }
 
@@ -630,9 +630,9 @@ TEST test_apple_send_multi(void) {
   ASSERT_EQ(200, future1->response->status_code);
   ASSERT_EQ(200, future2->response->status_code);
 
-  http_response_free(future1->response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
   free(future1->response);
-  http_response_free(future2->response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future2->response));
   free(future2->response);
   free(future1);
   free(future2);
@@ -655,21 +655,21 @@ TEST test_apple_send_multi(void) {
             http_apple_send_multi(ctx, NULL, &multi, futures));
   g_mock_pthread_create_sync = 0;
   if (future1->response) {
-    http_response_free(future1->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
     free(future1->response);
   }
   if (future2->response) {
-    http_response_free(future2->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future2->response));
     free(future2->response);
   }
   free(future1);
   free(future2);
 
-  http_multi_request_free(&multi);
-  http_request_free(&req1);
-  http_request_free(&req2);
-  http_apple_context_free(ctx);
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   mock_server_destroy(server);
 #endif
   PASS();
@@ -726,7 +726,7 @@ TEST test_apple_send_multi_branches(void) {
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
       cfg.verify_peer = 0;
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
-      http_config_free(&cfg);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 http_apple_send_multi(ctx, loop, &multi, futures));
       while (!future1->is_ready) {
@@ -735,14 +735,15 @@ TEST test_apple_send_multi_branches(void) {
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
       cfg.verify_peer = 1;
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
-      http_config_free(&cfg);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
       if (future1->response) {
-        http_response_free(future1->response);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_response_free(future1->response));
         free(future1->response);
       }
       free(future1);
-      http_multi_request_free(&multi);
-      http_request_free(&req_m);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req_m));
     }
   }
 
@@ -761,7 +762,7 @@ TEST test_apple_send_multi_branches(void) {
   }
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, future1->error_code);
   free(future1);
-  http_multi_request_free(&multi);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
 
   /* Test non-null body with body_len == 0 in multi */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
@@ -779,11 +780,11 @@ TEST test_apple_send_multi_branches(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
   }
   if (future1->response) {
-    http_response_free(future1->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
     free(future1->response);
   }
   free(future1);
-  http_multi_request_free(&multi);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
   req1.body = NULL;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
@@ -803,12 +804,12 @@ TEST test_apple_send_multi_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             future1->response->status_code ? 0 : C_ABSTRACT_HTTP_ERR_INVAL);
   if (future1->response) {
-    http_response_free(future1->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
     free(future1->response);
   }
   free(future1);
-  http_multi_request_free(&multi);
-  http_request_free(&req1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
 
   /* Test fail_multi_url */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
@@ -825,12 +826,12 @@ TEST test_apple_send_multi_branches(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
   }
   if (future1->response) {
-    http_response_free(future1->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
     free(future1->response);
   }
   free(future1);
-  http_multi_request_free(&multi);
-  http_request_free(&req1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
 
   /* Test fail_multi_request_ref */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
@@ -848,12 +849,12 @@ TEST test_apple_send_multi_branches(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
   }
   if (future1->response) {
-    http_response_free(future1->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
     free(future1->response);
   }
   free(future1);
-  http_multi_request_free(&multi);
-  http_request_free(&req1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
 
   /* Test fail_multi_stream */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
@@ -870,12 +871,12 @@ TEST test_apple_send_multi_branches(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
   }
   if (future1->response) {
-    http_response_free(future1->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
     free(future1->response);
   }
   free(future1);
-  http_multi_request_free(&multi);
-  http_request_free(&req1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
 
   /* Test fail_multi_client */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
@@ -892,12 +893,12 @@ TEST test_apple_send_multi_branches(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
   } while (!future1->is_ready);
   if (future1->response) {
-    http_response_free(future1->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
     free(future1->response);
   }
   free(future1);
-  http_multi_request_free(&multi);
-  http_request_free(&req1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
 
   /* Test fail_multi_open */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
@@ -914,12 +915,12 @@ TEST test_apple_send_multi_branches(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
   }
   if (future1->response) {
-    http_response_free(future1->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
     free(future1->response);
   }
   free(future1);
-  http_multi_request_free(&multi);
-  http_request_free(&req1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
 
   /* Test wctx malloc and pthread_create failure */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
@@ -942,8 +943,8 @@ TEST test_apple_send_multi_branches(void) {
   g_mock_pthread_fail = 0;
 
   free(future1);
-  http_multi_request_free(&multi);
-  http_request_free(&req1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
 
   /* Test sync worker mock failures */
   g_mock_pthread_create_sync = 1;
@@ -984,8 +985,8 @@ TEST test_apple_send_multi_branches(void) {
   g_mock_headers_init_fail = 0;
 
   free(future1);
-  http_multi_request_free(&multi);
-  http_request_free(&req1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
   g_mock_pthread_create_sync = 0;
 
   /* Test wakeup failure */
@@ -1010,13 +1011,13 @@ TEST test_apple_send_multi_branches(void) {
     g_mock_pthread_create_sync = 0;
 
     free(future1);
-    http_multi_request_free(&multi);
-    http_request_free(&req1);
-    http_loop_free(fail_loop);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(fail_loop));
   }
 
-  http_apple_context_free(ctx);
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
 #endif
   PASS();
 }

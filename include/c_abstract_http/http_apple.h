@@ -45,8 +45,10 @@ http_apple_context_init(struct HttpTransportContext **ctx);
  * @brief Free the transport context.
  *
  * @param[in] ctx The context to free. Satisfies NULL-safety.
+ * @return 0 on success.
  */
-void http_apple_context_free(struct HttpTransportContext *ctx);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_apple_context_free(struct HttpTransportContext *ctx);
 
 /**
  * @brief Apply configuration settings to the Apple session.

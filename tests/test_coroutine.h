@@ -85,11 +85,14 @@ TEST test_coroutine_execution(void) {
   /* Calling resume on a finished coroutine should return an error */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_coroutine_resume(co));
 
-  abstract_http_coroutine_free(co);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_free(co));
   PASS();
 }
 
-static void dummy_coroutine_cb(void *arg) { (void)arg; }
+static void dummy_coroutine_cb(void *arg) {
+  if (arg) {
+  }
+}
 
 static int g_mock_yield_fail_after_first = 0;
 static int mock_co_yield_fail_after_first(void) {
@@ -110,13 +113,13 @@ TEST test_coroutine_errors(void) {
   /* Test stack_size == 0 (use 65536 to avoid Wine CreateFiber(0) bug) */
   rc = abstract_http_coroutine_init(&co, 65536, dummy_coroutine_cb, NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  abstract_http_coroutine_free(co);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_free(co));
   co = NULL;
 
   /* Test stack_size != 0 */
   rc = abstract_http_coroutine_init(&co, 2048, dummy_coroutine_cb, NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  abstract_http_coroutine_free(co);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_free(co));
   co = NULL;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_coroutine_resume(co));
@@ -126,7 +129,7 @@ TEST test_coroutine_errors(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
               abstract_http_coroutine_is_done(co, &is_done));
   }
-  abstract_http_coroutine_free(co);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_free(co));
 
   dummy_coroutine_cb(NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_set_hooks(NULL));
@@ -163,18 +166,21 @@ TEST test_coroutine_errors(void) {
 static int mock_co_init(struct AbstractHttpCoroutine **co, size_t stack_size,
                         abstract_http_coroutine_cb cb, void *arg) {
   static int dummy = 0;
-  (void)stack_size;
-  (void)cb;
-  (void)arg;
+  if (stack_size || cb || arg) {
+  }
   if (co)
     *co = (struct AbstractHttpCoroutine *)&dummy;
   return 0;
 }
-static void mock_co_free(struct AbstractHttpCoroutine *co) { (void)co; }
+static void mock_co_free(struct AbstractHttpCoroutine *co) {
+  if (co) {
+  }
+}
 static int
 
 mock_co_resume(struct AbstractHttpCoroutine *co) {
-  (void)co;
+  if (co) {
+  }
   return 0;
 }
 static int mock_co_yield(void) { return 0; }
@@ -214,7 +220,7 @@ TEST test_coroutine_hooks(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
               abstract_http_coroutine_is_done(co, NULL));
   }
-  abstract_http_coroutine_free(co);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_free(co));
 
   {
     struct AbstractHttpCoroutineHooks z;
@@ -232,7 +238,7 @@ TEST test_coroutine_hooks(void) {
               abstract_http_coroutine_is_done(test_co, NULL));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
               abstract_http_coroutine_is_done(NULL, &is_done));
-    abstract_http_coroutine_free(test_co);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_free(test_co));
   }
 
   PASS();
@@ -268,7 +274,7 @@ TEST test_coroutine_pthread_create_fail(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
 
-  abstract_http_coroutine_free(co);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_free(co));
   PASS();
 }
 #endif
@@ -317,7 +323,7 @@ TEST test_coroutine_fallback_paths(void) {
 
   /* We start it, let it yield, then free it */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_resume(co));
-  abstract_http_coroutine_free(co);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_free(co));
 
   PASS();
 }
@@ -343,7 +349,7 @@ TEST test_coroutine_edge_cases(void) {
         abstract_http_coroutine_init(
             &co, 65536, (abstract_http_coroutine_cb)(size_t)1, NULL);
     if (edge_rc == 0)
-      abstract_http_coroutine_free(co);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_free(co));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, edge_rc);
   }
 #endif

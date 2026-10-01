@@ -70,7 +70,7 @@ abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *pipe);
  * @brief Close an IPC pipe.
  * @param[in] pipe The pipe to close.
  */
-C_ABSTRACT_HTTP_API void
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe);
 
 /**

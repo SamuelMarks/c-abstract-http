@@ -82,7 +82,8 @@ enum c_abstract_http_error sse_parser_init(
  * @brief Destroy an SSE parser context and free its buffers.
  * @param ctx The parser context to destroy.
  */
-void sse_parser_destroy(struct sse_parser_ctx *ctx);
+NO_DISCARD enum c_abstract_http_error
+sse_parser_destroy(struct sse_parser_ctx *ctx);
 
 /**
  * @brief Feed raw network bytes into the SSE parser.

@@ -479,7 +479,8 @@ http_headers_init(struct HttpHeaders *headers);
  * @brief Executes the http_headers_free operation.
  * @param headers The headers parameter.
  */
-C_ABSTRACT_HTTP_API void http_headers_free(struct HttpHeaders *headers);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_headers_free(struct HttpHeaders *headers);
 /** @brief http_headers_add definition */
 /**
  * @brief Executes the http_headers_add operation.
@@ -522,7 +523,8 @@ http_cookie_jar_init(struct HttpCookieJar *jar);
  * @brief Free resources held by a cookie jar.
  * @param jar The cookie jar to free.
  */
-C_ABSTRACT_HTTP_API void http_cookie_jar_free(struct HttpCookieJar *jar);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_cookie_jar_free(struct HttpCookieJar *jar);
 
 /**
  * @brief Add or update a cookie in the jar.
@@ -557,7 +559,8 @@ http_config_init(struct HttpConfig *config);
  * @brief Executes the http_config_free operation.
  * @param config The config parameter.
  */
-C_ABSTRACT_HTTP_API void http_config_free(struct HttpConfig *config);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_config_free(struct HttpConfig *config);
 
 /** @brief http_client_init definition */
 /**
@@ -572,7 +575,8 @@ http_client_init(struct HttpClient *client);
  * @brief Executes the http_client_free operation.
  * @param client The client parameter.
  */
-C_ABSTRACT_HTTP_API void http_client_free(struct HttpClient *client);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_client_free(struct HttpClient *client);
 
 /** @brief http_request_init definition */
 /**
@@ -587,7 +591,8 @@ http_request_init(struct HttpRequest *req);
  * @brief Executes the http_request_free operation.
  * @param req The req parameter.
  */
-C_ABSTRACT_HTTP_API void http_request_free(struct HttpRequest *req);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_request_free(struct HttpRequest *req);
 
 /**
  * @brief Initialize a ModalityContext.
@@ -601,7 +606,7 @@ http_modality_context_init(struct ModalityContext *ctx);
  * @brief Free a ModalityContext.
  * @param ctx Context to free.
  */
-C_ABSTRACT_HTTP_API void
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_modality_context_free(struct ModalityContext *ctx);
 
 /**
@@ -616,7 +621,8 @@ http_future_init(struct HttpFuture *future);
  * @brief Free a HttpFuture.
  * @param future Future to free.
  */
-C_ABSTRACT_HTTP_API void http_future_free(struct HttpFuture *future);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_future_free(struct HttpFuture *future);
 
 /**
  * @brief Initialize an HttpMultiRequest.
@@ -630,7 +636,7 @@ http_multi_request_init(struct HttpMultiRequest *multi);
  * @brief Free an HttpMultiRequest.
  * @param multi Multi-request to free.
  */
-C_ABSTRACT_HTTP_API void
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_multi_request_free(struct HttpMultiRequest *multi);
 
 /**
@@ -919,7 +925,8 @@ http_response_init(struct HttpResponse *res);
  * @brief Executes the http_response_free operation.
  * @param res The res parameter.
  */
-C_ABSTRACT_HTTP_API void http_response_free(struct HttpResponse *res);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_response_free(struct HttpResponse *res);
 /**
  * @brief Saves an HTTP response to a file.
  * @param res The HTTP response object.
@@ -943,7 +950,7 @@ http_parts_init(struct HttpParts *parts);
  * @brief Free parts container contents.
  * @param[in] parts Container to clean.
  */
-void http_parts_free(struct HttpParts *parts);
+NO_DISCARD c_abstract_http_error_t http_parts_free(struct HttpParts *parts);
 
 /**
  * @brief Add a part to the request.

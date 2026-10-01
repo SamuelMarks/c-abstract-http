@@ -518,11 +518,13 @@ http_libuv_context_init(struct HttpTransportContext **ctx) {
  *
  * @param[in] ctx Context to free.
  */
-void http_libuv_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_libuv_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libuv_context_free: Entering");
   if (ctx) {
     http_config_free(&ctx->config);
     free(ctx);
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   LOG_DEBUG("http_libuv_context_free: Exiting");
 }
@@ -741,7 +743,10 @@ struct libuv_state {
  *
  * @param[in] handle Handle.
  */
-static void libuv_on_close(uv_handle_t *handle) { (void)handle; }
+static void libuv_on_close(uv_handle_t *handle) {
+  if (handle) {
+  }
+}
 
 /**
  * @brief Finish libuv operation and clean up handles.
@@ -791,7 +796,8 @@ static void libuv_alloc_cb(uv_handle_t *handle, size_t suggested_size,
                            uv_buf_t *buf) {
   struct libuv_state *state = (struct libuv_state *)handle->data;
   size_t avail;
-  (void)suggested_size;
+  if (suggested_size) {
+  }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libuv_alloc_fail == 1 ||
@@ -937,8 +943,9 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
 
     if (state->req->on_chunk) {
       if (body_len > 0) {
-        int chunk_rc = state->req->on_chunk(state->req->on_chunk_user_data,
-                                            state->res_buf + hdr_len, body_len);
+        int chunk_rc;
+        chunk_rc = state->req->on_chunk(state->req->on_chunk_user_data,
+                                        state->res_buf + hdr_len, body_len);
         if (chunk_rc != 0) {
           LOG_DEBUG("parse_headers: Error on_chunk failed %d", chunk_rc);
           libuv_finish(state, (int)ECANCELED);
@@ -984,17 +991,15 @@ static int uv_run(uv_loop_t *loop, int mode);
  */
 static int test_helper_chunk_cb(void *user_data, const void *chunk,
                                 size_t chunk_len) {
-  (void)user_data;
-  (void)chunk;
-  (void)chunk_len;
+  if (user_data || chunk || chunk_len) {
+  }
   return 0;
 }
 
 static int test_helper_chunk_cb_err(void *user_data, const void *chunk,
                                     size_t chunk_len) {
-  (void)user_data;
-  (void)chunk;
-  (void)chunk_len;
+  if (user_data || chunk || chunk_len) {
+  }
   return (int)ECANCELED;
 }
 
@@ -1313,7 +1318,8 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
 static void libuv_on_read(uv_stream_t *stream, ssize_t nread,
                           const uv_buf_t *buf) {
   struct libuv_state *state = (struct libuv_state *)stream->data;
-  (void)buf;
+  if (buf) {
+  }
 
   if (nread < 0) {
     if (nread != UV_EOF) {
@@ -1344,7 +1350,8 @@ static void libuv_on_read(uv_stream_t *stream, ssize_t nread,
       LOG_DEBUG("libuv_on_read: parse_headers failed %d", (int)p_rc);
     }
   } else if (state->req->on_chunk) {
-    int chunk_rc = state->req->on_chunk(
+    int chunk_rc;
+    chunk_rc = state->req->on_chunk(
         state->req->on_chunk_user_data,
         state->res_buf + state->res_len - (size_t)nread, (size_t)nread);
     if (chunk_rc != 0) {
@@ -1573,7 +1580,8 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 static int uv_run(uv_loop_t *loop, int mode) {
   struct libuv_state *state;
   struct addrinfo *ai;
-  (void)mode;
+  if (mode) {
+  }
 
   if (!loop || !loop->data) {
     return 0;
@@ -1593,7 +1601,8 @@ static int uv_run(uv_loop_t *loop, int mode) {
   }
 
   if (state->socket.connect_cb) {
-    int port = atoi(state->resolver.port_str);
+    int port;
+    port = atoi(state->resolver.port_str);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libuv_connect_fail || port == 59999)
 #else

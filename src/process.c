@@ -67,7 +67,7 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-#define execv(path, argv) ((void)path, (void)argv, -1)
+#define execv(path, argv) (-1)
 #endif
 
 static struct AbstractHttpProcessHooks g_process_hooks = {NULL, NULL, NULL,
@@ -115,7 +115,8 @@ abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *pipe) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
+enum c_abstract_http_error
+abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
   LOG_DEBUG("abstract_http_ipc_pipe_free: Entering");
   if (pipe) {
     if (pipe->read_handle) {
@@ -128,6 +129,7 @@ void abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
     }
   }
   LOG_DEBUG("abstract_http_ipc_pipe_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -320,7 +322,8 @@ abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *p) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
+enum c_abstract_http_error
+abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
   LOG_DEBUG("abstract_http_ipc_pipe_free: Entering");
   if (pipe) {
     if (pipe->read_handle)
@@ -329,8 +332,10 @@ void abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
       close((int)(size_t)pipe->write_handle);
     pipe->read_handle = NULL;
     pipe->write_handle = NULL;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   LOG_DEBUG("abstract_http_ipc_pipe_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -369,7 +374,6 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
     argv[0] = arg0;
     argv[1] = arg1;
     argv[2] = NULL;
-    (void)argv;
     free(p);
 
     dup2((int)(size_t)parent_to_child->read_handle, STDIN_FILENO);

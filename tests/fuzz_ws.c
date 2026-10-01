@@ -23,8 +23,9 @@
  */
 static int dummy_on_msg(const struct c_abstract_http_ws_event *ev,
                         void *user_data) {
-  (void)ev;
-  (void)user_data;
+  if (ev || user_data) {
+    /* pass */
+  }
   return 0;
 }
 
@@ -36,8 +37,9 @@ static int dummy_on_msg(const struct c_abstract_http_ws_event *ev,
  * @return 0 on success.
  */
 static int dummy_on_err(int error_code, void *user_data) {
-  (void)error_code;
-  (void)user_data;
+  if (error_code || user_data) {
+    /* pass */
+  }
   return 0;
 }
 
@@ -49,8 +51,9 @@ static int dummy_on_err(int error_code, void *user_data) {
  * @return 0 on success.
  */
 static int dummy_on_close(int status_code, void *user_data) {
-  (void)status_code;
-  (void)user_data;
+  if (status_code || user_data) {
+    /* pass */
+  }
   return 0;
 }
 
@@ -125,8 +128,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
  */
 enum c_abstract_http_error test_fuzz_ws_run(const uint8_t *data, size_t size,
                                             int *out_rc) {
-  (void)data;
-  (void)size;
+  if (data || size) {
+    /* pass */
+  }
   if (out_rc != NULL) {
     *out_rc = 0;
   }

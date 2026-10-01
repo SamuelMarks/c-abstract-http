@@ -149,14 +149,15 @@ enum c_abstract_http_error sse_parser_init(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void sse_parser_destroy(struct sse_parser_ctx *ctx) {
+enum c_abstract_http_error sse_parser_destroy(struct sse_parser_ctx *ctx) {
   if (!ctx)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   free(ctx->line_buffer);
   free(ctx->current_event);
   free(ctx->current_data);
   free(ctx->last_event_id);
   memset(ctx, 0, sizeof(*ctx));
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static enum c_abstract_http_error
@@ -386,7 +387,11 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
 
   rc = client->send(client->transport, req, &res);
   if (rc != 0 || !res) {
-    sse_parser_destroy(&parser);
+    {
+      enum c_abstract_http_error rch = sse_parser_destroy(&parser);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
+    }
     if (on_err)
       on_err(rc, user_data);
     return rc;
@@ -398,14 +403,22 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
       if (on_err) {
         on_err(rc, user_data);
       }
-      sse_parser_destroy(&parser);
+      {
+        enum c_abstract_http_error rch = sse_parser_destroy(&parser);
+        if (rch != C_ABSTRACT_HTTP_SUCCESS)
+          return rch;
+      }
       http_response_free(res);
       free(res);
       return rc;
     }
   }
 
-  sse_parser_destroy(&parser);
+  {
+    enum c_abstract_http_error rch = sse_parser_destroy(&parser);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
+  }
   http_response_free(res);
   free(res);
 

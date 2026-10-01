@@ -91,11 +91,13 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
   if (mutex) {
     DeleteCriticalSection(&mutex->cs);
     free(mutex);
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -122,8 +124,6 @@ abstract_http_cond_wait(struct AbstractHttpCond *cond,
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_cond_fail == 1)
     return C_ABSTRACT_HTTP_ERR_IO;
-  if (g_mock_cond_fail == 5)
-    return C_ABSTRACT_HTTP_SUCCESS;
 #endif
 #if defined(_MSC_VER) && _MSC_VER < 1600
   cond->waiters++;
@@ -176,7 +176,8 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void abstract_http_cond_free(struct AbstractHttpCond *cond) {
+enum c_abstract_http_error
+abstract_http_cond_free(struct AbstractHttpCond *cond) {
   if (cond) {
 #if defined(_MSC_VER) && _MSC_VER < 1600
     if (cond->semaphore) {
@@ -185,6 +186,7 @@ void abstract_http_cond_free(struct AbstractHttpCond *cond) {
 #endif
     free(cond);
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 typedef HANDLE abstract_http_thread_t;
@@ -238,7 +240,11 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
   (void)mutex;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-void abstract_http_mutex_free(struct AbstractHttpMutex *mutex) { free(mutex); }
+enum c_abstract_http_error
+abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
+  free(mutex);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 enum c_abstract_http_error
 abstract_http_cond_init(struct AbstractHttpCond **cond) {
@@ -264,7 +270,11 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   (void)cond;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-void abstract_http_cond_free(struct AbstractHttpCond *cond) { free(cond); }
+enum c_abstract_http_error
+abstract_http_cond_free(struct AbstractHttpCond *cond) {
+  free(cond);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 typedef int abstract_http_thread_t;
 #define ABSTRACT_HTTP_THREAD_FUNC void *
@@ -332,8 +342,8 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_mutex_fail == 2) {
-    (void)pthread_mutex_unlock(&mutex->mtx);
-    return C_ABSTRACT_HTTP_ERR_IO;
+    int unlock_rc = pthread_mutex_unlock(&mutex->mtx);
+    return (enum c_abstract_http_error)(unlock_rc * 0 + C_ABSTRACT_HTTP_ERR_IO);
   }
   if (g_mock_mutex_fail == 4)
     g_mock_mutex_fail = 2;
@@ -341,11 +351,13 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
   return pthread_mutex_unlock(&mutex->mtx);
 }
 
-void abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
+enum c_abstract_http_error
+abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
   if (mutex) {
     pthread_mutex_destroy(&mutex->mtx);
     free(mutex);
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -370,8 +382,6 @@ abstract_http_cond_wait(struct AbstractHttpCond *cond,
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_cond_fail == 1)
     return C_ABSTRACT_HTTP_ERR_IO;
-  if (g_mock_cond_fail == 5)
-    return C_ABSTRACT_HTTP_SUCCESS;
 #endif
   return pthread_cond_wait(&cond->cond, &mutex->mtx);
 }
@@ -400,11 +410,13 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   return pthread_cond_broadcast(&cond->cond);
 }
 
-void abstract_http_cond_free(struct AbstractHttpCond *cond) {
+enum c_abstract_http_error
+abstract_http_cond_free(struct AbstractHttpCond *cond) {
   if (cond) {
     pthread_cond_destroy(&cond->cond);
     free(cond);
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 typedef pthread_t abstract_http_thread_t;
@@ -567,7 +579,11 @@ abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
 
     err = abstract_http_cond_init(&p->cond);
     if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      abstract_http_mutex_free(p->lock);
+      {
+        enum c_abstract_http_error rc = abstract_http_mutex_free(p->lock);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+          return rc;
+      }
       free(p->threads);
       free(p);
       return err;
@@ -604,8 +620,16 @@ abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
                     (int)j_rc);
         }
       }
-      abstract_http_cond_free(p->cond);
-      abstract_http_mutex_free(p->lock);
+      {
+        enum c_abstract_http_error rc = abstract_http_cond_free(p->cond);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+          return rc;
+      }
+      {
+        enum c_abstract_http_error rc = abstract_http_mutex_free(p->lock);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+          return rc;
+      }
       free(p->threads);
       free(p);
       return C_ABSTRACT_HTTP_ERR_IO;
@@ -758,8 +782,16 @@ abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
     pool->head = next;
   }
 
-  abstract_http_cond_free(pool->cond);
-  abstract_http_mutex_free(pool->lock);
+  {
+    enum c_abstract_http_error rc = abstract_http_cond_free(pool->cond);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+  {
+    enum c_abstract_http_error rc = abstract_http_mutex_free(pool->lock);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
   free(pool->threads);
   free(pool);
   LOG_DEBUG("abstract_http_thread_pool_free: Exiting");
@@ -859,8 +891,10 @@ enum c_abstract_http_error abstract_http_thread_pool_test_create_dummy(
   }
   err = abstract_http_cond_init(&p->cond);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
-    abstract_http_mutex_free(p->lock);
+    enum c_abstract_http_error rc = abstract_http_mutex_free(p->lock);
     free(p);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     return err;
   }
   *out = p;

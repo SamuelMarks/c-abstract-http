@@ -60,10 +60,11 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex);
 
 /**
- * @brief Free a mutex.
- * @param[in] mutex The mutex.
+ * @brief Free a mutex wrapper.
+ * @param mutex The mutex.
+ * @return 0 on success.
  */
-C_ABSTRACT_HTTP_API void
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_mutex_free(struct AbstractHttpMutex *mutex);
 
 /**
@@ -101,9 +102,11 @@ abstract_http_cond_broadcast(struct AbstractHttpCond *cond);
 
 /**
  * @brief Free a condition variable.
- * @param[in] cond The condition variable.
+ * @param cond The condition variable.
+ * @return 0 on success.
  */
-C_ABSTRACT_HTTP_API void abstract_http_cond_free(struct AbstractHttpCond *cond);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+abstract_http_cond_free(struct AbstractHttpCond *cond);
 
 /**
  * @brief Thread pool task callback signature.

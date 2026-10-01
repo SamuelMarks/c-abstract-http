@@ -673,13 +673,17 @@ http_libevent_context_init(struct HttpTransportContext **ctx) {
  *
  * @param[in] ctx The context to free. Safe to pass NULL.
  */
-void http_libevent_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_libevent_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libevent_context_free: Entering");
   if (ctx) {
-    http_config_free(&ctx->config);
+    enum c_abstract_http_error rch = http_config_free(&ctx->config);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
     free(ctx);
   }
   LOG_DEBUG("http_libevent_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -1125,9 +1129,10 @@ static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
     }
     evbuffer_remove(evb, buf, len);
     {
-      int rc = state->req->on_chunk(state->req->on_chunk_user_data, buf, len);
-      if (rc != (int)C_ABSTRACT_HTTP_SUCCESS) {
-        state->error_code = rc;
+      int cb_rc;
+      cb_rc = state->req->on_chunk(state->req->on_chunk_user_data, buf, len);
+      if (cb_rc != (int)C_ABSTRACT_HTTP_SUCCESS) {
+        state->error_code = cb_rc;
         event_base_loopbreak(state->base);
       }
     }
@@ -1296,8 +1301,9 @@ enum c_abstract_http_error http_libevent_send(struct HttpTransportContext *ctx,
     char buf[4096];
     size_t read_bytes = 0;
     for (;;) {
-      int r = req->read_chunk(req->read_chunk_user_data, buf, sizeof(buf),
-                              &read_bytes);
+      int r;
+      r = req->read_chunk(req->read_chunk_user_data, buf, sizeof(buf),
+                          &read_bytes);
       if (r != 0 || read_bytes == 0) {
         break;
       }

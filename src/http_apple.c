@@ -43,10 +43,6 @@ apple_extract_response(struct AppleReqState *state,
   if (responseRef) {
     (*(state->res))->status_code =
         (int)CFHTTPMessageGetResponseStatusCode(responseRef);
-    {
-      CFDictionaryRef dict = CFHTTPMessageCopyAllHeaderFields(responseRef);
-      CFRelease(dict);
-    }
     CFRelease(responseRef);
   }
 
@@ -98,8 +94,9 @@ static void apple_stream_cb(CFReadStreamRef stream, CFStreamEventType type,
       state->done = 1;
     } else if (bytesRead > 0) {
       if (state->req->on_chunk) {
-        int cb_rc = state->req->on_chunk(state->req->on_chunk_user_data, buf,
-                                         (size_t)bytesRead);
+        int cb_rc;
+        cb_rc = state->req->on_chunk(state->req->on_chunk_user_data, buf,
+                                     (size_t)bytesRead);
         if (strcmp(state->req->url, "http://fail_cb_rc") == 0) {
           cb_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
         }
@@ -178,11 +175,15 @@ http_apple_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_apple_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_apple_context_free(struct HttpTransportContext *ctx) {
   if (ctx) {
-    http_config_free(&ctx->config);
+    enum c_abstract_http_error rch = http_config_free(&ctx->config);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
     free(ctx);
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -325,8 +326,9 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
     for (;;) {
       UInt8 chunkBuf[8192];
       size_t out_read = 0;
-      int cb_rc = req->read_chunk(req->read_chunk_user_data, chunkBuf,
-                                  sizeof(chunkBuf), &out_read);
+      int cb_rc;
+      cb_rc = req->read_chunk(req->read_chunk_user_data, chunkBuf,
+                              sizeof(chunkBuf), &out_read);
       if (cb_rc != 0) {
         CFRelease(mutableBodyData);
         CFRelease(requestRef);
@@ -492,12 +494,14 @@ struct AppleMultiWorkerCtx {
 static void *apple_multi_worker(void *arg) {
   struct AppleMultiWorkerCtx *wctx = (struct AppleMultiWorkerCtx *)arg;
   size_t i;
-  int pending = (int)wctx->multi->count;
+  int pending;
   enum c_abstract_http_error wake_rc;
   struct AppleReqState *states = (struct AppleReqState *)calloc(
       wctx->multi->count, sizeof(struct AppleReqState));
   CFReadStreamRef *streams =
       (CFReadStreamRef *)calloc(wctx->multi->count, sizeof(CFReadStreamRef));
+
+  pending = (int)wctx->multi->count;
 
   if (!states || !streams) {
     if (states)

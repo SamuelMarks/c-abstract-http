@@ -60,7 +60,9 @@ struct fetch_TestChunkState {
 static int fetch_mock_chunk_cb(void *user_data, const void *chunk,
                                size_t chunk_len) {
   struct fetch_TestChunkState *state;
-  (void)chunk;
+  if (chunk) {
+    /* pass */
+  }
   state = (struct fetch_TestChunkState *)user_data;
   state->call_count++;
   state->total_bytes += chunk_len;

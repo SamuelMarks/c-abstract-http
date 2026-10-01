@@ -102,7 +102,7 @@ abstract_http_message_bus_init(struct AbstractHttpMessageBus **bus);
  * @brief Free a message bus.
  * @param[in] bus The bus handle.
  */
-C_ABSTRACT_HTTP_API void
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus);
 
 /**

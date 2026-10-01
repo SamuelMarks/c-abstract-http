@@ -60,7 +60,7 @@ TEST test_inject_config(void) {
             cmp_http_inject_config(&cmp_cfg, &http_cfg));
   ASSERT_EQ(MODALITY_SYNC, http_cfg.modality);
 
-  http_config_free(&http_cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&http_cfg));
   PASS();
 }
 
@@ -84,7 +84,8 @@ TEST test_progress_adapter(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cmp_http_progress_adapter(0, 0, &binding));
 
   binding.cancel_requested = 1;
-  ASSERT_EQ(1, cmp_http_progress_adapter(75, 100, &binding));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            cmp_http_progress_adapter(75, 100, &binding));
 
   PASS();
 }
@@ -113,7 +114,7 @@ TEST test_cmp_integration_errors(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cmp_http_progress_adapter(0, 0, NULL));
 
   binding.cancel_requested = 1;
-  ASSERT_EQ(1, cmp_http_progress_adapter(0, 0, &binding));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, cmp_http_progress_adapter(0, 0, &binding));
 
   PASS();
 }

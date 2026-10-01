@@ -27,7 +27,9 @@ static void timer_cb_1(struct ModalityEventLoop *loop, int timer_id,
                        void *user_data) {
   int *triggered = (int *)user_data;
   enum c_abstract_http_error rc;
-  (void)timer_id;
+  if (timer_id) {
+    /* pass */
+  }
   *triggered = 1;
   rc = http_loop_stop(loop);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -39,7 +41,7 @@ TEST test_event_loop_init_free(void) {
   struct ModalityEventLoop *loop;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
   ASSERT(loop != NULL);
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -47,7 +49,8 @@ TEST test_event_loop_timer(void) {
   struct ModalityEventLoop *loop;
   int timer_id;
   int triggered = 0;
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
@@ -60,15 +63,15 @@ TEST test_event_loop_timer(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
   ASSERT_EQ(1, triggered);
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
 static void timer_cb_cancel(struct ModalityEventLoop *loop, int timer_id,
                             void *user_data) {
   int *triggered = (int *)user_data;
-  (void)loop;
-  (void)timer_id;
+  if (loop || timer_id) {
+  }
   *triggered = 1;
   /* Should not be hit */
 }
@@ -76,8 +79,8 @@ static void timer_cb_cancel(struct ModalityEventLoop *loop, int timer_id,
 static void timer_cb_stop(struct ModalityEventLoop *loop, int timer_id,
                           void *user_data) {
   enum c_abstract_http_error rc;
-  (void)timer_id;
-  (void)user_data;
+  if (timer_id || user_data) {
+  }
   rc = http_loop_stop(loop);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("timer_cb_stop: http_loop_stop failed %d", (int)rc);
@@ -88,7 +91,8 @@ TEST test_event_loop_timer_cancel(void) {
   struct ModalityEventLoop *loop;
   int timer_id1, timer_id2;
   int triggered = 0;
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
@@ -106,35 +110,31 @@ TEST test_event_loop_timer_cancel(void) {
   ASSERT_EQ(0, triggered);
   /* ensure cancel worked */
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
 static int mock_loop_add_fd(void *ctx, int fd, int events, http_loop_cb cb,
                             void *data) {
-  (void)ctx;
-  (void)fd;
-  (void)events;
-  (void)cb;
-  (void)data;
+  if (ctx || fd || events || cb || data) {
+  }
   return 0;
 }
 static int mock_loop_mod_fd(void *ctx, int fd, int events) {
-  (void)ctx;
-  (void)fd;
-  (void)events;
+  if (ctx || fd || events) {
+  }
   return 0;
 }
 static int mock_loop_remove_fd(void *ctx, int fd) {
-  (void)ctx;
-  (void)fd;
+  if (ctx || fd) {
+  }
   return 0;
 }
 static void stop_loop_cb(struct ModalityEventLoop *loop, int timer_id,
                          void *user_data) {
   enum c_abstract_http_error rc;
-  (void)timer_id;
-  (void)user_data;
+  if (timer_id || user_data) {
+  }
   rc = http_loop_stop(loop);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("stop_loop_cb: http_loop_stop failed %d", (int)rc);
@@ -143,24 +143,24 @@ static void stop_loop_cb(struct ModalityEventLoop *loop, int timer_id,
 
 static int mock_loop_add_timer(void *ctx, long timeout_ms, http_timer_cb cb,
                                void *data, int *timer_id) {
-  (void)ctx;
-  (void)timeout_ms;
-  (void)cb;
-  (void)data;
+  if (ctx || timeout_ms || cb || data) {
+  }
   *timer_id = 1;
   return 0;
 }
 static int mock_loop_cancel_timer(void *ctx, int timer_id) {
-  (void)ctx;
-  (void)timer_id;
+  if (ctx || timer_id) {
+  }
   return 0;
 }
 static int mock_loop_wakeup(void *ctx) {
-  (void)ctx;
+  if (ctx) {
+  }
   return 0;
 }
 static int mock_loop_wakeup_fail(void *ctx) {
-  (void)ctx;
+  if (ctx) {
+  }
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
@@ -200,16 +200,15 @@ TEST test_event_loop_external(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_wakeup(loop));
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
 static void mock_fd_cb(struct ModalityEventLoop *loop, int fd, int revents,
                        void *user_data) {
   int *triggered = (int *)user_data;
-  (void)loop;
-  (void)fd;
-  (void)revents;
+  if (loop || fd || revents) {
+  }
   *triggered = 1;
 }
 
@@ -222,14 +221,15 @@ TEST test_event_loop_run(void) {
             http_loop_add_timer(loop, 10, stop_loop_cb, NULL, &timer_id));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
 TEST test_event_loop_tick_fd(void) {
   struct ModalityEventLoop *loop = NULL;
   int triggered = 0;
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
@@ -239,14 +239,15 @@ TEST test_event_loop_tick_fd(void) {
   /* Tick should process the wakeup pipe without blocking */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
 TEST test_event_loop_fd(void) {
   struct ModalityEventLoop *loop = NULL;
   int triggered = 0;
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
@@ -256,7 +257,7 @@ TEST test_event_loop_fd(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_remove_fd(loop, 0));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_wakeup(loop));
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -298,15 +299,14 @@ TEST test_event_loop_errors(void) {
     stop_loop_cb(NULL, 0, NULL);
   }
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
 static void timer_dummy_cb(struct ModalityEventLoop *loop, int timer_id,
                            void *user_data) {
-  (void)loop;
-  (void)timer_id;
-  (void)user_data;
+  if (loop || timer_id || user_data) {
+  }
 }
 
 TEST test_event_loop_expansion(void) {
@@ -325,7 +325,7 @@ TEST test_event_loop_expansion(void) {
               http_loop_add_fd(loop, 100 + i, 1, mock_fd_cb, NULL));
   }
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -370,7 +370,7 @@ TEST test_event_loop_multiple_timers(void) {
     /* If we just sleep, it will take 100ms. That's fine. */
   }
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -457,7 +457,7 @@ TEST test_event_loop_heap_down(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_loop_tick(loop)); /* will pop them and trigger heap_down! */
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -503,7 +503,7 @@ TEST test_event_loop_alloc_errors(void) {
       ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
     }
   }
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 #endif
@@ -518,7 +518,7 @@ TEST test_event_loop_pipe_fail(void) {
   g_mock_pipe_fail = 0;
 
   /* also test free NULL */
-  http_loop_free(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(NULL));
 #endif
   PASS();
 }
@@ -549,7 +549,7 @@ TEST test_event_loop_missing_hooks(void) {
    * there isn't one */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -563,7 +563,7 @@ TEST test_event_loop_wakeup_full(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_wakeup(loop));
   }
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -603,7 +603,7 @@ TEST test_event_loop_fd_edges(void) {
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 #endif
@@ -645,7 +645,7 @@ TEST test_event_loop_lazy_timer_cancel(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -655,7 +655,8 @@ TEST test_event_loop_tick_fd_and_timer(void) {
   int timer_id;
   int pipefd[2];
   int triggered = 0;
-  (void)triggered;
+  if (triggered) {
+  }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
   /* 552: next_timeout < 0 -> set to 0.
@@ -692,7 +693,11 @@ TEST test_event_loop_tick_fd_and_timer(void) {
 
   /* 615-623: processing revents in tick */
   /* Write to the pipe so it's readable! */
-  write(pipefd[1], "a", 1);
+  {
+    ssize_t w_rc = write(pipefd[1], "a", 1);
+    if (w_rc < 0) {
+    }
+  }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
 
   /* 705-716: http_loop_run setup fds */
@@ -701,7 +706,7 @@ TEST test_event_loop_tick_fd_and_timer(void) {
             http_loop_add_timer(loop, 10, timer_cb_1, &triggered, &timer_id));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   close(pipefd[0]);
   close(pipefd[1]);
   PASS();
@@ -712,9 +717,8 @@ TEST test_event_loop_tick_fd_and_timer(void) {
 static void blocking_mock_fd_cb(struct ModalityEventLoop *loop, int fd,
                                 int revents, void *user_data) {
   int *triggered = (int *)user_data;
-  (void)loop;
-  (void)fd;
-  (void)revents;
+  if (loop || fd || revents) {
+  }
   *triggered = 1;
 #if defined(_MSC_VER) && !defined(__clang__)
   Sleep(60);
@@ -734,7 +738,8 @@ TEST test_event_loop_blocking_cb(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
   int triggered = 0;
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
   ASSERT_EQ(0, pipe(pipefd));
@@ -742,14 +747,18 @@ TEST test_event_loop_blocking_cb(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_loop_add_fd(loop, pipefd[0], HTTP_LOOP_READ,
                              blocking_mock_fd_cb, &triggered));
-  write(pipefd[1], "a", 1);
+  {
+    ssize_t w_rc = write(pipefd[1], "a", 1);
+    if (w_rc < 0) {
+    }
+  }
 
   /* close write end so read end gets ERROR or EOF */
   close(pipefd[1]);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   close(pipefd[0]);
   PASS();
 }
@@ -760,7 +769,8 @@ TEST test_event_loop_run_full(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
   int triggered = 0;
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
   ASSERT_EQ(0, pipe(pipefd));
@@ -772,7 +782,11 @@ TEST test_event_loop_run_full(void) {
                              mock_fd_cb, &triggered));
 
   /* Make the pipe readable/writable */
-  write(pipefd[1], "b", 1);
+  {
+    ssize_t w_rc = write(pipefd[1], "b", 1);
+    if (w_rc < 0) {
+    }
+  }
 
   /* Also add a timer to stop the loop */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -793,7 +807,11 @@ TEST test_event_loop_run_full(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_cancel_timer(loop, id1));
 
     /* write to pipe so run doesn't block on select */
-    write(pipefd[1], "b", 1);
+    {
+      ssize_t w_rc = write(pipefd[1], "b", 1);
+      if (w_rc < 0) {
+      }
+    }
 
     g_mock_timer_heap_swap_fail = 1;
     rc_test_tmp = http_loop_run(loop);
@@ -817,7 +835,7 @@ TEST test_event_loop_run_full(void) {
             http_loop_add_timer(loop, 20, stop_loop_cb, NULL, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   close(pipefd[0]);
   PASS();
 }
@@ -829,7 +847,8 @@ TEST test_event_loop_mock_error_fd(void) {
   int pipefd[2];
   int triggered = 0;
   int rc1, rc2, rc3, rc4;
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
   ASSERT_EQ(0, pipe(pipefd));
@@ -848,7 +867,7 @@ TEST test_event_loop_mock_error_fd(void) {
   g_mock_select_error_fds = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc2);
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
   /* also test run processing */
@@ -859,7 +878,7 @@ TEST test_event_loop_mock_error_fd(void) {
   g_mock_select_fail = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc3);
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
   g_mock_select_error_fds = 1;
@@ -872,7 +891,7 @@ TEST test_event_loop_mock_error_fd(void) {
   g_mock_select_error_fds = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc4);
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   close(pipefd[0]);
   close(pipefd[1]);
   PASS();
@@ -884,7 +903,8 @@ TEST test_event_loop_run_blocking(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
   int triggered = 0;
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
   ASSERT_EQ(0, pipe(pipefd));
@@ -892,7 +912,11 @@ TEST test_event_loop_run_blocking(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_loop_add_fd(loop, pipefd[0], HTTP_LOOP_READ,
                              blocking_mock_fd_cb, &triggered));
-  write(pipefd[1], "a", 1);
+  {
+    ssize_t w_rc = write(pipefd[1], "a", 1);
+    if (w_rc < 0) {
+    }
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_loop_add_timer(loop, 20, stop_loop_cb, NULL, NULL));
@@ -908,7 +932,7 @@ TEST test_event_loop_run_blocking(void) {
   /* wait, if 0 fds and 0 timers, it exits loop immediately */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   close(pipefd[0]);
   close(pipefd[1]);
   PASS();
@@ -942,7 +966,7 @@ TEST test_event_loop_timeout_underflow(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(loop));
   g_mock_time_jump = 0;
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -951,7 +975,8 @@ static void dummy_write_cb(struct ModalityEventLoop *loop, int fd, int revents,
                            void *user_data) {
   int *triggered = (int *)user_data;
   enum c_abstract_http_error rc;
-  (void)fd;
+  if (fd) {
+  }
   *triggered |= revents;
   rc = http_loop_stop(loop);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -966,7 +991,8 @@ TEST test_event_loop_write_error_coverage(void) {
 #if !defined(_WIN32)
   int pipes[2];
 #endif
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
@@ -986,7 +1012,7 @@ TEST test_event_loop_write_error_coverage(void) {
   close(pipes[1]);
 #endif
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -995,7 +1021,8 @@ static void dummy_timer_past_cb(struct ModalityEventLoop *loop, int timer_id,
   int *triggered = (int *)user_data;
   enum c_abstract_http_error rc;
   *triggered = 1;
-  (void)timer_id;
+  if (timer_id) {
+  }
   rc = http_loop_stop(loop);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("dummy_timer_past_cb: http_loop_stop failed %d", (int)rc);
@@ -1006,7 +1033,8 @@ TEST test_event_loop_timer_past_coverage(void) {
   struct ModalityEventLoop *loop;
   int timer_id;
   int triggered = 0;
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
@@ -1018,7 +1046,7 @@ TEST test_event_loop_timer_past_coverage(void) {
 
   ASSERT(triggered);
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
@@ -1026,8 +1054,8 @@ TEST test_event_loop_timer_past_coverage(void) {
 static void dummy_error_cb(struct ModalityEventLoop *loop, int fd, int revents,
                            void *user_data) {
   int *triggered = (int *)user_data;
-  (void)loop;
-  (void)fd;
+  if (loop || fd) {
+  }
   *triggered |= revents;
 }
 #endif
@@ -1038,7 +1066,8 @@ TEST test_event_loop_write_error_coverage2(void) {
 #if !defined(_WIN32)
   int pipes[2];
 #endif
-  (void)triggered;
+  if (triggered) {
+  }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
@@ -1056,25 +1085,23 @@ TEST test_event_loop_write_error_coverage2(void) {
   close(pipes[1]);
 #endif
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
 #if !defined(_WIN32)
 static void dummy_fd_simple_cb(struct ModalityEventLoop *l, int fd, int events,
                                void *user_data) {
-  (void)l;
-  (void)fd;
-  (void)events;
-  (void)user_data;
+  if (l || fd || events || user_data) {
+  }
 }
 #endif
 
 static void timer_stop_cb(struct ModalityEventLoop *loop, int timer_id,
                           void *user_data) {
   enum c_abstract_http_error rc;
-  (void)timer_id;
-  (void)user_data;
+  if (timer_id || user_data) {
+  }
   rc = http_loop_stop(loop);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("timer_stop_cb: http_loop_stop failed %d", (int)rc);
@@ -1085,9 +1112,8 @@ static void timer_stop_cb(struct ModalityEventLoop *loop, int timer_id,
 static void fd_stop_cb(struct ModalityEventLoop *l, int fd, int events,
                        void *user_data) {
   enum c_abstract_http_error rc;
-  (void)fd;
-  (void)events;
-  (void)user_data;
+  if (fd || events || user_data) {
+  }
   rc = http_loop_stop(l);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("fd_stop_cb: http_loop_stop failed %d", (int)rc);
@@ -1115,7 +1141,7 @@ TEST test_event_loop_additional_coverage(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_loop_init_external(&ext_loop, &hooks));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_stop(ext_loop));
-    http_loop_free(ext_loop);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(ext_loop));
   }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
@@ -1189,7 +1215,7 @@ TEST test_event_loop_additional_coverage(void) {
               http_loop_add_timer(wake_loop, 15, timer_stop_cb, NULL, NULL));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_wakeup(wake_loop));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(wake_loop));
-    http_loop_free(wake_loop);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(wake_loop));
   }
 
   /* Test inactive fd when ret > 0 in http_loop_tick */
@@ -1218,7 +1244,7 @@ TEST test_event_loop_additional_coverage(void) {
       close(tpipes2[0]);
       close(tpipes2[1]);
     }
-    http_loop_free(tick_loop);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(tick_loop));
   }
 #endif
 
@@ -1273,7 +1299,7 @@ TEST test_event_loop_additional_coverage(void) {
       close(dummy_pipes3[1]);
     }
 #endif
-    http_loop_free(single_loop);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(single_loop));
   }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -1291,7 +1317,7 @@ TEST test_event_loop_additional_coverage(void) {
     g_mock_timer_heap_swap_fail = 1;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_loop_run(fail_loop));
     g_mock_timer_heap_swap_fail = 0;
-    http_loop_free(fail_loop);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(fail_loop));
   }
 
   /* Test timer_heap_swap false branch with g_mock_timer_heap_swap_fail = 2 */
@@ -1309,7 +1335,7 @@ TEST test_event_loop_additional_coverage(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
               http_loop_add_timer(swap_loop, 10, timer_dummy_cb, NULL, &tid4));
     g_mock_timer_heap_swap_fail = 0;
-    http_loop_free(swap_loop);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(swap_loop));
   }
 #endif
 
@@ -1323,12 +1349,13 @@ TEST test_event_loop_additional_coverage(void) {
     timer_stop_cb(NULL, 0, NULL);
   }
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   PASS();
 }
 
 SUITE(event_loop_suite) {
-  system("ls /proc/self/fd | wc -l");
+  if (system("ls /proc/self/fd | wc -l") < 0) {
+  }
   RUN_TEST(test_event_loop_additional_coverage);
   RUN_TEST(test_event_loop_write_error_coverage2);
 
@@ -1366,7 +1393,8 @@ SUITE(event_loop_suite) {
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(_WIN32)
   RUN_TEST(test_event_loop_pipe_fail);
-  system("ls /proc/self/fd | wc -l");
+  if (system("ls /proc/self/fd | wc -l") < 0) {
+  }
 #endif
 }
 

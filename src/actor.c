@@ -113,7 +113,8 @@ abstract_http_message_bus_init(struct AbstractHttpMessageBus **bus) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus) {
+enum c_abstract_http_error
+abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus) {
   size_t i;
   struct MessageNode *node;
 
@@ -121,12 +122,12 @@ void abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus) {
   if (g_actor_hooks.bus_free) {
     LOG_DEBUG("abstract_http_message_bus_free: Hooking");
     g_actor_hooks.bus_free(bus);
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   if (!bus) {
     LOG_DEBUG("abstract_http_message_bus_free: Exiting early (bus NULL)");
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   /* Free pending messages */
@@ -145,6 +146,7 @@ void abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus) {
   ABSTRACT_HTTP_FREE(bus->actors);
   ABSTRACT_HTTP_FREE(bus);
   LOG_DEBUG("abstract_http_message_bus_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -171,7 +173,15 @@ abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus,
       bus->tail = NULL;
     }
 
-    node->msg.receiver->handler(node->msg.receiver, &node->msg);
+    {
+      enum c_abstract_http_error h_rc =
+          node->msg.receiver->handler(node->msg.receiver, &node->msg);
+      if (h_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        ABSTRACT_HTTP_FREE(node);
+        *out_processed = count;
+        return h_rc;
+      }
+    }
 
     ABSTRACT_HTTP_FREE(node);
     count++;

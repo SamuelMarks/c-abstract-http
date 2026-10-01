@@ -100,7 +100,8 @@ enum c_abstract_http_error ws_sign_key(const char *client_key,
 enum c_abstract_http_error ws_verify_accept(const char *client_key,
                                             const char *server_accept) {
   char expected_accept[29];
-  int res = ws_sign_key(client_key, expected_accept);
+  int res;
+  res = ws_sign_key(client_key, expected_accept);
   if (res != 0)
     return res;
 
@@ -157,16 +158,24 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
   return 0;
 }
 
-static void ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
+static enum c_abstract_http_error
+ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
   if (!sctx)
-    return;
-  if (sctx->mutex)
-    abstract_http_mutex_free(sctx->mutex);
-  if (sctx->cond)
-    abstract_http_cond_free(sctx->cond);
+    return C_ABSTRACT_HTTP_SUCCESS;
+  if (sctx->mutex) {
+    enum c_abstract_http_error rc = abstract_http_mutex_free(sctx->mutex);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+  if (sctx->cond) {
+    enum c_abstract_http_error rc = abstract_http_cond_free(sctx->cond);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
   if (sctx->queue)
     free(sctx->queue);
   free(sctx);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error
@@ -400,12 +409,13 @@ enum c_abstract_http_error ws_parser_init(struct ws_parser_ctx *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void ws_parser_destroy(struct ws_parser_ctx *ctx) {
+enum c_abstract_http_error ws_parser_destroy(struct ws_parser_ctx *ctx) {
   if (!ctx)
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   free(ctx->payload_buffer);
   free(ctx->reassembly_buffer);
   memset(ctx, 0, sizeof(*ctx));
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
@@ -537,7 +547,8 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
         /* Frame Complete */
 
         if (ctx->current_frame.opcode == C_ABSTRACT_HTTP_WS_OPCODE_CLOSE) {
-          int status = 1005; /* Default */
+          int status;
+          status = 1005; /* Default */
           if (ctx->current_frame.payload_len >= 2) {
             uint16_t net_status;
             memcpy(&net_status, ctx->payload_buffer, 2);
@@ -712,7 +723,11 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
 
   rc = client->send(client->transport, req, &res);
   if (rc != 0 || !res) {
-    ws_parser_destroy(&parser);
+    {
+      enum c_abstract_http_error rch = ws_parser_destroy(&parser);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
+    }
     if (on_err)
       on_err(rc, user_data);
     return rc;
@@ -724,14 +739,22 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
       if (on_err) {
         on_err(rc, user_data);
       }
-      ws_parser_destroy(&parser);
+      {
+        enum c_abstract_http_error rch = ws_parser_destroy(&parser);
+        if (rch != C_ABSTRACT_HTTP_SUCCESS)
+          return rch;
+      }
       http_response_free(res);
       free(res);
       return rc;
     }
   }
 
-  ws_parser_destroy(&parser);
+  {
+    enum c_abstract_http_error rch = ws_parser_destroy(&parser);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
+  }
   http_response_free(res);
   free(res);
 
@@ -739,7 +762,12 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
     on_close(200, user_data);
 
   if (req->ws_ctx) {
-    ws_stream_ctx_free((struct ws_stream_ctx *)req->ws_ctx);
+    {
+      enum c_abstract_http_error rch =
+          ws_stream_ctx_free((struct ws_stream_ctx *)req->ws_ctx);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
+    }
     req->ws_ctx = NULL;
   }
 
@@ -981,13 +1009,23 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void c_abstract_http_ws_free(struct HttpRequest *req) {
+enum c_abstract_http_error c_abstract_http_ws_free(struct HttpRequest *req) {
   if (req) {
     if (req->ws_ctx) {
-      ws_stream_ctx_free((struct ws_stream_ctx *)req->ws_ctx);
+      {
+        enum c_abstract_http_error rch =
+            ws_stream_ctx_free((struct ws_stream_ctx *)req->ws_ctx);
+        if (rch != C_ABSTRACT_HTTP_SUCCESS)
+          return rch;
+      }
       req->ws_ctx = NULL;
+      return C_ABSTRACT_HTTP_SUCCESS;
     } else {
-      ws_stream_ctx_free(NULL);
+      {
+        enum c_abstract_http_error rch = ws_stream_ctx_free(NULL);
+        if (rch != C_ABSTRACT_HTTP_SUCCESS)
+          return rch;
+      }
     }
   }
 }

@@ -9,29 +9,7 @@
 #include "str.h"
 /* clang-format on */
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int g_mock_xquic_config_init_fail;
-extern int g_mock_xquic_engine_present;
-#endif
-
-/* Forward declarations for xquic API to avoid complex headers and simulate
- * HTTP/3 state machine */
-typedef struct xqc_engine_s xqc_engine_t;
-typedef struct xqc_conn_s xqc_conn_t;
-typedef struct xqc_stream_s xqc_stream_t;
-
-extern xqc_engine_t *xqc_engine_create(int ssl_ctx, void *engine_args);
-extern void xqc_engine_destroy(xqc_engine_t *engine);
-
-/**
- * @brief Stub implementation of xqc_engine_destroy when real xquic is not
- * linked.
- *
- * @param[in] engine Engine pointer to destroy.
- */
-#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_XQUIC)
-void xqc_engine_destroy(xqc_engine_t *engine) { (void)engine; }
-#endif
+#include <xquic/xquic.h>
 
 static int g_xquic_init_count = 0;
 
@@ -93,29 +71,12 @@ http_xquic_context_init(struct HttpTransportContext **ctx) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_xquic_config_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_config_init(&c->config);
-  }
+  { rc = http_config_init(&c->config); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     free(c);
     LOG_DEBUG("http_xquic_context_init: Error init config failed");
     return rc;
   }
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_xquic_engine_present) {
-    c->engine = (xqc_engine_t *)c;
-  } else {
-    c->engine = NULL;
-  }
-#else
-  c->engine = NULL;
-#endif
 
   *ctx = c;
   LOG_DEBUG("http_xquic_context_init: Success");
@@ -127,16 +88,22 @@ http_xquic_context_init(struct HttpTransportContext **ctx) {
  *
  * @param[in] ctx The context to free.
  */
-void http_xquic_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_xquic_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_xquic_context_free: Entering");
   if (ctx) {
     if (ctx->engine) {
       xqc_engine_destroy(ctx->engine);
       ctx->engine = NULL;
     }
-    http_config_free(&ctx->config);
+    {
+      enum c_abstract_http_error rch = http_config_free(&ctx->config);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
+    }
     free(ctx);
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -175,6 +142,10 @@ http_xquic_config_apply(struct HttpTransportContext *ctx,
 enum c_abstract_http_error http_xquic_send(struct HttpTransportContext *ctx,
                                            const struct HttpRequest *req,
                                            struct HttpResponse **res) {
+  xqc_conn_settings_t conn_settings;
+  xqc_conn_ssl_config_t conn_ssl_config;
+  xqc_connection_t *conn;
+
   LOG_DEBUG("http_xquic_send: Entering");
   if (!ctx || !req || !res) {
     LOG_DEBUG("http_xquic_send: Error EINVAL");
@@ -185,8 +156,20 @@ enum c_abstract_http_error http_xquic_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  LOG_DEBUG("http_xquic_send: ENOTSUP returned");
-  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  memset(&conn_settings, 0, sizeof(conn_settings));
+  memset(&conn_ssl_config, 0, sizeof(conn_ssl_config));
+
+  if (ctx->engine) {
+    conn = xqc_connect(ctx->engine, &conn_settings, NULL, 0, "", 0,
+                       &conn_ssl_config, NULL, 0, "h3");
+    if (!conn) {
+      *res = NULL;
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+  }
+
+  *res = NULL;
+  return C_ABSTRACT_HTTP_ERR_IO;
 }
 
 /**
@@ -210,7 +193,11 @@ enum c_abstract_http_error http_xquic_send_multi(
   }
 
   for (i = 0; i < multi->count; ++i) {
-    futures[i]->error_code = C_ABSTRACT_HTTP_ERR_NOTSUP;
+    struct HttpResponse *res;
+    res = NULL;
+    rc = http_xquic_send(ctx, multi->requests[i], &res);
+    futures[i]->error_code = rc;
+    futures[i]->response = res;
     futures[i]->is_ready = 1;
   }
 

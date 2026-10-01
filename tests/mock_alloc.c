@@ -152,6 +152,7 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
 #undef g_mock_raw_blocking_fail
 #undef g_mock_raw_realloc_fail
 #undef g_mock_raw_response_init_fail
+#undef g_mock_raw_res_alloc_fail
 #undef g_mock_aria2_system_fail
 #undef g_mock_aria2_fopen_fail
 #undef g_mock_aria2_response_init_fail
@@ -365,6 +366,7 @@ int g_mock_raw_nonblocking_fail = 0;
 int g_mock_raw_blocking_fail = 0;
 int g_mock_raw_realloc_fail = 0;
 int g_mock_raw_response_init_fail = 0;
+int g_mock_raw_res_alloc_fail = 0;
 int g_mock_aria2_system_fail = 0;
 int g_mock_aria2_fopen_fail = 0;
 int g_mock_aria2_response_init_fail = 0;
@@ -635,6 +637,9 @@ int *abstract_http_mock_get_g_mock_raw_realloc_fail(void) {
 }
 int *abstract_http_mock_get_g_mock_raw_response_init_fail(void) {
   return &g_mock_raw_response_init_fail;
+}
+int *abstract_http_mock_get_g_mock_raw_res_alloc_fail(void) {
+  return &g_mock_raw_res_alloc_fail;
 }
 int *abstract_http_mock_get_g_mock_aria2_system_fail(void) {
   return &g_mock_aria2_system_fail;

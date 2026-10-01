@@ -55,10 +55,9 @@ extern enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void);
 
 static int libuv_mock_upload_cb_err(void *user_data, void *buf, size_t buf_len,
                                     size_t *out_read) {
-  (void)user_data;
-  (void)buf;
-  (void)buf_len;
-  (void)out_read;
+  if (user_data || buf || buf_len || out_read) {
+    /* pass */
+  }
   return -1;
 }
 
@@ -281,7 +280,9 @@ TEST test_libuv_send_connection_failure(void) {
 static int libuv_mock_chunk_cb(void *user_data, const void *chunk,
                                size_t chunk_len) {
   struct libuv_TestChunkState *state;
-  (void)chunk;
+  if (chunk) {
+    /* pass */
+  }
   state = (struct libuv_TestChunkState *)user_data;
   state->call_count++;
   state->total_bytes += chunk_len;

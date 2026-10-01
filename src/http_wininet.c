@@ -273,7 +273,8 @@ static BOOL InternetCrackUrlW(const wchar_t *lpszUrl, DWORD dwUrlLength,
   }
   host_end = p;
   if (*p == L':') {
-    unsigned int port_val = 0;
+    unsigned int port_val;
+    port_val = 0;
     p++;
     while (*p >= L'0' && *p <= L'9') {
       port_val = port_val * 10 + (unsigned int)(*p - L'0');
@@ -708,19 +709,24 @@ http_wininet_context_init(struct HttpTransportContext **ctx) {
  *
  * @param[in] ctx Pointer to the context to free. Satisfies NULL-safety.
  */
-void http_wininet_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_wininet_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wininet_context_free: Entering");
   if (ctx) {
+    enum c_abstract_http_error rch;
     InternetCloseHandle(ctx->hInternet);
     ctx->hInternet = NULL;
     free(ctx->proxy_username);
     ctx->proxy_username = NULL;
     free(ctx->proxy_password);
     ctx->proxy_password = NULL;
-    http_config_free(&ctx->config);
+    rch = http_config_free(&ctx->config);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
     free(ctx);
   }
   LOG_DEBUG("http_wininet_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -1079,7 +1085,7 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
           const char *name = cbuf;
           const char *val = eq + 1;
           char *semi = strchr(val, ';');
-          enum c_abstract_http_error dummy_rc;
+          enum c_abstract_http_error cookie_rc;
           *eq = '\0';
           if (semi) {
             *semi = '\0';
@@ -1088,13 +1094,13 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
           {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
             if (g_mock_wininet_cookie_set_fail) {
-              dummy_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+              cookie_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
             } else
 #endif
-              dummy_rc = http_cookie_jar_set(ctx->cookie_jar, name, val);
-            if (dummy_rc != C_ABSTRACT_HTTP_SUCCESS) {
+              cookie_rc = http_cookie_jar_set(ctx->cookie_jar, name, val);
+            if (cookie_rc != C_ABSTRACT_HTTP_SUCCESS) {
               LOG_DEBUG("http_wininet_send: http_cookie_jar_set failed with %d",
-                        (int)dummy_rc);
+                        (int)cookie_rc);
             }
           }
         }

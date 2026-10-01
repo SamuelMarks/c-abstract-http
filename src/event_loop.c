@@ -44,7 +44,7 @@
         ((fd_set FAR *)(set))->fd_count++;                                     \
       }                                                                        \
     }                                                                          \
-  } while ((void)0, 0)
+  } while (0, 0)
 #define ABSTRACT_HTTP_FD_SET(d, s) FD_SET(d, s)
 #define ABSTRACT_HTTP_FD_ISSET(d, s) FD_ISSET(d, s)
 #else
@@ -281,11 +281,11 @@ enum c_abstract_http_error http_loop_init(struct ModalityEventLoop **loop) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-void http_loop_free(struct ModalityEventLoop *loop) {
+enum c_abstract_http_error http_loop_free(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_free: Entering");
   if (!loop) {
     LOG_DEBUG("http_loop_free: Exiting early (loop is NULL)");
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   if (!loop->has_hooks) {
@@ -303,6 +303,7 @@ void http_loop_free(struct ModalityEventLoop *loop) {
   }
   free(loop);
   LOG_DEBUG("http_loop_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 enum c_abstract_http_error http_loop_wakeup(struct ModalityEventLoop *loop) {
@@ -571,13 +572,16 @@ process_timers(struct ModalityEventLoop *loop) {
 
 enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
   size_t i;
-  int active_fds = 0;
-  int max_fd = -1;
+  int active_fds;
+  int max_fd;
   fd_set read_fds, write_fds, error_fds;
   struct timeval tv;
   struct timeval *ptv = NULL;
   int ret;
   enum c_abstract_http_error rc;
+
+  active_fds = 0;
+  max_fd = -1;
 
   LOG_DEBUG("http_loop_tick: Entering");
   if (!loop) {
@@ -676,7 +680,8 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
   if (ret > 0) {
     for (i = 0; i < loop->fd_count; ++i) {
       if (loop->fds[i].active) {
-        int revents = 0;
+        int revents;
+        revents = 0;
         if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &read_fds))
           revents |= HTTP_LOOP_READ;
         if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &write_fds))
@@ -720,15 +725,19 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
 
   while (!loop->stop_requested) {
     abstract_http_int64_t now;
-    abstract_http_int64_t next_timeout = -1;
+    abstract_http_int64_t next_timeout;
     size_t i;
-    int active_fds = 0;
-    int max_fd = -1;
+    int active_fds;
+    int max_fd;
     fd_set read_fds, write_fds, error_fds;
     struct timeval tv;
     struct timeval *ptv = NULL;
     int ret;
     enum c_abstract_http_error rc;
+
+    next_timeout = -1;
+    active_fds = 0;
+    max_fd = -1;
 
     /* Process expired timers first */
     rc = process_timers(loop);
@@ -827,7 +836,8 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
     if (ret > 0) {
       for (i = 0; i < loop->fd_count; ++i) {
         if (loop->fds[i].active) {
-          int revents = 0;
+          int revents;
+          revents = 0;
           if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &read_fds))
             revents |= HTTP_LOOP_READ;
           if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &write_fds))

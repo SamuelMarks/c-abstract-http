@@ -8,250 +8,8 @@
 #include "c_abstract_http/log.h"
 #include "str.h"
 
-#if defined(C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC)
 #include <lsquic.h>
-#endif
 /* clang-format on */
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int *abstract_http_mock_get_g_mock_lsquic_global_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_lsquic_context_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_lsquic_config_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_lsquic_engine_new_fail(void);
-extern int *abstract_http_mock_get_g_mock_lsquic_res_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_lsquic_res_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_lsquic_body_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_lsquic_read_fail(void);
-
-#define g_mock_lsquic_global_init_fail                                         \
-  (*abstract_http_mock_get_g_mock_lsquic_global_init_fail())
-#define g_mock_lsquic_context_init_fail                                        \
-  (*abstract_http_mock_get_g_mock_lsquic_context_init_fail())
-#define g_mock_lsquic_config_init_fail                                         \
-  (*abstract_http_mock_get_g_mock_lsquic_config_init_fail())
-#define g_mock_lsquic_engine_new_fail                                          \
-  (*abstract_http_mock_get_g_mock_lsquic_engine_new_fail())
-#define g_mock_lsquic_res_alloc_fail                                           \
-  (*abstract_http_mock_get_g_mock_lsquic_res_alloc_fail())
-#define g_mock_lsquic_res_init_fail                                            \
-  (*abstract_http_mock_get_g_mock_lsquic_res_init_fail())
-#define g_mock_lsquic_body_alloc_fail                                          \
-  (*abstract_http_mock_get_g_mock_lsquic_body_alloc_fail())
-#define g_mock_lsquic_read_fail                                                \
-  (*abstract_http_mock_get_g_mock_lsquic_read_fail())
-#endif
-
-#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC)
-
-#define LSENG_HTTP 1
-#define LSQUIC_GLOBAL_CLIENT 1
-
-/** @brief Forward declare lsquic_engine_s */
-typedef struct lsquic_engine_s lsquic_engine_t;
-/** @brief Forward declare lsquic_conn_s */
-typedef struct lsquic_conn_s lsquic_conn_t;
-/** @brief Forward declare lsquic_stream_s */
-typedef struct lsquic_stream_s lsquic_stream_t;
-/** @brief Opaque connection context */
-typedef void lsquic_conn_ctx_t;
-/** @brief Opaque stream context */
-typedef void lsquic_stream_ctx_t;
-
-/** @brief Mock stream interface callbacks */
-struct lsquic_stream_if {
-  /** @brief on_new_conn callback */
-  lsquic_conn_ctx_t *(*on_new_conn)(void *stream_if_ctx, lsquic_conn_t *c);
-  /** @brief on_conn_closed callback */
-  void (*on_conn_closed)(lsquic_conn_t *c);
-  /** @brief on_new_stream callback */
-  lsquic_stream_ctx_t *(*on_new_stream)(void *stream_if_ctx,
-                                        lsquic_stream_t *s);
-  /** @brief on_read callback */
-  void (*on_read)(lsquic_stream_t *s, lsquic_stream_ctx_t *h);
-  /** @brief on_write callback */
-  void (*on_write)(lsquic_stream_t *s, lsquic_stream_ctx_t *h);
-  /** @brief on_close callback */
-  void (*on_close)(lsquic_stream_t *s, lsquic_stream_ctx_t *h);
-};
-
-/** @brief Mock engine settings */
-struct lsquic_engine_settings {
-  /** @brief Idle connection timeout */
-  unsigned int es_idle_conn_to;
-};
-
-/** @brief Mock engine API */
-struct lsquic_engine_api {
-  /** @brief Engine settings */
-  const struct lsquic_engine_settings *ea_settings;
-  /** @brief Stream callbacks */
-  const struct lsquic_stream_if *ea_stream_if;
-  /** @brief Stream context */
-  void *ea_stream_if_ctx;
-};
-
-/** @brief Mock lsquic_engine_s */
-struct lsquic_engine_s {
-  /** @brief Mode flags */
-  int mode;
-  /** @brief API settings */
-  struct lsquic_engine_api api;
-};
-
-/** @brief Mock lsquic_conn_s */
-struct lsquic_conn_s {
-  /** @brief Dummy field */
-  int dummy;
-};
-
-/** @brief Mock lsquic_stream_s */
-struct lsquic_stream_s {
-  /** @brief Write flag */
-  int want_write;
-  /** @brief Read flag */
-  int want_read;
-  /** @brief Closed flag */
-  int is_closed;
-};
-
-/**
- * @brief Initialize lsquic library globally.
- *
- * @param[in] flags Initialization flags.
- * @return 0 on success, -1 on failure.
- */
-static int lsquic_global_init(int flags) {
-  (void)flags;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_lsquic_global_init_fail) {
-    return -1;
-  }
-#endif
-  return 0;
-}
-
-/**
- * @brief Clean up lsquic globally.
- */
-static void lsquic_global_cleanup(void) {}
-
-/**
- * @brief Initialize lsquic engine settings.
- *
- * @param[out] settings Settings structure.
- * @param[in] flags Flags.
- */
-static void lsquic_engine_init_settings(struct lsquic_engine_settings *settings,
-                                        unsigned int flags) {
-  (void)flags;
-  if (settings) {
-    memset(settings, 0, sizeof(*settings));
-  }
-}
-
-/**
- * @brief Create a new mock lsquic engine.
- *
- * @param[in] flags Engine flags.
- * @param[in] api API configuration.
- * @return Pointer to engine or NULL on failure.
- */
-static lsquic_engine_t *lsquic_engine_new(unsigned int flags,
-                                          const struct lsquic_engine_api *api) {
-  lsquic_engine_t *eng;
-  (void)flags;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_lsquic_engine_new_fail) {
-    return NULL;
-  }
-#endif
-  eng = (lsquic_engine_t *)calloc(1, sizeof(lsquic_engine_t));
-  if (eng && api) {
-    eng->api = *api;
-  }
-  return eng;
-}
-
-/**
- * @brief Destroy mock lsquic engine.
- *
- * @param[in] engine Engine to destroy.
- */
-static void lsquic_engine_destroy(lsquic_engine_t *engine) {
-  if (engine) {
-    free(engine);
-  }
-}
-
-/**
- * @brief Set wantwrite state on mock stream.
- *
- * @param[in,out] s Stream.
- * @param[in] val Value.
- */
-static void lsquic_stream_wantwrite(lsquic_stream_t *s, int val) {
-  if (s) {
-    s->want_write = val;
-  }
-}
-
-/**
- * @brief Set wantread state on mock stream.
- *
- * @param[in,out] s Stream.
- * @param[in] val Value.
- */
-static void lsquic_stream_wantread(lsquic_stream_t *s, int val) {
-  if (s) {
-    s->want_read = val;
-  }
-}
-
-/**
- * @brief Flush stream data.
- *
- * @param[in] s Stream.
- */
-static void lsquic_stream_flush(lsquic_stream_t *s) { (void)s; }
-
-/**
- * @brief Close mock stream.
- *
- * @param[in,out] s Stream.
- */
-static void lsquic_stream_close(lsquic_stream_t *s) {
-  if (s) {
-    s->is_closed = 1;
-  }
-}
-
-/**
- * @brief Read mock stream data.
- *
- * @param[in] s Stream.
- * @param[out] buf Buffer.
- * @param[in] len Buffer size.
- * @return Number of bytes read or -1 on error.
- */
-static int lsquic_stream_read(lsquic_stream_t *s, void *buf, size_t len) {
-  const char payload[] = "OK";
-  (void)s;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_lsquic_read_fail == 1) {
-    return -1;
-  }
-  if (g_mock_lsquic_read_fail == 2) {
-    return 0;
-  }
-#endif
-  if (buf && len >= sizeof(payload) - 1) {
-    memcpy(buf, payload, sizeof(payload) - 1);
-    return (int)(sizeof(payload) - 1);
-  }
-  return 0;
-}
-
-#endif /* !defined(C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC) */
 
 static int g_lsquic_init_count = 0;
 
@@ -288,7 +46,8 @@ struct lsquic_req_ctx {
  */
 static lsquic_conn_ctx_t *lsq_on_new_conn(void *stream_if_ctx,
                                           lsquic_conn_t *c) {
-  (void)stream_if_ctx;
+  if (stream_if_ctx) {
+  }
   return (lsquic_conn_ctx_t *)c;
 }
 
@@ -297,7 +56,10 @@ static lsquic_conn_ctx_t *lsq_on_new_conn(void *stream_if_ctx,
  *
  * @param[in] c Connection.
  */
-static void lsq_on_conn_closed(lsquic_conn_t *c) { (void)c; }
+static void lsq_on_conn_closed(lsquic_conn_t *c) {
+  if (c) {
+  }
+}
 
 /**
  * @brief Callback on new stream.
@@ -322,15 +84,11 @@ static lsquic_stream_ctx_t *lsq_on_new_stream(void *stream_if_ctx,
 static void lsq_on_read(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
   struct lsquic_req_ctx *rctx = (struct lsquic_req_ctx *)h;
   unsigned char buf[4096];
-  int nr = lsquic_stream_read(s, buf, sizeof(buf));
+  int nr;
+  nr = lsquic_stream_read(s, buf, sizeof(buf));
   if (nr > 0) {
     if (rctx && rctx->res) {
       void *new_body;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (g_mock_lsquic_body_alloc_fail) {
-        new_body = NULL;
-      } else
-#endif
       {
         new_body =
             realloc(rctx->res->body, rctx->res->body_len + (size_t)nr + 1);
@@ -370,7 +128,8 @@ static void lsq_on_read(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
  * @param[in] h Stream context.
  */
 static void lsq_on_write(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
-  (void)h;
+  if (h) {
+  }
   lsquic_stream_wantwrite(s, 0);
   lsquic_stream_wantread(s, 1);
   lsquic_stream_flush(s);
@@ -384,60 +143,12 @@ static void lsq_on_write(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
  */
 static void lsq_on_close(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
   struct lsquic_req_ctx *rctx = (struct lsquic_req_ctx *)h;
-  (void)s;
+  if (s) {
+  }
   if (rctx) {
     rctx->is_complete = 1;
   }
 }
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int g_mock_alloc_fail;
-extern int g_mock_alloc_count;
-
-/**
- * @brief Expose internal helpers for test coverage.
- *
- * @return C_ABSTRACT_HTTP_SUCCESS on success.
- */
-enum c_abstract_http_error c_abstract_http_test_lsquic_helpers(void);
-
-enum c_abstract_http_error c_abstract_http_test_lsquic_helpers(void) {
-  char small_buf[1];
-  struct lsquic_req_ctx null_res_rctx;
-
-  lsquic_engine_init_settings(NULL, 0);
-  {
-    lsquic_engine_t *dummy_engine = lsquic_engine_new(0, NULL);
-    lsquic_engine_destroy(dummy_engine);
-  }
-  g_mock_alloc_fail = 1;
-  g_mock_alloc_count = 0;
-  {
-    lsquic_engine_t *dummy_engine = lsquic_engine_new(0, NULL);
-    lsquic_engine_destroy(dummy_engine);
-  }
-  g_mock_alloc_fail = 0;
-  lsquic_engine_destroy(NULL);
-  lsquic_stream_wantwrite(NULL, 0);
-  lsquic_stream_wantread(NULL, 0);
-  lsquic_stream_close(NULL);
-  lsquic_stream_read(NULL, NULL, 0);
-  lsquic_stream_read(NULL, small_buf, 0);
-
-  memset(&null_res_rctx, 0, sizeof(null_res_rctx));
-  lsq_on_read(NULL, NULL);
-  lsq_on_read(NULL, (lsquic_stream_ctx_t *)&null_res_rctx);
-  lsq_on_close(NULL, NULL);
-
-  g_mock_lsquic_read_fail = 1;
-  lsq_on_read(NULL, NULL);
-  g_mock_lsquic_read_fail = 2;
-  lsq_on_read(NULL, NULL);
-  g_mock_lsquic_read_fail = 0;
-
-  return C_ABSTRACT_HTTP_SUCCESS;
-}
-#endif
 
 static struct lsquic_stream_if lsq_stream_if;
 
@@ -492,27 +203,13 @@ http_lsquic_context_init(struct HttpTransportContext **ctx) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_lsquic_context_init_fail) {
-    c = NULL;
-  } else
-#endif
-  {
-    c = (struct HttpTransportContext *)calloc(1, sizeof(*c));
-  }
+  { c = (struct HttpTransportContext *)calloc(1, sizeof(*c)); }
   if (!c) {
     LOG_DEBUG("http_lsquic_context_init: Error ENOMEM");
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_lsquic_config_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_config_init(&c->config);
-  }
+  { rc = http_config_init(&c->config); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_lsquic_context_init: Error http_config_init failed with %d",
               (int)rc);
@@ -537,19 +234,24 @@ http_lsquic_context_init(struct HttpTransportContext **ctx) {
  *
  * @param[in] ctx Context to free.
  */
-void http_lsquic_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_lsquic_context_free(struct HttpTransportContext *ctx) {
+  enum c_abstract_http_error rch;
   LOG_DEBUG("http_lsquic_context_free: Entering");
   if (!ctx) {
     LOG_DEBUG("http_lsquic_context_free: Exiting (ctx is NULL)");
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   if (ctx->engine) {
     lsquic_engine_destroy(ctx->engine);
     ctx->engine = NULL;
   }
-  http_config_free(&ctx->config);
+  rch = http_config_free(&ctx->config);
+  if (rch != C_ABSTRACT_HTTP_SUCCESS)
+    return rch;
   free(ctx);
   LOG_DEBUG("http_lsquic_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -587,11 +289,6 @@ http_lsquic_config_apply(struct HttpTransportContext *ctx,
       free(ctx->config.user_agent);
       ctx->config.user_agent = NULL;
     }
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_lsquic_config_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
     {
       rc = c_abstract_http_strdup(config->user_agent, &ctx->config.user_agent);
     }
@@ -608,14 +305,7 @@ http_lsquic_config_apply(struct HttpTransportContext *ctx,
       free(ctx->config.proxy_url);
       ctx->config.proxy_url = NULL;
     }
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_lsquic_config_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
-    {
-      rc = c_abstract_http_strdup(config->proxy_url, &ctx->config.proxy_url);
-    }
+    { rc = c_abstract_http_strdup(config->proxy_url, &ctx->config.proxy_url); }
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
@@ -629,11 +319,6 @@ http_lsquic_config_apply(struct HttpTransportContext *ctx,
       free(ctx->config.proxy_username);
       ctx->config.proxy_username = NULL;
     }
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_lsquic_config_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
     {
       rc = c_abstract_http_strdup(config->proxy_username,
                                   &ctx->config.proxy_username);
@@ -651,11 +336,6 @@ http_lsquic_config_apply(struct HttpTransportContext *ctx,
       free(ctx->config.proxy_password);
       ctx->config.proxy_password = NULL;
     }
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_lsquic_config_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
     {
       rc = c_abstract_http_strdup(config->proxy_password,
                                   &ctx->config.proxy_password);
@@ -701,27 +381,13 @@ enum c_abstract_http_error http_lsquic_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_lsquic_res_alloc_fail) {
-    *res = NULL;
-  } else
-#endif
-  {
-    *res = (struct HttpResponse *)calloc(1, sizeof(**res));
-  }
+  { *res = (struct HttpResponse *)calloc(1, sizeof(**res)); }
   if (!*res) {
     LOG_DEBUG("http_lsquic_send: Error ENOMEM allocating response");
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_lsquic_res_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_response_init(*res);
-  }
+  { rc = http_response_init(*res); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_lsquic_send: Error http_response_init failed with %d",
               (int)rc);
@@ -747,8 +413,10 @@ enum c_abstract_http_error http_lsquic_send(struct HttpTransportContext *ctx,
   memset(&rctx, 0, sizeof(rctx));
   rctx.res = *res;
 
-  lsq_on_new_conn(ctx, &conn);
-  lsq_on_new_stream(&rctx, &stream);
+  if (lsq_on_new_conn(ctx, &conn) == NULL) {
+  }
+  if (lsq_on_new_stream(&rctx, &stream) == NULL) {
+  }
   lsq_on_write(&stream, &rctx);
   lsq_on_read(&stream, &rctx);
   lsq_on_close(&stream, &rctx);
@@ -778,7 +446,8 @@ enum c_abstract_http_error http_lsquic_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
-  (void)loop;
+  if (loop) {
+  }
 
   if (!ctx || !multi || !futures) {
     LOG_DEBUG("http_lsquic_send_multi: Error EINVAL");

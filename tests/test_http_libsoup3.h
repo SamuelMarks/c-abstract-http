@@ -57,7 +57,9 @@ struct libsoup3_TestUploadState {
 static int libsoup3_mock_chunk_cb(void *user_data, const void *chunk,
                                   size_t chunk_len) {
   struct libsoup3_TestChunkState *state;
-  (void)chunk;
+  if (chunk) {
+    /* pass */
+  }
   state = (struct libsoup3_TestChunkState *)user_data;
   state->call_count++;
   state->total_bytes += chunk_len;

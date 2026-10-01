@@ -4,6 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_WIN32)
+#include <winsock2.h>
+#else
+#include <netinet/in.h>
+#include <sys/socket.h>
+#endif
+
 #include <c_abstract_http/http_picoquic.h>
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
@@ -17,60 +24,7 @@ extern int g_mock_picoquic_response_init_fail;
 extern int g_mock_picoquic_quic_null_on_free;
 #endif
 
-/* Forward declarations to avoid complex header inclusions */
-typedef struct st_picoquic_quic_t picoquic_quic_t;
-typedef struct st_picoquic_cnx_t picoquic_cnx_t;
-struct sockaddr;
-
-extern picoquic_quic_t *
-picoquic_create(uint32_t nb_connections, char const *cert_file_name,
-                char const *key_file_name, char const *cert_root_file_name,
-                char const *default_alpn, void *default_callback_fn,
-                void *default_callback_ctx, void *connection_id_callback,
-                void *connection_id_callback_ctx, uint8_t reset_seed[16],
-                uint64_t current_time, uint64_t *p_simulated_time,
-                char const *ticket_file_name,
-                const uint8_t *ticket_encryption_key,
-                size_t ticket_encryption_key_length);
-
-extern void picoquic_free(picoquic_quic_t *quic);
-
-#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_PICOQUIC)
-picoquic_quic_t *
-picoquic_create(uint32_t nb_connections, char const *cert_file_name,
-                char const *key_file_name, char const *cert_root_file_name,
-                char const *default_alpn, void *default_callback_fn,
-                void *default_callback_ctx, void *connection_id_callback,
-                void *connection_id_callback_ctx, uint8_t reset_seed[16],
-                uint64_t current_time, uint64_t *p_simulated_time,
-                char const *ticket_file_name,
-                const uint8_t *ticket_encryption_key,
-                size_t ticket_encryption_key_length) {
-  (void)nb_connections;
-  (void)cert_file_name;
-  (void)key_file_name;
-  (void)cert_root_file_name;
-  (void)default_alpn;
-  (void)default_callback_fn;
-  (void)default_callback_ctx;
-  (void)connection_id_callback;
-  (void)connection_id_callback_ctx;
-  (void)reset_seed;
-  (void)current_time;
-  (void)p_simulated_time;
-  (void)ticket_file_name;
-  (void)ticket_encryption_key;
-  (void)ticket_encryption_key_length;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_picoquic_create_fail) {
-    return NULL;
-  }
-#endif
-  return (picoquic_quic_t *)malloc(1);
-}
-
-void picoquic_free(picoquic_quic_t *quic) { free(quic); }
-#endif
+#include <picoquic.h>
 
 static int g_picoquic_init_count = 0;
 
@@ -174,11 +128,13 @@ http_picoquic_context_init(struct HttpTransportContext **ctx) {
  *
  * @param[in] ctx The context to free.
  */
-void http_picoquic_context_free(struct HttpTransportContext *ctx) {
+enum c_abstract_http_error
+http_picoquic_context_free(struct HttpTransportContext *ctx) {
+  enum c_abstract_http_error rch;
   LOG_DEBUG("http_picoquic_context_free: Entering");
   if (!ctx) {
     LOG_DEBUG("http_picoquic_context_free: Exiting early (ctx is NULL)");
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_picoquic_quic_null_on_free) {
@@ -190,9 +146,12 @@ void http_picoquic_context_free(struct HttpTransportContext *ctx) {
     picoquic_free(ctx->quic);
     ctx->quic = NULL;
   }
-  http_config_free(&ctx->config);
+  rch = http_config_free(&ctx->config);
+  if (rch != C_ABSTRACT_HTTP_SUCCESS)
+    return rch;
   free(ctx);
   LOG_DEBUG("http_picoquic_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -273,10 +232,28 @@ enum c_abstract_http_error http_picoquic_send(struct HttpTransportContext *ctx,
     *res = NULL;
     return rc;
   }
-  (*res)->status_code = 200;
 
-  LOG_DEBUG("http_picoquic_send: Success (simulated)");
-  return C_ABSTRACT_HTTP_SUCCESS;
+  if (ctx->quic) {
+    struct sockaddr_in server_address;
+    picoquic_cnx_t *cnx;
+
+    memset(&server_address, 0, sizeof(server_address));
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = 443;
+
+    cnx = picoquic_create_client_cnx(ctx->quic,
+                                     (struct sockaddr *)&server_address, 0, 0,
+                                     "example.com", "h3", NULL, NULL);
+    if (!cnx) {
+      free(*res);
+      *res = NULL;
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+  }
+
+  free(*res);
+  *res = NULL;
+  return C_ABSTRACT_HTTP_ERR_IO;
 }
 
 /**

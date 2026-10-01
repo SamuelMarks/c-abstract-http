@@ -66,7 +66,8 @@ http_libuv_context_init(struct HttpTransportContext **ctx);
  *
  * @param[in] ctx The context to free. Safe to pass NULL.
  */
-void http_libuv_context_free(struct HttpTransportContext *ctx);
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+http_libuv_context_free(struct HttpTransportContext *ctx);
 
 /**
  * @brief Apply configuration settings to the libuv handle.

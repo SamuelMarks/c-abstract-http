@@ -74,7 +74,7 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
  * Must be called after the coroutine finishes.
  * @param[in] co The coroutine handle.
  */
-C_ABSTRACT_HTTP_API void
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_coroutine_free(struct AbstractHttpCoroutine *co);
 
 /**
