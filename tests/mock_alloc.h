@@ -65,6 +65,13 @@ extern int *abstract_http_mock_get_g_mock_bind_fail(void);
 extern int *abstract_http_mock_get_g_mock_listen_fail(void);
 extern int *abstract_http_mock_get_g_mock_accept_fail(void);
 extern int *abstract_http_mock_get_g_mock_recv_fail(void);
+extern int *abstract_http_mock_get_g_mock_config_free_fail(void);
+extern int *abstract_http_mock_get_g_mock_response_free_fail(void);
+extern int *abstract_http_mock_get_g_mock_multi_free_fail(void);
+extern int *abstract_http_mock_get_g_mock_parts_free_fail(void);
+extern int *abstract_http_mock_get_g_mock_headers_free_fail(void);
+extern int *abstract_http_mock_get_g_mock_cond_free_fail(void);
+extern int *abstract_http_mock_get_g_mock_mutex_free_fail(void);
 extern int *abstract_http_mock_get_g_mock_getsockname_fail(void);
 extern int *abstract_http_mock_get_g_mock_mutex_fail(void);
 extern int *abstract_http_mock_get_g_mock_cond_fail(void);
@@ -347,6 +354,13 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 #define g_mock_listen_fail (*abstract_http_mock_get_g_mock_listen_fail())
 #define g_mock_accept_fail (*abstract_http_mock_get_g_mock_accept_fail())
 #define g_mock_recv_fail (*abstract_http_mock_get_g_mock_recv_fail())
+#define g_mock_config_free_fail (*abstract_http_mock_get_g_mock_config_free_fail())
+#define g_mock_response_free_fail (*abstract_http_mock_get_g_mock_response_free_fail())
+#define g_mock_multi_free_fail (*abstract_http_mock_get_g_mock_multi_free_fail())
+#define g_mock_parts_free_fail (*abstract_http_mock_get_g_mock_parts_free_fail())
+#define g_mock_headers_free_fail (*abstract_http_mock_get_g_mock_headers_free_fail())
+#define g_mock_cond_free_fail (*abstract_http_mock_get_g_mock_cond_free_fail())
+#define g_mock_mutex_free_fail (*abstract_http_mock_get_g_mock_mutex_free_fail())
 #define g_mock_getsockname_fail (*abstract_http_mock_get_g_mock_getsockname_fail())
 #define g_mock_mutex_fail (*abstract_http_mock_get_g_mock_mutex_fail())
 #define g_mock_cond_fail (*abstract_http_mock_get_g_mock_cond_fail())

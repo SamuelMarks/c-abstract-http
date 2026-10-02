@@ -607,10 +607,20 @@ TEST test_http_raw_oom_and_mock_failures(void) {
 
   /* 12. body malloc failure */
   g_mock_raw_realloc_fail = 4;
+  g_mock_response_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_response_free_fail = 0;
+  g_mock_raw_realloc_fail = 0;
+  g_mock_raw_realloc_fail = 4;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_raw_send(ctx, &req, &res));
   g_mock_raw_realloc_fail = 0;
 
   /* 13. recv failure */
+  g_mock_recv_fail = 1;
+  g_mock_response_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_response_free_fail = 0;
+  g_mock_recv_fail = 0;
   g_mock_recv_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
   g_mock_recv_fail = 0;
@@ -787,6 +797,11 @@ TEST test_http_raw_oom_and_mock_failures(void) {
 
   /* 20. Headers add failure during response parsing */
   g_mock_raw_realloc_fail = 5;
+  g_mock_response_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_response_free_fail = 0;
+  g_mock_raw_realloc_fail = 0;
+  g_mock_raw_realloc_fail = 5;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_raw_send(ctx, &req, &res));
   ASSERT(res == NULL);
   g_mock_raw_realloc_fail = 0;
@@ -799,6 +814,20 @@ TEST test_http_raw_oom_and_mock_failures(void) {
 }
 #endif
 
+TEST test_http_raw_free_failures(void) {
+  struct HttpTransportContext *ctx = NULL;
+  enum c_abstract_http_error rc;
+  rc = http_raw_context_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  g_mock_config_free_fail = 1;
+  rc = http_raw_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  g_mock_config_free_fail = 0;
+  rc = http_raw_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  PASS();
+}
+
 SUITE(http_raw_suite) {
   RUN_TEST(test_http_raw_lifecycle);
   RUN_TEST(test_http_raw_config);
@@ -808,6 +837,7 @@ SUITE(http_raw_suite) {
   RUN_TEST(test_http_raw_multi_requests);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_raw_oom_and_mock_failures);
+  RUN_TEST(test_http_raw_free_failures);
 #endif
 }
 

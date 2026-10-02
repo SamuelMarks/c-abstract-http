@@ -112,4 +112,5 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_fetch_send_multi(
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
 #endif /* C_ABSTRACT_HTTP_HTTP_FETCH_H */

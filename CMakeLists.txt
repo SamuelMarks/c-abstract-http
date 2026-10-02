@@ -434,7 +434,7 @@ endif()
         target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_LIBEVENT)
     elseif(C_ABSTRACT_HTTP_USE_LSQUIC)
         target_sources(c-abstract-http PRIVATE
-            src/http_lsquic.c
+
         )
         c_abstract_http_resolve_dependency(boringssl https://github.com/google/boringssl.git master)
         set(BORINGSSL_DIR "${CMAKE_BINARY_DIR}/_deps/boringssl-src" CACHE PATH "" FORCE)
@@ -623,7 +623,7 @@ endif()
 
 #Platform specific HTTP backends
     if(CMAKE_SYSTEM_NAME STREQUAL "Android" OR ANDROID)
-        target_sources(c-abstract-http PRIVATE src/http_android.c)
+        target_sources(c-abstract-http PRIVATE )
     elseif(EMSCRIPTEN)
 #Fetch API requires - s FETCH = 1
         target_sources(c-abstract-http PRIVATE src/http_wasm.c)
@@ -657,7 +657,7 @@ endif()
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LIBEVENT)
     elseif(C_ABSTRACT_HTTP_USE_LSQUIC)
         target_sources(c-abstract-http PRIVATE
-            src/http_lsquic.c
+
         )
         c_abstract_http_resolve_dependency(boringssl https://github.com/google/boringssl.git master)
         set(BORINGSSL_DIR "${CMAKE_BINARY_DIR}/_deps/boringssl-src" CACHE PATH "" FORCE)
@@ -688,7 +688,7 @@ endif()
         target_link_libraries(c-abstract-http PUBLIC picoquic)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_PICOQUIC)
     elseif(C_ABSTRACT_HTTP_USE_NGHTTP3)
-        target_sources(c-abstract-http PRIVATE src/http_nghttp3.c)
+        target_sources(c-abstract-http PRIVATE )
         set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
         set(ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
         set(ENABLE_APP OFF CACHE BOOL "" FORCE)

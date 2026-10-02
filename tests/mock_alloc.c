@@ -116,6 +116,13 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
 #undef g_mock_listen_fail
 #undef g_mock_accept_fail
 #undef g_mock_recv_fail
+#undef g_mock_config_free_fail
+#undef g_mock_response_free_fail
+#undef g_mock_multi_free_fail
+#undef g_mock_parts_free_fail
+#undef g_mock_headers_free_fail
+#undef g_mock_cond_free_fail
+#undef g_mock_mutex_free_fail
 #undef g_mock_alloc_fail
 #undef g_mock_alloc_count
 #undef g_mock_pthread_fail
@@ -133,6 +140,13 @@ ssize_t c_abstract_http_mock_recv(int socket, void *buffer, size_t length,
 #undef g_mock_listen_fail
 #undef g_mock_accept_fail
 #undef g_mock_recv_fail
+#undef g_mock_config_free_fail
+#undef g_mock_response_free_fail
+#undef g_mock_multi_free_fail
+#undef g_mock_parts_free_fail
+#undef g_mock_headers_free_fail
+#undef g_mock_cond_free_fail
+#undef g_mock_mutex_free_fail
 #undef g_mock_pthread_create_sync
 #undef g_mock_mutex_fail
 #undef g_mock_cond_fail
@@ -348,6 +362,13 @@ int g_mock_bind_fail = 0;
 int g_mock_listen_fail = 0;
 int g_mock_accept_fail = 0;
 int g_mock_recv_fail = 0;
+int g_mock_config_free_fail = 0;
+int g_mock_response_free_fail = 0;
+int g_mock_multi_free_fail = 0;
+int g_mock_parts_free_fail = 0;
+int g_mock_headers_free_fail = 0;
+int g_mock_cond_free_fail = 0;
+int g_mock_mutex_free_fail = 0;
 int g_mock_mutex_fail = 0;
 int g_mock_cond_fail = 0;
 int g_mock_strcasecmp_fail = 0;
@@ -588,6 +609,13 @@ int *abstract_http_mock_get_g_mock_accept_fail(void) {
   return &g_mock_accept_fail;
 }
 int *abstract_http_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
+int *abstract_http_mock_get_g_mock_config_free_fail(void) { return &g_mock_config_free_fail; }
+int *abstract_http_mock_get_g_mock_response_free_fail(void) { return &g_mock_response_free_fail; }
+int *abstract_http_mock_get_g_mock_multi_free_fail(void) { return &g_mock_multi_free_fail; }
+int *abstract_http_mock_get_g_mock_parts_free_fail(void) { return &g_mock_parts_free_fail; }
+int *abstract_http_mock_get_g_mock_headers_free_fail(void) { return &g_mock_headers_free_fail; }
+int *abstract_http_mock_get_g_mock_cond_free_fail(void) { return &g_mock_cond_free_fail; }
+int *abstract_http_mock_get_g_mock_mutex_free_fail(void) { return &g_mock_mutex_free_fail; }
 int *abstract_http_mock_get_g_mock_mutex_fail(void) { return &g_mock_mutex_fail; }
 int *abstract_http_mock_get_g_mock_cond_fail(void) { return &g_mock_cond_fail; }
 int *abstract_http_mock_get_g_mock_strcasecmp_fail(void) {

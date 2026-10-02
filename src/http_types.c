@@ -46,6 +46,15 @@ extern int g_mock_strcasecmp_fail;
 extern int g_mock_headers_init_fail;
 extern int g_mock_parts_init_fail;
 extern int g_mock_multi_init_fail;
+
+extern int g_mock_mutex_free_fail;
+extern int g_mock_cond_free_fail;
+extern int g_mock_headers_free_fail;
+extern int g_mock_parts_free_fail;
+extern int g_mock_multi_free_fail;
+extern int g_mock_response_free_fail;
+extern int g_mock_config_free_fail;
+
 extern int *abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail(void);
 extern int *abstract_http_mock_get_g_mock_urlencode_append_fail(void);
 #define g_mock_sprintf_s_wrapper_fail                                          \
@@ -122,6 +131,10 @@ enum c_abstract_http_error http_headers_init(struct HttpHeaders *headers) {
 
 enum c_abstract_http_error http_headers_free(struct HttpHeaders *headers) {
   size_t i;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_headers_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (!headers)
     return C_ABSTRACT_HTTP_SUCCESS;
 
@@ -272,6 +285,10 @@ enum c_abstract_http_error http_parts_init(struct HttpParts *parts) {
 
 enum c_abstract_http_error http_parts_free(struct HttpParts *parts) {
   size_t i;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_parts_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (!parts)
     return C_ABSTRACT_HTTP_SUCCESS;
   if (parts->parts) {
@@ -735,6 +752,10 @@ enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
 }
 
 enum c_abstract_http_error http_config_free(struct HttpConfig *config) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_config_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (!config)
     return C_ABSTRACT_HTTP_SUCCESS;
   if (config->user_agent) {
@@ -2223,6 +2244,10 @@ enum c_abstract_http_error http_response_init(struct HttpResponse *res) {
 }
 
 enum c_abstract_http_error http_response_free(struct HttpResponse *res) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_response_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (!res)
     return C_ABSTRACT_HTTP_SUCCESS;
   if (res->body) {

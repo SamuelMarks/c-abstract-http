@@ -305,6 +305,8 @@ TEST test_curl_send_chunked(void) {
 
   /* Verify chunk callback was called and read data ("OK" from mock server) */
   ASSERT(state.call_count > 0);
+  printf("CALL COUNT IS %d\n", (int)state.call_count);
+  printf("TOTAL BYTES IS %d\n", (int)state.total_bytes);
   ASSERT(state.total_bytes > 0);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
@@ -316,6 +318,14 @@ TEST test_curl_send_chunked(void) {
     int debug_rc = http_curl_send(ctx, &req, &res);
     g_mock_http_response_init_fail = 0;
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_INVAL, debug_rc, "%d");
+  }
+  g_mock_http_response_init_fail = 1;
+  g_mock_response_free_fail = 1;
+  {
+    int debug_rc = http_curl_send(ctx, &req, &res);
+    g_mock_response_free_fail = 0;
+    g_mock_http_response_init_fail = 0;
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_IO, debug_rc, "%d");
   }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));

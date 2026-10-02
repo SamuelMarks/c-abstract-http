@@ -1,3 +1,7 @@
+/**
+ * @file no_discard.h
+ * @brief Macro definitions for compiler-specific warn_unused_result properties.
+ */
 #ifndef NO_DISCARD_H
 #define NO_DISCARD_H
 

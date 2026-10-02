@@ -31,6 +31,17 @@
 
 /* Include test suites */
 
+void reset_all_mocks(void *data) {
+  (void)data;
+  g_mock_alloc_fail = 0;
+  g_mock_cond_fail = 0;
+  g_mock_mutex_free_fail = 0;
+  g_mock_cond_free_fail = 0;
+  g_mock_headers_free_fail = 0;
+  g_mock_parts_free_fail = 0;
+  g_mock_multi_free_fail = 0;
+  g_mock_pthread_fail = 0;
+}
 #include "test_http_types.h"
 #include "test_event_loop.h"
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
@@ -157,6 +168,7 @@ int main(int argc, char **argv) {
   }
 #endif
   GREATEST_MAIN_BEGIN();
+  GREATEST_SET_SETUP_CB(reset_all_mocks, NULL);
 
   RUN_SUITE(http_types_suite);
   RUN_SUITE(event_loop_suite);
@@ -175,6 +187,10 @@ int main(int argc, char **argv) {
 #endif
   RUN_SUITE(actor_suite);
   RUN_SUITE(transport_suite);
+
+#if defined(C_ABSTRACT_HTTP_HAVE_CURL)
+  RUN_SUITE(http_curl_suite);
+#endif
   RUN_SUITE(http_raw_suite);
 #if defined(C_ABSTRACT_HTTP_USE_XQUIC)
   RUN_SUITE(http_xquic_suite);
