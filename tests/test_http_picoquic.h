@@ -107,7 +107,7 @@ TEST test_picoquic_config_application(void) {
   config.version_mask = HTTP_VERSION_1_1;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_config_apply(ctx, &config));
 
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_picoquic_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_global_cleanup());
   PASS();
@@ -136,7 +136,7 @@ TEST test_picoquic_send_invalid_arguments(void) {
   /* Not configured yet */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_picoquic_send(ctx, &req, &res));
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_picoquic_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_global_cleanup());
   PASS();

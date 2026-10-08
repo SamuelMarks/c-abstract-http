@@ -199,12 +199,16 @@ enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers,
   }
 
   headers->headers[headers->count].key =
-      (c_abstract_http_strdup(key, &_ast_strdup_0), _ast_strdup_0);
+      (c_abstract_http_strdup(key, &_ast_strdup_0) == C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_0
+           : NULL);
   if (!headers->headers[headers->count].key)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   headers->headers[headers->count].value =
-      (c_abstract_http_strdup(value, &_ast_strdup_1), _ast_strdup_1);
+      (c_abstract_http_strdup(value, &_ast_strdup_1) == C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_1
+           : NULL);
   if (!headers->headers[headers->count].value) {
     free(headers->headers[headers->count].key);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -346,7 +350,9 @@ http_request_add_part(struct HttpRequest *req, const char *name,
   }
 
   p->parts[p->count].name =
-      (c_abstract_http_strdup(name, &_ast_strdup_2), _ast_strdup_2);
+      (c_abstract_http_strdup(name, &_ast_strdup_2) == C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_2
+           : NULL);
   if (!p->parts[p->count].name) {
     {
       enum c_abstract_http_error rch =
@@ -359,7 +365,10 @@ http_request_add_part(struct HttpRequest *req, const char *name,
 
   if (filename) {
     p->parts[p->count].filename =
-        (c_abstract_http_strdup(filename, &_ast_strdup_3), _ast_strdup_3);
+        (c_abstract_http_strdup(filename, &_ast_strdup_3) ==
+                 C_ABSTRACT_HTTP_SUCCESS
+             ? _ast_strdup_3
+             : NULL);
     if (!p->parts[p->count].filename) {
       free(p->parts[p->count].name);
       {
@@ -374,7 +383,10 @@ http_request_add_part(struct HttpRequest *req, const char *name,
 
   if (content_type) {
     p->parts[p->count].content_type =
-        (c_abstract_http_strdup(content_type, &_ast_strdup_4), _ast_strdup_4);
+        (c_abstract_http_strdup(content_type, &_ast_strdup_4) ==
+                 C_ABSTRACT_HTTP_SUCCESS
+             ? _ast_strdup_4
+             : NULL);
     if (!p->parts[p->count].content_type) {
       if (p->parts[p->count].filename)
         free(p->parts[p->count].filename);
@@ -660,8 +672,10 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
   /* Check for existing */
   for (i = 0; i < jar->count; ++i) {
     if (strcmp(jar->cookies[i].name, name) == 0) {
-      char *new_val =
-          (c_abstract_http_strdup(value, &_ast_strdup_cval), _ast_strdup_cval);
+      char *new_val = (c_abstract_http_strdup(value, &_ast_strdup_cval) ==
+                               C_ABSTRACT_HTTP_SUCCESS
+                           ? _ast_strdup_cval
+                           : NULL);
       if (!new_val)
         return C_ABSTRACT_HTTP_ERR_NOMEM;
       free(jar->cookies[i].value);
@@ -684,12 +698,18 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
   memset(&jar->cookies[jar->count], 0, sizeof(struct HttpCookie));
 
   jar->cookies[jar->count].name =
-      (c_abstract_http_strdup(name, &_ast_strdup_cname), _ast_strdup_cname);
+      (c_abstract_http_strdup(name, &_ast_strdup_cname) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_cname
+           : NULL);
   if (!jar->cookies[jar->count].name)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   jar->cookies[jar->count].value =
-      (c_abstract_http_strdup(value, &_ast_strdup_cval), _ast_strdup_cval);
+      (c_abstract_http_strdup(value, &_ast_strdup_cval) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_cval
+           : NULL);
   if (!jar->cookies[jar->count].value) {
     free(jar->cookies[jar->count].name);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -731,8 +751,10 @@ enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   config->proxy_password = NULL;
   config->cookie_jar = NULL;
   config->user_agent =
-      (c_abstract_http_strdup("c_abstract_http/0.1.0", &_ast_strdup_5),
-       _ast_strdup_5);
+      (c_abstract_http_strdup("c_abstract_http/0.1.0", &_ast_strdup_5) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_5
+           : NULL);
 
   /* Retry defaults */
   config->retry_count = 0;

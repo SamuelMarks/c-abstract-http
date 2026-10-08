@@ -242,7 +242,7 @@ TEST test_sse_init_headers(void) {
             http_headers_get(&req.headers, "Last-Event-ID", &val));
   ASSERT_STR_EQ("12345", val);
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -254,7 +254,7 @@ TEST test_sse_sync_loop_exit_flag(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL, NULL,
                                                NULL, &exit_flag));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -311,7 +311,7 @@ TEST test_sse_sync_loop_success(void) {
             c_abstract_http_sse_sync_read_loop(&client, &req, mock_on_event_cb,
                                                NULL, NULL, NULL, NULL));
   ASSERT_EQ(1, mock_on_event_called);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -330,7 +330,7 @@ TEST test_sse_sync_loop_fail(void) {
             c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL, NULL,
                                                NULL, NULL));
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -397,7 +397,7 @@ TEST test_sse_async_register(void) {
                                                test_sse_on_close, &ctx));
 
   req.url = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -410,7 +410,7 @@ TEST test_sse_init_headers_null(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_init(&req, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_init(&req, &config));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -471,7 +471,7 @@ TEST test_sse_async_register_thread_pool(void) {
                                                     NULL, NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -492,10 +492,10 @@ TEST test_sse_oom_branches(void) {
     rc = c_abstract_http_sse_init(&req, &config);
     g_mock_alloc_fail = 0;
     if (rc == 0) {
-      http_request_free(&req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
       break;
     }
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   }
 
@@ -514,7 +514,7 @@ TEST test_sse_oom_branches(void) {
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
   }
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   PASS();
 }
@@ -840,7 +840,7 @@ TEST test_sse_sync_loop_null_body(void) {
             c_abstract_http_sse_sync_read_loop(&client, &req, test_sse_on_event,
                                                test_sse_on_error,
                                                test_sse_on_close, &ctx, NULL));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 TEST test_sse_sync_loop_null_res(void) {
@@ -854,7 +854,7 @@ TEST test_sse_sync_loop_null_res(void) {
             c_abstract_http_sse_sync_read_loop(&client, &req, test_sse_on_event,
                                                test_sse_on_error,
                                                test_sse_on_close, &ctx, NULL));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -894,7 +894,7 @@ TEST test_sse_sync_loop_errors(void) {
                                                test_sse_on_error,
                                                test_sse_on_close, &ctx, NULL));
   ASSERT_EQ(1, ctx.close_called);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -922,7 +922,7 @@ TEST test_sse_async_register_success(void) {
                                                test_sse_on_error,
                                                test_sse_on_close, &ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -1088,7 +1088,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
       /* expected under OOM */
     }
     g_mock_alloc_fail = 0;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   for (i = 0; i < 10; i++) {
@@ -1104,7 +1104,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
       /* expected under OOM */
     }
     g_mock_alloc_fail = 0;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   for (i = 0; i < 15; i++) {
@@ -1119,7 +1119,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
       /* expected under OOM */
     }
     g_mock_alloc_fail = 0;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   for (i = 0; i < 15; i++) {
@@ -1135,7 +1135,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
       /* expected under OOM */
     }
     g_mock_alloc_fail = 0;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   PASS();
@@ -1244,7 +1244,7 @@ TEST test_sse_async_task_error(void) {
   c_abstract_http_sse_async_task(ctx); /* will free ctx */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, t_ctx.error_code);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Async task error with NULL error callback */
   ctx = malloc(sizeof(*ctx));
@@ -1257,7 +1257,7 @@ TEST test_sse_async_task_error(void) {
   ctx->on_close = NULL;
   ctx->user_data = NULL;
   c_abstract_http_sse_async_task(ctx);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 

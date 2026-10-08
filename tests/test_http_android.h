@@ -90,7 +90,7 @@ TEST test_android_config(void) {
   rc = http_android_config_apply(ctx, &cfg);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
-  http_config_free(&cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   http_android_context_free(ctx);
   PASS();
 }
@@ -127,7 +127,7 @@ TEST test_android_send_invalid(void) {
   rc = http_android_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, rc);
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_android_context_free(ctx);
   PASS();
 }
@@ -159,11 +159,11 @@ TEST test_android_send_success(void) {
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_android_context_free(ctx);
   PASS();
 }
@@ -209,11 +209,11 @@ TEST test_android_send_methods(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     ASSERT(res != NULL);
 
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
 
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   http_android_context_free(ctx);
@@ -236,7 +236,7 @@ TEST test_android_send_thread_states(void) {
   rc = http_request_init(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_android_context_free(ctx);
   PASS();
 }
@@ -257,7 +257,7 @@ TEST test_android_send_jni_failures(void) {
   rc = http_request_init(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_android_context_free(ctx);
   PASS();
 }

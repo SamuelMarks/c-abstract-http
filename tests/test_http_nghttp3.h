@@ -137,7 +137,7 @@ TEST test_nghttp3_config_application(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_config_apply(ctx, &config));
 
   /* Re-apply with new strings to cover freeing previous strings */
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   _ast_strdup_user = NULL;
   _ast_strdup_proxy = NULL;
@@ -149,7 +149,7 @@ TEST test_nghttp3_config_application(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_config_apply(ctx, &config));
 
   /* Apply with NULL user_agent and proxy_url to clear them */
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   free(config.user_agent);
   config.user_agent = NULL;
@@ -159,7 +159,7 @@ TEST test_nghttp3_config_application(void) {
   /* Apply again with NULL user_agent and proxy_url when already NULL */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_config_apply(ctx, &config));
 
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_nghttp3_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_global_cleanup());
   PASS();
@@ -194,7 +194,7 @@ TEST test_nghttp3_send_invalid_arguments(void) {
   /* Not configured yet */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_nghttp3_send(ctx, &req, &res));
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_nghttp3_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_global_cleanup());
   PASS();

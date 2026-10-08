@@ -81,7 +81,7 @@ setup_libevent_request(struct HttpRequest *req, int port) {
 
   rc = c_abstract_http_strdup(url, &_ast_strdup_0);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    http_request_free(req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(req));
     return rc;
   }
   req->url = _ast_strdup_0;
@@ -201,7 +201,7 @@ TEST test_libevent_config_application(void) {
   free(_ast_strdup_proxy);
   free(_ast_strdup_user);
   free(_ast_strdup_pass);
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_libevent_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_global_cleanup());
   PASS();
@@ -221,7 +221,7 @@ TEST test_libevent_send_invalid_arguments(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libevent_send(ctx, NULL, &res));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libevent_send(ctx, &req, NULL));
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_libevent_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_global_cleanup());
   PASS();
@@ -250,8 +250,8 @@ TEST test_libevent_send_connection_failure(void) {
          rc == C_ABSTRACT_HTTP_ERR_IO);
   ASSERT(res == NULL);
 
-  http_config_free(&config);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_libevent_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_global_cleanup());
   PASS();
@@ -310,10 +310,10 @@ TEST test_libevent_send_chunked(void) {
   ASSERT(state.call_count > 0);
   ASSERT(state.total_bytes > 0);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_config_free(&config);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_libevent_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_global_cleanup());
   mock_server_destroy(server);
@@ -351,8 +351,8 @@ TEST test_libevent_send_chunked_abort(void) {
   ASSERT_EQ((enum c_abstract_http_error)ECANCELED, rc);
   ASSERT(res == NULL);
 
-  http_config_free(&config);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_libevent_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_global_cleanup());
   mock_server_destroy(server);
@@ -411,10 +411,10 @@ TEST test_libevent_send_upload_chunked(void) {
   ASSERT_EQ(200, res->status_code);
   ASSERT_EQ(up_state.len, up_state.pos);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_config_free(&config);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_libevent_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_global_cleanup());
   mock_server_destroy(server);
@@ -458,10 +458,10 @@ TEST test_libevent_send_direct_body_and_urls(void) {
     ASSERT_EQ(200, res->status_code);
     ASSERT(res->body != NULL);
     ASSERT_STR_EQ("OK", res->body);
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   /* Test 2: URL without http:// prefix, slash without colon */
@@ -472,10 +472,10 @@ TEST test_libevent_send_direct_body_and_urls(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Test 3: URL without slash or colon */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -485,10 +485,10 @@ TEST test_libevent_send_direct_body_and_urls(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Test 4: Long host */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -498,10 +498,10 @@ TEST test_libevent_send_direct_body_and_urls(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Test 5: Empty response body (len == 0) */
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -514,10 +514,10 @@ TEST test_libevent_send_direct_body_and_urls(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
   ASSERT_EQ(0, res->body_len);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   g_mock_libevent_empty_body = 0;
 #endif
 
@@ -604,7 +604,7 @@ TEST test_libevent_send_fault_injections(void) {
               http_headers_add(&req.headers, "X-Custom", "Value"));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_send(ctx, &req, &res));
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
@@ -615,7 +615,7 @@ TEST test_libevent_send_fault_injections(void) {
     req.read_chunk_user_data = &up_state;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_send(ctx, &req, &res));
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
@@ -629,7 +629,7 @@ TEST test_libevent_send_fault_injections(void) {
             http_libevent_send(ctx, &req, &res));
   g_mock_libevent_empty_body = 0;
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_libevent_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_global_cleanup());
 #endif
@@ -732,10 +732,10 @@ TEST test_http_libevent_url_and_body_branches(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 2. colon && len >= sizeof(host): http://aaa...:80/path */
   memset(long_url, 'a', sizeof(long_url));
@@ -752,10 +752,10 @@ TEST test_http_libevent_url_and_body_branches(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 3. slash && len >= sizeof(host): http://aaa.../path */
   memset(long_url, 'a', sizeof(long_url));
@@ -769,10 +769,10 @@ TEST test_http_libevent_url_and_body_branches(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 4. no colon, no slash: http://127.0.0.1 */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -781,10 +781,10 @@ TEST test_http_libevent_url_and_body_branches(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 5. no colon, no slash && len >= sizeof(host): http://aaa... */
   memset(long_url, 'a', sizeof(long_url));
@@ -796,10 +796,10 @@ TEST test_http_libevent_url_and_body_branches(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 5b. colon after slash: http://127.0.0.1/path:with:colons */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -809,26 +809,26 @@ TEST test_http_libevent_url_and_body_branches(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 6. timeout_ms == 0 */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   config.timeout_ms = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_config_apply(ctx, &config));
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("http://127.0.0.1:80/test", &req.url));
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 6b. body non-NULL but body_len == 0 */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -841,10 +841,10 @@ TEST test_http_libevent_url_and_body_branches(void) {
   req.body = NULL;
   req.body_len = 0;
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 6c. read_chunk returns error */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -854,10 +854,10 @@ TEST test_http_libevent_url_and_body_branches(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* 7. body evbuffer_add failure */
@@ -873,10 +873,10 @@ TEST test_http_libevent_url_and_body_branches(void) {
   req.body = NULL;
   req.body_len = 0;
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* 8. read_chunk evbuffer_add failure */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -889,10 +889,10 @@ TEST test_http_libevent_url_and_body_branches(void) {
   rc = http_libevent_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 #endif
 
   http_libevent_context_free(ctx);

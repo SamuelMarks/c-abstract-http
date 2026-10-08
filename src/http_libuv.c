@@ -520,13 +520,14 @@ http_libuv_context_init(struct HttpTransportContext **ctx) {
  */
 enum c_abstract_http_error
 http_libuv_context_free(struct HttpTransportContext *ctx) {
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   LOG_DEBUG("http_libuv_context_free: Entering");
   if (ctx) {
-    http_config_free(&ctx->config);
+    rc = http_config_free(&ctx->config);
     free(ctx);
-    return C_ABSTRACT_HTTP_SUCCESS;
   }
   LOG_DEBUG("http_libuv_context_free: Exiting");
+  return rc;
 }
 
 /**
@@ -1037,7 +1038,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   /* parse_headers without end separator */
   {
     char *buf1 = NULL;
-    c_abstract_http_strdup("HTTP/1.1 200 OK", &buf1);
+    if (c_abstract_http_strdup("HTTP/1.1 200 OK", &buf1) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     state.done = 0;
     state.error_code = 0;
     state.headers_parsed = 0;
@@ -1057,8 +1060,10 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   /* parse_headers with valid headers and body */
   {
     char *buf2 = NULL;
-    c_abstract_http_strdup(
-        "HTTP/1.1 200 OK\r\nKey: Value\r\nNoColon\r\n\r\nBODY", &buf2);
+    if (c_abstract_http_strdup(
+            "HTTP/1.1 200 OK\r\nKey: Value\r\nNoColon\r\n\r\nBODY", &buf2) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     state.done = 0;
     state.error_code = 0;
     state.headers_parsed = 0;
@@ -1067,7 +1072,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     parse_headers(&state);
-    http_response_free(test_res);
+    rc = http_response_free(test_res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     free(test_res);
     test_res = NULL;
     free(buf2);
@@ -1076,7 +1083,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   /* parse_headers with status line without space */
   {
     char *buf3 = NULL;
-    c_abstract_http_strdup("HTTP/1.1\r\n\r\n", &buf3);
+    if (c_abstract_http_strdup("HTTP/1.1\r\n\r\n", &buf3) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     state.done = 0;
     state.error_code = 0;
     state.headers_parsed = 0;
@@ -1085,7 +1094,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     parse_headers(&state);
-    http_response_free(test_res);
+    rc = http_response_free(test_res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     free(test_res);
     test_res = NULL;
     free(buf3);
@@ -1094,7 +1105,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   /* parse_headers with on_chunk success and error */
   {
     char *buf4 = NULL;
-    c_abstract_http_strdup("HTTP/1.1 200 OK\r\n\r\nCHUNK_DATA", &buf4);
+    if (c_abstract_http_strdup("HTTP/1.1 200 OK\r\n\r\nCHUNK_DATA", &buf4) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     req.on_chunk = test_helper_chunk_cb;
     state.done = 0;
     state.error_code = 0;
@@ -1104,7 +1117,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     parse_headers(&state);
-    http_response_free(test_res);
+    rc = http_response_free(test_res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     free(test_res);
     test_res = NULL;
 
@@ -1116,7 +1131,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     parse_headers(&state);
-    http_response_free(test_res);
+    rc = http_response_free(test_res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     free(test_res);
     test_res = NULL;
     req.on_chunk = NULL;
@@ -1133,7 +1150,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   /* test parse_headers with body alloc fail */
   {
     char *buf5 = NULL;
-    c_abstract_http_strdup("HTTP/1.1 200 OK\r\n\r\nBODY_DATA", &buf5);
+    if (c_abstract_http_strdup("HTTP/1.1 200 OK\r\n\r\nBODY_DATA", &buf5) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     state.done = 0;
     state.error_code = 0;
     state.headers_parsed = 0;
@@ -1144,7 +1163,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     g_mock_libuv_body_alloc_fail = 1;
     parse_headers(&state);
     g_mock_libuv_body_alloc_fail = 0;
-    http_response_free(test_res);
+    rc = http_response_free(test_res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     free(test_res);
     test_res = NULL;
     free(buf5);
@@ -1153,8 +1174,10 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   /* test parse_headers with header add fail */
   {
     char *buf6 = NULL;
-    c_abstract_http_strdup("HTTP/1.1 200 OK\r\nKey: Val\r\nKey2: Val2\r\n\r\n",
-                           &buf6);
+    if (c_abstract_http_strdup(
+            "HTTP/1.1 200 OK\r\nKey: Val\r\nKey2: Val2\r\n\r\n", &buf6) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     state.done = 0;
     state.error_code = 0;
     state.headers_parsed = 0;
@@ -1165,7 +1188,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     g_mock_libuv_headers_realloc_fail = 1;
     parse_headers(&state);
     g_mock_libuv_headers_realloc_fail = 0;
-    http_response_free(test_res);
+    rc = http_response_free(test_res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
     free(test_res);
     test_res = NULL;
     free(buf6);
@@ -1193,7 +1218,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     /* EOF with unparsed headers and alloc fail to trigger parse_headers error
      * in EOF branch */
     state.done = 0;
-    c_abstract_http_strdup("HTTP/1.1 200 OK\r\n\r\n", &state.res_buf);
+    if (c_abstract_http_strdup("HTTP/1.1 200 OK\r\n\r\n", &state.res_buf) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     test_res = NULL;
     state.res = &test_res;
     g_mock_libuv_res_alloc_fail = 1;
@@ -1303,7 +1330,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     req.on_chunk = NULL;
   }
 
-  http_request_free(&req);
+  rc = http_request_free(&req);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif
@@ -1938,7 +1967,12 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
 
   if (state.error_code != 0) {
     if (*res) {
-      http_response_free(*res);
+      {
+        enum c_abstract_http_error free_rc = http_response_free(*res);
+        if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          /* ignore free error on failure path */
+        }
+      }
       free(*res);
       *res = NULL;
     }

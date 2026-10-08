@@ -46,7 +46,7 @@ test_msh3_setup_request(struct HttpRequest *req, const char *url_str) {
 
   rc = c_abstract_http_strdup(url_str, &u);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    http_request_free(req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(req));
     return rc;
   }
   req->url = u;
@@ -175,7 +175,7 @@ TEST test_msh3_context_lifecycle(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   rc = http_msh3_config_apply(ctx, &cfg);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  http_config_free(&cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
 
   http_msh3_context_free(ctx);
   http_msh3_context_free(NULL);
@@ -239,7 +239,7 @@ TEST test_msh3_config_application(void) {
   g_mock_msh3_config_open_fail = 0;
 #endif
 
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_msh3_context_free(ctx);
   rc = http_msh3_global_cleanup();
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -310,12 +310,12 @@ TEST test_msh3_send_invalid_arguments(void) {
     rc = http_msh3_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
     ASSERT(res == NULL);
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
     g_mock_msh3_parse_url_alloc_fail = 0;
   }
 #endif
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_msh3_context_free(ctx);
   rc = http_msh3_global_cleanup();
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);

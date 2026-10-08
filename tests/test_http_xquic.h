@@ -70,7 +70,7 @@ TEST test_http_xquic_config(void) {
   cfg.timeout_ms = 3000;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_config_apply(ctx, &cfg));
 
-  http_config_free(&cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   http_xquic_context_free(ctx);
   PASS();
 }

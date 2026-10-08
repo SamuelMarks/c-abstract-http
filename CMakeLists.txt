@@ -92,19 +92,7 @@ if(C_ABSTRACT_HTTP_THREADING STREQUAL "Single-threaded" OR C_ABSTRACT_HTTP_THREA
     add_compile_definitions(C_ABSTRACT_HTTP_SINGLE_THREADED=1)
 endif()
 
-if (CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
-    add_compile_definitions(inline=__inline__)
-    add_compile_definitions(_Bool=int)
-    add_compile_definitions(__forceinline=__inline__)
-endif()
-
-if(NOT MSVC)
-    if(APPLE)
-        add_compile_definitions(_DARWIN_C_SOURCE)
-    elseif(NOT WIN32)
-        add_compile_definitions(_DEFAULT_SOURCE _BSD_SOURCE _POSIX_C_SOURCE=200809L)
-    endif()
-endif()
+# Moved to target_compile_definitions
 
 option(C_ABSTRACT_HTTP_USE_LSQUIC "Use lsquic instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_PICOQUIC "Use picoquic instead of libcurl" OFF)
@@ -496,6 +484,7 @@ endif()
             target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_WINHTTP)
         endif()
     elseif(APPLE)
+        target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_APPLE)
         find_library(FOUNDATION Foundation)
         find_library(CFNetwork CFNetwork)
         target_link_libraries(c-abstract-http INTERFACE ${FOUNDATION} ${CFNetwork} c89stringutils cfs)
@@ -551,6 +540,7 @@ else()
             src/actor.c
             src/process.c
             src/transport.c
+            src/str.c
             src/http_raw.c
         )
         set_target_properties(c-abstract-http PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -569,6 +559,7 @@ else()
             src/actor.c
             src/process.c
             src/transport.c
+            src/str.c
             src/http_raw.c
         )
     endif()
@@ -591,8 +582,15 @@ else()
         if (CMAKE_C_COMPILER_ID MATCHES "AppleClang|Clang")
             target_compile_options(c-abstract-http PRIVATE "-Wshorten-64-to-32")
         endif()
-        if (WIN32 AND CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
-            target_compile_definitions(c-abstract-http PUBLIC "inline=__inline__")
+        if (CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+            target_compile_definitions(c-abstract-http PRIVATE "inline=__inline__" "_Bool=int" "__forceinline=__inline__")
+        endif()
+        if(NOT MSVC)
+            if(APPLE)
+                target_compile_definitions(c-abstract-http PRIVATE _DARWIN_C_SOURCE)
+            elseif(NOT WIN32)
+                target_compile_definitions(c-abstract-http PRIVATE _DEFAULT_SOURCE _BSD_SOURCE _POSIX_C_SOURCE=200809L)
+            endif()
         endif()
     endif()
 if(C_ABSTRACT_HTTP_ENABLE_COVERAGE)
@@ -725,6 +723,7 @@ endif()
             target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_WINHTTP)
         endif()
     elseif(APPLE)
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_APPLE)
         target_sources(c-abstract-http PRIVATE
             src/http_apple.c
         )

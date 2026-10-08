@@ -110,7 +110,7 @@ TEST test_ws_init_headers(void) {
   ASSERT_EQ(24, strlen(val));
 
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -318,7 +318,7 @@ TEST test_ws_sync_loop_exit_flag(void) {
             c_abstract_http_ws_sync_read_loop(&client, &req, NULL, NULL, NULL,
                                               NULL, &exit_flag));
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -370,7 +370,7 @@ TEST test_ws_sync_loop_success(void) {
                                               test_ws_on_error,
                                               test_ws_on_close, &ctx, NULL));
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -384,7 +384,7 @@ TEST test_ws_sync_loop_fail(void) {
                                               test_ws_on_error,
                                               test_ws_on_close, &ctx, NULL));
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -532,17 +532,17 @@ TEST test_ws_oom_branches(void) {
     if (rc == 0) {
       c_abstract_http_ws_free(&req);
       c_abstract_http_ws_free(&req);
-      http_request_free(&req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
       break;
     }
     c_abstract_http_ws_free(&req);
     c_abstract_http_ws_free(&req);
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc, "%d");
     memset(&req, 0, sizeof(req));
   }
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 #endif
@@ -946,7 +946,7 @@ TEST test_ws_sync_loop_init_oom(void) {
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   memset(&req, 0, sizeof(req));
 
   /* Repeat without on_error callback */
@@ -959,7 +959,7 @@ TEST test_ws_sync_loop_init_oom(void) {
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, rc_test_tmp, "%d");
   }
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 #endif
@@ -989,7 +989,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
       g_mock_alloc_fail = 0;
       c_abstract_http_ws_free(&req);
       c_abstract_http_ws_free(&req);
-      http_request_free(&req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
       memset(&req, 0, sizeof(req));
 
       g_mock_alloc_fail = 1;
@@ -1000,7 +1000,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
       g_mock_alloc_fail = 0;
       c_abstract_http_ws_free(&req);
       c_abstract_http_ws_free(&req);
-      http_request_free(&req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
       memset(&req, 0, sizeof(req));
       if (rc == C_ABSTRACT_HTTP_ERR_NOMEM) {
         /* we just want to cover the branches, so doing this in a loop is fine
@@ -1009,7 +1009,7 @@ TEST test_ws_sync_loop_parser_oom(void) {
     }
   }
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 #endif
@@ -1045,7 +1045,7 @@ TEST test_ws_sync_loop_feed_error(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, test_ws_mock_on_error_called);
 
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   memset(&req, 0, sizeof(req));
 
   /* Feed framing error without on_err callback */
@@ -1055,7 +1055,7 @@ TEST test_ws_sync_loop_feed_error(void) {
                                               NULL));
 
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -1190,7 +1190,7 @@ TEST test_ws_async_register_success(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
   c_abstract_http_ws_free(&req);
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 #endif
@@ -1224,7 +1224,7 @@ TEST test_ws_async_coverage(void) {
 
   c_abstract_http_ws_free(&req);
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_client_free(&client);
   PASS();
 }
@@ -1242,7 +1242,7 @@ TEST test_ws_edge_cases(void) {
   }
 
   c_abstract_http_ws_free(&req3);
-  http_request_free(&req3);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req3));
   PASS();
 }
 
@@ -1342,7 +1342,7 @@ TEST test_ws_sync_loop_branches(void) {
                                               NULL, NULL));
 
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_client_free(&client);
   PASS();
 }
@@ -1379,7 +1379,7 @@ TEST test_ws_init_config_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, &cfg));
   c_abstract_http_ws_free(&req);
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -1456,7 +1456,7 @@ TEST test_ws_read_chunk_more(void) {
 #endif
 
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -1622,7 +1622,7 @@ TEST test_ws_send_branches(void) {
 #endif
 
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -1670,7 +1670,7 @@ TEST test_ws_close_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_ws_close(&req, 1000));
 
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 
@@ -1878,7 +1878,7 @@ TEST test_ws_read_chunk_cond_wait_success(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
 #endif
@@ -1911,7 +1911,7 @@ TEST test_ws_async_task_branches(void) {
   ctx1->user_data = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_test_ws_async_task(ctx1));
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Case 2: err != SUCCESS and on_err == NULL */
   memset(&req, 0, sizeof(req));
@@ -1926,7 +1926,7 @@ TEST test_ws_async_task_branches(void) {
   ctx2->user_data = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, abstract_http_test_ws_async_task(ctx2));
   c_abstract_http_ws_free(&req);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   PASS();
 }

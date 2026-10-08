@@ -180,8 +180,10 @@ static SoupMessage *soup_message_new(const char *method, const char *uri) {
   if (!msg) {
     return NULL;
   }
-  c_abstract_http_strdup(method, &msg->method);
-  c_abstract_http_strdup(uri, &msg->url);
+  if (c_abstract_http_strdup(method, &msg->method) != C_ABSTRACT_HTTP_SUCCESS)
+    return NULL;
+  if (c_abstract_http_strdup(uri, &msg->url) != C_ABSTRACT_HTTP_SUCCESS)
+    return NULL;
   msg->status_code = 200;
   return msg;
 }
@@ -205,8 +207,12 @@ static SoupMessageHeaders *soup_message_get_request_headers(SoupMessage *msg) {
  */
 static void soup_message_headers_append(SoupMessageHeaders *hdrs,
                                         const char *name, const char *value) {
-  c_abstract_http_strdup(name, &hdrs->keys[hdrs->count]);
-  c_abstract_http_strdup(value, &hdrs->values[hdrs->count]);
+  if (c_abstract_http_strdup(name, &hdrs->keys[hdrs->count]) !=
+      C_ABSTRACT_HTTP_SUCCESS)
+    return;
+  if (c_abstract_http_strdup(value, &hdrs->values[hdrs->count]) !=
+      C_ABSTRACT_HTTP_SUCCESS)
+    return;
   hdrs->count++;
 }
 
@@ -371,7 +377,9 @@ static void g_object_set(void *obj, const char *first_property_name, ...) {
         session->user_agent = NULL;
       }
       if (ua) {
-        c_abstract_http_strdup(ua, &session->user_agent);
+        if (c_abstract_http_strdup(ua, &session->user_agent) !=
+            C_ABSTRACT_HTTP_SUCCESS)
+          return;
       }
     } else if (strcmp(prop, "proxy-uri") == 0) {
       session->proxy_uri = va_arg(args, GUri *);
@@ -447,7 +455,8 @@ static GUri *g_uri_parse(const char *uri, int flags, GError **error) {
     return NULL;
   }
   u = (GUri *)calloc(1, sizeof(GUri));
-  c_abstract_http_strdup(uri, &u->uri_string);
+  if (c_abstract_http_strdup(uri, &u->uri_string) != C_ABSTRACT_HTTP_SUCCESS)
+    return NULL;
   return u;
 }
 
@@ -493,21 +502,27 @@ static GBytes *soup_session_send_and_read(SoupSession *session,
     *error = (GError *)calloc(1, sizeof(GError));
     (*error)->domain = G_IO_ERROR;
     (*error)->code = G_IO_ERROR_CONNECTION_REFUSED;
-    c_abstract_http_strdup("Connection refused", &(*error)->message);
+    if (c_abstract_http_strdup("Connection refused", &(*error)->message) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return;
     return NULL;
   }
   if (g_mock_libsoup3_send_fail == 2) {
     *error = (GError *)calloc(1, sizeof(GError));
     (*error)->domain = G_IO_ERROR;
     (*error)->code = G_IO_ERROR_TIMED_OUT;
-    c_abstract_http_strdup("Timed out", &(*error)->message);
+    if (c_abstract_http_strdup("Timed out", &(*error)->message) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return;
     return NULL;
   }
   if (g_mock_libsoup3_send_fail == 3) {
     *error = (GError *)calloc(1, sizeof(GError));
     (*error)->domain = G_IO_ERROR;
     (*error)->code = 999;
-    c_abstract_http_strdup("Generic IO error", &(*error)->message);
+    if (c_abstract_http_strdup("Generic IO error", &(*error)->message) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return;
     return NULL;
   }
 #endif
@@ -515,7 +530,9 @@ static GBytes *soup_session_send_and_read(SoupSession *session,
     *error = (GError *)calloc(1, sizeof(GError));
     (*error)->domain = G_IO_ERROR;
     (*error)->code = G_IO_ERROR_CONNECTION_REFUSED;
-    c_abstract_http_strdup("Connection refused", &(*error)->message);
+    if (c_abstract_http_strdup("Connection refused", &(*error)->message) !=
+        C_ABSTRACT_HTTP_SUCCESS)
+      return;
     return NULL;
   }
   return g_bytes_new("OK", 2);

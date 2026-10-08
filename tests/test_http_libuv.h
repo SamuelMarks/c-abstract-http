@@ -86,7 +86,12 @@ static enum c_abstract_http_error setup_libuv_request(struct HttpRequest *req,
 
   rc = c_abstract_http_strdup(url, &_ast_strdup_0);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    http_request_free(req);
+    {
+      enum c_abstract_http_error free_rc = http_request_free(req);
+      if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        /* ignore */
+      }
+    }
     return rc;
   }
   req->url = _ast_strdup_0;
@@ -121,8 +126,8 @@ TEST test_libuv_context_lifecycle(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_init(&ctx));
   ASSERT(ctx != NULL);
-  http_libuv_context_free(ctx);
-  http_libuv_context_free(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(NULL));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   g_mock_libuv_context_init_fail = 1;
@@ -182,8 +187,8 @@ TEST test_libuv_config_application(void) {
   free(_ast_strdup_proxy);
   free(_ast_strdup_user);
   free(_ast_strdup_pass);
-  http_config_free(&config);
-  http_libuv_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
   PASS();
 }
@@ -217,8 +222,8 @@ TEST test_libuv_send_invalid_arguments(void) {
   req.url = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
 
-  http_request_free(&req);
-  http_libuv_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
   PASS();
 }
@@ -268,9 +273,9 @@ TEST test_libuv_send_connection_failure(void) {
   ASSERT(res == NULL);
   req.read_chunk = NULL;
 
-  http_config_free(&config);
-  http_request_free(&req);
-  http_libuv_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
   PASS();
 }
@@ -328,11 +333,11 @@ TEST test_libuv_send_chunked(void) {
   ASSERT(state.call_count > 0);
   ASSERT(state.total_bytes > 0);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_config_free(&config);
-  http_request_free(&req);
-  http_libuv_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
   mock_server_destroy(server);
   PASS();
@@ -369,9 +374,9 @@ TEST test_libuv_send_chunked_abort(void) {
   ASSERT_EQ((enum c_abstract_http_error)ECANCELED, rc);
   ASSERT(res == NULL);
 
-  http_config_free(&config);
-  http_request_free(&req);
-  http_libuv_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
   mock_server_destroy(server);
   PASS();
@@ -429,11 +434,11 @@ TEST test_libuv_send_upload_chunked(void) {
   ASSERT_EQ(200, res->status_code);
   ASSERT_EQ(up_state.len, up_state.pos);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_config_free(&config);
-  http_request_free(&req);
-  http_libuv_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
   mock_server_destroy(server);
   PASS();
@@ -469,10 +474,10 @@ TEST test_libuv_send_direct_body_and_urls(void) {
     ASSERT_EQ(200, res->status_code);
     ASSERT(res->body != NULL);
     ASSERT_STR_EQ("OK", res->body);
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   /* Test 2: HTTPS URL without port */
@@ -483,10 +488,10 @@ TEST test_libuv_send_direct_body_and_urls(void) {
   rc = http_libuv_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Test 3: URL without scheme */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -496,10 +501,10 @@ TEST test_libuv_send_direct_body_and_urls(void) {
   rc = http_libuv_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Test 4: Host only without slash or colon */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -509,12 +514,12 @@ TEST test_libuv_send_direct_body_and_urls(void) {
   rc = http_libuv_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
-  http_libuv_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
   PASS();
 }
@@ -598,8 +603,8 @@ TEST test_libuv_send_fault_injections(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libuv_send(ctx, &req, &res));
   g_mock_libuv_body_realloc_fail = 0;
 
-  http_request_free(&req);
-  http_libuv_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
 #endif
   PASS();
@@ -700,11 +705,11 @@ TEST test_libuv_send_large_payloads(void) {
   rc = http_libuv_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Test with large body */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -721,11 +726,11 @@ TEST test_libuv_send_large_payloads(void) {
   rc = http_libuv_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   {
@@ -795,7 +800,7 @@ TEST test_libuv_send_large_payloads(void) {
   g_mock_libuv_headers_realloc_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libuv_send(ctx, &req, &res));
   g_mock_libuv_headers_realloc_fail = 0;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Test body realloc fail */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -812,7 +817,7 @@ TEST test_libuv_send_large_payloads(void) {
   g_mock_libuv_body_alloc_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libuv_send(ctx, &req, &res));
   g_mock_libuv_body_alloc_fail = 0;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Test chunk accumulation and chunk realloc fail */
   {
@@ -833,11 +838,11 @@ TEST test_libuv_send_large_payloads(void) {
       rc = http_libuv_send(ctx, &req, &res);
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
       if (res) {
-        http_response_free(res);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
         free(res);
         res = NULL;
       }
-      http_request_free(&req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
       up_st.pos = 0;
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -849,7 +854,7 @@ TEST test_libuv_send_large_payloads(void) {
       g_mock_libuv_body_realloc_fail = 1;
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libuv_send(ctx, &req, &res));
       g_mock_libuv_body_realloc_fail = 0;
-      http_request_free(&req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
       free(chunk_data);
     }
   }
@@ -861,7 +866,7 @@ TEST test_libuv_send_large_payloads(void) {
   req.url = _ast_url;
   req.method = (enum HttpMethod)999;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Test parse_url fail in send */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -871,10 +876,10 @@ TEST test_libuv_send_large_payloads(void) {
   g_mock_libuv_req_buf_alloc_fail = 2;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
   g_mock_libuv_req_buf_alloc_fail = 0;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 #endif
 
-  http_libuv_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
   PASS();
 }

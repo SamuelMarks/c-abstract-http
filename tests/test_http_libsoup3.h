@@ -108,7 +108,7 @@ setup_libsoup3_request(struct HttpRequest *req, int port) {
 
   rc = c_abstract_http_strdup(url, &_ast_strdup_0);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    http_request_free(req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(req));
     return rc;
   }
   req->url = _ast_strdup_0;
@@ -259,7 +259,7 @@ TEST test_libsoup3_config_application(void) {
   free(_ast_strdup_proxy);
   free(_ast_strdup_user);
   free(_ast_strdup_pass);
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_libsoup3_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_cleanup());
   PASS();
@@ -297,7 +297,7 @@ TEST test_libsoup3_send_invalid_arguments(void) {
   req.url = "http://example.com";
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_send(ctx, &req, &res));
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -308,7 +308,7 @@ TEST test_libsoup3_send_invalid_arguments(void) {
   req.body_len = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_send(ctx, &req, &res));
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -320,7 +320,7 @@ TEST test_libsoup3_send_invalid_arguments(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_send(ctx, &req, &res));
   req.method = HTTP_GET;
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_libsoup3_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_cleanup());
   PASS();
@@ -350,8 +350,8 @@ TEST test_libsoup3_send_connection_failure(void) {
          rc == C_ABSTRACT_HTTP_ERR_IO);
   ASSERT(res == NULL);
 
-  http_config_free(&config);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_libsoup3_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_cleanup());
   PASS();
@@ -387,12 +387,12 @@ TEST test_libsoup3_send_success(void) {
   ASSERT_NEQ(NULL, res);
   ASSERT_EQ(200, res->status_code);
   ASSERT_STR_EQ("OK", (char *)res->body);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
-  http_request_free(&req);
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_libsoup3_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_cleanup());
   PASS();
@@ -430,10 +430,10 @@ TEST test_libsoup3_send_chunked_and_upload(void) {
   ASSERT_EQ(NULL, res->body);
   ASSERT_EQ(0, res->body_len);
   ASSERT(state.call_count > 0);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Chunked receive abort */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -449,7 +449,7 @@ TEST test_libsoup3_send_chunked_and_upload(void) {
   rc = http_libsoup3_send(ctx, &req, &res);
   ASSERT_EQ((enum c_abstract_http_error)ECANCELED, rc);
   ASSERT_EQ(NULL, res);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Upload chunked */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -470,10 +470,10 @@ TEST test_libsoup3_send_chunked_and_upload(void) {
   rc = http_libsoup3_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_NEQ(NULL, res);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Upload chunked abort */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -491,9 +491,9 @@ TEST test_libsoup3_send_chunked_and_upload(void) {
   rc = http_libsoup3_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   ASSERT_EQ(NULL, res);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_libsoup3_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_cleanup());
   PASS();
@@ -551,8 +551,8 @@ TEST test_libsoup3_send_faults(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libsoup3_send(ctx, &req, &res));
   g_mock_libsoup3_body_alloc_fail = 0;
 
-  http_request_free(&req);
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_libsoup3_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_cleanup());
 #endif

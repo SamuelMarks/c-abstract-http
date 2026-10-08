@@ -74,7 +74,10 @@ static int setup_request(struct HttpRequest *req, int port) {
   sprintf(url, "http://127.0.0.1:%d/test", port);
 #endif
 
-  req->url = (c_abstract_http_mock_strdup(url, &_ast_strdup_0), _ast_strdup_0);
+  req->url = (c_abstract_http_mock_strdup(url, &_ast_strdup_0) ==
+                      C_ABSTRACT_HTTP_SUCCESS
+                  ? _ast_strdup_0
+                  : NULL);
   return (enum greatest_test_res)0;
 }
 
@@ -136,14 +139,20 @@ TEST test_curl_config_application(void) {
   config.verify_peer = 0; /* Insecure for testing logic */
   config.follow_redirects = 0;
   config.proxy_url = (c_abstract_http_mock_strdup("http://proxy.local:8080",
-                                                  &_ast_strdup_proxy),
-                      _ast_strdup_proxy);
+                                                  &_ast_strdup_proxy) ==
+                              C_ABSTRACT_HTTP_SUCCESS
+                          ? _ast_strdup_proxy
+                          : NULL);
   config.proxy_username =
-      (c_abstract_http_mock_strdup("admin", &_ast_strdup_user),
-       _ast_strdup_user);
+      (c_abstract_http_mock_strdup("admin", &_ast_strdup_user) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_user
+           : NULL);
   config.proxy_password =
-      (c_abstract_http_mock_strdup("secret", &_ast_strdup_pass),
-       _ast_strdup_pass);
+      (c_abstract_http_mock_strdup("secret", &_ast_strdup_pass) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_pass
+           : NULL);
 
   rc = http_curl_config_apply(ctx, &config);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);

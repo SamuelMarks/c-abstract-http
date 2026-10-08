@@ -146,7 +146,7 @@ TEST test_lsquic_config_application(void) {
   free(_ast_proxy);
   free(_ast_user);
   free(_ast_pwd);
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_lsquic_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_global_cleanup());
   PASS();
@@ -174,7 +174,7 @@ TEST test_lsquic_send_invalid_arguments(void) {
   /* Not configured */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_lsquic_send(ctx, &req, &res));
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_lsquic_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_global_cleanup());
   PASS();

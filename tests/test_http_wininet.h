@@ -207,7 +207,7 @@ TEST test_wininet_config_apply(void) {
             http_wininet_config_apply(NULL, &config));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wininet_config_apply(ctx, NULL));
 
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_wininet_context_free(ctx);
   PASS();
 }
@@ -268,7 +268,7 @@ TEST test_wininet_send_validation(void) {
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -276,7 +276,7 @@ TEST test_wininet_send_validation(void) {
   req.body = NULL;
   req.body_len = 0;
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_wininet_context_free(ctx);
   PASS();
 }
@@ -338,19 +338,19 @@ TEST test_wininet_send_methods_and_headers(void) {
     rc = http_wininet_send(ctx, &req, &res);
     if (methods[i] == HTTP_CONNECT) {
       if (res) {
-        http_response_free(res);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
         free(res);
       }
-      http_request_free(&req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
       continue;
     }
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     ASSERT(res != NULL);
     ASSERT_EQ(200, res->status_code);
 
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
 #if defined(_WIN32)
@@ -398,7 +398,7 @@ TEST test_wininet_send_cookies(void) {
     config.cookie_jar = &jar;
     rc = http_wininet_config_apply(ctx, &config);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-    http_config_free(&config);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   }
 
   rc = http_request_init(&req);
@@ -419,9 +419,9 @@ TEST test_wininet_send_cookies(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_cookie_jar_free(&jar);
 #if defined(_WIN32)
   mock_server_destroy(server);
@@ -476,9 +476,9 @@ TEST test_wininet_send_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
@@ -532,7 +532,7 @@ TEST test_wininet_send_chunked_abort(void) {
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT(rc != C_ABSTRACT_HTTP_SUCCESS);
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
@@ -584,9 +584,9 @@ TEST test_wininet_send_upload_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Upload chunk abort */
   rc = http_request_init(&req);
@@ -606,7 +606,7 @@ TEST test_wininet_send_upload_chunked(void) {
 
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT(rc != C_ABSTRACT_HTTP_SUCCESS);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
 #if defined(_WIN32)
   mock_server_destroy(server);
@@ -650,7 +650,7 @@ TEST test_wininet_send_mock_failures(void) {
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -728,7 +728,7 @@ TEST test_wininet_send_mock_failures(void) {
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -782,7 +782,7 @@ TEST test_wininet_send_mock_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   g_mock_wininet_add_headers_fail = 0;
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_wininet_context_free(ctx);
   PASS();
 }
@@ -824,7 +824,7 @@ TEST test_wininet_coverage_branches(void) {
   rc = http_wininet_config_apply(ctx, &config);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
 
   /* 3. Send host/path alloc fail */
   rc = http_request_init(&req);
@@ -866,7 +866,7 @@ TEST test_wininet_coverage_branches(void) {
   config.cookie_jar = &jar;
   rc = http_wininet_config_apply(ctx, &config);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
 
   /* InternetSetOptionA failure on proxy */
   g_mock_wininet_set_option_fail = 1;
@@ -957,7 +957,7 @@ TEST test_wininet_coverage_branches(void) {
   g_mock_wininet_status_code = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -967,7 +967,7 @@ TEST test_wininet_coverage_branches(void) {
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -978,7 +978,7 @@ TEST test_wininet_coverage_branches(void) {
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -989,7 +989,7 @@ TEST test_wininet_coverage_branches(void) {
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -997,7 +997,7 @@ TEST test_wininet_coverage_branches(void) {
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -1024,7 +1024,7 @@ TEST test_wininet_coverage_branches(void) {
     rc = http_wininet_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
@@ -1039,7 +1039,7 @@ TEST test_wininet_coverage_branches(void) {
     rc = http_wininet_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
@@ -1054,7 +1054,7 @@ TEST test_wininet_coverage_branches(void) {
     rc = http_wininet_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
@@ -1091,11 +1091,11 @@ TEST test_wininet_coverage_branches(void) {
     rc = http_wininet_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
-    http_config_free(&cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   }
 
   /* 10h. Cookie jar with count == 0 */
@@ -1109,17 +1109,17 @@ TEST test_wininet_coverage_branches(void) {
     rc = http_wininet_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
     cfg.cookie_jar = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_config_apply(ctx, &cfg));
-    http_config_free(&cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   }
 
   http_cookie_jar_free(&jar);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_wininet_context_free(ctx);
   PASS();
 }

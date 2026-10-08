@@ -210,7 +210,7 @@ TEST test_fetch_config_application(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &config));
 
   /* Re-apply with new user-agent and proxy to cover freeing old strings */
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   _ast_strdup_proxy = NULL;
   _ast_strdup_user = NULL;
@@ -222,7 +222,7 @@ TEST test_fetch_config_application(void) {
 
   /* Apply with NULL user_agent and NULL proxy_url to clear them when non-NULL
    */
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   free(config.user_agent);
   config.user_agent = NULL;
@@ -254,7 +254,7 @@ TEST test_fetch_config_application(void) {
   g_mock_alloc_fail = 0;
 #endif
 
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_fetch_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
@@ -283,7 +283,7 @@ TEST test_fetch_send_invalid_arguments(void) {
   cfg.user_agent = NULL;
   cfg.proxy_url = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &cfg));
-  http_config_free(&cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
 
@@ -307,7 +307,7 @@ TEST test_fetch_send_invalid_arguments(void) {
   req.body = (void *)"flattened";
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
   req.parts.count = 0;
@@ -337,12 +337,12 @@ TEST test_fetch_send_invalid_arguments(void) {
   /* Successful send with NULL user_agent and proxy_url */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 #endif
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_fetch_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
@@ -380,9 +380,9 @@ TEST test_fetch_send_methods(void) {
     ASSERT(res != NULL);
     ASSERT_EQ(200, res->status_code);
 
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   http_fetch_context_free(ctx);
@@ -435,7 +435,7 @@ TEST test_fetch_send_success_and_failures(void) {
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
   ASSERT(res->body != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -445,7 +445,7 @@ TEST test_fetch_send_success_and_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
   ASSERT(res != NULL);
   ASSERT_EQ(0, res->body_len);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
   g_mock_fetch_empty_body = 0;
@@ -490,8 +490,8 @@ TEST test_fetch_send_success_and_failures(void) {
   g_mock_fetch_body_realloc_fail = 0;
 #endif
 
-  http_request_free(&req);
-  http_config_free(&cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   http_fetch_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
@@ -533,7 +533,7 @@ TEST test_fetch_send_chunked(void) {
   ASSERT(state.call_count > 0);
   ASSERT(state.total_bytes > 0);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -545,7 +545,7 @@ TEST test_fetch_send_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_fetch_send(ctx, &req, &res));
   ASSERT(res == NULL);
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_fetch_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
@@ -591,7 +591,7 @@ TEST test_fetch_send_upload_chunked(void) {
   ASSERT_EQ(200, res->status_code);
   ASSERT_EQ(up_state.len, up_state.pos);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -600,7 +600,7 @@ TEST test_fetch_send_upload_chunked(void) {
   req.expected_body_len = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -608,7 +608,7 @@ TEST test_fetch_send_upload_chunked(void) {
   req.body = (void *)payload;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
   req.body = NULL;
@@ -624,7 +624,7 @@ TEST test_fetch_send_upload_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
   ASSERT(res != NULL);
   ASSERT_EQ(up_state.len, up_state.pos);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
 
@@ -670,7 +670,7 @@ TEST test_fetch_send_upload_chunked(void) {
   g_mock_fetch_upload_realloc_fail = 0;
 #endif
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_fetch_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
@@ -735,10 +735,10 @@ TEST test_fetch_send_multi(void) {
   ASSERT(futures[0]->response != NULL);
   ASSERT(futures[1]->response != NULL);
 
-  http_response_free(futures[0]->response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(futures[0]->response));
   free(futures[0]->response);
   futures[0]->response = NULL;
-  http_response_free(futures[1]->response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(futures[1]->response));
   free(futures[1]->response);
   futures[1]->response = NULL;
 
@@ -747,10 +747,10 @@ TEST test_fetch_send_multi(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_fetch_send_multi(ctx, loop, &multi, futures));
 
-  http_response_free(futures[0]->response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(futures[0]->response));
   free(futures[0]->response);
   futures[0]->response = NULL;
-  http_response_free(futures[1]->response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(futures[1]->response));
   free(futures[1]->response);
   futures[1]->response = NULL;
 
@@ -761,12 +761,14 @@ TEST test_fetch_send_multi(void) {
             http_fetch_send_multi(ctx, loop, &multi, futures));
   g_mock_fetch_loop_wakeup_fail = 0;
   if (futures[0]->response) {
-    http_response_free(futures[0]->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_response_free(futures[0]->response));
     free(futures[0]->response);
     futures[0]->response = NULL;
   }
   if (futures[1]->response) {
-    http_response_free(futures[1]->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_response_free(futures[1]->response));
     free(futures[1]->response);
     futures[1]->response = NULL;
   }
@@ -783,8 +785,8 @@ TEST test_fetch_send_multi(void) {
   http_loop_free(loop);
   free(futures[0]);
   free(futures[1]);
-  http_request_free(&req1);
-  http_request_free(&req2);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
   http_fetch_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();

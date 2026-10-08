@@ -37,8 +37,10 @@ TEST test_serialize_deserialize_request(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req_in));
   req_in.method = HTTP_POST;
   req_in.url =
-      (c_abstract_http_mock_strdup("http://example.com/api", &_ast_strdup_0),
-       _ast_strdup_0);
+      (c_abstract_http_mock_strdup("http://example.com/api", &_ast_strdup_0) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_0
+           : NULL);
   ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
       http_headers_add(&req_in.headers, "Content-Type", "application/json"));

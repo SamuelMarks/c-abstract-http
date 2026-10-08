@@ -210,7 +210,7 @@ TEST test_winhttp_config_usage(void) {
   rc = http_winhttp_config_apply(ctx, &cfg);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
-  http_config_free(&cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   http_winhttp_context_free(ctx);
   PASS();
 }
@@ -245,7 +245,7 @@ TEST test_winhttp_send_null_checks(void) {
     *(void **)ctx = saved;
   }
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_winhttp_context_free(ctx);
   PASS();
 }
@@ -271,7 +271,7 @@ TEST test_winhttp_send_fail(void) {
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_winhttp_context_free(ctx);
   PASS();
 }
@@ -333,19 +333,19 @@ TEST test_winhttp_send_methods_and_headers(void) {
     rc = http_winhttp_send(ctx, &req, &res);
     if (methods[i] == HTTP_CONNECT) {
       if (res) {
-        http_response_free(res);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
         free(res);
       }
-      http_request_free(&req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
       continue;
     }
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     ASSERT(res != NULL);
     ASSERT_EQ(200, res->status_code);
 
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
 #if defined(_WIN32)
@@ -393,7 +393,7 @@ TEST test_winhttp_send_cookies(void) {
     cfg.cookie_jar = &jar;
     rc = http_winhttp_config_apply(ctx, &cfg);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-    http_config_free(&cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   }
 
   rc = http_request_init(&req);
@@ -414,9 +414,9 @@ TEST test_winhttp_send_cookies(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_cookie_jar_free(&jar);
 #if defined(_WIN32)
   mock_server_destroy(server);
@@ -471,9 +471,9 @@ TEST test_winhttp_send_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
@@ -527,7 +527,7 @@ TEST test_winhttp_send_chunked_abort(void) {
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT(rc != C_ABSTRACT_HTTP_SUCCESS);
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
@@ -579,9 +579,9 @@ TEST test_winhttp_send_upload_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT(res != NULL);
 
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Upload chunk abort */
   rc = http_request_init(&req);
@@ -601,7 +601,7 @@ TEST test_winhttp_send_upload_chunked(void) {
 
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT(rc != C_ABSTRACT_HTTP_SUCCESS);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
 #if defined(_WIN32)
   mock_server_destroy(server);
@@ -691,7 +691,7 @@ TEST test_winhttp_send_multi(void) {
 #endif
 
   http_future_free(&f1);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_loop_free(loop);
 #if defined(_WIN32)
   mock_server_destroy(server);
@@ -740,7 +740,7 @@ TEST test_winhttp_send_mock_failures(void) {
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -830,7 +830,7 @@ TEST test_winhttp_send_mock_failures(void) {
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -869,7 +869,7 @@ TEST test_winhttp_send_mock_failures(void) {
   g_mock_alloc_count = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_winhttp_context_free(ctx);
   PASS();
 }
@@ -917,7 +917,7 @@ TEST test_winhttp_coverage_branches(void) {
   g_mock_alloc_count = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
-  http_config_free(&cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
 
   /* 4. Send with hostName alloc fail (alloc 1) and urlPath alloc fail (alloc 2)
    */
@@ -966,7 +966,7 @@ TEST test_winhttp_coverage_branches(void) {
   cfg.cookie_jar = &jar;
   rc = http_winhttp_config_apply(ctx, &cfg);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  http_config_free(&cfg);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
 
   rc = http_headers_add(&req.headers, "X-Header", "Value");
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -1055,7 +1055,7 @@ TEST test_winhttp_coverage_branches(void) {
   g_mock_winhttp_status_code = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -1065,7 +1065,7 @@ TEST test_winhttp_coverage_branches(void) {
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -1076,7 +1076,7 @@ TEST test_winhttp_coverage_branches(void) {
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -1087,7 +1087,7 @@ TEST test_winhttp_coverage_branches(void) {
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -1095,7 +1095,7 @@ TEST test_winhttp_coverage_branches(void) {
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -1122,7 +1122,7 @@ TEST test_winhttp_coverage_branches(void) {
     rc = http_winhttp_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
@@ -1137,7 +1137,7 @@ TEST test_winhttp_coverage_branches(void) {
     rc = http_winhttp_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
@@ -1152,7 +1152,7 @@ TEST test_winhttp_coverage_branches(void) {
     rc = http_winhttp_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
@@ -1186,7 +1186,7 @@ TEST test_winhttp_coverage_branches(void) {
     cfg.proxy_password = NULL;
     rc = http_winhttp_config_apply(ctx, &cfg);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-    http_config_free(&cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   }
 
   /* 11h. Cookie jar with count == 0 */
@@ -1200,13 +1200,13 @@ TEST test_winhttp_coverage_branches(void) {
     rc = http_winhttp_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
     cfg.cookie_jar = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
-    http_config_free(&cfg);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   }
 
   /* 12. Send multi with loop wakeup failure and queue fail */
@@ -1245,7 +1245,7 @@ TEST test_winhttp_coverage_branches(void) {
   }
 
   http_cookie_jar_free(&jar);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_winhttp_context_free(ctx);
   PASS();
 }

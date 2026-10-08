@@ -188,7 +188,7 @@ TEST test_wasm_config_application(void) {
   config.follow_redirects = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_config_apply(ctx, &config));
 
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_wasm_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
   PASS();
@@ -228,7 +228,7 @@ TEST test_wasm_send_validation(void) {
     req.body_len = 7;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_send(ctx, &req, &res));
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
@@ -239,7 +239,7 @@ TEST test_wasm_send_validation(void) {
   req.method = (enum HttpMethod)999;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wasm_send(ctx, &req, &res));
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_wasm_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
   PASS();
@@ -276,16 +276,18 @@ TEST test_wasm_send_methods(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     req.method = methods[i];
     req.url =
-        (c_abstract_http_mock_strdup("http://127.0.0.1/test", &_ast_strdup_0),
-         _ast_strdup_0);
+        (c_abstract_http_mock_strdup("http://127.0.0.1/test", &_ast_strdup_0) ==
+                 C_ABSTRACT_HTTP_SUCCESS
+             ? _ast_strdup_0
+             : NULL);
 
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_send(ctx, &req, &res));
     if (res) {
-      http_response_free(res);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
       free(res);
       res = NULL;
     }
-    http_request_free(&req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
   http_wasm_context_free(ctx);
@@ -319,8 +321,10 @@ TEST test_wasm_send_headers_and_body(void) {
   /* Request with headers and body */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url =
-      (c_abstract_http_mock_strdup("http://127.0.0.1/post", &_ast_strdup_0),
-       _ast_strdup_0);
+      (c_abstract_http_mock_strdup("http://127.0.0.1/post", &_ast_strdup_0) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_0
+           : NULL);
   req.method = HTTP_POST;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_headers_add(&req.headers, "Content-Type", "application/json"));
@@ -335,66 +339,74 @@ TEST test_wasm_send_headers_and_body(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_send(ctx, &req, &res));
   ASSERT(res != NULL);
   ASSERT_EQ(200, res->status_code);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Request with read_chunk and on_chunk (success) */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url =
-      (c_abstract_http_mock_strdup("http://127.0.0.1/chunk", &_ast_strdup_0),
-       _ast_strdup_0);
+      (c_abstract_http_mock_strdup("http://127.0.0.1/chunk", &_ast_strdup_0) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_0
+           : NULL);
   req.read_chunk = wasm_mock_read_chunk;
   req.read_chunk_user_data = &read_called;
   req.on_chunk = wasm_mock_on_chunk_success;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_send(ctx, &req, &res));
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Request with read_chunk_large causing buffer growth */
   read_called = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  req.url = (c_abstract_http_mock_strdup("http://127.0.0.1/chunk_large",
-                                         &_ast_strdup_0),
-             _ast_strdup_0);
+  req.url =
+      (c_abstract_http_mock_strdup("http://127.0.0.1/chunk_large",
+                                   &_ast_strdup_0) == C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_0
+           : NULL);
   req.expected_body_len = 10;
   req.read_chunk = wasm_mock_read_chunk_large;
   req.read_chunk_user_data = &read_called;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_send(ctx, &req, &res));
   ASSERT(res != NULL);
-  http_response_free(res);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   res = NULL;
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Request with read_chunk failure */
   read_called = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  req.url = (c_abstract_http_mock_strdup("http://127.0.0.1/fail_read_chunk",
-                                         &_ast_strdup_0),
-             _ast_strdup_0);
+  req.url =
+      (c_abstract_http_mock_strdup("http://127.0.0.1/fail_read_chunk",
+                                   &_ast_strdup_0) == C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_0
+           : NULL);
   req.read_chunk = wasm_mock_read_chunk_fail;
   ASSERT_EQ(ECANCELED, http_wasm_send(ctx, &req, &res));
   ASSERT(res == NULL);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Request with on_chunk failure */
   read_called = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  req.url = (c_abstract_http_mock_strdup("http://127.0.0.1/fail_chunk",
-                                         &_ast_strdup_0),
-             _ast_strdup_0);
+  req.url =
+      (c_abstract_http_mock_strdup("http://127.0.0.1/fail_chunk",
+                                   &_ast_strdup_0) == C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_0
+           : NULL);
   req.on_chunk = wasm_mock_on_chunk_fail;
   ASSERT_EQ(ECANCELED, http_wasm_send(ctx, &req, &res));
   ASSERT(res == NULL);
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
-  http_config_free(&config);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
   http_wasm_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
   PASS();
@@ -432,8 +444,10 @@ TEST test_wasm_send_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url =
-      (c_abstract_http_mock_strdup("http://127.0.0.1/test", &_ast_strdup_0),
-       _ast_strdup_0);
+      (c_abstract_http_mock_strdup("http://127.0.0.1/test", &_ast_strdup_0) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_0
+           : NULL);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* Simulated fetch fail */
@@ -530,7 +544,7 @@ TEST test_wasm_send_failures(void) {
   g_mock_alloc_fail = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -540,7 +554,7 @@ TEST test_wasm_send_failures(void) {
   rc = http_wasm_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -548,7 +562,7 @@ TEST test_wasm_send_failures(void) {
   rc = http_wasm_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -559,7 +573,7 @@ TEST test_wasm_send_failures(void) {
   rc = http_wasm_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -567,7 +581,7 @@ TEST test_wasm_send_failures(void) {
   rc = http_wasm_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
@@ -580,14 +594,14 @@ TEST test_wasm_send_failures(void) {
   rc = http_wasm_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (res) {
-    http_response_free(res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
     free(res);
     res = NULL;
   }
-  http_config_free(&cfg0);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg0));
 #endif
 
-  http_request_free(&req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   http_wasm_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
   PASS();
@@ -619,10 +633,16 @@ TEST test_wasm_send_multi(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
 
-  req1.url = (c_abstract_http_mock_strdup("http://127.0.0.1/1", &_ast_strdup_1),
-              _ast_strdup_1);
-  req2.url = (c_abstract_http_mock_strdup("http://127.0.0.1/2", &_ast_strdup_2),
-              _ast_strdup_2);
+  req1.url =
+      (c_abstract_http_mock_strdup("http://127.0.0.1/1", &_ast_strdup_1) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_1
+           : NULL);
+  req2.url =
+      (c_abstract_http_mock_strdup("http://127.0.0.1/2", &_ast_strdup_2) ==
+               C_ABSTRACT_HTTP_SUCCESS
+           ? _ast_strdup_2
+           : NULL);
 
   requests[0] = &req1;
   requests[1] = &req2;
@@ -650,11 +670,13 @@ TEST test_wasm_send_multi(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, futures[0]->error_code);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, futures[1]->error_code);
   if (futures[0]->response) {
-    http_response_free(futures[0]->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_response_free(futures[0]->response));
     free(futures[0]->response);
   }
   if (futures[1]->response) {
-    http_response_free(futures[1]->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_response_free(futures[1]->response));
     free(futures[1]->response);
   }
 
@@ -663,11 +685,13 @@ TEST test_wasm_send_multi(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_wasm_send_multi(ctx, loop, &multi, futures));
   if (futures[0]->response) {
-    http_response_free(futures[0]->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_response_free(futures[0]->response));
     free(futures[0]->response);
   }
   if (futures[1]->response) {
-    http_response_free(futures[1]->response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_response_free(futures[1]->response));
     free(futures[1]->response);
   }
   http_loop_free(loop);
@@ -681,11 +705,13 @@ TEST test_wasm_send_multi(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_wasm_send_multi(ctx, loop, &multi, futures));
     if (futures[0]->response) {
-      http_response_free(futures[0]->response);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_response_free(futures[0]->response));
       free(futures[0]->response);
     }
     if (futures[1]->response) {
-      http_response_free(futures[1]->response);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_response_free(futures[1]->response));
       free(futures[1]->response);
     }
     http_loop_free(loop);
@@ -700,8 +726,8 @@ TEST test_wasm_send_multi(void) {
 
   free(futures[0]);
   free(futures[1]);
-  http_request_free(&req1);
-  http_request_free(&req2);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
   http_wasm_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
   PASS();

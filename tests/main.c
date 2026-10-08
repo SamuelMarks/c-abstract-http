@@ -106,7 +106,7 @@ void reset_all_mocks(void *data) {
 
 #elif (defined(_WIN32) || defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(C_ABSTRACT_HTTP_USE_WININET)) && !defined(MINGW_TEST_CURL)
 /* Windows HTTP backends included above */
-#elif defined(__APPLE__)
+#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
 #include "test_http_apple.h"
 #if defined(C_ABSTRACT_HTTP_HAVE_CURL)
 #include "test_http_curl.h"
@@ -120,7 +120,7 @@ void reset_all_mocks(void *data) {
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 /* No HTTP backend tests on DOS currently */
 
-#else
+#elif defined(C_ABSTRACT_HTTP_HAVE_CURL)
 #include "test_http_curl.h"
 #endif
 
@@ -244,7 +244,7 @@ int main(int argc, char **argv) {
        defined(C_ABSTRACT_HTTP_USE_WININET)) &&                                \
     !defined(MINGW_TEST_CURL)
   /* Windows suites run unconditionally above */
-#elif defined(__APPLE__)
+#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
   RUN_SUITE(http_apple_suite);
 #if defined(C_ABSTRACT_HTTP_HAVE_CURL)
   RUN_SUITE(http_curl_suite);
@@ -258,7 +258,7 @@ int main(int argc, char **argv) {
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   /* No HTTP backend suite for DOS currently */
 
-#else
+#elif defined(C_ABSTRACT_HTTP_HAVE_CURL)
   RUN_SUITE(http_curl_suite);
 #endif
 #endif
