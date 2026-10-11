@@ -31,6 +31,8 @@
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 extern int g_mock_mutex_fail;
 extern int g_mock_cond_fail;
+extern int g_mock_mutex_free_fail;
+extern int g_mock_cond_free_fail;
 #endif
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
@@ -93,6 +95,10 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
 
 enum c_abstract_http_error
 abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_mutex_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (mutex) {
     DeleteCriticalSection(&mutex->cs);
     free(mutex);
@@ -178,6 +184,10 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
 
 enum c_abstract_http_error
 abstract_http_cond_free(struct AbstractHttpCond *cond) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_cond_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (cond) {
 #if defined(_MSC_VER) && _MSC_VER < 1600
     if (cond->semaphore) {
@@ -242,6 +252,10 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
 }
 enum c_abstract_http_error
 abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_mutex_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   free(mutex);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -272,6 +286,10 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
 }
 enum c_abstract_http_error
 abstract_http_cond_free(struct AbstractHttpCond *cond) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_cond_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   free(cond);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -353,6 +371,10 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
 
 enum c_abstract_http_error
 abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_mutex_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (mutex) {
     pthread_mutex_destroy(&mutex->mtx);
     free(mutex);
@@ -412,6 +434,10 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
 
 enum c_abstract_http_error
 abstract_http_cond_free(struct AbstractHttpCond *cond) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_cond_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (cond) {
     pthread_cond_destroy(&cond->cond);
     free(cond);

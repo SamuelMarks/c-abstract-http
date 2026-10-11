@@ -26,7 +26,6 @@
 #define ABSTRACT_HTTP_MAP_CURL_ERROR map_curl_error
 #define ABSTRACT_HTTP_HTTP_HEADERS_ADD http_headers_add
 #define ABSTRACT_HTTP_HTTP_HEADERS_TO_STR http_headers_to_str
-#include "str.h"
 #define ABSTRACT_HTTP_HTTP_LOOP_REMOVE_FD http_loop_remove_fd
 #define ABSTRACT_HTTP_HTTP_LOOP_ADD_FD http_loop_add_fd
 #define ABSTRACT_HTTP_HTTP_LOOP_MOD_FD http_loop_mod_fd

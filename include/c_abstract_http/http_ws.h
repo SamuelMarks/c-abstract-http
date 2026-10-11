@@ -65,7 +65,7 @@ struct c_abstract_http_ws_config {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef int (*c_abstract_http_ws_on_message)(
+typedef enum c_abstract_http_error (*c_abstract_http_ws_on_message)(
     const struct c_abstract_http_ws_event *ev, void *user_data);
 
 /**
@@ -75,7 +75,8 @@ typedef int (*c_abstract_http_ws_on_message)(
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef int (*c_abstract_http_ws_on_error)(int error_code, void *user_data);
+typedef enum c_abstract_http_error (*c_abstract_http_ws_on_error)(
+    int error_code, void *user_data);
 
 /**
  * @brief Callback invoked when a WebSocket connection is closed.
@@ -84,7 +85,8 @@ typedef int (*c_abstract_http_ws_on_error)(int error_code, void *user_data);
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef int (*c_abstract_http_ws_on_close)(int status_code, void *user_data);
+typedef enum c_abstract_http_error (*c_abstract_http_ws_on_close)(
+    int status_code, void *user_data);
 
 /**
  * @brief Initialize a WebSocket request.

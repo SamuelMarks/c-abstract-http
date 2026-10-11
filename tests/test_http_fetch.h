@@ -57,8 +57,8 @@ struct fetch_TestChunkState {
  * @param[in] chunk_len Length of received chunk.
  * @return 0 on success, non-zero to abort.
  */
-static int fetch_mock_chunk_cb(void *user_data, const void *chunk,
-                               size_t chunk_len) {
+static enum c_abstract_http_error
+fetch_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   struct fetch_TestChunkState *state;
   if (chunk) {
     /* pass */

@@ -36,6 +36,7 @@ extern "C" {
 
 #include <errno.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #ifndef ENOTSUP
 /** @brief ENOTSUP macro */
@@ -150,6 +151,21 @@ typedef enum c_abstract_http_error {
   C_ABSTRACT_HTTP_ERR_SYSCALL = -6
 } c_abstract_http_error_t;
 
+/* --- Platform Compatibility Macros --- */
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+#define NUM_LONG_FMT "z"
+#else
+#define NUM_LONG_FMT "l"
+#endif
+
+#ifndef c_abstract_http_strdup
+#define c_abstract_http_strdup c_abstract_http_strdup
+#endif
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+c_abstract_http_strdup(const char *s, char **out_s);
+NO_DISCARD extern enum c_abstract_http_error
+c_abstract_http_mock_strdup(const char *s, char **out_s);
+
 /**
  * @brief HTTP Method verbs.
  */
@@ -221,8 +237,9 @@ struct HttpParts {
  * @param chunk_len Length of the received data chunk.
  * @return 0 to continue reading, non-zero to abort the request.
  */
-typedef int (*http_on_chunk_fn)(void *user_data, const void *chunk,
-                                size_t chunk_len);
+typedef enum c_abstract_http_error (*http_on_chunk_fn)(void *user_data,
+                                                       const void *chunk,
+                                                       size_t len);
 
 /**
  * @brief Callback function signature for providing request body chunks
@@ -234,8 +251,10 @@ typedef int (*http_on_chunk_fn)(void *user_data, const void *chunk,
  * 0 to indicate EOF.
  * @return 0 on success, non-zero to abort the request.
  */
-typedef int (*http_read_chunk_fn)(void *user_data, void *buf, size_t buf_len,
-                                  size_t *out_read);
+typedef enum c_abstract_http_error (*http_read_chunk_fn)(void *user_data,
+                                                         void *buf,
+                                                         size_t buf_len,
+                                                         size_t *out_len);
 
 /**
  * @brief Represents an outgoing HTTP request.
@@ -441,8 +460,8 @@ struct HttpClient {
  * @param[in] user_data User context.
  * @return 0 to continue, non-zero to abort all transfers.
  */
-typedef int (*http_multi_progress_cb)(size_t current_bytes, size_t total_bytes,
-                                      void *user_data);
+typedef enum c_abstract_http_error (*http_multi_progress_cb)(
+    size_t current_bytes, size_t total_bytes, void *user_data);
 
 /**
  * @brief Dispatch multiple requests concurrently based on the client's

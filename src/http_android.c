@@ -11,7 +11,6 @@
 #endif
 
 #include "c_abstract_http/log.h"
-#include "str.h"
 /* clang-format on */
 
 return (jclass)(size_t)1;

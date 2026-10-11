@@ -22,7 +22,7 @@ struct TestActorState {
   int shutdown;
 };
 
- static int mock_actor_handler(struct AbstractHttpActor *actor, struct AbstractHttpMessage *msg) {
+ static enum c_abstract_http_error mock_actor_handler(struct AbstractHttpActor *actor, struct AbstractHttpMessage *msg) {
    struct TestActorState *state = NULL;
    if (msg) {}
    if (abstract_http_actor_get_state(actor, (void **)&state) != 0 || !state)
@@ -106,21 +106,21 @@ struct TestActorState {
    PASS();
  }
 
- static int mock_bus_init(struct AbstractHttpMessageBus **bus) {
+ static enum c_abstract_http_error mock_bus_init(struct AbstractHttpMessageBus **bus) {
    if (!bus)
      return C_ABSTRACT_HTTP_ERR_INVAL;
    *bus = (struct AbstractHttpMessageBus *)(size_t)1;
    return 0;
  }
  static void mock_bus_free(struct AbstractHttpMessageBus *bus) { if (bus) {} }
- static int mock_bus_process(struct AbstractHttpMessageBus *bus, int *out_processed) {
+ static enum c_abstract_http_error mock_bus_process(struct AbstractHttpMessageBus *bus, int *out_processed) {
 
    if (!bus || !out_processed)
      return C_ABSTRACT_HTTP_ERR_INVAL;
    *out_processed = 0;
    return 0;
  }
- static int mock_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name,
+ static enum c_abstract_http_error mock_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name,
                             abstract_http_actor_handler_cb handler, void *state,
                             struct AbstractHttpActor **actor) {
 
@@ -130,21 +130,21 @@ struct TestActorState {
    *actor = (struct AbstractHttpActor *)(size_t)1;
    return 0;
  }
- static int mock_actor_send(struct AbstractHttpMessageBus *bus,
+ static enum c_abstract_http_error mock_actor_send(struct AbstractHttpMessageBus *bus,
                            const struct AbstractHttpMessage *msg) {
 
    if (!bus || !msg)
      return C_ABSTRACT_HTTP_ERR_INVAL;
    return 0;
  }
- static int mock_actor_get_state(struct AbstractHttpActor *actor, void **state) {
+ static enum c_abstract_http_error mock_actor_get_state(struct AbstractHttpActor *actor, void **state) {
 
    if (!actor || !state)
      return C_ABSTRACT_HTTP_ERR_INVAL;
    *state = NULL;
    return 0;
  }
- static int mock_actor_get_name(const struct AbstractHttpActor *actor,
+ static enum c_abstract_http_error mock_actor_get_name(const struct AbstractHttpActor *actor,
                                const char **name) {
    if (!actor || !name)
      return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -152,7 +152,7 @@ struct TestActorState {
    return 0;
  }
 
-static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg);
+static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg);
 
  TEST test_actor_hooks(void) {
   struct AbstractHttpActorHooks hooks;
@@ -228,12 +228,12 @@ static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMess
    PASS();
  }
 
- static int dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg) {
+ static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg) {
    if (self || msg) {}
    return 0;
  }
 
- static int fail_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg) {
+ static enum c_abstract_http_error fail_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg) {
    if (self || msg) {}
    return C_ABSTRACT_HTTP_ERR_INVAL;
  }
@@ -316,8 +316,8 @@ TEST test_actor_oom(void) {
   struct AbstractHttpMessage msg;
   char *out_str = NULL;
   int str_rc;
-  if (bus) {
-  }
+  (void)bus;
+  (void)actor;
 
   memset(&msg, 0, sizeof(msg));
 
@@ -414,8 +414,8 @@ TEST test_actor_queued_free_and_tail(void) {
   struct AbstractHttpActor *actor = NULL;
   struct AbstractHttpMessage msg1;
   struct AbstractHttpMessage msg2;
-  if (bus) {
-  }
+  (void)bus;
+  (void)actor;
 
   memset(&msg1, 0, sizeof(msg1));
   memset(&msg2, 0, sizeof(msg2));
@@ -443,8 +443,8 @@ TEST test_actor_mock_nulls(void) {
   struct AbstractHttpActor *actor = NULL;
   const char *name = NULL;
   void *state = NULL;
-  if (bus) {
-  }
+  (void)bus;
+  (void)actor;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, mock_bus_init(NULL));
   {

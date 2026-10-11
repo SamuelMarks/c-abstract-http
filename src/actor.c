@@ -9,7 +9,6 @@ extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
 
 #include <c_abstract_http/actor.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 /* clang-format on */
 
 #ifndef ABSTRACT_HTTP_MALLOC

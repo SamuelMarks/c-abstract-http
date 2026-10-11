@@ -62,7 +62,8 @@ abstract_http_test_set_loop(struct HttpTransportContext *ctx,
                             struct ModalityEventLoop *loop);
 #endif
 
-static int setup_request(struct HttpRequest *req, int port) {
+static enum c_abstract_http_error setup_request(struct HttpRequest *req,
+                                                int port) {
   char *_ast_strdup_0 = NULL;
   char url[64];
 
@@ -263,8 +264,8 @@ struct curl_TestChunkState {
   int abort_on_call;
 };
 
-static int curl_mock_chunk_cb(void *user_data, const void *chunk,
-                              size_t chunk_len) {
+static enum c_abstract_http_error
+curl_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   struct curl_TestChunkState *state = (struct curl_TestChunkState *)user_data;
   (void)chunk;
   state->call_count++;
@@ -841,7 +842,8 @@ TEST test_curl_payload_methods(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url = NULL;
-  c_abstract_http_strdup("http://127.0.0.1:59999/", &req.url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:59999/", &req.url));
   req.body = (unsigned char *)malloc(4);
   memcpy(req.body, "data", 4);
   req.body_len = 4;
@@ -1433,7 +1435,8 @@ TEST test_curl_send_multi_setopt_fail(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  c_abstract_http_strdup("http://127.0.0.1:59999", &req.url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:59999", &req.url));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_add(&req.headers, "X", "Y"));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
@@ -1510,9 +1513,12 @@ TEST test_curl_send_setopt_fail(void) {
       config.verify_peer = 1;
       config.verify_host = 1;
       config.follow_redirects = 1;
-      c_abstract_http_strdup("http://proxy", &config.proxy_url);
-      c_abstract_http_strdup("user", &config.proxy_username);
-      c_abstract_http_strdup("password", &config.proxy_password);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_strdup("http://proxy", &config.proxy_url));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_strdup("user", &config.proxy_username));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_strdup("password", &config.proxy_password));
       config.cookie_jar =
           (struct HttpCookieJar *)calloc(1, sizeof(struct HttpCookieJar));
     }
@@ -1536,7 +1542,8 @@ TEST test_curl_send_setopt_fail(void) {
     struct HttpRequest req;
     struct HttpResponse *res = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-    c_abstract_http_strdup("http://127.0.0.1:59999", &req.url);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1:59999", &req.url));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_headers_add(&req.headers, "A", "B"));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1580,7 +1587,8 @@ TEST test_curl_send_perform_errors(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  c_abstract_http_strdup("http://127.0.0.1:59999", &req.url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:59999", &req.url));
 
   for (i = 0; i < 7; i++) {
     g_mock_curl_perform_res = codes[i];

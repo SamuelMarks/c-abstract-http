@@ -273,8 +273,8 @@ abstract_http_thread_pool_test_clear_stop(struct AbstractHttpThreadPool *pool);
 extern enum c_abstract_http_error abstract_http_thread_pool_test_create_dummy(
     struct AbstractHttpThreadPool **out);
 
-static int dummy_hook_push(void *ctx, abstract_http_thread_task_cb cb,
-                           void *arg) {
+static enum c_abstract_http_error
+dummy_hook_push(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
   (void)ctx;
   (void)cb;
   (void)arg;
@@ -567,10 +567,6 @@ TEST test_thread_pool_fallback_paths(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
   g_mock_alloc_fail = 1;
-  g_mock_alloc_count = 0;
-  rc = abstract_http_thread_pool_init(&pool, 1);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
   rc = abstract_http_thread_pool_init(&pool, 1);
@@ -580,6 +576,65 @@ TEST test_thread_pool_fallback_paths(void) {
   g_mock_alloc_count = 2;
   rc = abstract_http_thread_pool_init(&pool, 1);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 3;
+  rc = abstract_http_thread_pool_init(&pool, 1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 3;
+  g_mock_mutex_free_fail = 1;
+  rc = abstract_http_thread_pool_init(&pool, 1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  g_mock_alloc_fail = 0;
+  g_mock_mutex_free_fail = 0;
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 2;
+  g_mock_mutex_free_fail = 1;
+  rc = abstract_http_thread_pool_test_create_dummy(&pool);
+  ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_IO, rc, "%d");
+  g_mock_alloc_fail = 0;
+  g_mock_mutex_free_fail = 0;
+
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 2;
+  rc = abstract_http_thread_pool_test_create_dummy(&pool);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
+  g_mock_alloc_fail = 0;
+
+#if !defined(_WIN32)
+  g_mock_pthread_fail = 2;
+  g_mock_alloc_count = 0;
+  g_mock_cond_free_fail = 1;
+  rc = abstract_http_thread_pool_init(&pool, 1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  g_mock_cond_free_fail = 0;
+  g_mock_pthread_fail = 0;
+
+  g_mock_pthread_fail = 2;
+  g_mock_alloc_count = 0;
+  g_mock_mutex_free_fail = 1;
+  rc = abstract_http_thread_pool_init(&pool, 1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  g_mock_mutex_free_fail = 0;
+  g_mock_pthread_fail = 0;
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
+  g_mock_cond_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, abstract_http_thread_pool_free(pool));
+  g_mock_cond_free_fail = 0;
+  /* Instead of trying to recover the partially freed pool, just leak it for the
+   * test */
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
+  g_mock_mutex_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, abstract_http_thread_pool_free(pool));
+  g_mock_mutex_free_fail = 0;
+  /* Instead of trying to recover the partially freed pool, just leak it for the
+   * test */
 
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 3;

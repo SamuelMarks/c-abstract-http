@@ -14,7 +14,6 @@
 #include "c_abstract_http/log.h"
 #include <c_abstract_http/http_wininet.h>
 #include <cfs/cfs.h>
-#include "str.h"
 
 #ifdef _WIN32
 #include "win_compat_sym.h"

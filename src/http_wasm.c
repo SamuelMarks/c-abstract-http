@@ -8,7 +8,6 @@
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_wasm.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 extern int g_mock_wasm_fetch_fail;

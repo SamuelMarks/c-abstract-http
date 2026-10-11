@@ -104,7 +104,7 @@ struct AbstractHttpTlsKey {
 enum c_abstract_http_error
 abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
                              void (*destructor)(void *)) {
-  enum c_abstract_http_error rc;
+  int err;
   LOG_DEBUG("abstract_http_tls_key_create: Entering");
   if (!key) {
     LOG_DEBUG("abstract_http_tls_key_create: Error EINVAL");
@@ -115,11 +115,11 @@ abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
     LOG_DEBUG("abstract_http_tls_key_create: Error ENOMEM");
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
-  rc = pthread_key_create(&(*key)->key, destructor);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+  err = pthread_key_create(&(*key)->key, destructor);
+  if (err != 0) {
     LOG_DEBUG(
         "abstract_http_tls_key_create: Error pthread_key_create failed with %d",
-        rc);
+        err);
     free(*key);
     return C_ABSTRACT_HTTP_ERR_IO;
   }
@@ -129,16 +129,16 @@ abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
 
 enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
                                                  void *value) {
-  enum c_abstract_http_error rc;
+  int err;
   LOG_DEBUG("abstract_http_tls_set: Entering");
   if (!key) {
     LOG_DEBUG("abstract_http_tls_set: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  rc = pthread_setspecific(key->key, value);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+  err = pthread_setspecific(key->key, value);
+  if (err != 0) {
     LOG_DEBUG("abstract_http_tls_set: Error pthread_setspecific failed with %d",
-              rc);
+              err);
     return C_ABSTRACT_HTTP_ERR_IO;
   }
   LOG_DEBUG("abstract_http_tls_set: Success");

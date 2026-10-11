@@ -65,7 +65,8 @@ TEST test_inject_config(void) {
 }
 
 static float g_last_pct = 0.0f;
-static int mock_update_progress(void *ui_component, float percentage) {
+static enum c_abstract_http_error mock_update_progress(void *ui_component,
+                                                       float percentage) {
   (void)ui_component;
   g_last_pct = percentage;
   return 0;

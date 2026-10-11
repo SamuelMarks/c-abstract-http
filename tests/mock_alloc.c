@@ -1208,8 +1208,6 @@ const char **abstract_http_mock_get_g_mock_recv_data(void) {
 #undef math_get_current_time_ms
 #undef pthread_getspecific
 
-extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
-                                                       char **out);
 
 ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
 c_abstract_http_mock_malloc(size_t size) {
@@ -1717,3 +1715,7 @@ void (*__imp_c_abstract_http_mock_recv)(void) =
 #endif
 struct curl_slist;
 struct curl_slist *g_mock_curl_cookies = 0;
+int g_mock_parser_destroy_fail = 0;
+int g_mock_http_types_strdup_fail = 0;
+int g_mock_cond_init_fail = 0;
+int g_mock_queue_malloc_fail = 0;

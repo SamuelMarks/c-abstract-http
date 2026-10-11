@@ -15,7 +15,6 @@
 #include <c_abstract_http/http_libuv.h>
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 
 #if defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV)
 #include <uv.h>
@@ -1931,18 +1930,30 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
     }
   }
 
-  uv_loop_init(&state.loop);
+  if (uv_loop_init(&state.loop) < 0) {
+    state.error_code = ENOMEM;
+    goto cleanup;
+  }
   state.loop.data = &state;
-  uv_tcp_init(&state.loop, &state.socket);
+  if (uv_tcp_init(&state.loop, &state.socket) < 0) {
+    state.error_code = ENOMEM;
+    goto cleanup_loop;
+  }
   state.has_socket = 1;
   state.socket.data = &state;
 
   if (ctx->config.timeout_ms > 0) {
-    uv_timer_init(&state.loop, &state.timer);
+    if (uv_timer_init(&state.loop, &state.timer) < 0) {
+      state.error_code = ENOMEM;
+      goto cleanup_loop;
+    }
     state.has_timer = 1;
     state.timer.data = &state;
-    uv_timer_start(&state.timer, libuv_on_timeout,
-                   (uint64_t)ctx->config.timeout_ms, 0);
+    if (uv_timer_start(&state.timer, libuv_on_timeout,
+                       (uint64_t)ctx->config.timeout_ms, 0) < 0) {
+      state.error_code = ENOMEM;
+      goto cleanup_loop;
+    }
   }
 
   memset(&hints, 0, sizeof(hints));
@@ -1958,8 +1969,10 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
 
   uv_run(&state.loop, UV_RUN_DEFAULT);
 
+cleanup_loop:
   uv_loop_close(&state.loop);
 
+cleanup:
   free(host);
   free(path);
   free(state.req_buf);

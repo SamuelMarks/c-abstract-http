@@ -95,7 +95,7 @@ static void dummy_coroutine_cb(void *arg) {
 }
 
 static int g_mock_yield_fail_after_first = 0;
-static int mock_co_yield_fail_after_first(void) {
+static enum c_abstract_http_error mock_co_yield_fail_after_first(void) {
   if (g_mock_yield_fail_after_first++ > 0) {
     return (int)C_ABSTRACT_HTTP_ERR_IO;
   }
@@ -163,8 +163,9 @@ TEST test_coroutine_errors(void) {
   PASS();
 }
 
-static int mock_co_init(struct AbstractHttpCoroutine **co, size_t stack_size,
-                        abstract_http_coroutine_cb cb, void *arg) {
+static enum c_abstract_http_error
+mock_co_init(struct AbstractHttpCoroutine **co, size_t stack_size,
+             abstract_http_coroutine_cb cb, void *arg) {
   static int dummy = 0;
   if (stack_size || cb || arg) {
   }
@@ -183,10 +184,10 @@ mock_co_resume(struct AbstractHttpCoroutine *co) {
   }
   return 0;
 }
-static int mock_co_yield(void) { return 0; }
+static enum c_abstract_http_error mock_co_yield(void) { return 0; }
 
-static int mock_co_is_done(const struct AbstractHttpCoroutine *co,
-                           int *out_is_done) {
+static enum c_abstract_http_error
+mock_co_is_done(const struct AbstractHttpCoroutine *co, int *out_is_done) {
   printf("mock_co_is_done CALLED\n");
   if (!co || !out_is_done)
     return C_ABSTRACT_HTTP_ERR_INVAL;

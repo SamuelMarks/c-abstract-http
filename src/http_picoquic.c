@@ -14,7 +14,6 @@
 #include <c_abstract_http/http_picoquic.h>
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

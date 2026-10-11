@@ -52,7 +52,7 @@ struct c_abstract_http_sse_config {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef int (*c_abstract_http_sse_on_event)(
+typedef enum c_abstract_http_error (*c_abstract_http_sse_on_event)(
     const struct c_abstract_http_sse_event *ev, void *user_data);
 
 /**
@@ -62,7 +62,8 @@ typedef int (*c_abstract_http_sse_on_event)(
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef int (*c_abstract_http_sse_on_error)(int error_code, void *user_data);
+typedef enum c_abstract_http_error (*c_abstract_http_sse_on_error)(
+    int error_code, void *user_data);
 
 /**
  * @brief Callback invoked when an SSE stream is closed permanently.
@@ -70,7 +71,8 @@ typedef int (*c_abstract_http_sse_on_error)(int error_code, void *user_data);
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef int (*c_abstract_http_sse_on_close)(void *user_data);
+typedef enum c_abstract_http_error (*c_abstract_http_sse_on_close)(
+    void *user_data);
 
 /**
  * @brief Initialize an SSE stream request.

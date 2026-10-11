@@ -7,7 +7,6 @@
 #include <c_abstract_http/http_libevent.h>
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 
 #if defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBEVENT)
 #include <event2/event.h>

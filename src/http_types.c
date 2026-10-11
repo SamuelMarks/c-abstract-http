@@ -10,7 +10,6 @@
 #include <c_abstract_http/http_types.h>
 #include <c89stringutils_string_extras.h>
 
-#include "str.h"
 
 
 
@@ -36,7 +35,6 @@
 #endif
 
 #include <c_abstract_http/http_types.h>
-#include "str.h"
 
 #include <stdarg.h>
 /* clang-format on */
@@ -55,6 +53,10 @@ extern int g_mock_multi_free_fail;
 extern int g_mock_response_free_fail;
 extern int g_mock_config_free_fail;
 
+extern int g_mock_multi_free_fail;
+extern int g_mock_config_free_fail;
+extern int g_mock_parts_free_fail;
+extern int g_mock_http_types_strdup_fail;
 extern int *abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail(void);
 extern int *abstract_http_mock_get_g_mock_urlencode_append_fail(void);
 #define g_mock_sprintf_s_wrapper_fail                                          \
@@ -151,11 +153,21 @@ enum c_abstract_http_error http_headers_free(struct HttpHeaders *headers) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #undef c_abstract_http_strdup
-extern enum c_abstract_http_error c_abstract_http_strdup(const char *s,
-                                                         char **out_s);
-enum c_abstract_http_error c_abstract_http_strdup(const char *s, char **out_s) {
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+c_abstract_http_strdup(const char *s, char **out_s);
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+c_abstract_http_strdup(const char *s, char **out_s) {
   size_t len;
   char *d;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_http_types_strdup_fail > 0) {
+    if (--g_mock_http_types_strdup_fail == 0) {
+      if (out_s)
+        *out_s = NULL;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+  }
+#endif
   if (!s)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   len = strlen(s);
@@ -298,8 +310,11 @@ enum c_abstract_http_error http_parts_free(struct HttpParts *parts) {
   if (parts->parts) {
     for (i = 0; i < parts->count; ++i) {
       free(parts->parts[i].name);
+      parts->parts[i].name = NULL;
       free(parts->parts[i].filename);
+      parts->parts[i].filename = NULL;
       free(parts->parts[i].content_type);
+      parts->parts[i].content_type = NULL;
       {
         enum c_abstract_http_error rc =
             http_headers_free(&parts->parts[i].headers);
@@ -845,6 +860,7 @@ enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
   rc = http_parts_init(&req->parts);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     enum c_abstract_http_error rch = http_headers_free(&req->headers);
+
     if (rch != C_ABSTRACT_HTTP_SUCCESS)
       return rch;
     return rc;
@@ -855,6 +871,7 @@ enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
 enum c_abstract_http_error http_request_free(struct HttpRequest *req) {
   if (!req)
     return C_ABSTRACT_HTTP_SUCCESS;
+  fprintf(stderr, "C\n");
   if (req->url) {
     free(req->url);
     req->url = NULL;
@@ -865,6 +882,7 @@ enum c_abstract_http_error http_request_free(struct HttpRequest *req) {
   }
   {
     enum c_abstract_http_error rch = http_headers_free(&req->headers);
+
     if (rch != C_ABSTRACT_HTTP_SUCCESS)
       return rch;
   }
@@ -930,6 +948,10 @@ http_multi_request_init(struct HttpMultiRequest *multi) {
 
 enum c_abstract_http_error
 http_multi_request_free(struct HttpMultiRequest *multi) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_multi_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (!multi)
     return C_ABSTRACT_HTTP_SUCCESS;
   if (multi->requests) {

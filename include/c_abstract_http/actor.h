@@ -56,30 +56,33 @@ struct AbstractHttpMessage {
  * @param[in] msg The message received.
  * @return 0 on success.
  */
-typedef int (*abstract_http_actor_handler_cb)(struct AbstractHttpActor *actor,
-                                              struct AbstractHttpMessage *msg);
+typedef enum c_abstract_http_error (*abstract_http_actor_handler_cb)(
+    struct AbstractHttpActor *actor, struct AbstractHttpMessage *msg);
 
 /**
  * @brief External hooks for actor management.
  */
 struct AbstractHttpActorHooks {
-  int (*bus_init)(
+  enum c_abstract_http_error (*bus_init)(
       struct AbstractHttpMessageBus **bus); /**< Hook for bus initialization */
   void (*bus_free)(
       struct AbstractHttpMessageBus *bus); /**< Hook for bus destruction */
-  int (*bus_process)(struct AbstractHttpMessageBus *bus,
-                     int *out_processed); /**< Hook to process messages */
-  int (*actor_spawn)(
+  enum c_abstract_http_error (*bus_process)(
+      struct AbstractHttpMessageBus *bus,
+      int *out_processed); /**< Hook to process messages */
+  enum c_abstract_http_error (*actor_spawn)(
       struct AbstractHttpMessageBus *bus, const char *name,
       abstract_http_actor_handler_cb handler, void *state,
       struct AbstractHttpActor **actor); /**< Hook for spawning actors */
-  int (*actor_send)(
+  enum c_abstract_http_error (*actor_send)(
       struct AbstractHttpMessageBus *bus,
       const struct AbstractHttpMessage *msg); /**< Hook for sending messages */
-  int (*actor_get_state)(struct AbstractHttpActor *actor,
-                         void **state); /**< Hook for retrieving state */
-  int (*actor_get_name)(const struct AbstractHttpActor *actor,
-                        const char **name); /**< Hook for retrieving name */
+  enum c_abstract_http_error (*actor_get_state)(
+      struct AbstractHttpActor *actor,
+      void **state); /**< Hook for retrieving state */
+  enum c_abstract_http_error (*actor_get_name)(
+      const struct AbstractHttpActor *actor,
+      const char **name); /**< Hook for retrieving name */
 };
 
 /**

@@ -54,8 +54,8 @@ struct libsoup3_TestUploadState {
   int should_abort;
 };
 
-static int libsoup3_mock_chunk_cb(void *user_data, const void *chunk,
-                                  size_t chunk_len) {
+static enum c_abstract_http_error
+libsoup3_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   struct libsoup3_TestChunkState *state;
   if (chunk) {
     /* pass */

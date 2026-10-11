@@ -567,11 +567,13 @@ uint64_t c_abstract_http_mock_math_get_current_time_ms(void);
 
 enum c_abstract_http_error dummy_cb_thread(void *arg);
 void *dummy_cb_pthread(void *arg);
-extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
-                                                              char **out);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif
+extern int g_mock_cond_init_fail;
+extern int g_mock_queue_malloc_fail;
+extern int g_mock_parser_destroy_fail;
+extern int g_mock_http_types_strdup_fail;

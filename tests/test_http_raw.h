@@ -25,14 +25,16 @@ extern "C" {
 #endif
 /* clang-format on */
 
-static int raw_chunk_cb_success(void *user_data, const void *data, size_t len) {
+static enum c_abstract_http_error
+raw_chunk_cb_success(void *user_data, const void *data, size_t len) {
   size_t *total = (size_t *)user_data;
   if (data && total)
     *total += len;
   return 0;
 }
 
-static int raw_chunk_cb_fail(void *user_data, const void *data, size_t len) {
+static enum c_abstract_http_error
+raw_chunk_cb_fail(void *user_data, const void *data, size_t len) {
   if (user_data || data || len) {
     /* pass */
   }
@@ -254,11 +256,7 @@ TEST test_http_raw_send_requests(void) {
     raw_rc = http_raw_send(ctx, &req, &res);
     ASSERT(raw_rc == C_ABSTRACT_HTTP_SUCCESS ||
            raw_rc == C_ABSTRACT_HTTP_ERR_IO);
-    if (res) {
-      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
-      free(res);
-      res = NULL;
-    }
+    ASSERT(res == NULL);
     req.url = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
@@ -351,11 +349,7 @@ TEST test_http_raw_send_requests(void) {
     raw_rc = http_raw_send(ctx, &req, &res);
     ASSERT(raw_rc == C_ABSTRACT_HTTP_SUCCESS ||
            raw_rc == C_ABSTRACT_HTTP_ERR_IO);
-    if (res) {
-      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
-      free(res);
-      res = NULL;
-    }
+    ASSERT(res == NULL);
     req.url = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
@@ -368,11 +362,7 @@ TEST test_http_raw_send_requests(void) {
     raw_rc = http_raw_send(ctx, &req, &res);
     ASSERT(raw_rc == C_ABSTRACT_HTTP_SUCCESS ||
            raw_rc == C_ABSTRACT_HTTP_ERR_IO);
-    if (res) {
-      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
-      free(res);
-      res = NULL;
-    }
+    ASSERT(res == NULL);
     req.url = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }

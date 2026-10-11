@@ -37,7 +37,8 @@ struct wininet_TestChunkState {
   int abort_on_call;
 };
 
-static int wininet_chunk_cb(void *user_data, const void *data, size_t length) {
+static enum c_abstract_http_error
+wininet_chunk_cb(void *user_data, const void *data, size_t length) {
   struct wininet_TestChunkState *state =
       (struct wininet_TestChunkState *)user_data;
   (void)data;
@@ -49,8 +50,9 @@ static int wininet_chunk_cb(void *user_data, const void *data, size_t length) {
   return 0;
 }
 
-static int wininet_read_cb(void *user_data, void *buffer, size_t max_len,
-                           size_t *out_len) {
+static enum c_abstract_http_error wininet_read_cb(void *user_data, void *buffer,
+                                                  size_t max_len,
+                                                  size_t *out_len) {
   struct wininet_TestChunkState *state =
       (struct wininet_TestChunkState *)user_data;
   state->call_count++;

@@ -16,7 +16,6 @@
 #include <c_abstract_http/http_fetch.h>
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 
 #if defined(C_ABSTRACT_HTTP_HAVE_REAL_FETCH)
 #include <fetch.h>

@@ -259,8 +259,8 @@ TEST test_libevent_send_connection_failure(void) {
 
 /** @brief Documented */
 
-static int libevent_mock_chunk_cb(void *user_data, const void *chunk,
-                                  size_t chunk_len) {
+static enum c_abstract_http_error
+libevent_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   struct libevent_TestChunkState *state;
   if (chunk) {
     /* pass */
@@ -680,8 +680,9 @@ TEST test_libevent_methods(void) {
   PASS();
 }
 
-static int dummy_libevent_chunk_reader_err(void *user_data, void *buf,
-                                           size_t max_bytes, size_t *out_read) {
+static enum c_abstract_http_error
+dummy_libevent_chunk_reader_err(void *user_data, void *buf, size_t max_bytes,
+                                size_t *out_read) {
   if (user_data || buf || max_bytes || out_read) {
     /* pass */
   }
@@ -689,8 +690,9 @@ static int dummy_libevent_chunk_reader_err(void *user_data, void *buf,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-static int dummy_libevent_chunk_reader(void *user_data, void *buf,
-                                       size_t max_bytes, size_t *out_read) {
+static enum c_abstract_http_error
+dummy_libevent_chunk_reader(void *user_data, void *buf, size_t max_bytes,
+                            size_t *out_read) {
   int *called;
   if (buf || max_bytes) {
     /* pass */

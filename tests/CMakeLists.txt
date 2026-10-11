@@ -44,6 +44,7 @@ else()
 endif()
 
 add_executable(c-abstract-http-test ${TEST_SOURCES})
+
 set_target_properties(c-abstract-http-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 
     if(MSVC)
@@ -79,6 +80,7 @@ set_tests_properties(c-abstract-http-test-arg PROPERTIES TIMEOUT 30)
 
 if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
     add_executable(c-abstract-http-test-ws test_ws.c ${EXTRA_TEST_SOURCES})
+    target_compile_definitions(c-abstract-http-test-ws PRIVATE C_ABSTRACT_HTTP_TEST_OOM=1)
     set_target_properties(c-abstract-http-test-ws PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
     target_link_libraries(c-abstract-http-test-ws PRIVATE c-abstract-http)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
@@ -98,6 +100,7 @@ endif()
 
 if(C_ABSTRACT_HTTP_ENABLE_SSE)
     add_executable(c-abstract-http-test-sse test_sse.c ${EXTRA_TEST_SOURCES})
+    target_compile_definitions(c-abstract-http-test-sse PRIVATE C_ABSTRACT_HTTP_TEST_OOM=1)
     set_target_properties(c-abstract-http-test-sse PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
     target_link_libraries(c-abstract-http-test-sse PRIVATE c-abstract-http)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
@@ -117,6 +120,7 @@ endif()
 
 if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
     add_executable(c-abstract-http-test-crypto test_crypto.c ${EXTRA_TEST_SOURCES})
+    target_compile_definitions(c-abstract-http-test-crypto PRIVATE C_ABSTRACT_HTTP_TEST_OOM=1)
     target_link_libraries(c-abstract-http-test-crypto PRIVATE c-abstract-http)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         target_link_libraries(c-abstract-http-test-crypto PRIVATE Threads::Threads)

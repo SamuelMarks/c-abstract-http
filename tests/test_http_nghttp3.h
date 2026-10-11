@@ -48,8 +48,8 @@ struct nghttp3_TestChunkState {
  * @param[in] chunk_len Number of bytes in chunk.
  * @return 0 on success, non-zero to abort.
  */
-static int nghttp3_mock_chunk_cb(void *user_data, const void *chunk,
-                                 size_t chunk_len) {
+static enum c_abstract_http_error
+nghttp3_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   struct nghttp3_TestChunkState *state;
   (void)chunk;
   state = (struct nghttp3_TestChunkState *)user_data;

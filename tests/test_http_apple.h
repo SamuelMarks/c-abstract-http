@@ -27,7 +27,8 @@ extern "C" {
 #include "abstract_http_test_helpers/mock_server.h"
 /* clang-format on */
 
-static int mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
+static enum c_abstract_http_error
+mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   int *calls = (int *)user_data;
   (void)chunk;
   (void)len;
@@ -487,8 +488,8 @@ TEST test_apple_send_all_methods(void) {
   PASS();
 }
 
-static int mock_read_chunk(void *user_data, void *buf, size_t buf_len,
-                           size_t *out_read) {
+static enum c_abstract_http_error
+mock_read_chunk(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
   int *calls = (int *)user_data;
   if (*calls >= 2) {
     *out_read = 0;
@@ -502,8 +503,10 @@ static int mock_read_chunk(void *user_data, void *buf, size_t buf_len,
   return 0;
 }
 
-static int mock_read_chunk_fail(void *user_data, void *buf, size_t buf_len,
-                                size_t *out_read) {
+static enum c_abstract_http_error mock_read_chunk_fail(void *user_data,
+                                                       void *buf,
+                                                       size_t buf_len,
+                                                       size_t *out_read) {
   (void)user_data;
   (void)buf;
   (void)buf_len;
@@ -675,7 +678,7 @@ TEST test_apple_send_multi(void) {
   PASS();
 }
 
-static int dummy_apple_fail_wakeup(void *ctx) {
+static enum c_abstract_http_error dummy_apple_fail_wakeup(void *ctx) {
   (void)ctx;
   return C_ABSTRACT_HTTP_ERR_IO;
 }

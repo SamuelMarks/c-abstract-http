@@ -38,16 +38,16 @@ struct AbstractHttpIpcPipe {
  * framework.
  */
 struct AbstractHttpProcessHooks {
-  int (*spawn)(
+  enum c_abstract_http_error (*spawn)(
       struct AbstractHttpProcess **proc, struct AbstractHttpIpcPipe *p2c,
       struct AbstractHttpIpcPipe *c2p); /**< Hook for spawning a process */
-  int (*wait_and_free)(
+  enum c_abstract_http_error (*wait_and_free)(
       struct AbstractHttpProcess *proc,
       int *exit_code); /**< Hook for waiting and freeing a process */
-  int (*ipc_write)(void *handle, const void *data,
-                   size_t len); /**< Hook for IPC write */
-  int (*ipc_read)(void *handle, void *data,
-                  size_t len); /**< Hook for IPC read */
+  enum c_abstract_http_error (*ipc_write)(
+      void *handle, const void *data, size_t len); /**< Hook for IPC write */
+  enum c_abstract_http_error (*ipc_read)(void *handle, void *data,
+                                         size_t len); /**< Hook for IPC read */
 };
 
 /**

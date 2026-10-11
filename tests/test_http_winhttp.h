@@ -43,7 +43,8 @@ struct winhttp_TestChunkState {
   int abort_on_call;
 };
 
-static int winhttp_chunk_cb(void *user_data, const void *data, size_t length) {
+static enum c_abstract_http_error
+winhttp_chunk_cb(void *user_data, const void *data, size_t length) {
   struct winhttp_TestChunkState *state =
       (struct winhttp_TestChunkState *)user_data;
   (void)data;
@@ -55,8 +56,9 @@ static int winhttp_chunk_cb(void *user_data, const void *data, size_t length) {
   return 0;
 }
 
-static int winhttp_read_cb(void *user_data, void *buffer, size_t max_len,
-                           size_t *out_len) {
+static enum c_abstract_http_error winhttp_read_cb(void *user_data, void *buffer,
+                                                  size_t max_len,
+                                                  size_t *out_len) {
   struct winhttp_TestChunkState *state =
       (struct winhttp_TestChunkState *)user_data;
   state->call_count++;
@@ -701,7 +703,7 @@ TEST test_winhttp_send_multi(void) {
 }
 
 #if !defined(_WIN32)
-static int mock_winhttp_fail_wakeup(void *user_ctx) {
+static enum c_abstract_http_error mock_winhttp_fail_wakeup(void *user_ctx) {
   (void)user_ctx;
   return 1;
 }

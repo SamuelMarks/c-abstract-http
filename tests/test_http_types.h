@@ -10,6 +10,7 @@
 #include <c_abstract_http/log.h>
 #ifndef TEST_HTTP_TYPES_H
 #define TEST_HTTP_TYPES_H
+extern int g_mock_http_types_strdup_fail;
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 #include "mock_alloc.h"
@@ -2675,7 +2676,7 @@ TEST test_http_types_oauth_and_multipart_failures(void) {
     g_mock_sprintf_s_wrapper_fail = i;
     rc = http_request_flatten_parts(&req);
     g_mock_sprintf_s_wrapper_fail = 0;
-    (void)rc;
+    ASSERT_NEQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
@@ -2797,6 +2798,187 @@ TEST test_http_types_oauth_and_multipart_failures(void) {
 
 #endif
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+TEST test_http_types_free_ooms(void) {
+  struct HttpHeaders h;
+  struct HttpParts p;
+  struct HttpRequest req;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_init(&h));
+  g_mock_headers_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_headers_free(&h));
+  g_mock_headers_free_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_free(&h));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_parts_init(&p));
+  g_mock_parts_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_parts_free(&p));
+  g_mock_parts_free_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_parts_free(&p));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  g_mock_http_types_strdup_fail = 1;
+  g_mock_headers_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_request_add_part(&req, "name", "file", "text", "data", 4));
+  g_mock_headers_free_fail = 0;
+  g_mock_http_types_strdup_fail = 0;
+
+  g_mock_http_types_strdup_fail = 2;
+  g_mock_headers_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_request_add_part(&req, "name", "file", "text", "data", 4));
+  g_mock_headers_free_fail = 0;
+  g_mock_http_types_strdup_fail = 0;
+
+  g_mock_http_types_strdup_fail = 3;
+  g_mock_headers_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_request_add_part(&req, "name", "file", "text", "data", 4));
+  g_mock_headers_free_fail = 0;
+  g_mock_http_types_strdup_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  g_mock_http_types_strdup_fail = 1;
+  {
+    enum c_abstract_http_error r = abstract_http_test_real_strdup("test", NULL);
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, r, "%d");
+  }
+  g_mock_http_types_strdup_fail = 0;
+
+  PASS();
+}
+
+TEST test_http_types_free_ooms_extended(void) {
+  struct HttpClient client;
+  struct HttpRequest req;
+  struct HttpResponse res;
+  struct HttpRequest *reqs[1];
+  struct HttpFuture futs[1];
+  struct HttpFuture *pfuts[1];
+  pfuts[0] = &futs[0];
+
+  {
+    enum c_abstract_http_error r = http_client_init(&client);
+    ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, r, "%d");
+  }
+  g_mock_config_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_client_free(&client));
+  g_mock_config_free_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&client));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  g_mock_headers_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_request_free(&req));
+  g_mock_headers_free_fail = 0;
+
+  g_mock_parts_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_request_free(&req));
+  g_mock_parts_free_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(&res));
+  g_mock_headers_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_response_free(&res));
+  g_mock_headers_free_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(&res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
+  reqs[0] = &req;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  client.config.modality = MODALITY_SYNC;
+
+  g_mock_multi_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_client_send_multi(&client, reqs, 1, pfuts, NULL, NULL, 0));
+  g_mock_multi_free_fail = 0;
+
+  client.config.modality = MODALITY_ASYNC;
+  client.send_multi = NULL;
+  g_mock_multi_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_client_send_multi(&client, reqs, 1, pfuts, NULL, NULL, 0));
+  g_mock_multi_free_fail = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&client));
+
+  PASS();
+}
+
+static enum c_abstract_http_error mock_send_multi_err(
+    struct HttpTransportContext *transport, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
+  (void)transport;
+  (void)loop;
+  (void)multi;
+  (void)futures;
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
+TEST test_http_types_free_ooms_combo(void) {
+  struct HttpRequest req;
+  struct HttpClient client;
+  struct HttpRequest *reqs[1];
+  struct HttpFuture futs[1];
+  struct HttpFuture *pfuts[1];
+  pfuts[0] = &futs[0];
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_add_part(&req, "name", "file", "text", "data", 4));
+  g_mock_headers_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_parts_free(&req.parts));
+  g_mock_headers_free_fail = 0;
+
+  g_mock_parts_free_fail = 1;
+  g_mock_headers_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_request_free(&req));
+  g_mock_parts_free_fail = 0;
+  g_mock_headers_free_fail = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
+  reqs[0] = &req;
+  client.config.modality = MODALITY_ASYNC;
+  client.send_multi = mock_send_multi_err;
+  client.loop = (struct ModalityEventLoop *)1;
+  g_mock_multi_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_client_send_multi(&client, reqs, 1, pfuts, NULL, NULL, 0));
+  g_mock_multi_free_fail = 0;
+
+  client.config.modality = MODALITY_SYNC;
+  client.send = NULL;
+  g_mock_multi_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_client_send_multi(&client, reqs, 1, pfuts, NULL, NULL, 1));
+  g_mock_multi_free_fail = 0;
+
+  g_mock_multi_free_fail = 1;
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_client_send_multi(&client, reqs, 1, pfuts, NULL, NULL, 0));
+  g_mock_alloc_fail = 0;
+  g_mock_multi_free_fail = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&client));
+
+  PASS();
+}
+#endif
+
+TEST test_http_types_init_err(void) {
+  struct HttpRequest req;
+  g_mock_parts_init_fail = 1;
+  g_mock_headers_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_request_init(&req));
+  g_mock_parts_init_fail = 0;
+  g_mock_headers_free_fail = 0;
+  PASS();
+}
+
 SUITE(http_types_suite) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_oauth_and_multipart_failures);
@@ -2806,6 +2988,14 @@ SUITE(http_types_suite) {
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  RUN_TEST(test_http_types_free_ooms);
+  RUN_TEST(test_http_types_free_ooms_extended);
+  RUN_TEST(test_http_types_init_err);
+  RUN_TEST(test_http_types_free_ooms_combo);
+#endif
+
   RUN_TEST(test_http_types_extra_coverage);
 #endif
 

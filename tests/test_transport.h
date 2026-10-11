@@ -28,6 +28,15 @@ TEST test_transport_factory(void) {
   ASSERT(client.send != NULL);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, transport_factory_cleanup_client(NULL));
+#if defined(C_ABSTRACT_HTTP_USE_APPLE)
+  {
+    enum c_abstract_http_error rc_tmp;
+    g_mock_config_free_fail = 1;
+    rc_tmp = transport_factory_cleanup_client(&client);
+    g_mock_config_free_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc_tmp);
+  }
+#endif
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, transport_factory_cleanup_client(&client));
   ASSERT(client.transport == NULL);
 

@@ -6,7 +6,6 @@
 
 #include <c_abstract_http/http_xquic.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 /* clang-format on */
 
 #include <xquic/xquic.h>

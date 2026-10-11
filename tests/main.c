@@ -27,21 +27,9 @@
 #endif
 #include "greatest.h"
 #include "mock_alloc.h"
-#include "../src/str.h"
 
 /* Include test suites */
 
-void reset_all_mocks(void *data) {
-  (void)data;
-  g_mock_alloc_fail = 0;
-  g_mock_cond_fail = 0;
-  g_mock_mutex_free_fail = 0;
-  g_mock_cond_free_fail = 0;
-  g_mock_headers_free_fail = 0;
-  g_mock_parts_free_fail = 0;
-  g_mock_multi_free_fail = 0;
-  g_mock_pthread_fail = 0;
-}
 #include "test_http_types.h"
 #include "test_event_loop.h"
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
@@ -141,15 +129,15 @@ void reset_all_mocks(void *data) {
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
-  int i;
 #if defined(__linux__) || defined(__APPLE__)
   signal(SIGPIPE, SIG_IGN);
 
 #endif
-  for (i = 1; i < argc; ++i) {
-    if (strcmp(argv[i], "--test-worker") == 0) {
-      exit(1);
-    }
+  if (argc > 1 && strcmp(argv[1], "--test-worker") == 0) {
+#if defined(_WIN32) && !defined(__INTEL_COMPILER)
+    TerminateProcess(GetCurrentProcess(), 1);
+#endif
+    exit(1);
   }
 
 #if defined(_WIN32)
@@ -168,7 +156,6 @@ int main(int argc, char **argv) {
   }
 #endif
   GREATEST_MAIN_BEGIN();
-  GREATEST_SET_SETUP_CB(reset_all_mocks, NULL);
 
   RUN_SUITE(http_types_suite);
   RUN_SUITE(event_loop_suite);
@@ -263,10 +250,8 @@ int main(int argc, char **argv) {
 #endif
 #endif
 
-#ifdef malloc
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
   RUN_SUITE(mock_coverage_suite);
-#endif
 #endif
 
   GREATEST_MAIN_END();

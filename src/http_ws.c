@@ -13,6 +13,14 @@
 #include "c_abstract_http/thread_pool.h"
 #include "c_abstract_http/log.h"
 #include "ws_internal.h"
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_cond_init_fail;
+extern int g_mock_mutex_free_fail;
+extern int g_mock_cond_free_fail;
+extern int g_mock_queue_malloc_fail;
+extern int g_mock_parser_destroy_fail;
+#endif
 #include "ws_config.h"
 #include "crypto_utils.h"
 
@@ -157,18 +165,27 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
   }
   return 0;
 }
-
 static enum c_abstract_http_error
 ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
   if (!sctx)
     return C_ABSTRACT_HTTP_SUCCESS;
   if (sctx->mutex) {
     enum c_abstract_http_error rc = abstract_http_mutex_free(sctx->mutex);
+    sctx->mutex = NULL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_mutex_free_fail)
+      rc = C_ABSTRACT_HTTP_ERR_IO;
+#endif
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
   if (sctx->cond) {
     enum c_abstract_http_error rc = abstract_http_cond_free(sctx->cond);
+    sctx->cond = NULL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_cond_free_fail)
+      rc = C_ABSTRACT_HTTP_ERR_IO;
+#endif
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
@@ -198,16 +215,52 @@ c_abstract_http_ws_init(struct HttpRequest *req,
       return (enum c_abstract_http_error)res;
     }
     res = abstract_http_cond_init(&sctx->cond);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_cond_init_fail)
+      res = C_ABSTRACT_HTTP_ERR_IO;
+#endif
     if (res != C_ABSTRACT_HTTP_SUCCESS) {
-      abstract_http_mutex_free(sctx->mutex);
+      {
+        enum c_abstract_http_error rc_tmp =
+            abstract_http_mutex_free(sctx->mutex);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+        if (g_mock_mutex_free_fail)
+          rc_tmp = C_ABSTRACT_HTTP_ERR_IO;
+#endif
+        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+          return rc_tmp;
+      }
       free(sctx);
       return (enum c_abstract_http_error)res;
     }
     sctx->queue_cap = 4096;
     sctx->queue = (unsigned char *)malloc(sctx->queue_cap);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_queue_malloc_fail) {
+      free(sctx->queue);
+      sctx->queue = NULL;
+    }
+#endif
     if (!sctx->queue) {
-      abstract_http_cond_free(sctx->cond);
-      abstract_http_mutex_free(sctx->mutex);
+      {
+        enum c_abstract_http_error rc_tmp = abstract_http_cond_free(sctx->cond);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+        if (g_mock_cond_free_fail)
+          rc_tmp = C_ABSTRACT_HTTP_ERR_IO;
+#endif
+        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+          return rc_tmp;
+      }
+      {
+        enum c_abstract_http_error rc_tmp =
+            abstract_http_mutex_free(sctx->mutex);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+        if (g_mock_mutex_free_fail)
+          rc_tmp = C_ABSTRACT_HTTP_ERR_IO;
+#endif
+        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+          return rc_tmp;
+      }
       free(sctx);
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
@@ -410,6 +463,10 @@ enum c_abstract_http_error ws_parser_init(struct ws_parser_ctx *ctx,
 }
 
 enum c_abstract_http_error ws_parser_destroy(struct ws_parser_ctx *ctx) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_parser_destroy_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   if (!ctx)
     return C_ABSTRACT_HTTP_SUCCESS;
   free(ctx->payload_buffer);
@@ -744,7 +801,11 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
         if (rch != C_ABSTRACT_HTTP_SUCCESS)
           return rch;
       }
-      http_response_free(res);
+      {
+        enum c_abstract_http_error rc_tmp = http_response_free(res);
+        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+          return rc_tmp;
+      }
       free(res);
       return rc;
     }
@@ -755,7 +816,11 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
     if (rch != C_ABSTRACT_HTTP_SUCCESS)
       return rch;
   }
-  http_response_free(res);
+  {
+    enum c_abstract_http_error rc_tmp = http_response_free(res);
+    if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+      return rc_tmp;
+  }
   free(res);
 
   if (on_close)
@@ -1021,11 +1086,8 @@ enum c_abstract_http_error c_abstract_http_ws_free(struct HttpRequest *req) {
       req->ws_ctx = NULL;
       return C_ABSTRACT_HTTP_SUCCESS;
     } else {
-      {
-        enum c_abstract_http_error rch = ws_stream_ctx_free(NULL);
-        if (rch != C_ABSTRACT_HTTP_SUCCESS)
-          return rch;
-      }
+      ws_stream_ctx_free(NULL);
     }
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }

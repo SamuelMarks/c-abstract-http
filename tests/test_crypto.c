@@ -12,9 +12,7 @@
 #include <errno.h>
 #include <string.h>
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 #include "mock_alloc.h"
-#endif
 
 TEST test_sha1_empty_string(void) {
   struct sha1_ctx ctx;
@@ -201,7 +199,6 @@ TEST test_sha1_large_string(void) {
   PASS();
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_crypto_oom(void) {
   char *b64_str = NULL;
   size_t b64_len = 0;
@@ -224,7 +221,6 @@ TEST test_crypto_oom(void) {
   }
   PASS();
 }
-#endif
 
 TEST test_sha1_rollover(void) {
   struct sha1_ctx ctx;
@@ -241,7 +237,6 @@ TEST test_sha1_rollover(void) {
   PASS();
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sha1_mock_failures(void) {
   struct sha1_ctx ctx;
   unsigned char out[20];
@@ -264,15 +259,12 @@ TEST test_sha1_mock_failures(void) {
 
   PASS();
 }
-#endif
 
 SUITE(crypto_suite) {
   RUN_TEST(test_sha1_large_string);
   RUN_TEST(test_crypto_errors);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_crypto_oom);
   RUN_TEST(test_sha1_mock_failures);
-#endif
   RUN_TEST(test_sha1_rollover);
   RUN_TEST(test_sha1_empty_string);
   RUN_TEST(test_sha1_fox_string);

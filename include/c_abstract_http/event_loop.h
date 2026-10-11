@@ -53,19 +53,24 @@ struct HttpLoopHooks {
   void *external_context; /**< Context passed to hooks */
 
   /* Polling Hooks */
-  int (*add_fd)(void *ctx, int fd, int events, http_loop_cb cb,
-                void *user_data); /**< Register file descriptor */
-  int (*mod_fd)(void *ctx, int fd,
-                int events);           /**< Modify file descriptor events */
-  int (*remove_fd)(void *ctx, int fd); /**< Remove file descriptor */
+  enum c_abstract_http_error (*add_fd)(
+      void *ctx, int fd, int events, http_loop_cb cb,
+      void *user_data); /**< Register file descriptor */
+  enum c_abstract_http_error (*mod_fd)(
+      void *ctx, int fd, int events); /**< Modify file descriptor events */
+  enum c_abstract_http_error (*remove_fd)(
+      void *ctx, int fd); /**< Remove file descriptor */
 
   /* Timer Hooks */
-  int (*add_timer)(void *ctx, long timeout_ms, http_timer_cb cb,
-                   void *user_data, int *out_timer_id); /**< Register a timer */
-  int (*cancel_timer)(void *ctx, int timer_id);         /**< Cancel a timer */
+  enum c_abstract_http_error (*add_timer)(
+      void *ctx, long timeout_ms, http_timer_cb cb, void *user_data,
+      int *out_timer_id); /**< Register a timer */
+  enum c_abstract_http_error (*cancel_timer)(
+      void *ctx, int timer_id); /**< Cancel a timer */
 
   /* Wakeup Hook */
-  int (*wakeup)(void *ctx); /**< Wake up the event loop thread */
+  enum c_abstract_http_error (*wakeup)(
+      void *ctx); /**< Wake up the event loop thread */
 };
 
 /**

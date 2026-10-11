@@ -47,7 +47,7 @@ struct CmpAppConfig {
  */
 struct CmpProgressBinding {
   void *ui_component; /**< Pointer to UI component state */
-  int (*update_progress)(
+  enum c_abstract_http_error (*update_progress)(
       void *ui_component,
       float percentage); /**< Callback for updating progress */
   int cancel_requested; /**< 1 if the user closed the UI view and wants to abort

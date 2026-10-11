@@ -6,7 +6,6 @@
 
 #include <c_abstract_http/http_lsquic.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 
 #include <lsquic.h>
 /* clang-format on */

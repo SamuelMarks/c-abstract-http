@@ -120,8 +120,8 @@ typedef enum c_abstract_http_error (*abstract_http_thread_task_cb)(void *arg);
  */
 struct AbstractHttpThreadPoolHooks {
   void *external_context; /**< Context passed to hooks */
-  int (*push)(void *ctx, abstract_http_thread_task_cb cb,
-              void *arg); /**< Hook for pushing a task */
+  enum c_abstract_http_error (*push)(void *ctx, abstract_http_thread_task_cb cb,
+                                     void *arg); /**< Hook for pushing a task */
 };
 
 /**

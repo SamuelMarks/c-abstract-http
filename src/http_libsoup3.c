@@ -7,7 +7,6 @@
 
 #include <c_abstract_http/http_libsoup3.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 
 #if defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBSOUP3)
 #include <libsoup/soup.h>

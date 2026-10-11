@@ -15,7 +15,6 @@
 #include <c_abstract_http/event_loop.h>
 #include <cfs/cfs.h>
 #include <c_abstract_http/http_winhttp.h>
-#include "str.h"
 
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 #include "win_compat_sym.h"

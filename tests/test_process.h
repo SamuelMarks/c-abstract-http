@@ -275,8 +275,7 @@ extern enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void);
 extern enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void);
 #endif
 
-static int
-
+static enum c_abstract_http_error
 dummy_process_spawn(struct AbstractHttpProcess **proc,
                     struct AbstractHttpIpcPipe *p2c,
                     struct AbstractHttpIpcPipe *c2p) {
@@ -285,19 +284,21 @@ dummy_process_spawn(struct AbstractHttpProcess **proc,
   (void)c2p;
   return 0;
 }
-static int dummy_process_wait_and_free(struct AbstractHttpProcess *proc,
-                                       int *exit_code) {
+static enum c_abstract_http_error
+dummy_process_wait_and_free(struct AbstractHttpProcess *proc, int *exit_code) {
   (void)proc;
   (void)exit_code;
   return 0;
 }
-static int dummy_ipc_write(void *handle, const void *data, size_t len) {
+static enum c_abstract_http_error
+dummy_ipc_write(void *handle, const void *data, size_t len) {
   (void)handle;
   (void)data;
   (void)len;
   return 0;
 }
-static int dummy_ipc_read(void *handle, void *data, size_t len) {
+static enum c_abstract_http_error dummy_ipc_read(void *handle, void *data,
+                                                 size_t len) {
   (void)handle;
   (void)data;
   (void)len;

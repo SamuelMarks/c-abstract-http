@@ -149,7 +149,16 @@ enum c_abstract_http_error sse_parser_init(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern int g_mock_cond_free_fail; /* just repurposing a mock flag for test */
+#endif
+
 enum c_abstract_http_error sse_parser_destroy(struct sse_parser_ctx *ctx) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_cond_free_fail) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
   if (!ctx)
     return C_ABSTRACT_HTTP_SUCCESS;
   free(ctx->line_buffer);
@@ -408,7 +417,11 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
         if (rch != C_ABSTRACT_HTTP_SUCCESS)
           return rch;
       }
-      http_response_free(res);
+      {
+        enum c_abstract_http_error rc_tmp = http_response_free(res);
+        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+          return rc_tmp;
+      }
       free(res);
       return rc;
     }
@@ -419,7 +432,11 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
     if (rch != C_ABSTRACT_HTTP_SUCCESS)
       return rch;
   }
-  http_response_free(res);
+  {
+    enum c_abstract_http_error rc_tmp = http_response_free(res);
+    if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+      return rc_tmp;
+  }
   free(res);
 
   if (on_close)

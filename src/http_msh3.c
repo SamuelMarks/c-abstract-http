@@ -14,7 +14,6 @@
 
 #include <c_abstract_http/http_msh3.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 #include <c_abstract_http/thread_pool.h>
 
 #if defined(C_ABSTRACT_HTTP_HAVE_REAL_MSH3)

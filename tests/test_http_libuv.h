@@ -282,8 +282,8 @@ TEST test_libuv_send_connection_failure(void) {
 
 /** @brief Documented */
 
-static int libuv_mock_chunk_cb(void *user_data, const void *chunk,
-                               size_t chunk_len) {
+static enum c_abstract_http_error
+libuv_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   struct libuv_TestChunkState *state;
   if (chunk) {
     /* pass */

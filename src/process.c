@@ -63,7 +63,6 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 
 #include <c_abstract_http/process.h>
 #include "c_abstract_http/log.h"
-#include "str.h"
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

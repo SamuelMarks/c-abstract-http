@@ -540,7 +540,7 @@ else()
             src/actor.c
             src/process.c
             src/transport.c
-            src/str.c
+
             src/http_raw.c
         )
         set_target_properties(c-abstract-http PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -559,7 +559,7 @@ else()
             src/actor.c
             src/process.c
             src/transport.c
-            src/str.c
+
             src/http_raw.c
         )
     endif()

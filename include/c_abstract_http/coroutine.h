@@ -35,16 +35,18 @@ typedef void (*abstract_http_coroutine_cb)(void *arg);
  * @brief External hooks for overriding coroutine management.
  */
 struct AbstractHttpCoroutineHooks {
-  int (*init)(struct AbstractHttpCoroutine **co, size_t stack_size,
-              abstract_http_coroutine_cb cb,
-              void *arg); /**< Hook for coroutine initialization */
+  enum c_abstract_http_error (*init)(
+      struct AbstractHttpCoroutine **co, size_t stack_size,
+      abstract_http_coroutine_cb cb,
+      void *arg); /**< Hook for coroutine initialization */
   void (*free)(
       struct AbstractHttpCoroutine *co); /**< Hook for coroutine destruction */
-  int (*resume)(
-      struct AbstractHttpCoroutine *co); /**< Hook for resuming execution */
-  int (*yield)(void);                    /**< Hook for yielding execution */
-  int (*is_done)(const struct AbstractHttpCoroutine *co,
-                 int *out_is_done); /**< Hook for checking status */
+  enum c_abstract_http_error (*resume)(
+      struct AbstractHttpCoroutine *co);     /**< Hook for resuming execution */
+  enum c_abstract_http_error (*yield)(void); /**< Hook for yielding execution */
+  enum c_abstract_http_error (*is_done)(
+      const struct AbstractHttpCoroutine *co,
+      int *out_is_done); /**< Hook for checking status */
 };
 
 /**
