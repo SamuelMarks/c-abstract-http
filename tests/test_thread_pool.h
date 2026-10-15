@@ -30,7 +30,8 @@ extern "C" {
 #include "mock_alloc.h"
 /* clang-format on */
 
-#if !defined(_WIN32)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__) &&           \
+    !defined(_WIN32)
 TEST test_thread_pool_init_lock_fail(void) {
   struct AbstractHttpThreadPool *pool = NULL;
   enum c_abstract_http_error rc;

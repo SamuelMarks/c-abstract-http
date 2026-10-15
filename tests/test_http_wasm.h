@@ -614,6 +614,18 @@ TEST test_wasm_send_failures(void) {
 }
 
 /**
+ * @brief Mock loop wakeup callback that simulates failure.
+ *
+ * @param[in] loop Event loop pointer.
+ * @return C_ABSTRACT_HTTP_ERR_IO.
+ */
+static enum c_abstract_http_error wasm_test_mock_loop_wakeup_fail(void *loop) {
+  if (loop) {
+  }
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
+/**
  * @brief Test sending multiple requests concurrently via wasm.
  *
  * @return GREATEST_TEST_RES_PASS on success.
@@ -706,7 +718,7 @@ TEST test_wasm_send_multi(void) {
   {
     struct HttpLoopHooks hooks;
     memset(&hooks, 0, sizeof(hooks));
-    hooks.wakeup = (int (*)(void *))xquic_test_mock_loop_wakeup_fail;
+    hooks.wakeup = wasm_test_mock_loop_wakeup_fail;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init_external(&loop, &hooks));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_wasm_send_multi(ctx, loop, &multi, futures));

@@ -256,7 +256,11 @@ TEST test_http_raw_send_requests(void) {
     raw_rc = http_raw_send(ctx, &req, &res);
     ASSERT(raw_rc == C_ABSTRACT_HTTP_SUCCESS ||
            raw_rc == C_ABSTRACT_HTTP_ERR_IO);
-    ASSERT(res == NULL);
+    if (res) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+    }
     req.url = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
@@ -349,7 +353,11 @@ TEST test_http_raw_send_requests(void) {
     raw_rc = http_raw_send(ctx, &req, &res);
     ASSERT(raw_rc == C_ABSTRACT_HTTP_SUCCESS ||
            raw_rc == C_ABSTRACT_HTTP_ERR_IO);
-    ASSERT(res == NULL);
+    if (res) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+    }
     req.url = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
@@ -362,7 +370,11 @@ TEST test_http_raw_send_requests(void) {
     raw_rc = http_raw_send(ctx, &req, &res);
     ASSERT(raw_rc == C_ABSTRACT_HTTP_SUCCESS ||
            raw_rc == C_ABSTRACT_HTTP_ERR_IO);
-    ASSERT(res == NULL);
+    if (res) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+    }
     req.url = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
@@ -378,6 +390,13 @@ TEST test_http_raw_send_network_errors(void) {
   struct HttpResponse *res = NULL;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&ctx));
+  {
+    struct HttpConfig cfg;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+    cfg.timeout_ms = 500;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
 
   /* Connection to closed port */

@@ -333,7 +333,8 @@ TEST test_wininet_send_methods_and_headers(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
 #if defined(_WIN32)
-    c_abstract_http_mock_strdup(url_buf, &url_dup);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_mock_strdup(url_buf, &url_dup));
 #else
     ASSERT_EQ(
         C_ABSTRACT_HTTP_SUCCESS,
@@ -365,7 +366,7 @@ TEST test_wininet_send_methods_and_headers(void) {
   }
 
 #if defined(_WIN32)
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
 #endif
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
@@ -416,7 +417,8 @@ TEST test_wininet_send_cookies(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
 #if defined(_WIN32)
-  c_abstract_http_mock_strdup(url_buf, &url_dup);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup(url_buf, &url_dup));
 #else
   ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
@@ -437,7 +439,7 @@ TEST test_wininet_send_cookies(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
 #if defined(_WIN32)
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
 #endif
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
@@ -473,7 +475,8 @@ TEST test_wininet_send_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
 #if defined(_WIN32)
-  c_abstract_http_mock_strdup(url_buf, &url_dup);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup(url_buf, &url_dup));
 #else
   ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
@@ -495,7 +498,7 @@ TEST test_wininet_send_chunked(void) {
   free(res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 #if defined(_WIN32)
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
 #endif
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
@@ -532,7 +535,8 @@ TEST test_wininet_send_chunked_abort(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
 #if defined(_WIN32)
-  c_abstract_http_mock_strdup(url_buf, &url_dup);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup(url_buf, &url_dup));
 #else
   ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
@@ -551,7 +555,7 @@ TEST test_wininet_send_chunked_abort(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 #if defined(_WIN32)
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
 #endif
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
@@ -587,7 +591,8 @@ TEST test_wininet_send_upload_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
 #if defined(_WIN32)
-  c_abstract_http_mock_strdup(url_buf, &url_dup);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup(url_buf, &url_dup));
 #else
   ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
@@ -611,7 +616,8 @@ TEST test_wininet_send_upload_chunked(void) {
   rc = http_request_init(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 #if defined(_WIN32)
-  c_abstract_http_mock_strdup(url_buf, &url_dup);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup(url_buf, &url_dup));
 #else
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_mock_strdup("http://127.0.0.1:8080/upload_abort",
@@ -630,7 +636,7 @@ TEST test_wininet_send_upload_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
 #if defined(_WIN32)
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
 #endif
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();

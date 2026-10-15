@@ -2108,14 +2108,16 @@ static enum c_abstract_http_error
 mock_send_invalid_body(struct HttpTransportContext *ctx,
                        const struct HttpRequest *req,
                        struct HttpResponse **res) {
-  char *b;
-  (void)ctx;
-  (void)req;
+  unsigned char *b;
+  if (ctx) {
+  }
+  if (req) {
+  }
   *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
-  b = (char *)malloc(5);
-  b[0] = 0xF1;
-  b[1] = 0x00;
-  (*res)->body = (unsigned char *)b;
+  b = (unsigned char *)malloc(5);
+  b[0] = 0xF1U;
+  b[1] = 0x00U;
+  (*res)->body = b;
   (*res)->body_len = 2;
   return C_ABSTRACT_HTTP_SUCCESS;
 }

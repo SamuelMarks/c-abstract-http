@@ -955,19 +955,24 @@ TEST test_mock_socket_coverage(void) {
       struct timeval
           *timeout) __asm("_c_abstract_http_mock_select$DARWIN_EXTSN");
 #endif
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  SOCKET fd;
+#else
   int fd;
+#endif
   char buf[32];
   struct sockaddr_in addr;
   socklen_t addr_len = sizeof(addr);
   struct timeval tv = {0, 0};
-  (void)tv;
+  if (tv.tv_sec) {
+  }
   memset(&addr, 0, sizeof(addr));
 
   g_mock_socket_fail = 1;
 #if defined(_WIN32) && !defined(__CYGWIN__)
   c_abstract_http_mock_socket(AF_INET, SOCK_STREAM, 0);
   g_mock_socket_fail = 0;
-  fd = (int)c_abstract_http_mock_socket(AF_INET, SOCK_STREAM, 0);
+  fd = c_abstract_http_mock_socket(AF_INET, SOCK_STREAM, 0);
 
   g_mock_bind_fail = 1;
   c_abstract_http_mock_bind(fd, (const struct sockaddr *)&addr, addr_len);
@@ -1001,7 +1006,7 @@ TEST test_mock_socket_coverage(void) {
 #else
   c_abstract_http_mock_socket(AF_INET, SOCK_STREAM, 0);
   g_mock_socket_fail = 0;
-  fd = (int)c_abstract_http_mock_socket(AF_INET, SOCK_STREAM, 0);
+  fd = c_abstract_http_mock_socket(AF_INET, SOCK_STREAM, 0);
 
   g_mock_bind_fail = 1;
   c_abstract_http_mock_bind(fd, (const struct sockaddr *)&addr, addr_len);

@@ -29,6 +29,11 @@
 /* clang-format on */
 
 #ifdef _WIN32
+#ifdef _MSC_VER
+#define CAH_FD_SET_WHILE_ZERO while (0, 0)
+#else
+#define CAH_FD_SET_WHILE_ZERO while (0)
+#endif
 #undef FD_SET
 #define FD_SET(fd, set)                                                        \
   do {                                                                         \
@@ -44,7 +49,8 @@
         ((fd_set FAR *)(set))->fd_count++;                                     \
       }                                                                        \
     }                                                                          \
-  } while (0, 0)
+  }                                                                            \
+  CAH_FD_SET_WHILE_ZERO
 #define ABSTRACT_HTTP_FD_SET(d, s) FD_SET(d, s)
 #define ABSTRACT_HTTP_FD_ISSET(d, s) FD_ISSET(d, s)
 #else

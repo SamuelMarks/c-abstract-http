@@ -20,8 +20,244 @@ extern int g_mock_alloc_fail;
 extern int g_mock_alloc_count;
 #endif
 
+#ifdef __EMSCRIPTEN__
 #include <emscripten/fetch.h>
+#else
+#define EMSCRIPTEN_FETCH_SYNCHRONOUS 1
+/** @brief Fallback struct emscripten_fetch_attr_t */
+typedef struct emscripten_fetch_attr_t {
+  /** @brief requestMethod */
+  char requestMethod[32];
+  /** @brief timeoutMSecs */
+  unsigned long timeoutMSecs;
+  /** @brief attributes */
+  unsigned int attributes;
+  /** @brief requestHeaders */
+  const char **requestHeaders;
+  /** @brief requestData */
+  const char *requestData;
+  /** @brief requestDataSize */
+  size_t requestDataSize;
+} emscripten_fetch_attr_t;
+
+/** @brief Fallback struct emscripten_fetch_t */
+typedef struct emscripten_fetch_t {
+  /** @brief status */
+  unsigned short status;
+  /** @brief numBytes */
+  uint64_t numBytes;
+  /** @brief readyState */
+  unsigned short readyState;
+  /** @brief data */
+  const char *data;
+} emscripten_fetch_t;
+#endif
 /* clang-format on */
+
+/**
+ * @brief Initialize an emscripten_fetch_attr_t structure.
+ *
+ * @param[out] attr Pointer to attribute structure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+static enum c_abstract_http_error
+wasm_fetch_attr_init(emscripten_fetch_attr_t *attr) {
+  if (!attr) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+#if defined(__EMSCRIPTEN__) && !defined(C_ABSTRACT_HTTP_TEST_OOM)
+  emscripten_fetch_attr_init(attr);
+#else
+  memset(attr, 0, sizeof(*attr));
+#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Close and free an emscripten_fetch_t structure.
+ *
+ * @param[in] fetch Fetch structure to close.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
+static enum c_abstract_http_error wasm_fetch_close(emscripten_fetch_t *fetch) {
+  if (fetch) {
+#if defined(__EMSCRIPTEN__) && !defined(C_ABSTRACT_HTTP_TEST_OOM)
+    emscripten_fetch_close(fetch);
+#else
+    if (fetch->data) {
+      free((char *)fetch->data);
+    }
+    free(fetch);
+#endif
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Get length of response headers from an emscripten_fetch_t structure.
+ *
+ * @param[in] fetch Fetch structure.
+ * @param[out] out_len Pointer to receive header length.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+static enum c_abstract_http_error
+wasm_fetch_get_response_headers_length(emscripten_fetch_t *fetch,
+                                       size_t *out_len) {
+  if (!out_len) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+#if defined(__EMSCRIPTEN__) && !defined(C_ABSTRACT_HTTP_TEST_OOM)
+  *out_len = fetch ? emscripten_fetch_get_response_headers_length(fetch) : 0;
+#else
+  if (!fetch) {
+    *out_len = 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_wasm_headers_len_zero == 1) {
+    *out_len = 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (g_mock_wasm_headers_len_zero == 2) {
+    *out_len = 10;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#endif
+  *out_len = strlen("Content-Type: text/plain\r\nX-Custom-Header: value");
+#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Copy response headers from an emscripten_fetch_t structure.
+ *
+ * @param[in] fetch Fetch structure.
+ * @param[out] dst Destination buffer.
+ * @param[in] dst_size Size of destination buffer.
+ * @param[out] out_copied Pointer to receive number of bytes copied.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+static enum c_abstract_http_error
+wasm_fetch_get_response_headers(emscripten_fetch_t *fetch, char *dst,
+                                size_t dst_size, size_t *out_copied) {
+  if (!out_copied) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+#if defined(__EMSCRIPTEN__) && !defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (!fetch || !dst || dst_size == 0) {
+    *out_copied = 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  *out_copied = emscripten_fetch_get_response_headers(fetch, dst, dst_size);
+#else
+  {
+    const char *hdrs = "Content-Type: text/plain\r\nX-Custom-Header: value";
+    size_t len;
+    if (!fetch || !dst || dst_size == 0) {
+      *out_copied = 0;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_wasm_headers_len_zero == 2) {
+      dst[0] = '\0';
+      *out_copied = 0;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+#endif
+    len = strlen(hdrs);
+    if (len >= dst_size) {
+      len = dst_size - 1;
+    }
+    memcpy(dst, hdrs, len);
+    dst[len] = '\0';
+    *out_copied = len;
+  }
+#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Execute an emscripten_fetch request.
+ *
+ * @param[in] attr Fetch attributes.
+ * @param[in] url Target URL.
+ * @param[out] out_fetch Pointer to receive fetch result.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+static enum c_abstract_http_error
+wasm_fetch_exec(const emscripten_fetch_attr_t *attr, const char *url,
+                emscripten_fetch_t **out_fetch) {
+  if (!attr || !out_fetch) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *out_fetch = NULL;
+#if defined(__EMSCRIPTEN__) && !defined(C_ABSTRACT_HTTP_TEST_OOM)
+  *out_fetch = emscripten_fetch((emscripten_fetch_attr_t *)attr, url);
+  return *out_fetch ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_IO;
+#else
+  {
+    emscripten_fetch_t *f;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_wasm_fetch_fail) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+#endif
+    f = (emscripten_fetch_t *)calloc(1, sizeof(emscripten_fetch_t));
+    if (!f) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_wasm_fetch_timeout == 1) {
+      f->status = 0;
+      f->numBytes = 0;
+      f->readyState = 2;
+      *out_fetch = f;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    } else if (g_mock_wasm_fetch_timeout == 2) {
+      f->status = 0;
+      f->numBytes = 5;
+      f->readyState = 2;
+      {
+        char *buf = (char *)malloc(5);
+        if (buf) {
+          memcpy(buf, "1234", 5);
+        }
+        f->data = buf;
+      }
+      *out_fetch = f;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    } else if (g_mock_wasm_fetch_timeout == 3) {
+      f->status = 0;
+      f->numBytes = 0;
+      f->readyState = 4;
+      *out_fetch = f;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+#endif
+    f->status = 200;
+    f->readyState = 4;
+    if (url && strstr(url, "empty") != NULL) {
+      f->numBytes = 0;
+      f->data = NULL;
+    } else {
+      const char *resp_body = "mock response body";
+      char *buf;
+      f->numBytes = strlen(resp_body);
+      buf = (char *)malloc((size_t)f->numBytes + 1);
+      if (buf) {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+        strcpy_s(buf, (size_t)f->numBytes + 1, resp_body);
+#else
+        strcpy(buf, resp_body);
+#endif
+      }
+      f->data = buf;
+    }
+    *out_fetch = f;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#endif
+}
 
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
@@ -212,7 +448,10 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  emscripten_fetch_attr_init(&attr);
+  rc = wasm_fetch_attr_init(&attr);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
   rc = get_method_str(req->method, &method_str);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wasm_send: Error get_method_str failed %d", (int)rc);
@@ -256,7 +495,7 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
     }
 
     for (;;) {
-      int chunk_rc;
+      enum c_abstract_http_error chunk_rc;
       if (body_len == cap) {
         char *new_buf;
         cap *= 2;
@@ -272,8 +511,8 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
       chunk_rc =
           req->read_chunk(req->read_chunk_user_data, body_buffer + body_len,
                           cap - body_len, &out_read);
-      if (chunk_rc != 0) {
-        LOG_DEBUG("http_wasm_send: Error read_chunk failed %d", chunk_rc);
+      if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        LOG_DEBUG("http_wasm_send: Error read_chunk failed %d", (int)chunk_rc);
         rc = ECANCELED;
         goto cleanup;
       }
@@ -290,9 +529,8 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
     attr.requestDataSize = req->body_len;
   }
 
-  fetch = emscripten_fetch(&attr, req->url);
-
-  if (!fetch) {
+  rc = wasm_fetch_exec(&attr, req->url, &fetch);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS || !fetch) {
     LOG_DEBUG("http_wasm_send: Error EIO (emscripten_fetch failed)");
     rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
@@ -337,12 +575,12 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
     (*res)->body_len = (size_t)fetch->numBytes;
 
     if (req->on_chunk) {
-      int chunk_rc;
+      enum c_abstract_http_error chunk_rc;
       chunk_rc = req->on_chunk(req->on_chunk_user_data, (*res)->body,
                                (*res)->body_len);
-      if (chunk_rc != 0) {
+      if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG("http_wasm_send: Error ECANCELED (chunk callback failed %d)",
-                  chunk_rc);
+                  (int)chunk_rc);
         rc = ECANCELED;
         goto cleanup;
       }
@@ -354,12 +592,20 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
   }
 
   {
-    size_t hdrs_len = emscripten_fetch_get_response_headers_length(fetch);
+    size_t hdrs_len = 0;
+    rc = wasm_fetch_get_response_headers_length(fetch, &hdrs_len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto cleanup;
+    }
     if (hdrs_len > 0) {
       char *hdrs_buf = (char *)malloc(hdrs_len + 1);
       if (hdrs_buf) {
-        size_t r = emscripten_fetch_get_response_headers(fetch, hdrs_buf,
-                                                         hdrs_len + 1);
+        size_t r = 0;
+        rc = wasm_fetch_get_response_headers(fetch, hdrs_buf, hdrs_len + 1, &r);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(hdrs_buf);
+          goto cleanup;
+        }
         if (r > 0) {
         }
         {
@@ -412,7 +658,10 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
 
 cleanup:
   if (fetch) {
-    emscripten_fetch_close(fetch);
+    enum c_abstract_http_error close_rc = wasm_fetch_close(fetch);
+    if (close_rc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = close_rc;
+    }
   }
   if (headers) {
     free((void *)headers);
@@ -483,3 +732,103 @@ enum c_abstract_http_error http_wasm_send_multi(
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Expose internal wasm helpers for test coverage.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
+enum c_abstract_http_error c_abstract_http_test_wasm_helpers(void);
+
+enum c_abstract_http_error c_abstract_http_test_wasm_helpers(void) {
+  emscripten_fetch_attr_t attr;
+  emscripten_fetch_t *f = NULL;
+  char buf[64];
+  size_t len = 0;
+  enum c_abstract_http_error rc;
+
+  rc = wasm_fetch_close(NULL);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = wasm_fetch_get_response_headers_length(NULL, &len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = wasm_fetch_get_response_headers(NULL, NULL, 0, &len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = wasm_fetch_get_response_headers(NULL, buf, 0, &len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  rc = wasm_fetch_attr_init(&attr);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = wasm_fetch_exec(&attr, "http://example.com", &f);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  if (f) {
+    rc = wasm_fetch_get_response_headers(f, NULL, 10, &len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    rc = wasm_fetch_get_response_headers(f, buf, 0, &len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    rc = wasm_fetch_get_response_headers(f, buf, 5, &len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    rc = wasm_fetch_close(f);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+
+  /* Cover f->data == NULL in wasm_fetch_close */
+  f = (emscripten_fetch_t *)calloc(1, sizeof(emscripten_fetch_t));
+  if (f) {
+    f->data = NULL;
+    rc = wasm_fetch_close(f);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+
+  /* Cover malloc failure for resp_body inside wasm_fetch_exec */
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  rc = wasm_fetch_exec(&attr, "http://example.com", &f);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS && f) {
+    rc = wasm_fetch_close(f);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      g_mock_alloc_fail = 0;
+      return rc;
+    }
+  }
+  g_mock_alloc_fail = 0;
+
+  /* Cover malloc failure for timeout == 2 inside wasm_fetch_exec */
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  g_mock_wasm_fetch_timeout = 2;
+  rc = wasm_fetch_exec(&attr, "http://example.com", &f);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS && f) {
+    rc = wasm_fetch_close(f);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      g_mock_wasm_fetch_timeout = 0;
+      g_mock_alloc_fail = 0;
+      return rc;
+    }
+  }
+  g_mock_wasm_fetch_timeout = 0;
+  g_mock_alloc_fail = 0;
+
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif

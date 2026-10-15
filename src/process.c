@@ -66,7 +66,8 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-#define execv(path, argv) (-1)
+#define execv(path, argv)                                                      \
+  ((int)((path)[0] - (path)[0] + ((argv)[0] - (argv)[0]) - 1))
 #endif
 
 static struct AbstractHttpProcessHooks g_process_hooks = {NULL, NULL, NULL,

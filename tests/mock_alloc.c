@@ -49,7 +49,7 @@
             ((fd_set FAR *)(set))->fd_count++; \
         } \
     } \
-} while((void)0, 0)
+} while(0, 0)
 #endif
 
 #undef g_mock_getsockname_fail
@@ -1449,9 +1449,13 @@ int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
       FD_ZERO(writefds);
     if (errorfds) {
       /* Force error flag on all fds */
-      unsigned int i;
-      for (i = 0; i < (unsigned int)nfds; ++i) {
+      int i;
+      for (i = 0; i < nfds; ++i) {
+#ifdef _WIN32
+        FD_SET((SOCKET)i, errorfds);
+#else
         FD_SET(i, errorfds);
+#endif
       }
       return 1;
     } else {
