@@ -90,8 +90,8 @@ TEST test_wininet_lifecycle(void) {
   ASSERT(ctx != NULL);
 
   /* Free NULL and ctx */
-  http_wininet_context_free(NULL);
-  http_wininet_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
 
 #if !defined(_WIN32)
   g_mock_wininet_context_init_fail = 1;
@@ -137,10 +137,12 @@ TEST test_wininet_config_apply(void) {
   config.follow_redirects = 0;
 
   /* Test with Proxy Auth */
-  c_abstract_http_mock_strdup("admin", &_ast_strdup_proxy);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("admin", &_ast_strdup_proxy));
   config.proxy_username = _ast_strdup_proxy;
 
-  c_abstract_http_mock_strdup("secret", &_ast_strdup_proxy2);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("secret", &_ast_strdup_proxy2));
   config.proxy_password = _ast_strdup_proxy2;
 
   rc = http_wininet_config_apply(ctx, &config);
@@ -184,14 +186,16 @@ TEST test_wininet_config_apply(void) {
 
   /* proxy username strdup fail */
   config.read_timeout_ms = 0;
-  c_abstract_http_mock_strdup("admin", &config.proxy_username);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("admin", &config.proxy_username));
   g_mock_wininet_context_init_fail = 2;
   rc = http_wininet_config_apply(ctx, &config);
   g_mock_wininet_context_init_fail = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
   /* proxy password strdup fail */
-  c_abstract_http_mock_strdup("secret", &config.proxy_password);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("secret", &config.proxy_password));
   g_mock_wininet_context_init_fail = 3;
   rc = http_wininet_config_apply(ctx, &config);
   g_mock_wininet_context_init_fail = 0;
@@ -210,7 +214,7 @@ TEST test_wininet_config_apply(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wininet_config_apply(ctx, NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
-  http_wininet_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
 }
 
@@ -252,13 +256,16 @@ TEST test_wininet_send_validation(void) {
   }
 
   /* Malformed URL handling in local testing (CrackUrl check) */
-  c_abstract_http_mock_strdup("not-a-valid-url", &_ast_strdup_0);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("not-a-valid-url", &_ast_strdup_0));
   req.url = _ast_strdup_0;
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
   /* Multipart validation */
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &_ast_strdup_0);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://127.0.0.1:8080/test",
+                                        &_ast_strdup_0));
   req.url = _ast_strdup_0;
   req.parts.count = 1;
   req.body = NULL;
@@ -279,7 +286,7 @@ TEST test_wininet_send_validation(void) {
   req.body_len = 0;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_wininet_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
 }
 
@@ -328,7 +335,9 @@ TEST test_wininet_send_methods_and_headers(void) {
 #if defined(_WIN32)
     c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-    c_abstract_http_mock_strdup("https://127.0.0.1:8443/test", &url_dup);
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        c_abstract_http_mock_strdup("https://127.0.0.1:8443/test", &url_dup));
 #endif
     req.url = url_dup;
     req.method = methods[i];
@@ -358,7 +367,7 @@ TEST test_wininet_send_methods_and_headers(void) {
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_wininet_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
 }
 
@@ -409,7 +418,9 @@ TEST test_wininet_send_cookies(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/cookies", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/cookies", &url_dup));
 #endif
   req.url = url_dup;
 
@@ -424,11 +435,11 @@ TEST test_wininet_send_cookies(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_cookie_jar_free(&jar);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_wininet_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
 }
 
@@ -464,7 +475,9 @@ TEST test_wininet_send_chunked(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/stream", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/stream", &url_dup));
 #endif
   req.url = url_dup;
   req.on_chunk = wininet_chunk_cb;
@@ -484,7 +497,7 @@ TEST test_wininet_send_chunked(void) {
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_wininet_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
 }
 
@@ -521,7 +534,9 @@ TEST test_wininet_send_chunked_abort(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/abort", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/abort", &url_dup));
 #endif
   req.url = url_dup;
   req.on_chunk = wininet_chunk_cb;
@@ -538,7 +553,7 @@ TEST test_wininet_send_chunked_abort(void) {
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_wininet_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
 }
 
@@ -574,7 +589,9 @@ TEST test_wininet_send_upload_chunked(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/upload", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/upload", &url_dup));
 #endif
   req.url = url_dup;
   req.method = HTTP_POST;
@@ -596,7 +613,9 @@ TEST test_wininet_send_upload_chunked(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/upload_abort", &url_dup);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://127.0.0.1:8080/upload_abort",
+                                        &url_dup));
 #endif
   req.url = url_dup;
   req.method = HTTP_POST;
@@ -613,7 +632,7 @@ TEST test_wininet_send_upload_chunked(void) {
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_wininet_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
 }
 
@@ -631,7 +650,9 @@ TEST test_wininet_send_mock_failures(void) {
 
   rc = http_request_init(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_dup));
   req.url = url_dup;
 
   /* wUrl alloc fail */
@@ -647,7 +668,8 @@ TEST test_wininet_send_mock_failures(void) {
   g_mock_wininet_crack_url_fail = 0;
 
   /* URL without path */
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080", &url_dup);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://127.0.0.1:8080", &url_dup));
   req.url = url_dup;
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -656,7 +678,9 @@ TEST test_wininet_send_mock_failures(void) {
     free(res);
     res = NULL;
   }
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_dup));
   req.url = url_dup;
 
   /* hostName / urlPath alloc fail */
@@ -785,7 +809,7 @@ TEST test_wininet_send_mock_failures(void) {
   g_mock_wininet_add_headers_fail = 0;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_wininet_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
 }
 
@@ -817,12 +841,14 @@ TEST test_wininet_coverage_branches(void) {
   config.verify_host = 0;
   config.verify_peer = 1;
   config.follow_redirects = 1;
-  c_abstract_http_mock_strdup("admin", &config.proxy_username);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("admin", &config.proxy_username));
   rc = http_wininet_config_apply(ctx, &config);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   config.proxy_username = NULL;
-  c_abstract_http_mock_strdup("secret", &config.proxy_password);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("secret", &config.proxy_password));
   rc = http_wininet_config_apply(ctx, &config);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
@@ -831,7 +857,9 @@ TEST test_wininet_coverage_branches(void) {
   /* 3. Send host/path alloc fail */
   rc = http_request_init(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/path", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/path", &url_dup));
   req.url = url_dup;
 
   g_mock_alloc_count = 1;
@@ -859,8 +887,10 @@ TEST test_wininet_coverage_branches(void) {
   config.verify_peer = 0;
   config.verify_host = 0;
   config.follow_redirects = 0;
-  c_abstract_http_mock_strdup("user", &config.proxy_username);
-  c_abstract_http_mock_strdup("pass", &config.proxy_password);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("user", &config.proxy_username));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("pass", &config.proxy_password));
   rc = http_cookie_jar_init(&jar);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   rc = http_cookie_jar_set(&jar, "ck", "val");
@@ -882,7 +912,9 @@ TEST test_wininet_coverage_branches(void) {
   g_mock_wininet_set_option_fail = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
 
-  c_abstract_http_mock_strdup("https://127.0.0.1:8443/secure", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("https://127.0.0.1:8443/secure", &url_dup));
   req.url = url_dup;
 
   g_mock_wininet_open_request_fail = 1;
@@ -1021,7 +1053,8 @@ TEST test_wininet_coverage_branches(void) {
   /* 10d. 5-char scheme other than https */
   {
     char *u = NULL;
-    c_abstract_http_strdup("gtest://127.0.0.1:8080/test", &u);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("gtest://127.0.0.1:8080/test", &u));
     req.url = u;
     rc = http_wininet_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -1036,7 +1069,8 @@ TEST test_wininet_coverage_branches(void) {
   /* 10e. URL without port */
   {
     char *u = NULL;
-    c_abstract_http_strdup("http://127.0.0.1/test", &u);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1/test", &u));
     req.url = u;
     rc = http_wininet_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -1051,7 +1085,8 @@ TEST test_wininet_coverage_branches(void) {
   /* 10f. URL without port and without path */
   {
     char *u = NULL;
-    c_abstract_http_strdup("http://127.0.0.1", &u);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1", &u));
     req.url = u;
     rc = http_wininet_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -1061,7 +1096,8 @@ TEST test_wininet_coverage_branches(void) {
       res = NULL;
     }
     free(u);
-    c_abstract_http_strdup("http://127.0.0.1:8080/test", &u);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1:8080/test", &u));
     req.url = u;
   }
 
@@ -1085,8 +1121,10 @@ TEST test_wininet_coverage_branches(void) {
     rc = http_wininet_config_apply(ctx, &cfg);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     /* Proxy username without password */
-    c_abstract_http_strdup("http://127.0.0.1:8080", &cfg.proxy_url);
-    c_abstract_http_strdup("user", &cfg.proxy_username);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1:8080", &cfg.proxy_url));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("user", &cfg.proxy_username));
     cfg.proxy_password = NULL;
     rc = http_wininet_config_apply(ctx, &cfg);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -1120,9 +1158,9 @@ TEST test_wininet_coverage_branches(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   }
 
-  http_cookie_jar_free(&jar);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_wininet_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
   PASS();
 }
 #endif

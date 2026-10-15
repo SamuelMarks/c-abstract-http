@@ -638,7 +638,10 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   }
 
   if (!f) {
-    map_fetch_error(fetchLastErrCode, &rc);
+    enum c_abstract_http_error map_rc = map_fetch_error(fetchLastErrCode, &rc);
+    if (map_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      rc = map_rc;
+    }
     LOG_DEBUG("http_fetch_send: Error fetchReqHTTP failed, rc=%d", (int)rc);
     if (upload_body) {
       free(upload_body);
@@ -722,10 +725,14 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   }
 
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_fetch_send: Error returning %d", (int)rc);
-    http_response_free(new_res);
+    free_rc = http_response_free(new_res);
     free(new_res);
     *res = NULL;
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return free_rc;
+    }
     return rc;
   }
 

@@ -605,15 +605,24 @@ headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
   p = buf;
   for (i = 0; i < headers->count; ++i) {
     size_t written = 0;
-    ascii_to_wide(headers->headers[i].key, p, total_wchars - (size_t)(p - buf),
-                  &written);
+    enum c_abstract_http_error conv_rc;
+    conv_rc = ascii_to_wide(headers->headers[i].key, p,
+                            total_wchars - (size_t)(p - buf), &written);
+    if (conv_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      return conv_rc;
+    }
     p += written;
     p[0] = L':';
     p[1] = L' ';
     p += 2;
 
-    ascii_to_wide(headers->headers[i].value, p,
-                  total_wchars - (size_t)(p - buf), &written);
+    conv_rc = ascii_to_wide(headers->headers[i].value, p,
+                            total_wchars - (size_t)(p - buf), &written);
+    if (conv_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      return conv_rc;
+    }
     p += written;
     p[0] = L'\r';
     p[1] = L'\n';
@@ -894,7 +903,11 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
       LOG_DEBUG("http_wininet_send: Error ENOMEM for wUrl");
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
-    ascii_to_wide(req->url, wUrl, cap, &wLen);
+    rc = ascii_to_wide(req->url, wUrl, cap, &wLen);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(wUrl);
+      return rc;
+    }
   }
 
   /* 2. Crack URL */
@@ -961,7 +974,10 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
     dwFlags |= ctx->security_flags;
   }
 
-  method_to_wide(req->method, &wmethod);
+  rc = method_to_wide(req->method, &wmethod);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    goto cleanup;
+  }
 
   hRequest = HttpOpenRequestW(hConnect, wmethod, urlComp.lpszUrlPath, NULL,
                               NULL, NULL, dwFlags, 0);
@@ -987,7 +1003,10 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
               ctx->cookie_jar->cookies[i].value);
 #endif
 
-      ascii_to_wide(cbuf, wcbuf, 4096, &written);
+      rc = ascii_to_wide(cbuf, wcbuf, 4096, &written);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto cleanup;
+      }
       HttpAddRequestHeadersW(hRequest, wcbuf, (DWORD)-1L, HTTP_ADDREQ_FLAG_ADD);
     }
   }
@@ -1078,7 +1097,11 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
       {
         char cbuf[4096];
         size_t cwritten = 0;
-        wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten);
+        rc = wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(pwszCookie);
+          goto cleanup;
+        }
         {
           char *eq = strchr(cbuf, '=');
           const char *name = cbuf;

@@ -332,7 +332,7 @@ TEST test_apple_send_mock_server(void) {
   /* On-chunk request */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             mock_server_wait_for_request(server, &mock_req));
-  mock_server_request_cleanup(&mock_req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_request_cleanup(&mock_req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   req.url = (char *)malloc(strlen(url) + 1);
@@ -356,10 +356,10 @@ TEST test_apple_send_mock_server(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             mock_server_wait_for_request(server, &mock_req));
-  mock_server_request_cleanup(&mock_req);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_request_cleanup(&mock_req));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
 #endif
   PASS();
 }
@@ -673,7 +673,7 @@ TEST test_apple_send_multi(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
 #endif
   PASS();
 }

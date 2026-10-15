@@ -48,6 +48,7 @@
 static struct AbstractHttpCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL,
                                                               NULL, NULL};
 
+/** @brief Set custom coroutine hooks */
 enum c_abstract_http_error abstract_http_coroutine_set_hooks(
     const struct AbstractHttpCoroutineHooks *hooks) {
   if (hooks) {
@@ -183,6 +184,7 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Yield execution from current coroutine */
 enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   struct AbstractHttpCoroutine *co;
 
@@ -387,6 +389,7 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Yield execution from current coroutine */
 enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   struct AbstractHttpCoroutine *co;
 
@@ -620,6 +623,7 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Yield execution from current coroutine */
 enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   struct AbstractHttpCoroutine *co;
   enum c_abstract_http_error k_rc;

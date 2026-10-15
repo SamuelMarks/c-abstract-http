@@ -847,9 +847,12 @@ static void dummy_libevent_chunk_cb(struct evhttp_request *req, void *arg) {
   (void)arg;
 }
 
+/** @brief Test helper for libevent method command mapping */
 enum c_abstract_http_error
 c_abstract_http_test_libevent_method_cmd(enum HttpMethod method, int *out_cmd);
+/** @brief Test helper for libevent evbuffer operations */
 enum c_abstract_http_error c_abstract_http_test_libevent_evbuffer(void);
+/** @brief Test helper for libevent header edge cases */
 enum c_abstract_http_error c_abstract_http_test_libevent_add_header_edge(void);
 
 /**
@@ -1313,7 +1316,12 @@ enum c_abstract_http_error http_libevent_send(struct HttpTransportContext *ctx,
     }
   }
 
-  get_method_cmd(req->method, &method_cmd);
+  rc = get_method_cmd(req->method, &method_cmd);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    evhttp_connection_free(state.conn);
+    event_base_free(state.base);
+    return rc;
+  }
   if (evhttp_make_request(state.conn, req_ev, method_cmd, path) != 0) {
     LOG_DEBUG("http_libevent_send: Error evhttp_make_request failed");
 #if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBEVENT)

@@ -96,8 +96,8 @@ TEST test_winhttp_lifecycle(void) {
   ASSERT(ctx != NULL);
 
   /* Free NULL and ctx */
-  http_winhttp_context_free(NULL);
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
 
 #if !defined(_WIN32)
   g_mock_winhttp_context_init_fail = 1;
@@ -153,13 +153,17 @@ TEST test_winhttp_config_usage(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* Proxy config */
-  c_abstract_http_mock_strdup("http://127.0.0.1:8888", &_ast_strdup_0);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8888", &_ast_strdup_0));
   cfg.proxy_url = _ast_strdup_0;
 
-  c_abstract_http_mock_strdup("admin", &_ast_strdup_0);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("admin", &_ast_strdup_0));
   cfg.proxy_username = _ast_strdup_0;
 
-  c_abstract_http_mock_strdup("secret", &_ast_strdup_0);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("secret", &_ast_strdup_0));
   cfg.proxy_password = _ast_strdup_0;
 
   rc = http_winhttp_config_apply(ctx, &cfg);
@@ -213,7 +217,7 @@ TEST test_winhttp_config_usage(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 
@@ -248,7 +252,7 @@ TEST test_winhttp_send_null_checks(void) {
   }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 
@@ -267,14 +271,15 @@ TEST test_winhttp_send_fail(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* Invalid URL syntax */
-  c_abstract_http_mock_strdup("not_a_url", &_ast_strdup_1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("not_a_url", &_ast_strdup_1));
   req.url = _ast_strdup_1;
 
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 
@@ -323,7 +328,9 @@ TEST test_winhttp_send_methods_and_headers(void) {
 #if defined(_WIN32)
     c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-    c_abstract_http_mock_strdup("https://127.0.0.1:8443/test", &url_dup);
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        c_abstract_http_mock_strdup("https://127.0.0.1:8443/test", &url_dup));
 #endif
     req.url = url_dup;
     req.method = methods[i];
@@ -353,7 +360,7 @@ TEST test_winhttp_send_methods_and_headers(void) {
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 
@@ -404,7 +411,9 @@ TEST test_winhttp_send_cookies(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/cookies", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/cookies", &url_dup));
 #endif
   req.url = url_dup;
 
@@ -419,11 +428,11 @@ TEST test_winhttp_send_cookies(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
   free(res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_cookie_jar_free(&jar);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 
@@ -459,7 +468,9 @@ TEST test_winhttp_send_chunked(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/stream", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/stream", &url_dup));
 #endif
   req.url = url_dup;
   req.on_chunk = winhttp_chunk_cb;
@@ -479,7 +490,7 @@ TEST test_winhttp_send_chunked(void) {
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 
@@ -516,7 +527,9 @@ TEST test_winhttp_send_chunked_abort(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/abort", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/abort", &url_dup));
 #endif
   req.url = url_dup;
   req.on_chunk = winhttp_chunk_cb;
@@ -533,7 +546,7 @@ TEST test_winhttp_send_chunked_abort(void) {
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 
@@ -569,7 +582,9 @@ TEST test_winhttp_send_upload_chunked(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/upload", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/upload", &url_dup));
 #endif
   req.url = url_dup;
   req.method = HTTP_POST;
@@ -591,7 +606,9 @@ TEST test_winhttp_send_upload_chunked(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/upload_abort", &url_dup);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://127.0.0.1:8080/upload_abort",
+                                        &url_dup));
 #endif
   req.url = url_dup;
   req.method = HTTP_POST;
@@ -608,7 +625,7 @@ TEST test_winhttp_send_upload_chunked(void) {
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 
@@ -648,7 +665,9 @@ TEST test_winhttp_send_multi(void) {
 #if defined(_WIN32)
   c_abstract_http_mock_strdup(url_buf, &url_dup);
 #else
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/multi", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/multi", &url_dup));
 #endif
   req.url = url_dup;
 
@@ -692,13 +711,13 @@ TEST test_winhttp_send_multi(void) {
   g_mock_alloc_fail = 0;
 #endif
 
-  http_future_free(&f1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
 #if defined(_WIN32)
   mock_server_destroy(server);
 #endif
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 
@@ -721,7 +740,9 @@ TEST test_winhttp_send_mock_failures(void) {
 
   rc = http_request_init(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_dup));
   req.url = url_dup;
 
   /* wUrl alloc fail */
@@ -737,7 +758,8 @@ TEST test_winhttp_send_mock_failures(void) {
   g_mock_winhttp_crack_url_fail = 0;
 
   /* URL without path */
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080", &url_dup);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://127.0.0.1:8080", &url_dup));
   req.url = url_dup;
   rc = http_winhttp_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -746,7 +768,9 @@ TEST test_winhttp_send_mock_failures(void) {
     free(res);
     res = NULL;
   }
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_dup));
   req.url = url_dup;
 
   /* hostName / urlPath alloc fail */
@@ -872,7 +896,7 @@ TEST test_winhttp_send_mock_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 
@@ -902,9 +926,13 @@ TEST test_winhttp_coverage_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
   /* 3. Config apply proxy user/pass alloc fail */
-  c_abstract_http_mock_strdup("http://127.0.0.1:8888", &cfg.proxy_url);
-  c_abstract_http_mock_strdup("admin", &cfg.proxy_username);
-  c_abstract_http_mock_strdup("secret", &cfg.proxy_password);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8888", &cfg.proxy_url));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("admin", &cfg.proxy_username));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("secret", &cfg.proxy_password));
   g_mock_alloc_count = 1;
   g_mock_alloc_fail = 1;
   rc = http_winhttp_config_apply(ctx, &cfg);
@@ -925,7 +953,9 @@ TEST test_winhttp_coverage_branches(void) {
    */
   rc = http_request_init(&req);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/path", &url_dup);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/path", &url_dup));
   req.url = url_dup;
 
   g_mock_alloc_count = 1;
@@ -1119,7 +1149,8 @@ TEST test_winhttp_coverage_branches(void) {
   /* 11d. 5-char scheme other than https */
   {
     char *u = NULL;
-    c_abstract_http_strdup("gtest://127.0.0.1:8080/test", &u);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("gtest://127.0.0.1:8080/test", &u));
     req.url = u;
     rc = http_winhttp_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -1134,7 +1165,8 @@ TEST test_winhttp_coverage_branches(void) {
   /* 11e. URL without port */
   {
     char *u = NULL;
-    c_abstract_http_strdup("http://127.0.0.1/test", &u);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1/test", &u));
     req.url = u;
     rc = http_winhttp_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -1149,7 +1181,8 @@ TEST test_winhttp_coverage_branches(void) {
   /* 11f. URL without port and without path */
   {
     char *u = NULL;
-    c_abstract_http_strdup("http://127.0.0.1", &u);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1", &u));
     req.url = u;
     rc = http_winhttp_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -1159,7 +1192,8 @@ TEST test_winhttp_coverage_branches(void) {
       res = NULL;
     }
     free(u);
-    c_abstract_http_strdup("http://127.0.0.1:8080/test", &u);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1:8080/test", &u));
     req.url = u;
   }
 
@@ -1183,8 +1217,10 @@ TEST test_winhttp_coverage_branches(void) {
     rc = http_winhttp_config_apply(ctx, &cfg);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     /* Proxy username without password */
-    c_abstract_http_strdup("http://127.0.0.1:8080", &cfg.proxy_url);
-    c_abstract_http_strdup("user", &cfg.proxy_username);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1:8080", &cfg.proxy_url));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("user", &cfg.proxy_username));
     cfg.proxy_password = NULL;
     rc = http_winhttp_config_apply(ctx, &cfg);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -1242,13 +1278,13 @@ TEST test_winhttp_coverage_branches(void) {
     g_mock_winhttp_queue_work_item_fail = 0;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
 
-    http_future_free(&f1);
-    http_loop_free(loop);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   }
 
-  http_cookie_jar_free(&jar);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_winhttp_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
 #endif

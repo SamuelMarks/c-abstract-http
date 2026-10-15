@@ -95,15 +95,17 @@ struct fetch_TestUploadState {
  * @param[out] out_read Pointer to receive number of bytes read.
  * @return 0 on success, non-zero to abort.
  */
-static int fetch_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
-                                size_t *out_read) {
+static enum c_abstract_http_error fetch_mock_upload_cb(void *user_data,
+                                                       void *buf,
+                                                       size_t buf_len,
+                                                       size_t *out_read) {
   struct fetch_TestUploadState *state;
   size_t remaining;
   size_t to_copy;
 
   state = (struct fetch_TestUploadState *)user_data;
   if (state->abort) {
-    return (int)C_ABSTRACT_HTTP_ERR_IO;
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
 
   remaining = state->len - state->pos;
@@ -114,7 +116,7 @@ static int fetch_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
     state->pos += to_copy;
   }
   *out_read = to_copy;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -154,8 +156,8 @@ TEST test_fetch_context_lifecycle(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_init(&ctx));
   ASSERT(ctx != NULL);
 
-  http_fetch_context_free(ctx);
-  http_fetch_context_free(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_free(NULL));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   g_mock_fetch_context_init_fail = 1;
@@ -202,9 +204,12 @@ TEST test_fetch_config_application(void) {
   config.timeout_ms = 500;
   config.verify_peer = 0;
   config.follow_redirects = 0;
-  c_abstract_http_mock_strdup("http://proxy.local:8080", &_ast_strdup_proxy);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://proxy.local:8080",
+                                        &_ast_strdup_proxy));
   config.proxy_url = _ast_strdup_proxy;
-  c_abstract_http_mock_strdup("CustomAgent/1.0", &_ast_strdup_user);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("CustomAgent/1.0", &_ast_strdup_user));
   config.user_agent = _ast_strdup_user;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &config));
@@ -214,9 +219,12 @@ TEST test_fetch_config_application(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   _ast_strdup_proxy = NULL;
   _ast_strdup_user = NULL;
-  c_abstract_http_mock_strdup("http://proxy2.local:8080", &_ast_strdup_proxy);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://proxy2.local:8080",
+                                        &_ast_strdup_proxy));
   config.proxy_url = _ast_strdup_proxy;
-  c_abstract_http_mock_strdup("CustomAgent2/1.0", &_ast_strdup_user);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("CustomAgent2/1.0", &_ast_strdup_user));
   config.user_agent = _ast_strdup_user;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &config));
 
@@ -235,7 +243,8 @@ TEST test_fetch_config_application(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* strdup fail for user_agent in config apply */
   _ast_strdup_user = NULL;
-  c_abstract_http_mock_strdup("CustomAgent/1.0", &_ast_strdup_user);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("CustomAgent/1.0", &_ast_strdup_user));
   config.user_agent = _ast_strdup_user;
   g_mock_alloc_count = 0;
   g_mock_alloc_fail = 1;
@@ -246,7 +255,9 @@ TEST test_fetch_config_application(void) {
   free(config.user_agent);
   config.user_agent = NULL;
   _ast_strdup_proxy = NULL;
-  c_abstract_http_mock_strdup("http://proxy.local:8080", &_ast_strdup_proxy);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://proxy.local:8080",
+                                        &_ast_strdup_proxy));
   config.proxy_url = _ast_strdup_proxy;
   g_mock_alloc_count = 0;
   g_mock_alloc_fail = 1;
@@ -255,7 +266,7 @@ TEST test_fetch_config_application(void) {
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
-  http_fetch_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
 }
@@ -295,7 +306,9 @@ TEST test_fetch_send_invalid_arguments(void) {
   req.url = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_fetch_send(ctx, &req, &res));
 
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_str);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_str));
   req.url = url_str;
 
   /* Multipart not flattened */
@@ -321,14 +334,17 @@ TEST test_fetch_send_invalid_arguments(void) {
   /* Invalid URL */
   free((void *)req.url);
   url_str = NULL;
-  c_abstract_http_mock_strdup("invalid://url", &url_str);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("invalid://url", &url_str));
   req.url = url_str;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_fetch_send(ctx, &req, &res));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   free((void *)req.url);
   url_str = NULL;
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_str);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_str));
   req.url = url_str;
   g_mock_fetch_parse_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_fetch_send(ctx, &req, &res));
@@ -343,7 +359,7 @@ TEST test_fetch_send_invalid_arguments(void) {
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_fetch_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
 }
@@ -372,7 +388,9 @@ TEST test_fetch_send_methods(void) {
     url_str = NULL;
     res = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-    c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_str);
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_str));
     req.url = url_str;
     req.method = methods[i];
 
@@ -385,7 +403,7 @@ TEST test_fetch_send_methods(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
-  http_fetch_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
 }
@@ -416,17 +434,24 @@ TEST test_fetch_send_success_and_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
 
-  c_abstract_http_mock_strdup("http://proxy.test:8080", &_ast_strdup_proxy);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://proxy.test:8080",
+                                        &_ast_strdup_proxy));
   cfg.proxy_url = _ast_strdup_proxy;
-  c_abstract_http_mock_strdup("TestAgent/2.0", &_ast_strdup_agent);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("TestAgent/2.0", &_ast_strdup_agent));
   cfg.user_agent = _ast_strdup_agent;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &cfg));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &_ast_strdup_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://127.0.0.1:8080/test",
+                                        &_ast_strdup_url));
   req.url = _ast_strdup_url;
-  c_abstract_http_mock_strdup("request_body_payload", &_ast_strdup_body);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_mock_strdup("request_body_payload", &_ast_strdup_body));
   req.body = _ast_strdup_body;
   req.body_len = strlen(_ast_strdup_body);
 
@@ -492,7 +517,7 @@ TEST test_fetch_send_success_and_failures(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
-  http_fetch_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
 }
@@ -516,7 +541,9 @@ TEST test_fetch_send_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &_ast_strdup_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://127.0.0.1:8080/test",
+                                        &_ast_strdup_url));
   req.url = _ast_strdup_url;
 
   state.call_count = 0;
@@ -546,7 +573,7 @@ TEST test_fetch_send_chunked(void) {
   ASSERT(res == NULL);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_fetch_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
 }
@@ -573,7 +600,9 @@ TEST test_fetch_send_upload_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &_ast_strdup_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://127.0.0.1:8080/test",
+                                        &_ast_strdup_url));
   req.url = _ast_strdup_url;
   req.method = HTTP_POST;
 
@@ -671,7 +700,7 @@ TEST test_fetch_send_upload_chunked(void) {
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_fetch_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
 }
@@ -701,10 +730,12 @@ TEST test_fetch_send_multi(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/multi1",
-                              &_ast_strdup_url1);
-  c_abstract_http_mock_strdup("http://127.0.0.1:8080/multi2",
-                              &_ast_strdup_url2);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://127.0.0.1:8080/multi1",
+                                        &_ast_strdup_url1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://127.0.0.1:8080/multi2",
+                                        &_ast_strdup_url2));
   req1.url = _ast_strdup_url1;
   req2.url = _ast_strdup_url2;
 
@@ -782,12 +813,12 @@ TEST test_fetch_send_multi(void) {
   g_mock_fetch_req_fail = 0;
 #endif
 
-  http_loop_free(loop);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
   free(futures[0]);
   free(futures[1]);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
-  http_fetch_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
   PASS();
 }

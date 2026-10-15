@@ -1,3 +1,9 @@
+/**
+ * @file http_picoquic.c
+ * @brief Picoquic implementation of the Abstract Network Interface (ANI).
+ * @author Samuel Marks
+ */
+
 /* clang-format off */
 #include <errno.h>
 #include <stdio.h>
@@ -14,6 +20,7 @@
 #include <c_abstract_http/http_picoquic.h>
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
+#include <picoquic.h>
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -22,8 +29,6 @@ extern int g_mock_picoquic_config_init_fail;
 extern int g_mock_picoquic_response_init_fail;
 extern int g_mock_picoquic_quic_null_on_free;
 #endif
-
-#include <picoquic.h>
 
 static int g_picoquic_init_count = 0;
 
@@ -111,9 +116,13 @@ http_picoquic_context_init(struct HttpTransportContext **ctx) {
                             reset_seed, 0, NULL, NULL, NULL, 0);
 
   if (!c->quic) {
+    enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_picoquic_context_init: Error picoquic_create failed");
-    http_config_free(&c->config);
+    free_rc = http_config_free(&c->config);
     free(c);
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return free_rc;
+    }
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 

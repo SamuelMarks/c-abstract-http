@@ -217,7 +217,8 @@ TEST test_thread_pool_errors(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(NULL));
 
-  abstract_http_thread_pool_test_set_stop(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_test_set_stop(NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             abstract_http_thread_pool_test_inject_task(NULL));
 
@@ -230,10 +231,12 @@ TEST test_thread_pool_errors(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
 
   g_mock_pthread_fail = 3;
-  abstract_http_thread_pool_test_set_stop(pool);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_thread_pool_test_set_stop(pool));
   g_mock_pthread_fail = 0;
 
-  abstract_http_thread_pool_test_set_stop(pool);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_test_set_stop(pool));
   /* Wait for the thread to exit now that stop is set */
   sleep_ms(50);
 
@@ -302,7 +305,8 @@ TEST test_thread_pool_edge_cases(void) {
   /* 516-519: push when stopped */
   /* and 563-565: tasks left in queue */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
-  abstract_http_thread_pool_test_set_stop(pool);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_test_set_stop(pool));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             abstract_http_thread_pool_push(pool, dummy_cb_thread, NULL));
 

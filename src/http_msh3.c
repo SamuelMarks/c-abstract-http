@@ -1,3 +1,9 @@
+/**
+ * @file http_msh3.c
+ * @brief MsH3 implementation of the Abstract Network Interface (ANI).
+ * @author Samuel Marks
+ */
+
 /* clang-format off */
 #if !defined(_WIN32)
 #ifndef _DEFAULT_SOURCE
@@ -16,7 +22,6 @@
 #include "c_abstract_http/log.h"
 #include <c_abstract_http/thread_pool.h>
 
-#if defined(C_ABSTRACT_HTTP_HAVE_REAL_MSH3)
 #include <msh3.h>
 #if defined(_WIN32)
 #include <winsock2.h>
@@ -26,19 +31,28 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #endif
-#else
-#if defined(_WIN32)
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else
-#include <netdb.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#endif
-#endif
 /* clang-format on */
 
-* / enum c_abstract_http_error http_msh3_global_init(void) {
+static int g_msh3_init_count = 0;
+static struct AbstractHttpMutex *g_msh3_mutex = NULL;
+static MSH3_API *g_msh3_api = NULL;
+
+/** @brief Internal struct HttpTransportContext */
+struct HttpTransportContext {
+  /** @brief MsH3 configuration handle */
+  MSH3_CONFIGURATION *config;
+  /** @brief Secure connection flag */
+  int secure;
+  /** @brief Base configuration settings */
+  struct HttpConfig base_config;
+};
+
+/**
+ * @brief Initialize the global MsH3 state.
+ *
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
+enum c_abstract_http_error http_msh3_global_init(void) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   if (!g_msh3_mutex) {
     {
@@ -95,8 +109,11 @@ enum c_abstract_http_error http_msh3_global_cleanup(void) {
   }
   rc = abstract_http_mutex_unlock(g_msh3_mutex);
   if (g_msh3_init_count == 0) {
-    abstract_http_mutex_free(g_msh3_mutex);
+    enum c_abstract_http_error free_rc = abstract_http_mutex_free(g_msh3_mutex);
     g_msh3_mutex = NULL;
+    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = free_rc;
+    }
   }
   return rc;
 }
@@ -576,14 +593,18 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
                                                  &result);
   }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_msh3_send: Error getaddrinfo failed for host '%s'", host);
     free(host);
     free(port_str);
     free(path);
     free(scheme);
-    http_response_free(*res);
+    free_rc = http_response_free(*res);
     free(*res);
     *res = NULL;
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return free_rc;
+    }
     return C_ABSTRACT_HTTP_ERR_IO;
   }
 
@@ -597,14 +618,18 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
 
   conn = MsH3ConnectionOpen(g_msh3_api, msh3_conn_cb, NULL);
   if (!conn) {
+    enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_msh3_send: Error MsH3ConnectionOpen failed");
     free(host);
     free(port_str);
     free(path);
     free(scheme);
-    http_response_free(*res);
+    free_rc = http_response_free(*res);
     free(*res);
     *res = NULL;
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return free_rc;
+    }
     return C_ABSTRACT_HTTP_ERR_IO;
   }
 
@@ -619,6 +644,7 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
 
   { rc = abstract_http_mutex_init(&rctx.mutex); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_msh3_send: Error abstract_http_mutex_init failed with %d",
               (int)rc);
     MsH3ConnectionClose(conn);
@@ -626,25 +652,36 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
     free(port_str);
     free(path);
     free(scheme);
-    http_response_free(*res);
+    free_rc = http_response_free(*res);
     free(*res);
     *res = NULL;
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return free_rc;
+    }
     return rc;
   }
 
   { rc = abstract_http_cond_init(&rctx.cond); }
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    enum c_abstract_http_error mtx_rc;
+    enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_msh3_send: Error abstract_http_cond_init failed with %d",
               (int)rc);
-    abstract_http_mutex_free(rctx.mutex);
+    mtx_rc = abstract_http_mutex_free(rctx.mutex);
     MsH3ConnectionClose(conn);
     free(host);
     free(port_str);
     free(path);
     free(scheme);
-    http_response_free(*res);
+    free_rc = http_response_free(*res);
     free(*res);
     *res = NULL;
+    if (mtx_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return mtx_rc;
+    }
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return free_rc;
+    }
     return rc;
   }
 
@@ -737,8 +774,20 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
   }
 
   MsH3ConnectionClose(conn);
-  abstract_http_cond_free(rctx.cond);
-  abstract_http_mutex_free(rctx.mutex);
+  {
+    enum c_abstract_http_error cond_free_rc =
+        abstract_http_cond_free(rctx.cond);
+    enum c_abstract_http_error mtx_free_rc =
+        abstract_http_mutex_free(rctx.mutex);
+    if (cond_free_rc != C_ABSTRACT_HTTP_SUCCESS &&
+        msh3_status == C_ABSTRACT_HTTP_SUCCESS) {
+      msh3_status = cond_free_rc;
+    }
+    if (mtx_free_rc != C_ABSTRACT_HTTP_SUCCESS &&
+        msh3_status == C_ABSTRACT_HTTP_SUCCESS) {
+      msh3_status = mtx_free_rc;
+    }
+  }
 
   free(host);
   free(port_str);
@@ -746,10 +795,14 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
   free(scheme);
 
   if (msh3_status != C_ABSTRACT_HTTP_SUCCESS) {
+    enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_msh3_send: Error returning %d", (int)msh3_status);
-    http_response_free(*res);
+    free_rc = http_response_free(*res);
     free(*res);
     *res = NULL;
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return free_rc;
+    }
     return msh3_status;
   }
 

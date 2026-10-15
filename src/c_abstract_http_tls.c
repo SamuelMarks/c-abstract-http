@@ -51,6 +51,7 @@ abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Set TLS value for the current thread */
 enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
                                                  void *value) {
   LOG_DEBUG("abstract_http_tls_set: Entering");
@@ -66,6 +67,7 @@ enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Get TLS value for the current thread */
 enum c_abstract_http_error abstract_http_tls_get(struct AbstractHttpTlsKey *key,
                                                  void **out_value) {
   LOG_DEBUG("abstract_http_tls_get: Entering");
@@ -127,6 +129,7 @@ abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Set TLS value for the current thread */
 enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
                                                  void *value) {
   int err;
@@ -145,6 +148,7 @@ enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Get TLS value for the current thread */
 enum c_abstract_http_error abstract_http_tls_get(struct AbstractHttpTlsKey *key,
                                                  void **out_value) {
   LOG_DEBUG("abstract_http_tls_get: Entering");

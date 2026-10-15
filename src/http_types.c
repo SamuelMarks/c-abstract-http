@@ -118,6 +118,7 @@ static enum c_abstract_http_error sprintf_s_wrapper(size_t *out_written,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an HTTP headers collection */
 enum c_abstract_http_error http_headers_init(struct HttpHeaders *headers) {
   if (!headers)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -131,6 +132,7 @@ enum c_abstract_http_error http_headers_init(struct HttpHeaders *headers) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free an HTTP headers collection */
 enum c_abstract_http_error http_headers_free(struct HttpHeaders *headers) {
   size_t i;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -153,8 +155,10 @@ enum c_abstract_http_error http_headers_free(struct HttpHeaders *headers) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #undef c_abstract_http_strdup
+/** @brief Duplicate a NUL-terminated string */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 c_abstract_http_strdup(const char *s, char **out_s);
+/** @brief Duplicate a NUL-terminated string */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 c_abstract_http_strdup(const char *s, char **out_s) {
   size_t len;
@@ -185,13 +189,16 @@ c_abstract_http_strdup(const char *s, char **out_s) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Test helper for unmocked c_abstract_http_strdup */
 C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_test_real_strdup(const char *s, char **out_s);
+/** @brief Test helper for unmocked c_abstract_http_strdup */
 C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_test_real_strdup(const char *s, char **out_s) {
   return c_abstract_http_strdup(s, out_s);
 }
 
+/** @brief Add a key-value pair to an HTTP headers collection */
 enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers,
                                             const char *key,
                                             const char *value) {
@@ -230,6 +237,7 @@ enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Retrieve a header value by case-insensitive key */
 enum c_abstract_http_error http_headers_get(const struct HttpHeaders *headers,
                                             const char *key, const char **out) {
   size_t i;
@@ -249,6 +257,8 @@ enum c_abstract_http_error http_headers_get(const struct HttpHeaders *headers,
   }
   return C_ABSTRACT_HTTP_ERR_INVAL;
 }
+
+/** @brief Remove all headers matching a case-insensitive key */
 enum c_abstract_http_error http_headers_remove(struct HttpHeaders *headers,
                                                const char *key) {
   size_t i, j;
@@ -286,6 +296,7 @@ enum c_abstract_http_error http_headers_remove(struct HttpHeaders *headers,
 
 /* --- Multipart Implementation --- */
 
+/** @brief Initialize a multipart parts collection */
 enum c_abstract_http_error http_parts_init(struct HttpParts *parts) {
   if (!parts)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -299,6 +310,7 @@ enum c_abstract_http_error http_parts_init(struct HttpParts *parts) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free a multipart parts collection */
 enum c_abstract_http_error http_parts_free(struct HttpParts *parts) {
   size_t i;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -436,6 +448,7 @@ http_request_add_part_header_last(struct HttpRequest *req, const char *key,
   return http_headers_add(&part->headers, key, value);
 }
 
+/** @brief Flatten multipart parts into a serialized request body */
 enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
   char boundary[64];
   size_t i;
@@ -646,6 +659,7 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize a cookie jar */
 enum c_abstract_http_error http_cookie_jar_init(struct HttpCookieJar *jar) {
   if (!jar)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -655,6 +669,7 @@ enum c_abstract_http_error http_cookie_jar_init(struct HttpCookieJar *jar) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free a cookie jar */
 enum c_abstract_http_error http_cookie_jar_free(struct HttpCookieJar *jar) {
   size_t i;
   if (!jar)
@@ -674,6 +689,7 @@ enum c_abstract_http_error http_cookie_jar_free(struct HttpCookieJar *jar) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Set or update a cookie in the cookie jar */
 enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
                                                const char *name,
                                                const char *value) {
@@ -734,6 +750,7 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Retrieve a cookie value by name */
 enum c_abstract_http_error http_cookie_jar_get(const struct HttpCookieJar *jar,
                                                const char *name,
                                                const char **out) {
@@ -749,6 +766,7 @@ enum c_abstract_http_error http_cookie_jar_get(const struct HttpCookieJar *jar,
   return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
+/** @brief Initialize an HTTP configuration structure */
 enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   char *_ast_strdup_5 = NULL;
   if (!config)
@@ -788,6 +806,7 @@ enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free an HTTP configuration structure */
 enum c_abstract_http_error http_config_free(struct HttpConfig *config) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_config_free_fail)
@@ -814,6 +833,7 @@ enum c_abstract_http_error http_config_free(struct HttpConfig *config) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an HTTP client */
 enum c_abstract_http_error http_client_init(struct HttpClient *client) {
   if (!client)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -822,6 +842,7 @@ enum c_abstract_http_error http_client_init(struct HttpClient *client) {
   return http_config_init(&client->config);
 }
 
+/** @brief Free an HTTP client */
 enum c_abstract_http_error http_client_free(struct HttpClient *client) {
   if (!client)
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -839,6 +860,7 @@ enum c_abstract_http_error http_client_free(struct HttpClient *client) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an HTTP request structure */
 enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
   enum c_abstract_http_error rc;
   if (!req)
@@ -868,10 +890,10 @@ enum c_abstract_http_error http_request_init(struct HttpRequest *req) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free an HTTP request structure */
 enum c_abstract_http_error http_request_free(struct HttpRequest *req) {
   if (!req)
     return C_ABSTRACT_HTTP_SUCCESS;
-  fprintf(stderr, "C\n");
   if (req->url) {
     free(req->url);
     req->url = NULL;
@@ -894,6 +916,7 @@ enum c_abstract_http_error http_request_free(struct HttpRequest *req) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize a modality execution context */
 enum c_abstract_http_error
 http_modality_context_init(struct ModalityContext *ctx) {
   if (!ctx)
@@ -903,6 +926,7 @@ http_modality_context_init(struct ModalityContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free a modality execution context */
 enum c_abstract_http_error
 http_modality_context_free(struct ModalityContext *ctx) {
   if (!ctx)
@@ -912,6 +936,7 @@ http_modality_context_free(struct ModalityContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an asynchronous HTTP future */
 enum c_abstract_http_error http_future_init(struct HttpFuture *future) {
   if (!future)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -922,6 +947,7 @@ enum c_abstract_http_error http_future_init(struct HttpFuture *future) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free an asynchronous HTTP future */
 enum c_abstract_http_error http_future_free(struct HttpFuture *future) {
   if (!future)
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -932,6 +958,7 @@ enum c_abstract_http_error http_future_free(struct HttpFuture *future) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize a multi-request batch */
 enum c_abstract_http_error
 http_multi_request_init(struct HttpMultiRequest *multi) {
   if (!multi)
@@ -946,6 +973,7 @@ http_multi_request_init(struct HttpMultiRequest *multi) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free a multi-request batch */
 enum c_abstract_http_error
 http_multi_request_free(struct HttpMultiRequest *multi) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -964,6 +992,7 @@ http_multi_request_free(struct HttpMultiRequest *multi) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Add an HTTP request to a multi-request batch */
 enum c_abstract_http_error
 http_multi_request_add(struct HttpMultiRequest *multi,
                        struct HttpRequest *req) {
@@ -984,6 +1013,7 @@ http_multi_request_add(struct HttpMultiRequest *multi,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Set Bearer token Authorization header on an HTTP request */
 enum c_abstract_http_error http_request_set_auth_bearer(struct HttpRequest *req,
                                                         const char *token) {
   char *val = NULL;
@@ -1016,6 +1046,7 @@ enum c_abstract_http_error http_request_set_auth_bearer(struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Set Basic token Authorization header on an HTTP request */
 enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req,
                                                        const char *token) {
   char *val = NULL;
@@ -1083,6 +1114,8 @@ static enum c_abstract_http_error base64_encode(const unsigned char *src,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Set Basic username/password Authorization header on an HTTP request
+ */
 enum c_abstract_http_error http_request_set_auth_basic_userpwd(
     struct HttpRequest *req, const char *username, const char *password) {
   enum c_abstract_http_error rc;
@@ -1177,6 +1210,7 @@ static enum c_abstract_http_error urlencode_append(char **dest,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an OAuth2 Resource Owner Password Credentials request */
 enum c_abstract_http_error http_request_init_oauth2_password_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *username, const char *password, const char *client_id,
@@ -1285,6 +1319,7 @@ enum c_abstract_http_error http_request_init_oauth2_password_grant(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an OAuth2 Refresh Token grant request */
 enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *refresh_token, const char *client_id, const char *client_secret,
@@ -1383,6 +1418,7 @@ enum c_abstract_http_error http_request_init_oauth2_refresh_token_grant(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an OAuth2 Authorization Code grant request */
 enum c_abstract_http_error http_request_init_oauth2_authorization_code_grant(
     struct HttpRequest *req, const char *token_endpoint_url, const char *code,
     const char *redirect_uri, const char *client_id, const char *client_secret,
@@ -1493,6 +1529,7 @@ enum c_abstract_http_error http_request_init_oauth2_authorization_code_grant(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an OAuth2 Client Credentials grant request */
 enum c_abstract_http_error http_request_init_oauth2_client_credentials_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *client_secret, const char *scope) {
@@ -1580,6 +1617,7 @@ enum c_abstract_http_error http_request_init_oauth2_client_credentials_grant(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an OAuth2 JWT Bearer grant request */
 enum c_abstract_http_error http_request_init_oauth2_jwt_bearer_grant(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *assertion, const char *scope) {
@@ -1713,6 +1751,7 @@ http_request_init_oauth2_device_authorization_request(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an OAuth2 Device Access Token poll request */
 enum c_abstract_http_error http_request_init_oauth2_device_access_token_request(
     struct HttpRequest *req, const char *token_endpoint_url,
     const char *client_id, const char *device_code) {
@@ -1779,6 +1818,7 @@ enum c_abstract_http_error http_request_init_oauth2_device_access_token_request(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an OAuth2 Token Revocation request */
 enum c_abstract_http_error http_request_init_oauth2_token_revocation(
     struct HttpRequest *req, const char *revocation_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
@@ -1865,6 +1905,7 @@ enum c_abstract_http_error http_request_init_oauth2_token_revocation(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an OAuth2 Token Introspection request */
 enum c_abstract_http_error http_request_init_oauth2_token_introspection(
     struct HttpRequest *req, const char *introspection_endpoint_url,
     const char *token, const char *token_type_hint, const char *client_id,
@@ -1951,6 +1992,7 @@ enum c_abstract_http_error http_request_init_oauth2_token_introspection(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Build an OAuth2 Authorization URL */
 enum c_abstract_http_error http_oauth2_build_authorization_url(
     const char *auth_endpoint, const char *client_id, const char *response_type,
     const char *redirect_uri, const char *scope, const char *state,
@@ -2278,6 +2320,7 @@ cleanup:
 #endif
 }
 
+/** @brief Initialize an HTTP response structure */
 enum c_abstract_http_error http_response_init(struct HttpResponse *res) {
   if (!res)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -2287,6 +2330,7 @@ enum c_abstract_http_error http_response_init(struct HttpResponse *res) {
   return http_headers_init(&res->headers);
 }
 
+/** @brief Free an HTTP response structure */
 enum c_abstract_http_error http_response_free(struct HttpResponse *res) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_response_free_fail)
@@ -2306,6 +2350,7 @@ enum c_abstract_http_error http_response_free(struct HttpResponse *res) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Save an HTTP response body to a file */
 enum c_abstract_http_error
 http_response_save_to_file(const struct HttpResponse *res, const char *path) {
   FILE *f = NULL;
@@ -2341,6 +2386,7 @@ http_response_save_to_file(const struct HttpResponse *res, const char *path) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Send multiple HTTP requests using the client's configured modality */
 enum c_abstract_http_error http_client_send_multi(
     struct HttpClient *client, struct HttpRequest *const *requests,
     size_t num_requests, struct HttpFuture **futures,
@@ -2434,10 +2480,12 @@ enum c_abstract_http_error http_client_send_multi(
   return rc;
 }
 
+/** @brief Write a formatted debug log message */
 enum c_abstract_http_error c_abstract_http_log_debug(const char *fmt, ...);
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((format(printf, 1, 2)))
 #endif
+/** @brief Write a formatted debug log message */
 enum c_abstract_http_error
 c_abstract_http_log_debug(const char *fmt, ...) {
 #ifdef DEBUG
@@ -2473,14 +2521,23 @@ enum c_abstract_http_error c_abstract_http_test_http_types_helpers(void) {
   null_p = NULL;
 
   /* Test sprintf_s_wrapper invalid parameter branches */
-  sprintf_s_wrapper(NULL, buf, 0, sizeof(buf), "test");
-  sprintf_s_wrapper(&written, NULL, 0, sizeof(buf), "test");
-  sprintf_s_wrapper(&written, buf, 10, 5, "test");
+  if (sprintf_s_wrapper(NULL, buf, 0, sizeof(buf), "test") ==
+      C_ABSTRACT_HTTP_SUCCESS)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  if (sprintf_s_wrapper(&written, NULL, 0, sizeof(buf), "test") ==
+      C_ABSTRACT_HTTP_SUCCESS)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  if (sprintf_s_wrapper(&written, buf, 10, 5, "test") ==
+      C_ABSTRACT_HTTP_SUCCESS)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   /* Test urlencode_append branches */
-  urlencode_append(NULL, "test");
-  urlencode_append(&null_p, "test");
-  urlencode_append(&p, NULL);
+  if (urlencode_append(NULL, "test") == C_ABSTRACT_HTTP_SUCCESS)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  if (urlencode_append(&null_p, "test") == C_ABSTRACT_HTTP_SUCCESS)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  if (urlencode_append(&p, NULL) != C_ABSTRACT_HTTP_SUCCESS)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   /* Test c_abstract_http_log_debug with NULL fmt */
   c_abstract_http_log_debug(NULL);

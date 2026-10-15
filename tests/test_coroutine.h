@@ -171,20 +171,21 @@ mock_co_init(struct AbstractHttpCoroutine **co, size_t stack_size,
   }
   if (co)
     *co = (struct AbstractHttpCoroutine *)&dummy;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 static void mock_co_free(struct AbstractHttpCoroutine *co) {
   if (co) {
   }
 }
-static int
-
+static enum c_abstract_http_error
 mock_co_resume(struct AbstractHttpCoroutine *co) {
   if (co) {
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
-static enum c_abstract_http_error mock_co_yield(void) { return 0; }
+static enum c_abstract_http_error mock_co_yield(void) {
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 static enum c_abstract_http_error
 mock_co_is_done(const struct AbstractHttpCoroutine *co, int *out_is_done) {

@@ -887,9 +887,13 @@ TEST test_sse_sync_loop_errors(void) {
 
 static enum c_abstract_http_error
 mock_push_success(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
+  enum c_abstract_http_error rc;
   (void)ctx;
-  cb(arg); /* call it synchronously for the test */
-  return 0;
+  rc = cb(arg); /* call it synchronously for the test */
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    /* task completed with error */
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 TEST test_sse_async_register_success(void) {
@@ -1194,7 +1198,7 @@ TEST test_sse_parser_feed_current_data_limit_real(void) {
 }
 
 TEST test_sse_async_task_null(void) {
-  c_abstract_http_sse_async_task(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_sse_async_task(NULL));
   PASS();
 }
 
@@ -1225,7 +1229,8 @@ TEST test_sse_async_task_error(void) {
   ctx->on_close = test_sse_on_close;
   ctx->user_data = &t_ctx;
 
-  c_abstract_http_sse_async_task(ctx); /* will free ctx */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_sse_async_task(ctx)); /* will free ctx */
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, t_ctx.error_code);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
@@ -1240,7 +1245,7 @@ TEST test_sse_async_task_error(void) {
   ctx->on_err = NULL;
   ctx->on_close = NULL;
   ctx->user_data = NULL;
-  c_abstract_http_sse_async_task(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_sse_async_task(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
@@ -1272,6 +1277,7 @@ TEST test_sse_parser_feed_huge_single_line(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_mock_free_failures(void) {
   struct HttpClient client;
   struct HttpRequest req;
@@ -1366,6 +1372,7 @@ TEST test_sse_mock_free_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
+#endif
 
 SUITE(sse_suite) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

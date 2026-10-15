@@ -16,7 +16,6 @@ extern "C" {
 /* clang-format off */
 #include <stddef.h>
 #include <c_abstract_http/http_types.h>
-#include "http_types.h"
 /* clang-format on */
 
 /**

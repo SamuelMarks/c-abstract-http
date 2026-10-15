@@ -222,6 +222,7 @@ http_loop_init_external(struct ModalityEventLoop **loop,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize a new event loop instance */
 enum c_abstract_http_error http_loop_init(struct ModalityEventLoop **loop) {
   struct ModalityEventLoop *l;
   LOG_DEBUG("http_loop_init: Entering");
@@ -281,6 +282,7 @@ enum c_abstract_http_error http_loop_init(struct ModalityEventLoop **loop) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free an event loop instance */
 enum c_abstract_http_error http_loop_free(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_free: Entering");
   if (!loop) {
@@ -306,6 +308,7 @@ enum c_abstract_http_error http_loop_free(struct ModalityEventLoop *loop) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Wake up an event loop waiting for events */
 enum c_abstract_http_error http_loop_wakeup(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_wakeup: Entering");
   if (!loop) {
@@ -338,6 +341,7 @@ enum c_abstract_http_error http_loop_wakeup(struct ModalityEventLoop *loop) {
 #endif
 }
 
+/** @brief Add a file descriptor to the event loop */
 enum c_abstract_http_error http_loop_add_fd(struct ModalityEventLoop *loop,
                                             int fd, int events, http_loop_cb cb,
                                             void *user_data) {
@@ -396,6 +400,7 @@ enum c_abstract_http_error http_loop_add_fd(struct ModalityEventLoop *loop,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Modify watched events for a file descriptor in the event loop */
 enum c_abstract_http_error http_loop_mod_fd(struct ModalityEventLoop *loop,
                                             int fd, int events) {
   size_t i;
@@ -425,6 +430,7 @@ enum c_abstract_http_error http_loop_mod_fd(struct ModalityEventLoop *loop,
   return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
+/** @brief Remove a file descriptor from the event loop */
 enum c_abstract_http_error http_loop_remove_fd(struct ModalityEventLoop *loop,
                                                int fd) {
   size_t i;
@@ -570,6 +576,7 @@ process_timers(struct ModalityEventLoop *loop) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Run a single non-blocking tick of the event loop */
 enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
   size_t i;
   int active_fds;
@@ -707,6 +714,7 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Run the event loop until stopped or idle */
 enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_run: Entering");
   if (!loop) {
@@ -865,6 +873,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Request the event loop to stop */
 enum c_abstract_http_error http_loop_stop(struct ModalityEventLoop *loop) {
   enum c_abstract_http_error rc;
   LOG_DEBUG("http_loop_stop: Entering");

@@ -26,6 +26,7 @@ def main():
         "-B",
         build_dir,
         "-DC_ABSTRACT_HTTP_ENABLE_COVERAGE=ON",
+        "-DC_ABSTRACT_HTTP_THREADING=Multi-threaded",
         "-DBUILD_TESTING=ON",
         "-DC_ABSTRACT_HTTP_ENABLE_WEBSOCKETS=ON",
         "-DC_ABSTRACT_HTTP_ENABLE_SSE=ON",

@@ -33,13 +33,8 @@ extern "C" {
 
 #include "actor.h"
 
-#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
-#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-#include "http_lsquic.h"
-#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
 #include "http_picoquic.h"
-#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-#include "http_nghttp3.h"
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
 #include "http_msh3.h"
 #elif defined(C_ABSTRACT_HTTP_USE_WININET)
@@ -48,8 +43,6 @@ extern "C" {
 #include "http_winhttp.h"
 #elif defined(__APPLE__)
 #include "http_apple.h"
-#elif defined(__ANDROID__)
-#include "http_android.h"
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
 #include "http_xquic.h"
 #elif defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
@@ -79,7 +72,6 @@ extern "C" {
 #include "../../src/c_abstract_http_tls.c"
 #include "../../src/coroutine.c"
 #include "../../src/actor.c"
-#include "../../src/str.c"
 #include "../../src/transport.c"
 
 #if defined(_WIN32)
@@ -87,11 +79,8 @@ extern "C" {
 #include "../../src/http_wininet.c"
 #elif defined(__APPLE__)
 #include "../../src/http_apple.c"
-#elif defined(__ANDROID__)
-#include "../../src/http_android.c"
 #elif defined(__EMSCRIPTEN__)
 #include "../../src/http_wasm.c"
-#elif defined(C_ABSTRACT_HTTP_USE_ARIA2)
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include "../../src/http_libsoup3.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)

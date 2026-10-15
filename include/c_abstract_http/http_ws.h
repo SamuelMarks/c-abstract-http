@@ -1,3 +1,8 @@
+/**
+ * @file http_ws.h
+ * @brief WebSocket public API.
+ */
+
 #ifndef C_ABSTRACT_HTTP_WS_H
 #define C_ABSTRACT_HTTP_WS_H
 
@@ -11,7 +16,6 @@ extern "C" {
 
 #ifdef _WIN32
 #include <windef.h>
-#include <c_abstract_http/http_types.h>
 #endif
 /* clang-format on */
 
@@ -174,6 +178,13 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t c_abstract_http_ws_send(
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_ws_close(struct HttpRequest *req, int status_code);
+
+/**
+ * @brief Free WebSocket stream resources attached to an HTTP request.
+ *
+ * @param req The HTTP request containing WebSocket context to free.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
+ */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 c_abstract_http_ws_free(struct HttpRequest *req);
 

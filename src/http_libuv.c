@@ -671,9 +671,11 @@ static enum c_abstract_http_error get_method_str(enum HttpMethod method,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Expose get_method_str for testing */
 enum c_abstract_http_error
 c_abstract_http_test_libuv_method_str(enum HttpMethod method,
                                       const char **out_str);
+/** @brief Expose libuv helpers for testing */
 enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void);
 
 /**
@@ -989,20 +991,21 @@ static int uv_run(uv_loop_t *loop, int mode);
  *
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-static int test_helper_chunk_cb(void *user_data, const void *chunk,
-                                size_t chunk_len) {
+static enum c_abstract_http_error
+test_helper_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   if (user_data || chunk || chunk_len) {
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int test_helper_chunk_cb_err(void *user_data, const void *chunk,
-                                    size_t chunk_len) {
+static enum c_abstract_http_error
+test_helper_chunk_cb_err(void *user_data, const void *chunk, size_t chunk_len) {
   if (user_data || chunk || chunk_len) {
   }
-  return (int)ECANCELED;
+  return (enum c_abstract_http_error)ECANCELED;
 }
 
+/** @brief Test libuv helper functions and edge cases */
 enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   enum c_abstract_http_error rc;
   uv_timer_t timer;
@@ -1024,11 +1027,11 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
 
   libuv_on_close(NULL);
   uv_loop_close(NULL);
-  parse_url(NULL, &h, &p, &path);
-  parse_url("http://127.0.0.1", NULL, &p, &path);
-  parse_url("http://127.0.0.1", &h, NULL, &path);
-  parse_url("http://127.0.0.1", &h, &p, NULL);
-  parse_url("http://127.0.0.1/path:8080", &h, &p, &path);
+  rc = parse_url(NULL, &h, &p, &path);
+  rc = parse_url("http://127.0.0.1", NULL, &p, &path);
+  rc = parse_url("http://127.0.0.1", &h, NULL, &path);
+  rc = parse_url("http://127.0.0.1", &h, &p, NULL);
+  rc = parse_url("http://127.0.0.1/path:8080", &h, &p, &path);
   free(h);
   h = NULL;
   free(path);
@@ -1048,10 +1051,10 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     state.res_len = strlen(buf1);
     test_res = NULL;
     state.res = &test_res;
-    parse_headers(&state);
+    rc = parse_headers(&state);
     /* Also test parse_headers when headers_parsed == 1 */
     state.headers_parsed = 1;
-    parse_headers(&state);
+    rc = parse_headers(&state);
     state.headers_parsed = 0;
     free(buf1);
   }
@@ -1070,7 +1073,7 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     state.res_len = strlen(buf2);
     test_res = NULL;
     state.res = &test_res;
-    parse_headers(&state);
+    rc = parse_headers(&state);
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
@@ -1092,7 +1095,7 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     state.res_len = strlen(buf3);
     test_res = NULL;
     state.res = &test_res;
-    parse_headers(&state);
+    rc = parse_headers(&state);
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
@@ -1115,7 +1118,7 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     state.res_len = strlen(buf4);
     test_res = NULL;
     state.res = &test_res;
-    parse_headers(&state);
+    rc = parse_headers(&state);
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
@@ -1129,7 +1132,7 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     state.res_len = strlen(buf4);
     test_res = NULL;
     state.res = &test_res;
-    parse_headers(&state);
+    rc = parse_headers(&state);
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
@@ -1144,7 +1147,7 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   state.error_code = 0;
   state.headers_parsed = 0;
   state.res_buf = NULL;
-  parse_headers(&state);
+  rc = parse_headers(&state);
 
   /* test parse_headers with body alloc fail */
   {
@@ -1160,7 +1163,7 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     g_mock_libuv_body_alloc_fail = 1;
-    parse_headers(&state);
+    rc = parse_headers(&state);
     g_mock_libuv_body_alloc_fail = 0;
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
@@ -1185,7 +1188,7 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     g_mock_libuv_headers_realloc_fail = 1;
-    parse_headers(&state);
+    rc = parse_headers(&state);
     g_mock_libuv_headers_realloc_fail = 0;
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
@@ -1196,7 +1199,7 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   }
 
   /* test parse_headers NULL */
-  parse_headers(NULL);
+  rc = parse_headers(NULL);
 
   /* test libuv_finish double call */
   state.done = 0;
@@ -1236,9 +1239,9 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
 
   /* test parse_url dup_rc fail */
   g_mock_libuv_req_buf_alloc_fail = 3;
-  parse_url("http://127.0.0.1/path", &h, &p, &path);
+  rc = parse_url("http://127.0.0.1/path", &h, &p, &path);
   g_mock_libuv_req_buf_alloc_fail = 4;
-  parse_url("http://127.0.0.1", &h, &p, &path);
+  rc = parse_url("http://127.0.0.1", &h, &p, &path);
   g_mock_libuv_req_buf_alloc_fail = 0;
 
   /* test uv_run NULL */

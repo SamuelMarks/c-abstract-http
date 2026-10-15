@@ -1,3 +1,8 @@
+/**
+ * @file win_compat_sym.h
+ * @brief Windows compatibility definitions for legacy MSVC compilers.
+ */
+
 #ifndef C_ABSTRACT_HTTP_WIN_COMPAT_SYM_H
 #define C_ABSTRACT_HTTP_WIN_COMPAT_SYM_H
 

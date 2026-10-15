@@ -53,12 +53,14 @@ c_abstract_http_test_libuv_method_str(enum HttpMethod method,
 extern enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void);
 #endif
 
-static int libuv_mock_upload_cb_err(void *user_data, void *buf, size_t buf_len,
-                                    size_t *out_read) {
+static enum c_abstract_http_error libuv_mock_upload_cb_err(void *user_data,
+                                                           void *buf,
+                                                           size_t buf_len,
+                                                           size_t *out_read) {
   if (user_data || buf || buf_len || out_read) {
     /* pass */
   }
-  return -1;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
 /**
@@ -162,13 +164,18 @@ TEST test_libuv_config_application(void) {
   config.timeout_ms = 500;
   config.verify_peer = 0;
   config.follow_redirects = 0;
-  c_abstract_http_strdup("agent", &_ast_strdup_agent);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("agent", &_ast_strdup_agent));
   config.user_agent = _ast_strdup_agent;
-  c_abstract_http_strdup("http://proxy.local:8080", &_ast_strdup_proxy);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_strdup("http://proxy.local:8080", &_ast_strdup_proxy));
   config.proxy_url = _ast_strdup_proxy;
-  c_abstract_http_strdup("admin", &_ast_strdup_user);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("admin", &_ast_strdup_user));
   config.proxy_username = _ast_strdup_user;
-  c_abstract_http_strdup("secret", &_ast_strdup_pass);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("secret", &_ast_strdup_pass));
   config.proxy_password = _ast_strdup_pass;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &config));
@@ -339,7 +346,7 @@ TEST test_libuv_send_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
@@ -378,12 +385,14 @@ TEST test_libuv_send_chunked_abort(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
-static int libuv_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
-                                size_t *out_read) {
+static enum c_abstract_http_error libuv_mock_upload_cb(void *user_data,
+                                                       void *buf,
+                                                       size_t buf_len,
+                                                       size_t *out_read) {
   struct libuv_TestUploadState *state =
       (struct libuv_TestUploadState *)user_data;
   size_t remaining = state->len - state->pos;
@@ -394,7 +403,7 @@ static int libuv_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
     state->pos += to_copy;
   }
   *out_read = to_copy;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /** @brief Documented */
@@ -440,7 +449,7 @@ TEST test_libuv_send_upload_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
@@ -459,10 +468,12 @@ TEST test_libuv_send_direct_body_and_urls(void) {
   {
     char *body_copy = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-    c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
     req.url = _ast_url;
     req.method = HTTP_POST;
-    c_abstract_http_strdup("test_body", &body_copy);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("test_body", &body_copy));
     req.body = body_copy;
     req.body_len = 9;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -483,7 +494,8 @@ TEST test_libuv_send_direct_body_and_urls(void) {
   /* Test 2: HTTPS URL without port */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   _ast_url = NULL;
-  c_abstract_http_strdup("https://127.0.0.1/path", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("https://127.0.0.1/path", &_ast_url));
   req.url = _ast_url;
   rc = http_libuv_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -496,7 +508,8 @@ TEST test_libuv_send_direct_body_and_urls(void) {
   /* Test 3: URL without scheme */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   _ast_url = NULL;
-  c_abstract_http_strdup("127.0.0.1/path", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("127.0.0.1/path", &_ast_url));
   req.url = _ast_url;
   rc = http_libuv_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -509,7 +522,8 @@ TEST test_libuv_send_direct_body_and_urls(void) {
   /* Test 4: Host only without slash or colon */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   _ast_url = NULL;
-  c_abstract_http_strdup("localhost", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("localhost", &_ast_url));
   req.url = _ast_url;
   rc = http_libuv_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -537,7 +551,8 @@ TEST test_libuv_send_fault_injections(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_init(&ctx));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
   req.url = _ast_url;
 
   /* 1: Req buf alloc fail */
@@ -688,7 +703,8 @@ TEST test_libuv_send_large_payloads(void) {
 
   /* Test with large headers */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
   req.url = _ast_url;
   for (i = 0; i < 40; i++) {
     char k[32];
@@ -714,7 +730,8 @@ TEST test_libuv_send_large_payloads(void) {
   /* Test with large body */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   _ast_url = NULL;
-  c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
   req.url = _ast_url;
   large_body = (char *)malloc(5000);
   if (large_body) {
@@ -757,7 +774,8 @@ TEST test_libuv_send_large_payloads(void) {
   /* Test uv fail branches */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   _ast_url = NULL;
-  c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
   req.url = _ast_url;
 
   g_mock_libuv_addrinfo_fail = 2;
@@ -783,7 +801,8 @@ TEST test_libuv_send_large_payloads(void) {
   /* Test headers realloc fail */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   _ast_url = NULL;
-  c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
   req.url = _ast_url;
   for (i = 0; i < 40; i++) {
     char k[32];
@@ -805,7 +824,8 @@ TEST test_libuv_send_large_payloads(void) {
   /* Test body realloc fail */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   _ast_url = NULL;
-  c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
   req.url = _ast_url;
   large_body = (char *)malloc(5000);
   if (large_body) {
@@ -831,7 +851,8 @@ TEST test_libuv_send_large_payloads(void) {
       up_st.pos = 0;
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
       _ast_url = NULL;
-      c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
       req.url = _ast_url;
       req.read_chunk = libuv_mock_upload_cb;
       req.read_chunk_user_data = &up_st;
@@ -847,7 +868,8 @@ TEST test_libuv_send_large_payloads(void) {
       up_st.pos = 0;
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
       _ast_url = NULL;
-      c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
       req.url = _ast_url;
       req.read_chunk = libuv_mock_upload_cb;
       req.read_chunk_user_data = &up_st;
@@ -862,7 +884,8 @@ TEST test_libuv_send_large_payloads(void) {
   /* Test invalid method */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   _ast_url = NULL;
-  c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
   req.url = _ast_url;
   req.method = (enum HttpMethod)999;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
@@ -871,7 +894,8 @@ TEST test_libuv_send_large_payloads(void) {
   /* Test parse_url fail in send */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
   _ast_url = NULL;
-  c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
   req.url = _ast_url;
   g_mock_libuv_req_buf_alloc_fail = 2;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));

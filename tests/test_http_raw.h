@@ -367,7 +367,7 @@ TEST test_http_raw_send_requests(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
 
-  mock_server_destroy(srv);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
@@ -472,7 +472,7 @@ TEST test_http_raw_multi_requests(void) {
   req2.url = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
-  mock_server_destroy(srv);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
@@ -798,7 +798,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
 
   req.url = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  mock_server_destroy(srv);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }

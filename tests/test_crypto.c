@@ -21,9 +21,10 @@ TEST test_sha1_empty_string(void) {
                                       0x0d, 0x32, 0x55, 0xbf, 0xef, 0x95, 0x60,
                                       0x18, 0x90, 0xaf, 0xd8, 0x07, 0x09};
 
-  sha1_init(&ctx);
-  sha1_update(&ctx, (const unsigned char *)"", 0);
-  sha1_final(&ctx, hash);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sha1_update(&ctx, (const unsigned char *)"", 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_final(&ctx, hash));
 
   ASSERT_MEM_EQ(expected, hash, 20);
   PASS();
@@ -37,9 +38,10 @@ TEST test_sha1_fox_string(void) {
                                       0xfc, 0xed, 0x84, 0x9e, 0xe1, 0xbb, 0x76,
                                       0xe7, 0x39, 0x1b, 0x93, 0xeb, 0x12};
 
-  sha1_init(&ctx);
-  sha1_update(&ctx, (const unsigned char *)input, strlen(input));
-  sha1_final(&ctx, hash);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sha1_update(&ctx, (const unsigned char *)input, strlen(input)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_final(&ctx, hash));
 
   ASSERT_MEM_EQ(expected, hash, 20);
   PASS();
@@ -192,13 +194,14 @@ TEST test_sha1_large_string(void) {
   for (i = 0; i < 128; i++)
     data[i] = 'a';
 
-  sha1_init(&ctx);
-  sha1_update(&ctx, data, 128);
-  sha1_final(&ctx, out);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_update(&ctx, data, 128));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_final(&ctx, out));
 
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_crypto_oom(void) {
   char *b64_str = NULL;
   size_t b64_len = 0;
@@ -221,50 +224,56 @@ TEST test_crypto_oom(void) {
   }
   PASS();
 }
+#endif
 
 TEST test_sha1_rollover(void) {
   struct sha1_ctx ctx;
   unsigned char out[20];
 
-  sha1_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_init(&ctx));
   /* Simulate that we have hashed almost 2^32 bits */
   ctx.count[0] = 0xFFFFFFF8; /* 2^32 - 8 bits */
   ctx.count[1] = 0;
 
-  sha1_update(&ctx, (const unsigned char *)"a", 1); /* adds 8 bits, rollover */
-  sha1_final(&ctx, out);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sha1_update(&ctx, (const unsigned char *)"a", 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_final(&ctx, out));
 
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sha1_mock_failures(void) {
   struct sha1_ctx ctx;
   unsigned char out[20];
 
   /* Fail 1st sha1_update inside sha1_final */
-  sha1_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_init(&ctx));
   g_mock_sha1_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, sha1_final(&ctx, out));
 
   /* Fail 2nd sha1_update inside sha1_final (the while loop) */
-  sha1_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_init(&ctx));
   g_mock_sha1_fail = 2;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, sha1_final(&ctx, out));
 
   /* Fail 3rd sha1_update inside sha1_final */
-  sha1_init(&ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_init(&ctx));
   g_mock_sha1_fail = 57;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, sha1_final(&ctx, out));
   g_mock_sha1_fail = 0;
 
   PASS();
 }
+#endif
 
 SUITE(crypto_suite) {
   RUN_TEST(test_sha1_large_string);
   RUN_TEST(test_crypto_errors);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_crypto_oom);
   RUN_TEST(test_sha1_mock_failures);
+#endif
   RUN_TEST(test_sha1_rollover);
   RUN_TEST(test_sha1_empty_string);
   RUN_TEST(test_sha1_fox_string);

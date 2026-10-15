@@ -1,16 +1,16 @@
 
+/**
+ * @file transport.c
+ * @brief Transport global and factory operations.
+ * @author Samuel Marks
+ */
+
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/transport.h>
 
-#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
-#include <c_abstract_http/http_aria2.h>
-#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-#include <c_abstract_http/http_lsquic.h>
-#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
 #include <c_abstract_http/http_picoquic.h>
-#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-#include <c_abstract_http/http_nghttp3.h>
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
 #include <c_abstract_http/http_msh3.h>
 #elif defined(C_ABSTRACT_HTTP_USE_WININET)
@@ -19,8 +19,6 @@
 #include <c_abstract_http/http_winhttp.h>
 #elif defined(C_ABSTRACT_HTTP_USE_APPLE)
 #include <c_abstract_http/http_apple.h>
-#elif defined(__ANDROID__)
-#include <c_abstract_http/http_android.h>
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
 #include <c_abstract_http/http_xquic.h>
 #elif defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
@@ -29,6 +27,8 @@
 #include <c_abstract_http/http_libsoup3.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
 #include <c_abstract_http/http_libuv.h>
+#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
+#include <c_abstract_http/http_libevent.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
 #include <c_abstract_http/http_fetch.h>
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) || defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
@@ -41,15 +41,13 @@
 #include <stddef.h>
 /* clang-format on */
 
+/**
+ * @brief Initialize global transport state.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
+ */
 enum c_abstract_http_error transport_global_init(void) {
-#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
-  return http_aria2_global_init();
-#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-  return http_lsquic_global_init();
-#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
   return http_picoquic_global_init();
-#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-  return http_nghttp3_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
   return http_msh3_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_WININET)
@@ -59,8 +57,6 @@ enum c_abstract_http_error transport_global_init(void) {
   return http_winhttp_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_APPLE)
   return http_apple_global_init();
-#elif defined(__ANDROID__)
-  return http_android_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   return http_xquic_global_init();
 #elif defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
@@ -69,6 +65,8 @@ enum c_abstract_http_error transport_global_init(void) {
   return http_libsoup3_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
   return http_libuv_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
+  return http_libevent_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   return http_fetch_global_init();
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
@@ -79,15 +77,13 @@ enum c_abstract_http_error transport_global_init(void) {
 #endif
 }
 
+/**
+ * @brief Cleanup global transport state.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
+ */
 enum c_abstract_http_error transport_global_cleanup(void) {
-#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
-  return http_aria2_global_cleanup();
-#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-  return http_lsquic_global_cleanup();
-#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
   return http_picoquic_global_cleanup();
-#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-  return http_nghttp3_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
   return http_msh3_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_WININET)
@@ -97,8 +93,6 @@ enum c_abstract_http_error transport_global_cleanup(void) {
   return http_winhttp_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_APPLE)
   return http_apple_global_cleanup();
-#elif defined(__ANDROID__)
-  return http_android_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   return http_xquic_global_cleanup();
 #elif defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
@@ -107,6 +101,8 @@ enum c_abstract_http_error transport_global_cleanup(void) {
   return http_libsoup3_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
   return http_libuv_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
+  return http_libevent_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   return http_fetch_global_cleanup();
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
@@ -117,9 +113,14 @@ enum c_abstract_http_error transport_global_cleanup(void) {
 #endif
 }
 
+/**
+ * @brief Initialize a client with the active transport backend.
+ * @param[out] client Client structure to initialize.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
+ */
 enum c_abstract_http_error
 transport_factory_init_client(struct HttpClient *client) {
-  int err;
+  enum c_abstract_http_error err;
 
   if (!client) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -128,34 +129,13 @@ transport_factory_init_client(struct HttpClient *client) {
   client->thread_pool = NULL;
   client->loop = NULL;
 
-#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
-  err = http_aria2_context_init(&client->transport);
-  if (err != C_ABSTRACT_HTTP_SUCCESS) {
-    return err;
-  }
-  client->send = http_aria2_send;
-  client->send_multi = http_aria2_send_multi;
-#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-  err = http_lsquic_context_init(&client->transport);
-  if (err != C_ABSTRACT_HTTP_SUCCESS) {
-    return err;
-  }
-  client->send = http_lsquic_send;
-  client->send_multi = http_lsquic_send_multi;
-#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
   err = http_picoquic_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
     return err;
   }
   client->send = http_picoquic_send;
   client->send_multi = http_picoquic_send_multi;
-#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-  err = http_nghttp3_context_init(&client->transport);
-  if (err != C_ABSTRACT_HTTP_SUCCESS) {
-    return err;
-  }
-  client->send = http_nghttp3_send;
-  client->send_multi = http_nghttp3_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
   err = http_msh3_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
@@ -184,12 +164,6 @@ transport_factory_init_client(struct HttpClient *client) {
   }
   client->send = http_apple_send;
   client->send_multi = http_apple_send_multi;
-#elif defined(__ANDROID__)
-  err = http_android_context_init(&client->transport);
-  if (err != C_ABSTRACT_HTTP_SUCCESS) {
-    return err;
-  }
-  client->send = http_android_send;
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   err = http_xquic_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
@@ -215,6 +189,12 @@ transport_factory_init_client(struct HttpClient *client) {
     return err;
   }
   client->send = http_libuv_send;
+#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
+  err = http_libevent_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_libevent_send;
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   err = http_fetch_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
@@ -241,46 +221,27 @@ transport_factory_init_client(struct HttpClient *client) {
   return err;
 }
 
+/**
+ * @brief Cleanup a client's active transport context.
+ * @param[in,out] client Client structure to cleanup.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
+ */
 enum c_abstract_http_error
 transport_factory_cleanup_client(struct HttpClient *client) {
   if (!client || !client->transport) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
 
-#if defined(C_ABSTRACT_HTTP_USE_ARIA2)
-  {
-    enum c_abstract_http_error rc = http_aria2_context_free(client->transport);
-    ;
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
-#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-  {
-    enum c_abstract_http_error rc = http_lsquic_context_free(client->transport);
-    ;
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
-#elif defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
   {
     enum c_abstract_http_error rc =
         http_picoquic_context_free(client->transport);
-    ;
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
-#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-  {
-    enum c_abstract_http_error rc =
-        http_nghttp3_context_free(client->transport);
-    ;
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
   {
     enum c_abstract_http_error rc = http_msh3_context_free(client->transport);
-    ;
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
@@ -288,31 +249,26 @@ transport_factory_cleanup_client(struct HttpClient *client) {
   {
     enum c_abstract_http_error rc =
         http_wininet_context_free(client->transport);
-    ;
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) ||               \
     defined(__WIN32__) || defined(__WINDOWS__)
-  http_winhttp_context_free(client->transport);
+  {
+    enum c_abstract_http_error rc =
+        http_winhttp_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
 #elif defined(C_ABSTRACT_HTTP_USE_APPLE)
   {
     enum c_abstract_http_error rc = http_apple_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
-#elif defined(__ANDROID__)
-  {
-    enum c_abstract_http_error rc =
-        http_android_context_free(client->transport);
-    ;
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   {
     enum c_abstract_http_error rc = http_xquic_context_free(client->transport);
-    ;
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
@@ -332,6 +288,13 @@ transport_factory_cleanup_client(struct HttpClient *client) {
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
   {
     enum c_abstract_http_error rc = http_libuv_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
+  {
+    enum c_abstract_http_error rc =
+        http_libevent_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }

@@ -270,6 +270,7 @@ abstract_http_ipc_write(void *handle, const void *data, size_t len) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Read data from an IPC pipe handle */
 enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
                                                   size_t len) {
   DWORD dwRead;
@@ -449,6 +450,7 @@ abstract_http_ipc_write(void *handle, const void *data, size_t len) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Read data from an IPC pipe descriptor */
 enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
                                                   size_t len) {
   ssize_t r;
@@ -820,7 +822,9 @@ abstract_http_ipc_deserialize_response(const char *buf, size_t len,
 }
 
 #if 1
+/** @brief Test helper for waitpid failure */
 enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void);
+/** @brief Test helper for waitpid failure */
 enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void) {
   struct AbstractHttpProcess *p =
       (struct AbstractHttpProcess *)malloc(sizeof(struct AbstractHttpProcess));
@@ -841,7 +845,9 @@ enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void) {
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Test helper for abnormal waitpid exit status */
 enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void);
+/** @brief Test helper for abnormal waitpid exit status */
 enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void) {
   /* Test WIFEXITED == false */
   struct AbstractHttpProcess *p =

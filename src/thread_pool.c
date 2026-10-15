@@ -666,6 +666,7 @@ abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize an external hook-backed thread pool */
 enum c_abstract_http_error abstract_http_thread_pool_init_external(
     struct AbstractHttpThreadPool **pool,
     const struct AbstractHttpThreadPoolHooks *hooks) {
@@ -859,16 +860,21 @@ abstract_http_thread_pool_test_clear_stop(struct AbstractHttpThreadPool *pool) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #if !defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Dummy thread task callback */
 enum c_abstract_http_error dummy_cb_thread(void *arg);
+/** @brief Dummy thread task callback */
 enum c_abstract_http_error dummy_cb_thread(void *arg) {
   (void)arg;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #else
+/** @brief Dummy thread task callback */
 extern enum c_abstract_http_error dummy_cb_thread(void *arg);
 #endif
+/** @brief Inject a task directly into the thread pool queue for testing */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_inject_task(struct AbstractHttpThreadPool *pool);
+/** @brief Inject a task directly into the thread pool queue for testing */
 enum c_abstract_http_error abstract_http_thread_pool_test_inject_task(
     struct AbstractHttpThreadPool *pool) {
   if (!pool) {
@@ -888,15 +894,19 @@ enum c_abstract_http_error abstract_http_thread_pool_test_inject_task(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Run worker thread routine once for testing */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_worker(struct AbstractHttpThreadPool *pool);
+/** @brief Run worker thread routine once for testing */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_worker(struct AbstractHttpThreadPool *pool) {
   return (enum c_abstract_http_error)(size_t)worker_thread(pool);
 }
 
+/** @brief Create a dummy thread pool structure for testing */
 enum c_abstract_http_error abstract_http_thread_pool_test_create_dummy(
     struct AbstractHttpThreadPool **out);
+/** @brief Create a dummy thread pool structure for testing */
 enum c_abstract_http_error abstract_http_thread_pool_test_create_dummy(
     struct AbstractHttpThreadPool **out) {
   struct AbstractHttpThreadPool *p;

@@ -1,8 +1,12 @@
 
+/**
+ * @file actor.c
+ * @brief Simple Actor Model / Message Passing Bus implementation.
+ * @author Samuel Marks
+ */
+
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
-extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
-                                                                  char **out);
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +14,10 @@ extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
 #include <c_abstract_http/actor.h>
 #include "c_abstract_http/log.h"
 /* clang-format on */
+
+/** @brief Mockable string duplication helper */
+extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
+                                                              char **out);
 
 #ifndef ABSTRACT_HTTP_MALLOC
 #define ABSTRACT_HTTP_MALLOC malloc

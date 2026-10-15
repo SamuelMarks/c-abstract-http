@@ -29,15 +29,15 @@ TEST test_http_xquic_lifecycle(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_context_init(&ctx));
   ASSERT(ctx != NULL);
 
-  http_xquic_context_free(NULL);
-  http_xquic_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_context_free(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_context_free(ctx));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* Test free with engine present */
   g_mock_xquic_engine_present = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_context_init(&ctx));
   ASSERT(ctx != NULL);
-  http_xquic_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_context_free(ctx));
   g_mock_xquic_engine_present = 0;
 
   /* Test config init failure */
@@ -71,7 +71,7 @@ TEST test_http_xquic_config(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_config_apply(ctx, &cfg));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
-  http_xquic_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_context_free(ctx));
   PASS();
 }
 

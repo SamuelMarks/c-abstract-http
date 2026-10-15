@@ -28,13 +28,16 @@ typedef unsigned __int64 uint64_t;
 #endif
 /* clang-format on */
 
+/**
+ * @brief Internal WebSocket stream queue and synchronization state.
+ */
 struct ws_stream_ctx {
-  struct AbstractHttpMutex *mutex;
-  struct AbstractHttpCond *cond;
-  unsigned char *queue;
-  size_t queue_len;
-  size_t queue_cap;
-  int close_requested;
+  struct AbstractHttpMutex *mutex; /**< Queue mutex */
+  struct AbstractHttpCond *cond;   /**< Queue condition variable */
+  unsigned char *queue;            /**< Outbound frame queue buffer */
+  size_t queue_len;                /**< Current queued byte length */
+  size_t queue_cap;                /**< Allocated queue capacity */
+  int close_requested;             /**< Flag indicating close requested */
 };
 
 /**

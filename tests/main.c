@@ -57,23 +57,14 @@
 #if defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
 #include "test_http_fetch.h"
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-#include "test_http_nghttp3.h"
-#endif
 #if defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
 #include "test_http_libevent.h"
 #endif
 #if defined(C_ABSTRACT_HTTP_USE_LIBUV)
 #include "test_http_libuv.h"
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-#include "test_http_lsquic.h"
-#endif
 #if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include "test_http_libsoup3.h"
-#endif
-#if defined(__ANDROID__) || defined(C_ABSTRACT_HTTP_USE_ANDROID)
-#include "test_http_android.h"
 #endif
 #if defined(C_ABSTRACT_HTTP_USE_MSH3)
 #include "test_http_msh3.h"
@@ -99,9 +90,6 @@
 #if defined(C_ABSTRACT_HTTP_HAVE_CURL)
 #include "test_http_curl.h"
 #endif
-#elif defined(__ANDROID__)
-#include "test_http_android.h"
-
 #elif defined(__EMSCRIPTEN__)
 /* No HTTP curl on Emscripten */
 
@@ -191,23 +179,14 @@ int main(int argc, char **argv) {
 #if defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   RUN_SUITE(http_fetch_suite);
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-  RUN_SUITE(http_nghttp3_suite);
-#endif
 #if defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
   RUN_SUITE(http_libevent_suite);
 #endif
 #if defined(C_ABSTRACT_HTTP_USE_LIBUV)
   RUN_SUITE(http_libuv_suite);
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-  RUN_SUITE(http_lsquic_suite);
-#endif
 #if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   RUN_SUITE(http_libsoup3_suite);
-#endif
-#if defined(__ANDROID__) || defined(C_ABSTRACT_HTTP_USE_ANDROID)
-  RUN_SUITE(http_android_suite);
 #endif
 #if defined(C_ABSTRACT_HTTP_USE_MSH3)
   RUN_SUITE(http_msh3_suite);

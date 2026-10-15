@@ -538,6 +538,7 @@ static GBytes *soup_session_send_and_read(SoupSession *session,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Expose internal helpers for test coverage */
 enum c_abstract_http_error c_abstract_http_test_libsoup3_helpers(void);
 
 /**
@@ -695,10 +696,14 @@ http_libsoup3_context_init(struct HttpTransportContext **ctx) {
 
   (*ctx)->session = soup_session_new();
   if (!(*ctx)->session) {
+    enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_libsoup3_context_init: Error soup_session_new failed");
-    http_config_free(&(*ctx)->config);
+    free_rc = http_config_free(&(*ctx)->config);
     free(*ctx);
     *ctx = NULL;
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return free_rc;
+    }
     return C_ABSTRACT_HTTP_ERR_IO;
   }
   (*ctx)->cookie_jar = NULL;

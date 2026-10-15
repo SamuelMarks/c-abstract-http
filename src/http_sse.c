@@ -89,6 +89,7 @@ static enum c_abstract_http_error sse_strdup(const char *s, char **out) {
   return C_ABSTRACT_HTTP_ERR_NOMEM;
 }
 
+/** @brief Initialize an SSE stream parser context */
 enum c_abstract_http_error sse_parser_init(
     struct sse_parser_ctx *ctx, const struct c_abstract_http_sse_config *config,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
@@ -153,6 +154,7 @@ enum c_abstract_http_error sse_parser_init(
 extern int g_mock_cond_free_fail; /* just repurposing a mock flag for test */
 #endif
 
+/** @brief Destroy an SSE stream parser context */
 enum c_abstract_http_error sse_parser_destroy(struct sse_parser_ctx *ctx) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_cond_free_fail) {
@@ -189,12 +191,16 @@ sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
       ctx->data_offset--;
 
       if (ctx->on_event) {
+        enum c_abstract_http_error ev_rc;
         struct c_abstract_http_sse_event ev;
         ev.id = ctx->last_event_id;
         ev.event = ctx->current_event;
         ev.data = ctx->current_data;
         ev.data_len = ctx->data_offset;
-        ctx->on_event(&ev, ctx->user_data);
+        ev_rc = ctx->on_event(&ev, ctx->user_data);
+        if (ev_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          /* Callback return ignored per SSE spec; reset state below */
+        }
       }
     }
     /* Reset for next event */
@@ -286,6 +292,7 @@ sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Feed a raw data chunk into the SSE parser */
 enum c_abstract_http_error sse_parser_feed(struct sse_parser_ctx *ctx,
                                            const char *chunk, size_t len) {
   size_t i;
@@ -357,6 +364,8 @@ enum c_abstract_http_error sse_parser_feed(struct sse_parser_ctx *ctx,
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+/** @brief Execute a synchronous SSE read loop */
 enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
@@ -401,8 +410,12 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
       if (rch != C_ABSTRACT_HTTP_SUCCESS)
         return rch;
     }
-    if (on_err)
-      on_err(rc, user_data);
+    if (on_err) {
+      enum c_abstract_http_error err_rc = on_err(rc, user_data);
+      if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        /* Keep primary error rc */
+      }
+    }
     return rc;
   }
 
@@ -410,7 +423,10 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
     rc = sse_parser_feed(&parser, (const char *)res->body, res->body_len);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       if (on_err) {
-        on_err(rc, user_data);
+        enum c_abstract_http_error err_rc = on_err(rc, user_data);
+        if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          /* Keep primary error rc */
+        }
       }
       {
         enum c_abstract_http_error rch = sse_parser_destroy(&parser);
@@ -439,12 +455,17 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
   }
   free(res);
 
-  if (on_close)
-    on_close(user_data);
+  if (on_close) {
+    enum c_abstract_http_error cls_rc = on_close(user_data);
+    if (cls_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      /* Ignore close callback status */
+    }
+  }
 
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Background task worker for asynchronous SSE read loop */
 enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg) {
   enum c_abstract_http_error err;
   struct c_abstract_http_sse_async_ctx *ctx =
@@ -457,7 +478,10 @@ enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg) {
                                            ctx->user_data, &exit_flag);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
     if (ctx->on_err) {
-      ctx->on_err(err, ctx->user_data);
+      enum c_abstract_http_error err_rc = ctx->on_err(err, ctx->user_data);
+      if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        /* Keep primary error err */
+      }
     }
     free(ctx);
     return err;
@@ -466,6 +490,7 @@ enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Register an asynchronous SSE stream reader */
 enum c_abstract_http_error c_abstract_http_sse_async_register(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,

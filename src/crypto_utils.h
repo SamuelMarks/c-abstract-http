@@ -5,17 +5,22 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* Crypto definitions */
+/**
+ * @file crypto_utils.h
+ * @brief Internal cryptographic and Base64 utilities.
+ */
 
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
 #include <stddef.h>
 
 #if defined(_MSC_VER) && (_MSC_VER < 1600)
+/** @brief Fixed-width integer types for legacy MSVC */
 typedef signed char int8_t;
 typedef unsigned char uint8_t;
 typedef short int16_t;
 typedef unsigned short uint16_t;
+/** @brief 32-bit signed integer */
 typedef int int32_t;
 typedef unsigned int uint32_t;
 typedef __int64 int64_t;

@@ -102,11 +102,12 @@ enum c_abstract_http_error
 http_wasm_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wasm_context_free: Entering");
   if (ctx) {
-    http_config_free(&ctx->config);
+    enum c_abstract_http_error free_rc = http_config_free(&ctx->config);
     free(ctx);
-    return C_ABSTRACT_HTTP_SUCCESS;
+    return free_rc;
   }
   LOG_DEBUG("http_wasm_context_free: Exiting");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -424,9 +425,12 @@ cleanup:
     LOG_DEBUG("http_wasm_send: Success");
   } else {
     if (*res) {
-      http_response_free(*res);
+      enum c_abstract_http_error free_rc = http_response_free(*res);
       free(*res);
       *res = NULL;
+      if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return free_rc;
+      }
     }
     LOG_DEBUG("http_wasm_send: Error returning %d", rc);
   }

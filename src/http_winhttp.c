@@ -620,14 +620,23 @@ headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
   p = buf;
   for (i = 0; i < headers->count; ++i) {
     size_t written = 0;
-    ascii_to_wide(headers->headers[i].key, p,
-                  total_wide_chars - (size_t)(p - buf), &written);
+    enum c_abstract_http_error conv_rc;
+    conv_rc = ascii_to_wide(headers->headers[i].key, p,
+                            total_wide_chars - (size_t)(p - buf), &written);
+    if (conv_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      return conv_rc;
+    }
     p += written;
     p[0] = L':';
     p[1] = L' ';
     p += 2;
-    ascii_to_wide(headers->headers[i].value, p,
-                  total_wide_chars - (size_t)(p - buf), &written);
+    conv_rc = ascii_to_wide(headers->headers[i].value, p,
+                            total_wide_chars - (size_t)(p - buf), &written);
+    if (conv_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      return conv_rc;
+    }
     p += written;
     p[0] = L'\r';
     p[1] = L'\n';
@@ -785,7 +794,14 @@ http_winhttp_config_apply(struct HttpTransportContext *ctx,
       LOG_DEBUG("http_winhttp_config_apply: Error ENOMEM (wProxy)");
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
-    ascii_to_wide(config->proxy_url, wProxy, cap, &wProxyLen);
+    {
+      enum c_abstract_http_error conv_rc =
+          ascii_to_wide(config->proxy_url, wProxy, cap, &wProxyLen);
+      if (conv_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(wProxy);
+        return conv_rc;
+      }
+    }
 
     memset(&proxyInfo, 0, sizeof(proxyInfo));
     proxyInfo.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
@@ -808,6 +824,7 @@ http_winhttp_config_apply(struct HttpTransportContext *ctx,
       size_t wPassLen = 0;
       size_t ucap = strlen(config->proxy_username) + 1;
       size_t pcap = strlen(config->proxy_password) + 1;
+      enum c_abstract_http_error conv_rc;
       wUser = (wchar_t *)malloc(ucap * sizeof(wchar_t));
       if (!wUser) {
         return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -817,8 +834,18 @@ http_winhttp_config_apply(struct HttpTransportContext *ctx,
         free(wUser);
         return C_ABSTRACT_HTTP_ERR_NOMEM;
       }
-      ascii_to_wide(config->proxy_username, wUser, ucap, &wUserLen);
-      ascii_to_wide(config->proxy_password, wPass, pcap, &wPassLen);
+      conv_rc = ascii_to_wide(config->proxy_username, wUser, ucap, &wUserLen);
+      if (conv_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(wUser);
+        free(wPass);
+        return conv_rc;
+      }
+      conv_rc = ascii_to_wide(config->proxy_password, wPass, pcap, &wPassLen);
+      if (conv_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(wUser);
+        free(wPass);
+        return conv_rc;
+      }
       WinHttpSetOption(ctx->hSession, WINHTTP_OPTION_PROXY_USERNAME, wUser,
                        (DWORD)wcslen(wUser));
       WinHttpSetOption(ctx->hSession, WINHTTP_OPTION_PROXY_PASSWORD, wPass,
@@ -898,7 +925,11 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
       LOG_DEBUG("http_winhttp_send: Error ENOMEM (wUrl)");
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
-    ascii_to_wide(req->url, wUrl, cap, &wLen);
+    rc = ascii_to_wide(req->url, wUrl, cap, &wLen);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(wUrl);
+      return rc;
+    }
   }
 
   memset(&urlComp, 0, sizeof(urlComp));
@@ -934,7 +965,10 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
     goto cleanup;
   }
 
-  method_to_wide(req->method, &wmethod);
+  rc = method_to_wide(req->method, &wmethod);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    goto cleanup;
+  }
 
   hRequest = WinHttpOpenRequest(
       hConnect, wmethod, urlComp.lpszUrlPath, NULL, WINHTTP_NO_REFERER,
@@ -971,7 +1005,10 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
       sprintf(cbuf, "Cookie: %s=%s\r\n", ctx->cookie_jar->cookies[i].name,
               ctx->cookie_jar->cookies[i].value);
 #endif
-      ascii_to_wide(cbuf, wcbuf, 4096, &written);
+      rc = ascii_to_wide(cbuf, wcbuf, 4096, &written);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto cleanup;
+      }
       WinHttpAddRequestHeaders(hRequest, wcbuf, (DWORD)-1L,
                                WINHTTP_ADDREQ_FLAG_ADD);
     }
@@ -1136,7 +1173,11 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
       {
         char cbuf[4096];
         size_t cwritten = 0;
-        wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten);
+        rc = wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(pwszCookie);
+          goto cleanup;
+        }
         {
           char *eq = strchr(cbuf, '=');
           const char *name = cbuf;

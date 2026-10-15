@@ -166,10 +166,10 @@ TEST test_ws_apply_mask_symmetry(void) {
   unsigned char original[] = "Hello World!";
   unsigned char mask_key[4] = {0x12, 0x34, 0x56, 0x78};
 
-  ws_apply_mask(payload, 12, mask_key);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_apply_mask(payload, 12, mask_key));
   ASSERT_FALSE(memcmp(payload, original, 12) == 0);
 
-  ws_apply_mask(payload, 12, mask_key);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_apply_mask(payload, 12, mask_key));
   ASSERT_MEM_EQ(original, payload, 12);
 
   PASS();
@@ -218,8 +218,9 @@ TEST test_ws_parser_single_frame(void) {
   struct test_ws_ctx ctx = {0};
   unsigned char frame[] = {0x81, 0x05, 'H', 'e', 'l', 'l', 'o'};
 
-  ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
-                 test_ws_on_close, &ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
+                           test_ws_on_close, &ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             ws_parser_feed(&parser, frame, sizeof(frame)));
 
@@ -238,8 +239,9 @@ TEST test_ws_parser_chunked_delivery(void) {
   unsigned char frame[] = {0x81, 0x05, 'W', 'o', 'r', 'l', 'd'};
   size_t i;
 
-  ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
-                 test_ws_on_close, &ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
+                           test_ws_on_close, &ctx));
 
   for (i = 0; i < sizeof(frame); i++) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_parser_feed(&parser, &frame[i], 1));
@@ -258,8 +260,9 @@ TEST test_ws_parser_fragmented_message(void) {
   unsigned char frame2[] = {0x00, 0x03, 'D', 'E', 'F'}; /* Cont, FIN=0 */
   unsigned char frame3[] = {0x80, 0x03, 'G', 'H', 'I'}; /* Cont, FIN=1 */
 
-  ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
-                 test_ws_on_close, &ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
+                           test_ws_on_close, &ctx));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             ws_parser_feed(&parser, frame1, sizeof(frame1)));
@@ -282,8 +285,9 @@ TEST test_ws_parser_reject_fragmented_control(void) {
   struct test_ws_ctx ctx = {0};
   unsigned char frame[] = {0x08, 0x00}; /* CLOSE, FIN=0 */
 
-  ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
-                 test_ws_on_close, &ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
+                           test_ws_on_close, &ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
             ws_parser_feed(&parser, frame, sizeof(frame)));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx.error_code);
@@ -296,8 +300,9 @@ TEST test_ws_parser_auto_pong(void) {
   struct test_ws_ctx ctx = {0};
   unsigned char frame[] = {0x89, 0x04, 'P', 'I', 'N', 'G'}; /* PING */
 
-  ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
-                 test_ws_on_close, &ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&parser, test_ws_on_message, test_ws_on_error,
+                           test_ws_on_close, &ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             ws_parser_feed(&parser, frame, sizeof(frame)));
 
@@ -445,7 +450,7 @@ TEST test_ws_endian(void) {
 
 TEST test_ws_generate_mask(void) {
   unsigned char mask[4];
-  ws_generate_mask_key(mask);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_generate_mask_key(mask));
   PASS();
 }
 
@@ -464,8 +469,9 @@ TEST test_ws_parser_ext_len(void) {
   frame16[2] = 0;    /* High byte */
   frame16[3] = 126;  /* Low byte */
   /* payload follows, we'll feed exactly that much */
-  ws_parser_init(&ctx, test_ws_on_message, test_ws_on_error, test_ws_on_close,
-                 &my_ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&ctx, test_ws_on_message, test_ws_on_error,
+                           test_ws_on_close, &my_ctx));
   rc = ws_parser_feed(&ctx, frame16, sizeof(frame16));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_parser_destroy(&ctx));
@@ -477,8 +483,9 @@ TEST test_ws_parser_ext_len(void) {
   /* Length 65536 is 0x00000000 00010000 */
   frame64[8] = 0x01;
   frame64[9] = 0x00;
-  ws_parser_init(&ctx, test_ws_on_message, test_ws_on_error, test_ws_on_close,
-                 &my_ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&ctx, test_ws_on_message, test_ws_on_error,
+                           test_ws_on_close, &my_ctx));
   rc = ws_parser_feed(&ctx, frame64, sizeof(frame64));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_parser_destroy(&ctx));
@@ -492,7 +499,8 @@ TEST test_ws_parser_errors(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             ws_parser_init(NULL, NULL, NULL, NULL, NULL));
-  ws_parser_init(&ctx, NULL, NULL, NULL, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_parser_init(&ctx, NULL, NULL, NULL, NULL));
 
   frame[0] = 0x0F; /* Reserved opcode */
   frame[1] = 0x00;
@@ -1087,9 +1095,13 @@ static enum c_abstract_http_error mock_on_err(int rc, void *user_data) {
 
 static enum c_abstract_http_error
 mock_push(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
+  enum c_abstract_http_error rc;
   (void)ctx;
-  cb(arg); /* Run synchronously for test */
-  return 0;
+  rc = cb(arg); /* Run synchronously for test */
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    /* task completed with error */
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static enum c_abstract_http_error
@@ -1164,7 +1176,9 @@ TEST test_ws_async_register_success(void) {
   if (req.read_chunk) {
     char buf[1024];
     size_t read_bytes = 0;
-    req.read_chunk(req.read_chunk_user_data, buf, sizeof(buf), &read_bytes);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              req.read_chunk(req.read_chunk_user_data, buf, sizeof(buf),
+                             &read_bytes));
     ASSERT(read_bytes > 0);
   }
 
@@ -1227,7 +1241,8 @@ TEST test_ws_edge_cases(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req3, NULL));
 
   if (req3.read_chunk) {
-    req3.read_chunk(NULL, buf, sizeof(buf), &out_read);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              req3.read_chunk(NULL, buf, sizeof(buf), &out_read));
   }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req3));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req3));

@@ -1,3 +1,8 @@
+/**
+ * @file http_sse.h
+ * @brief Server-Sent Events (SSE) public API.
+ */
+
 #ifndef C_ABSTRACT_HTTP_SSE_H
 #define C_ABSTRACT_HTTP_SSE_H
 
@@ -11,7 +16,6 @@ extern "C" {
 
 #ifdef _WIN32
 #include <windef.h>
-#include <c_abstract_http/http_types.h>
 #endif
 /* clang-format on */
 

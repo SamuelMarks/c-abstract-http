@@ -53,15 +53,15 @@ TEST test_picoquic_context_lifecycle(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_context_init(&ctx));
   ASSERT(ctx != NULL);
 
-  http_picoquic_context_free(ctx);
-  http_picoquic_context_free(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_context_free(NULL));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* Test context free with NULL quic */
   g_mock_picoquic_quic_null_on_free = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_context_init(&ctx));
   ASSERT(ctx != NULL);
-  http_picoquic_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_context_free(ctx));
   g_mock_picoquic_quic_null_on_free = 0;
 
   g_mock_picoquic_config_init_fail = 1;
@@ -108,7 +108,7 @@ TEST test_picoquic_config_application(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_config_apply(ctx, &config));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
-  http_picoquic_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_global_cleanup());
   PASS();
 }
@@ -137,13 +137,21 @@ TEST test_picoquic_send_invalid_arguments(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_picoquic_send(ctx, &req, &res));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_picoquic_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_global_cleanup());
   PASS();
 }
 
-/**
- * @brief Test successful sending and error paths for http_picoquic_send.
- *
- * @return GREATEST_TEST_RES_PASS on success.
- */
+/** @brief Suite definition for picoquic backend */
+SUITE(http_picoquic_suite) {
+  RUN_TEST(test_picoquic_global_lifecycle);
+  RUN_TEST(test_picoquic_context_lifecycle);
+  RUN_TEST(test_picoquic_config_application);
+  RUN_TEST(test_picoquic_send_invalid_arguments);
+}
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* TEST_HTTP_PICOQUIC_H */

@@ -75,6 +75,7 @@ cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Adapt HTTP progress updates to CMP UI progress binding */
 enum c_abstract_http_error cmp_http_progress_adapter(size_t current_bytes,
                                                      size_t total_bytes,
                                                      void *user_data) {

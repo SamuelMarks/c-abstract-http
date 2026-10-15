@@ -35,6 +35,7 @@ extern int g_mock_mask_key_fail;
 extern int g_mock_pack_header_fail;
 #endif
 
+/** @brief Generate a Base64-encoded 16-byte Sec-WebSocket-Key */
 enum c_abstract_http_error ws_generate_key(char out_key[25]) {
   unsigned char random_bytes[16];
   char *base64_str = NULL;
@@ -62,6 +63,7 @@ enum c_abstract_http_error ws_generate_key(char out_key[25]) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Sign a client Sec-WebSocket-Key to produce Sec-WebSocket-Accept */
 enum c_abstract_http_error ws_sign_key(const char *client_key,
                                        char out_accept[29]) {
   enum c_abstract_http_error rc;
@@ -105,6 +107,7 @@ enum c_abstract_http_error ws_sign_key(const char *client_key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Verify server Sec-WebSocket-Accept header against client key */
 enum c_abstract_http_error ws_verify_accept(const char *client_key,
                                             const char *server_accept) {
   char expected_accept[29];
@@ -119,17 +122,17 @@ enum c_abstract_http_error ws_verify_accept(const char *client_key,
   return -1002; /* C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE */
 }
 
-static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
-                            size_t *out_read) {
+static enum c_abstract_http_error
+ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
   enum c_abstract_http_error rc;
   struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)user_data;
   if (!sctx)
-    return -1;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
 
   rc = abstract_http_mutex_lock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("ws_read_chunk_cb: returning -1 due to internal error %d", rc);
-    return -1;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   while (sctx->queue_len == 0 && !sctx->close_requested) {
     /* Wait for data or close */
@@ -140,7 +143,7 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
         LOG_DEBUG("ws_read_chunk_cb: unlock error %d", (int)u_rc);
       }
       LOG_DEBUG("ws_read_chunk_cb: returning -1 due to internal error %d", rc);
-      return -1;
+      return C_ABSTRACT_HTTP_ERR_INVAL;
     }
   }
 
@@ -161,9 +164,9 @@ static int ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
   rc = abstract_http_mutex_unlock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("ws_read_chunk_cb: returning -1 due to internal error %d", rc);
-    return -1;
+    return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 static enum c_abstract_http_error
 ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
@@ -346,6 +349,7 @@ uint64_t math_ws_ntohll(uint64_t netqword) {
          ((uint64_t)p[6] << 8) | (uint64_t)p[7];
 }
 
+/** @brief Generate a 4-byte WebSocket masking key */
 enum c_abstract_http_error ws_generate_mask_key(unsigned char out_key[4]) {
   int i;
   static int rand_initialized = 0;
@@ -365,6 +369,7 @@ enum c_abstract_http_error ws_generate_mask_key(unsigned char out_key[4]) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Apply XOR mask to WebSocket frame payload */
 enum c_abstract_http_error ws_apply_mask(unsigned char *payload, size_t len,
                                          const unsigned char mask_key[4]) {
   size_t i;
@@ -439,6 +444,7 @@ ws_pack_header_large(unsigned char *buf, int fin,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize a WebSocket frame parser context */
 enum c_abstract_http_error ws_parser_init(struct ws_parser_ctx *ctx,
                                           c_abstract_http_ws_on_message on_msg,
                                           c_abstract_http_ws_on_error on_err,
@@ -462,6 +468,7 @@ enum c_abstract_http_error ws_parser_init(struct ws_parser_ctx *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Destroy a WebSocket frame parser context */
 enum c_abstract_http_error ws_parser_destroy(struct ws_parser_ctx *ctx) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_parser_destroy_fail)
@@ -475,6 +482,7 @@ enum c_abstract_http_error ws_parser_destroy(struct ws_parser_ctx *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Feed raw bytes into the WebSocket frame parser */
 enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
                                           const unsigned char *chunk,
                                           size_t len) {
@@ -746,6 +754,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Execute a synchronous WebSocket read loop */
 enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
@@ -785,8 +794,12 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
       if (rch != C_ABSTRACT_HTTP_SUCCESS)
         return rch;
     }
-    if (on_err)
-      on_err(rc, user_data);
+    if (on_err) {
+      enum c_abstract_http_error err_rc = on_err(rc, user_data);
+      if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        /* Keep primary error rc */
+      }
+    }
     return rc;
   }
 
@@ -794,7 +807,10 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
     rc = ws_parser_feed(&parser, res->body, res->body_len);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       if (on_err) {
-        on_err(rc, user_data);
+        enum c_abstract_http_error err_rc = on_err(rc, user_data);
+        if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          /* Keep primary error rc */
+        }
       }
       {
         enum c_abstract_http_error rch = ws_parser_destroy(&parser);
@@ -823,8 +839,12 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   }
   free(res);
 
-  if (on_close)
-    on_close(200, user_data);
+  if (on_close) {
+    enum c_abstract_http_error cls_rc = on_close(200, user_data);
+    if (cls_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      /* Ignore close callback status */
+    }
+  }
 
   if (req->ws_ctx) {
     {
@@ -851,7 +871,10 @@ static enum c_abstract_http_error c_abstract_http_ws_async_task(void *arg) {
                                           ctx->user_data, &exit_flag);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
     if (ctx->on_err) {
-      ctx->on_err(err, ctx->user_data);
+      enum c_abstract_http_error err_rc = ctx->on_err(err, ctx->user_data);
+      if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        /* Keep primary error err */
+      }
     }
     free(ctx);
     return err;
@@ -861,12 +884,15 @@ static enum c_abstract_http_error c_abstract_http_ws_async_task(void *arg) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Test helper for WebSocket async task */
 enum c_abstract_http_error abstract_http_test_ws_async_task(void *arg);
+/** @brief Test helper for WebSocket async task */
 enum c_abstract_http_error abstract_http_test_ws_async_task(void *arg) {
   return c_abstract_http_ws_async_task(arg);
 }
 #endif
 
+/** @brief Register an asynchronous WebSocket reader */
 enum c_abstract_http_error c_abstract_http_ws_async_register(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
@@ -1036,6 +1062,7 @@ c_abstract_http_ws_send(struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Send a WebSocket close frame and close the stream */
 enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
                                                     int status_code) {
   struct ws_stream_ctx *sctx;
@@ -1074,6 +1101,7 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free WebSocket stream resources attached to an HTTP request */
 enum c_abstract_http_error c_abstract_http_ws_free(struct HttpRequest *req) {
   if (req) {
     if (req->ws_ctx) {
@@ -1086,7 +1114,7 @@ enum c_abstract_http_error c_abstract_http_ws_free(struct HttpRequest *req) {
       req->ws_ctx = NULL;
       return C_ABSTRACT_HTTP_SUCCESS;
     } else {
-      ws_stream_ctx_free(NULL);
+      return ws_stream_ctx_free(NULL);
     }
   }
   return C_ABSTRACT_HTTP_SUCCESS;

@@ -1,3 +1,8 @@
+/**
+ * @file log.h
+ * @brief Debug logging interface for c-abstract-http.
+ */
+
 #ifndef C_ABSTRACT_HTTP_LOG_H
 #define C_ABSTRACT_HTTP_LOG_H
 

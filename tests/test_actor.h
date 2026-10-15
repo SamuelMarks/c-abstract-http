@@ -265,9 +265,9 @@ static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, 
    if (bus) {}
 
   /* manual coverage for dummy_handler */
-   dummy_handler(NULL, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, dummy_handler(NULL, NULL));
 
-   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_init(&bus));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_init(&bus));
 
   /* Exceed initial capacity of 16 */
    for (i = 0; i < 20; i++) {

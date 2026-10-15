@@ -44,6 +44,7 @@ extern int g_mock_raw_response_init_fail;
 extern int g_mock_raw_res_alloc_fail;
 #endif
 
+/** @brief Initialize global raw socket state */
 enum c_abstract_http_error http_raw_global_init(void) {
 #if defined(_WIN32)
   WSADATA wsaData;
@@ -54,6 +55,7 @@ enum c_abstract_http_error http_raw_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Clean up global raw socket state */
 enum c_abstract_http_error http_raw_global_cleanup(void) {
 #if defined(_WIN32)
   WSACleanup();
@@ -61,9 +63,10 @@ enum c_abstract_http_error http_raw_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Internal raw socket transport context */
 struct RawCtx {
-  long timeout_ms;
-  struct HttpConfig config;
+  long timeout_ms;          /**< Timeout in milliseconds */
+  struct HttpConfig config; /**< Active HTTP configuration */
 };
 
 enum c_abstract_http_error
@@ -280,6 +283,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Send an HTTP request over raw sockets */
 enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
                                          const struct HttpRequest *req,
                                          struct HttpResponse **res) {
@@ -758,6 +762,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Dispatch multiple HTTP requests over raw sockets */
 enum c_abstract_http_error http_raw_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *reqs, struct HttpFuture **future) {

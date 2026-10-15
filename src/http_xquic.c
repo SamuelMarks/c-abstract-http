@@ -1,3 +1,9 @@
+/**
+ * @file http_xquic.c
+ * @brief Alibaba xquic implementation of the Abstract Network Interface (ANI).
+ * @author Samuel Marks
+ */
+
 /* clang-format off */
 #include <errno.h>
 #include <stdio.h>
@@ -6,9 +12,8 @@
 
 #include <c_abstract_http/http_xquic.h>
 #include "c_abstract_http/log.h"
-/* clang-format on */
-
 #include <xquic/xquic.h>
+/* clang-format on */
 
 static int g_xquic_init_count = 0;
 

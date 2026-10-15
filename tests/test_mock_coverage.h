@@ -279,6 +279,7 @@ TEST test_mock_alloc_more(void) {
 }
 
 static enum c_abstract_http_error trigger_req_cb(void *arg) {
+  enum c_abstract_http_error rc;
   MockServerPtr srv = (MockServerPtr)arg;
 #if !defined(_WIN32)
   struct timespec ts;
@@ -288,14 +289,17 @@ static enum c_abstract_http_error trigger_req_cb(void *arg) {
 #else
   Sleep(30);
 #endif
-  abstract_http_mock_server_force_request(srv, "async_wait");
-  abstract_http_mock_server_signal_ready(srv);
-  return C_ABSTRACT_HTTP_SUCCESS;
+  rc = abstract_http_mock_server_force_request(srv, "async_wait");
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  return abstract_http_mock_server_signal_ready(srv);
 }
 
 TEST test_mock_server_coverage(void) {
   struct MockServer_ *srv = NULL;
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, mock_server_init((MockServerPtr *)&srv));
@@ -305,14 +309,16 @@ TEST test_mock_server_coverage(void) {
   g_mock_alloc_count = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, mock_server_init(NULL));
   g_mock_alloc_fail = 0;
+#endif
 
-  mock_server_destroy(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(NULL));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init((MockServerPtr *)&srv));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, mock_server_start(NULL));
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* Mock socket fail */
   g_mock_socket_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, mock_server_start((MockServerPtr)srv));
@@ -337,6 +343,7 @@ TEST test_mock_server_coverage(void) {
   g_mock_pthread_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, mock_server_start((MockServerPtr)srv));
   g_mock_pthread_fail = 0;
+#endif
 #endif
 
   /* Stop running server destruction. For coverage, let's start it successfully!
@@ -449,19 +456,23 @@ TEST test_mock_server_coverage(void) {
     struct MockServerRequest req;
     struct MockServerRequest empty_req;
     memset(&empty_req, 0, sizeof(empty_req));
-    mock_server_request_cleanup(&empty_req);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_request_cleanup(&empty_req));
 
     /* Wait for the request we just sent! */
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               mock_server_wait_for_request((MockServerPtr)srv, &req));
-    mock_server_request_cleanup(&req);
-    mock_server_request_cleanup(NULL);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_request_cleanup(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_request_cleanup(NULL));
 
     /* Exercise force_request overwriting existing request and clear_request */
-    abstract_http_mock_server_force_request((MockServerPtr)srv, "test_prev");
-    abstract_http_mock_server_force_request((MockServerPtr)srv, "test_next");
-    abstract_http_mock_server_clear_request((MockServerPtr)srv);
-    abstract_http_mock_server_clear_request(NULL);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_request(
+                                           (MockServerPtr)srv, "test_prev"));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_request(
+                                           (MockServerPtr)srv, "test_next"));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_clear_request((MockServerPtr)srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_clear_request(NULL));
 
     /* Test cond_wait by waiting when has_request == 0 */
     {
@@ -475,76 +486,98 @@ TEST test_mock_server_coverage(void) {
           abstract_http_thread_pool_push(pool, trigger_req_cb, (void *)srv));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 mock_server_wait_for_request((MockServerPtr)srv, &async_req));
-      mock_server_request_cleanup(&async_req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                mock_server_request_cleanup(&async_req));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
     }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
     /* Mock out_req allocation failure */
-    abstract_http_mock_server_force_request((MockServerPtr)srv, "test");
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_request(
+                                           (MockServerPtr)srv, "test"));
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               mock_server_wait_for_request((MockServerPtr)srv, &req));
     g_mock_alloc_fail = 0;
     ASSERT_EQ(NULL, req.raw_header);
+#endif
 
     /* Mock server has request but captured_request is NULL */
-    abstract_http_mock_server_force_request((MockServerPtr)srv, NULL);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_request(
+                                           (MockServerPtr)srv, NULL));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               mock_server_wait_for_request((MockServerPtr)srv, &req));
 
     /* Test force_request alloc failure */
-    abstract_http_mock_server_force_request(NULL, "test");
-    abstract_http_mock_server_force_request((MockServerPtr)srv, "test");
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_request(NULL, "test"));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_request(
+                                           (MockServerPtr)srv, "test"));
     {
       int has_req = 0;
-      abstract_http_mock_server_has_request((MockServerPtr)srv, &has_req);
-      abstract_http_mock_server_has_request((MockServerPtr)srv, NULL);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_has_request(
+                                             (MockServerPtr)srv, &has_req));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_has_request(
+                                             (MockServerPtr)srv, NULL));
       ASSERT_EQ(1, has_req);
-      abstract_http_mock_server_has_request(NULL, &has_req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_mock_server_has_request(NULL, &has_req));
       ASSERT_EQ(0, has_req);
     }
 
     /* Let's stop the server so background threads don't steal the allocation
      * count */
-    mock_server_destroy((MockServerPtr)srv);
-    mock_server_init((MockServerPtr *)&srv);
-    mock_server_start((MockServerPtr)srv);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy((MockServerPtr)srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init((MockServerPtr *)&srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start((MockServerPtr)srv));
 
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
-    abstract_http_mock_server_force_request((MockServerPtr)srv, "test2");
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_request(
+                                           (MockServerPtr)srv, "test2"));
     g_mock_alloc_fail = 0;
-    abstract_http_mock_server_clear_request((MockServerPtr)srv);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_clear_request((MockServerPtr)srv));
 
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = 0;
-    abstract_http_mock_server_force_request((MockServerPtr)srv, "test3");
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_request(
+                                           (MockServerPtr)srv, "test3"));
     g_mock_alloc_fail = 0;
     {
       int has_req = 0;
-      abstract_http_mock_server_has_request((MockServerPtr)srv, &has_req);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_has_request(
+                                             (MockServerPtr)srv, &has_req));
       ASSERT_EQ(1, has_req);
     }
 
     {
       struct MockServerRequest req2;
       extern int g_mock_server_cond_wait_fail;
-      abstract_http_mock_server_clear_request((MockServerPtr)srv);
-      abstract_http_mock_server_force_running((MockServerPtr)srv, 1);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_mock_server_clear_request((MockServerPtr)srv));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_mock_server_force_running((MockServerPtr)srv, 1));
       g_mock_server_cond_wait_fail = 1;
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
                 mock_server_wait_for_request((MockServerPtr)srv, &req2));
       g_mock_server_cond_wait_fail = 0;
-      abstract_http_mock_server_force_running((MockServerPtr)srv, 0);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_mock_server_force_running((MockServerPtr)srv, 0));
     }
 
     /* Hit remaining branches */
-    abstract_http_mock_server_clear_request(NULL);
-    abstract_http_mock_server_signal_ready(NULL);
-    abstract_http_mock_server_clear_request((MockServerPtr)srv);
-    abstract_http_mock_server_clear_request((MockServerPtr)srv);
-    abstract_http_mock_server_force_fd(NULL, 123);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_clear_request(NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_signal_ready(NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_clear_request((MockServerPtr)srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_clear_request((MockServerPtr)srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_fd(NULL, 123));
   }
 
   /* Mock alloc fail inside server recv loop */
@@ -632,51 +665,71 @@ TEST test_mock_server_coverage(void) {
      we have a callback. But wait, `abstract_http_mock_server_force_request`
      covers the memory. What about the accept loop failure? `if (!s->running)
      break;` It breaks out of the loop and exits the thread! */
-  mock_server_destroy((MockServerPtr)srv);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy((MockServerPtr)srv));
 
   /* Double destroy coverage */
-  mock_server_destroy(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(NULL));
 
   /* Force test branch at 288 in mock_server.c */
   {
     struct MockServer_ *s2 = NULL;
-    mock_server_init((MockServerPtr *)&s2);
-    abstract_http_mock_server_force_fd(NULL, 12345);
-    abstract_http_mock_server_force_fd((MockServerPtr)s2, 12345);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init((MockServerPtr *)&s2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_fd(NULL, 12345));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_fd((MockServerPtr)s2, 12345));
 
     /* Test double force_request */
-    abstract_http_mock_server_force_request((MockServerPtr)s2, "req1");
-    abstract_http_mock_server_force_request((MockServerPtr)s2, "req2");
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_request(
+                                           (MockServerPtr)s2, "req1"));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_request(
+                                           (MockServerPtr)s2, "req2"));
 
     /* Test run thread once with running = 0 */
-    abstract_http_mock_server_run_thread_once(NULL);
-    abstract_http_mock_server_run_thread_once((MockServerPtr)s2);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_run_thread_once(NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_run_thread_once((MockServerPtr)s2));
 
     /* Test force running without server_fd for mock_server_destroy */
-    abstract_http_mock_server_force_port(NULL, 0);
-    abstract_http_mock_server_force_port((MockServerPtr)s2, 0);
-    abstract_http_mock_server_force_running(NULL, 1);
-    abstract_http_mock_server_force_running((MockServerPtr)s2, 1);
-    abstract_http_mock_server_force_fd((MockServerPtr)s2, -1);
-    abstract_http_mock_server_force_running((MockServerPtr)s2, 1);
-    mock_server_destroy((MockServerPtr)s2);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_port(NULL, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_port((MockServerPtr)s2, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_running(NULL, 1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_running((MockServerPtr)s2, 1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_fd((MockServerPtr)s2, -1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_running((MockServerPtr)s2, 1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy((MockServerPtr)s2));
   }
 
   {
     struct MockServer_ *s_fd = NULL;
-    mock_server_init((MockServerPtr *)&s_fd);
-    abstract_http_mock_server_force_fd((MockServerPtr)s_fd, 12345);
-    mock_server_destroy((MockServerPtr)s_fd);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              mock_server_init((MockServerPtr *)&s_fd));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_fd((MockServerPtr)s_fd, 12345));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              mock_server_destroy((MockServerPtr)s_fd));
   }
 
   {
     struct MockServer_ *s_port = NULL;
-    mock_server_init((MockServerPtr *)&s_port);
-    abstract_http_mock_server_force_port((MockServerPtr)s_port, 9999);
-    abstract_http_mock_server_force_fd((MockServerPtr)s_port, -1);
-    abstract_http_mock_server_force_running((MockServerPtr)s_port, 1);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              mock_server_init((MockServerPtr *)&s_port));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_port(
+                                           (MockServerPtr)s_port, 9999));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_fd((MockServerPtr)s_port, -1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_mock_server_force_running(
+                                           (MockServerPtr)s_port, 1));
     g_mock_socket_fail = 1;
-    mock_server_destroy((MockServerPtr)s_port);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              mock_server_destroy((MockServerPtr)s_port));
     g_mock_socket_fail = 0;
   }
 
@@ -685,13 +738,15 @@ TEST test_mock_server_coverage(void) {
     struct MockServer_ *s3 = NULL;
     struct MockServerRequest req_out;
     memset(&req_out, 0, sizeof(req_out));
-    mock_server_init((MockServerPtr *)&s3);
-    mock_server_start((MockServerPtr)s3);
-    abstract_http_mock_server_force_running((MockServerPtr)s3, 0);
-    abstract_http_mock_server_signal_ready((MockServerPtr)s3);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init((MockServerPtr *)&s3));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start((MockServerPtr)s3));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_force_running((MockServerPtr)s3, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_server_signal_ready((MockServerPtr)s3));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               mock_server_wait_for_request((MockServerPtr)s3, &req_out));
-    mock_server_destroy((MockServerPtr)s3);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy((MockServerPtr)s3));
   }
 
   PASS();
@@ -738,6 +793,7 @@ TEST test_abstract_http_helpers_coverage(void) {
   fclose(fh);
   remove(tmp_filename);
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* write_to_file mock failure on fwrite */
   g_mock_fwrite_fail = 1;
   rc = write_to_file(tmp_filename, "failure");
@@ -751,6 +807,7 @@ TEST test_abstract_http_helpers_coverage(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   g_mock_fclose_fail = 0;
   remove(tmp_filename);
+#endif
 
   /* test_coverage_fix_verify */
   rc = test_coverage_fix_verify(NULL);
@@ -820,6 +877,7 @@ TEST test_fuzz_harness_coverage(void) {
     big_line = NULL;
   }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* fuzz_sse alloc fail */
   *abstract_http_mock_get_g_mock_alloc_fail() = 1;
   rc = test_fuzz_sse_run(sse_valid, sizeof(sse_valid) - 1, &out_rc);
@@ -833,6 +891,7 @@ TEST test_fuzz_harness_coverage(void) {
   rc = test_fuzz_sse_run(sse_valid, sizeof(sse_valid) - 1, &out_rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   *abstract_http_mock_get_g_mock_cond_free_fail() = 0;
+#endif
 #else
   rc = test_fuzz_sse_run(NULL, 0, &out_rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -865,6 +924,7 @@ TEST test_fuzz_harness_coverage(void) {
   rc = test_fuzz_ws_run(ws_close, sizeof(ws_close), &out_rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* fuzz_ws alloc fail */
   *abstract_http_mock_get_g_mock_alloc_fail() = 1;
   rc = test_fuzz_ws_run(ws_valid, sizeof(ws_valid), &out_rc);
@@ -877,6 +937,7 @@ TEST test_fuzz_harness_coverage(void) {
   rc = test_fuzz_ws_run(ws_valid, sizeof(ws_valid), &out_rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   g_mock_parser_destroy_fail = 0;
+#endif
 #else
   rc = test_fuzz_ws_run(NULL, 0, &out_rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);

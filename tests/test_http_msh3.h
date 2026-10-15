@@ -46,7 +46,10 @@ test_msh3_setup_request(struct HttpRequest *req, const char *url_str) {
 
   rc = c_abstract_http_strdup(url_str, &u);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(req));
+    enum c_abstract_http_error free_rc = http_request_free(req);
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return free_rc;
+    }
     return rc;
   }
   req->url = u;
@@ -177,8 +180,8 @@ TEST test_msh3_context_lifecycle(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
 
-  http_msh3_context_free(ctx);
-  http_msh3_context_free(NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_context_free(NULL));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* Alloc fail */
@@ -240,7 +243,7 @@ TEST test_msh3_config_application(void) {
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
-  http_msh3_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_context_free(ctx));
   rc = http_msh3_global_cleanup();
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   PASS();
@@ -316,10 +319,23 @@ TEST test_msh3_send_invalid_arguments(void) {
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
-  http_msh3_context_free(ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_context_free(ctx));
   rc = http_msh3_global_cleanup();
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   PASS();
 }
 
-/** @brief Test MsH3 send success and method dispatch */
+/** @brief Suite definition for MsH3 backend */
+SUITE(http_msh3_suite) {
+  RUN_TEST(test_msh3_setup_request_coverage);
+  RUN_TEST(test_msh3_global_lifecycle);
+  RUN_TEST(test_msh3_context_lifecycle);
+  RUN_TEST(test_msh3_config_application);
+  RUN_TEST(test_msh3_send_invalid_arguments);
+}
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* TEST_HTTP_MSH3_H */

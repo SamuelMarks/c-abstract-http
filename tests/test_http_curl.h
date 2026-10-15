@@ -49,14 +49,16 @@ extern CURLcode g_mock_curl_perform_res;
 extern int g_mock_http_response_init_fail;
 extern int g_mock_http_loop_fail;
 extern int g_mock_curl_multi_add_fail;
-extern int
+extern enum c_abstract_http_error
 abstract_http_test_multi_timer_function(struct HttpTransportContext *ctx,
                                         long timeout_ms);
-extern int abstract_http_test_multi_socket_function(
+extern enum c_abstract_http_error abstract_http_test_multi_socket_function(
     struct HttpTransportContext *ctx, curl_socket_t s, int what, void *socketp);
 extern enum c_abstract_http_error
 abstract_http_test_set_timer_id(struct HttpTransportContext *ctx, int timer_id);
-extern int abstract_http_test_get_timer_id(struct HttpTransportContext *ctx);
+extern enum c_abstract_http_error
+abstract_http_test_get_timer_id(struct HttpTransportContext *ctx,
+                                int *out_timer_id);
 extern enum c_abstract_http_error
 abstract_http_test_set_loop(struct HttpTransportContext *ctx,
                             struct ModalityEventLoop *loop);
@@ -64,10 +66,13 @@ abstract_http_test_set_loop(struct HttpTransportContext *ctx,
 
 static enum c_abstract_http_error setup_request(struct HttpRequest *req,
                                                 int port) {
+  enum c_abstract_http_error rc;
   char *_ast_strdup_0 = NULL;
   char url[64];
 
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(req));
+  rc = http_request_init(req);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
@@ -79,7 +84,7 @@ static enum c_abstract_http_error setup_request(struct HttpRequest *req,
                       C_ABSTRACT_HTTP_SUCCESS
                   ? _ast_strdup_0
                   : NULL);
-  return (enum greatest_test_res)0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /** @brief Documented */
@@ -186,7 +191,7 @@ TEST test_curl_send_connection_failure(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   /* Use an invalid port */
-  setup_request(&req, 59999);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, 59999));
 
   rc = http_curl_send(ctx, &req, &res);
 
@@ -295,7 +300,8 @@ TEST test_curl_send_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
-  setup_request(&req, math_mock_server_get_port(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            setup_request(&req, math_mock_server_get_port(server)));
 
   /* Setup chunk callback */
   state.call_count = 0;
@@ -345,7 +351,7 @@ TEST test_curl_send_chunked(void) {
     c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc_cleanup);
   }
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
@@ -367,7 +373,8 @@ TEST test_curl_send_chunked_abort(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
-  setup_request(&req, math_mock_server_get_port(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            setup_request(&req, math_mock_server_get_port(server)));
 
   state.call_count = 0;
   state.total_bytes = 0;
@@ -388,7 +395,7 @@ TEST test_curl_send_chunked_abort(void) {
     c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc_cleanup);
   }
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
@@ -402,8 +409,9 @@ struct curl_TestUploadState {
   size_t pos;
 };
 
-static int curl_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
-                               size_t *out_read) {
+static enum c_abstract_http_error curl_mock_upload_cb(void *user_data,
+                                                      void *buf, size_t buf_len,
+                                                      size_t *out_read) {
   struct curl_TestUploadState *state = (struct curl_TestUploadState *)user_data;
   size_t remaining = state->len - state->pos;
   size_t to_copy = (remaining < buf_len) ? remaining : buf_len;
@@ -413,7 +421,7 @@ static int curl_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
     state->pos += to_copy;
   }
   *out_read = to_copy;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /** @brief Documented */
@@ -435,7 +443,8 @@ TEST test_curl_send_upload_chunked(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&config));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
-  setup_request(&req, math_mock_server_get_port(server));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            setup_request(&req, math_mock_server_get_port(server)));
   req.method = HTTP_POST;
 
   /* Disable Expect: 100-continue to prevent curl from waiting or aborting early
@@ -482,7 +491,7 @@ TEST test_curl_send_upload_chunked(void) {
     c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc_cleanup);
   }
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
@@ -742,7 +751,7 @@ TEST test_curl_send_write_oom(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc_cleanup);
   }
 
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
 
   PASS();
 }
@@ -933,7 +942,7 @@ TEST test_curl_send_cookies(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, port));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   cookies =
@@ -1008,17 +1017,18 @@ TEST test_curl_send_cookies(void) {
     c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc_cleanup);
   }
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
-static int curl_mock_upload_cb_abort(void *user_data, void *buffer,
-                                     size_t max_bytes, size_t *out_bytes_read) {
+static enum c_abstract_http_error
+curl_mock_upload_cb_abort(void *user_data, void *buffer, size_t max_bytes,
+                          size_t *out_bytes_read) {
   (void)user_data;
   (void)buffer;
   (void)max_bytes;
   (void)out_bytes_read;
-  return -1;
+  return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
 TEST test_curl_send_upload_chunked_abort(void) {
@@ -1037,7 +1047,7 @@ TEST test_curl_send_upload_chunked_abort(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, port));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             http_headers_add(&req.headers, "Expect", ""));
   req.method = HTTP_POST;
@@ -1053,7 +1063,7 @@ TEST test_curl_send_upload_chunked_abort(void) {
     c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc_cleanup);
   }
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
@@ -1095,7 +1105,7 @@ TEST test_curl_send_oom(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, port));
 
   for (i = 0; i < 15; i++) {
     g_mock_alloc_fail = 1;
@@ -1121,7 +1131,7 @@ TEST test_curl_send_oom(void) {
     c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc_cleanup);
   }
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
@@ -1147,7 +1157,7 @@ TEST test_curl_send_chunked_methods(void) {
 
   /* PUT chunked */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, port));
   req.method = HTTP_PUT;
   req.read_chunk = curl_mock_upload_cb;
   req.read_chunk_user_data = &up_state;
@@ -1163,7 +1173,7 @@ TEST test_curl_send_chunked_methods(void) {
 
   /* PATCH chunked */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, port));
   req.method = HTTP_PATCH;
   req.read_chunk = curl_mock_upload_cb;
   req.read_chunk_user_data = &up_state;
@@ -1179,7 +1189,7 @@ TEST test_curl_send_chunked_methods(void) {
 
   /* QUERY chunked */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, port));
   req.method = HTTP_QUERY;
   req.read_chunk = curl_mock_upload_cb;
   req.read_chunk_user_data = &up_state;
@@ -1196,7 +1206,7 @@ TEST test_curl_send_chunked_methods(void) {
 
   /* GET chunked (default fallback) */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, port));
   req.method = HTTP_GET;
   req.read_chunk = curl_mock_upload_cb;
   req.read_chunk_user_data = &up_state;
@@ -1212,7 +1222,7 @@ TEST test_curl_send_chunked_methods(void) {
 
   /* QUERY payload */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, port));
   req.method = HTTP_QUERY;
   req.body = (unsigned char *)"data";
   req.body_len = 4;
@@ -1227,7 +1237,7 @@ TEST test_curl_send_chunked_methods(void) {
 
   /* Unknown method fallback */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, port));
   req.method = 999;
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res), "%d");
   if (res) {
@@ -1239,7 +1249,7 @@ TEST test_curl_send_chunked_methods(void) {
 
   /* Unknown method chunked fallback */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, port));
   req.method = 999;
   req.read_chunk = curl_mock_upload_cb;
   req.read_chunk_user_data = &up_state;
@@ -1258,7 +1268,7 @@ TEST test_curl_send_chunked_methods(void) {
     c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc_cleanup);
   }
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
@@ -1286,9 +1296,9 @@ TEST test_curl_send_multi(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
-  setup_request(&req1, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req1, port));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
-  setup_request(&req2, port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req2, port));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req1));
@@ -1354,7 +1364,7 @@ TEST test_curl_send_multi(void) {
     c_abstract_http_error_t rc_cleanup = http_curl_global_cleanup();
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc_cleanup);
   }
-  mock_server_destroy(server);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
   PASS();
 }
 
@@ -1371,7 +1381,7 @@ TEST test_curl_send_multi_oom(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  setup_request(&req, 59999);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_request(&req, 59999));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req));
@@ -1626,8 +1636,17 @@ TEST test_curl_multi_callbacks_coverage(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_test_set_loop(ctx, loop));
 
   /* 1. Timer function: add timer */
-  ASSERT_EQ(0, abstract_http_test_multi_timer_function(ctx, 100));
-  ASSERT(abstract_http_test_get_timer_id(ctx) > 0);
+  {
+    int tid = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              abstract_http_test_get_timer_id(NULL, &tid));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              abstract_http_test_get_timer_id(ctx, NULL));
+    ASSERT_EQ(0, abstract_http_test_multi_timer_function(ctx, 100));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_test_get_timer_id(ctx, &tid));
+    ASSERT(tid > 0);
+  }
 
   /* 2. Timer function: cancel previous timer and add new timer */
   ASSERT_EQ(0, abstract_http_test_multi_timer_function(ctx, 200));

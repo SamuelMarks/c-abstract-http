@@ -15,18 +15,20 @@
 #include <pthread.h>
 /* clang-format on */
 
+/** @brief Internal Apple transport context */
 struct HttpTransportContext {
-  struct HttpConfig config;
+  struct HttpConfig config; /**< Active HTTP configuration */
 };
 
+/** @brief Internal Apple request state */
 struct AppleReqState {
-  const struct HttpRequest *req;
-  struct HttpResponse **res;
-  CFMutableDataRef bodyData;
-  int error;
-  int done;
-  CFRunLoopRef runloop;
-  int *pending_count;
+  const struct HttpRequest *req; /**< Request pointer */
+  struct HttpResponse **res;     /**< Response output pointer */
+  CFMutableDataRef bodyData;     /**< Response body buffer */
+  int error;                     /**< Error flag */
+  int done;                      /**< Completion flag */
+  CFRunLoopRef runloop;          /**< CFRunLoop reference */
+  int *pending_count;            /**< Pending request counter */
 };
 
 static enum c_abstract_http_error
@@ -139,10 +141,12 @@ static void apple_stream_cb(CFReadStreamRef stream, CFStreamEventType type,
   }
 }
 
+/** @brief Initialize global Apple CFNetwork state */
 enum c_abstract_http_error http_apple_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Clean up global Apple CFNetwork state */
 enum c_abstract_http_error http_apple_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -206,6 +210,7 @@ http_apple_config_apply(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Send an HTTP request via Apple CFNetwork */
 enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
                                            const struct HttpRequest *req,
                                            struct HttpResponse **res) {
@@ -484,11 +489,12 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Worker context for Apple multi-request dispatch */
 struct AppleMultiWorkerCtx {
-  struct HttpTransportContext *ctx;
-  struct ModalityEventLoop *loop;
-  const struct HttpMultiRequest *multi;
-  struct HttpFuture **futures;
+  struct HttpTransportContext *ctx;     /**< Transport context */
+  struct ModalityEventLoop *loop;       /**< Event loop */
+  const struct HttpMultiRequest *multi; /**< Multi-request batch */
+  struct HttpFuture **futures;          /**< Futures array */
 };
 
 static void *apple_multi_worker(void *arg) {
