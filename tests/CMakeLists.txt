@@ -5,6 +5,9 @@ include(FetchContent)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../greatest/greatest.h")
     message(STATUS "Using local greatest for tests")
     set(greatest_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../greatest")
+elseif(EXISTS "/greatest/greatest.h")
+    message(STATUS "Using local /greatest for tests")
+    set(greatest_SOURCE_DIR "/greatest")
 else()
     FetchContent_Declare(
       greatest

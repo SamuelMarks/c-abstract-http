@@ -20,19 +20,23 @@ extern "C" {
 #elif defined(_M_ARM) && !defined(_ARM_)
 #define _ARM_
 #endif
-/* clang-format off */
-#include <string.h>
 #if _MSC_VER < 1900
 #define snprintf _snprintf
 #endif
 #endif
 
+/* clang-format off */
+#if defined(_WIN32) && defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#include <string.h>
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#include <inttypes.h>
+#endif
+/* clang-format on */
+
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
 #define SIZE_T_FMT "Iu"
 
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
-#include <inttypes.h>
-/* clang-format on */
 #define SIZE_T_FMT "zu"
 
 #elif defined(__LP64__) || defined(_LP64)

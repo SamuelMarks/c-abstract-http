@@ -33,23 +33,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <basetsd.h>
+#include <winsock2.h>
+#else
+#include <sys/socket.h>
+#endif
+/* clang-format on */
 
 #ifdef _MSC_VER
 #undef FD_SET
-#define FD_SET(fd, set) do { \
-    u_int __i; \
-    for (__i = 0; __i < ((fd_set FAR *)(set))->fd_count; __i++) { \
-        if (((fd_set FAR *)(set))->fd_array[__i] == (fd)) { \
-            break; \
-        } \
-    } \
-    if (__i == ((fd_set FAR *)(set))->fd_count) { \
-        if (((fd_set FAR *)(set))->fd_count < FD_SETSIZE) { \
-            ((fd_set FAR *)(set))->fd_array[__i] = (fd); \
-            ((fd_set FAR *)(set))->fd_count++; \
-        } \
-    } \
-} while(0, 0)
+#define FD_SET(fd, set)                                                        \
+  do {                                                                         \
+    u_int __i;                                                                 \
+    for (__i = 0; __i < ((fd_set FAR *)(set))->fd_count; __i++) {              \
+      if (((fd_set FAR *)(set))->fd_array[__i] == (fd)) {                      \
+        break;                                                                 \
+      }                                                                        \
+    }                                                                          \
+    if (__i == ((fd_set FAR *)(set))->fd_count) {                              \
+      if (((fd_set FAR *)(set))->fd_count < FD_SETSIZE) {                      \
+        ((fd_set FAR *)(set))->fd_array[__i] = (fd);                           \
+        ((fd_set FAR *)(set))->fd_count++;                                     \
+      }                                                                        \
+    }                                                                          \
+  } while (0, 0)
 #endif
 
 #undef g_mock_getsockname_fail
@@ -73,8 +81,6 @@ size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nitems,
                                    FILE *stream);
 int c_abstract_http_mock_fclose(FILE *stream);
 #ifdef _WIN32
-#include <basetsd.h>
-#include <winsock2.h>
 typedef SSIZE_T ssize_t;
 typedef int socklen_t;
 SOCKET WSAAPI c_abstract_http_mock_socket(int domain, int type, int protocol);
@@ -88,7 +94,6 @@ SOCKET WSAAPI c_abstract_http_mock_accept(SOCKET socket,
 int WSAAPI c_abstract_http_mock_recv(SOCKET socket, char *buffer, int length,
                                      int flags);
 #else
-#include <sys/socket.h>
 int c_abstract_http_mock_socket(int domain, int type, int protocol);
 int c_abstract_http_mock_bind(int socket, const struct sockaddr *address,
                               socklen_t address_len);
@@ -609,14 +614,30 @@ int *abstract_http_mock_get_g_mock_accept_fail(void) {
   return &g_mock_accept_fail;
 }
 int *abstract_http_mock_get_g_mock_recv_fail(void) { return &g_mock_recv_fail; }
-int *abstract_http_mock_get_g_mock_config_free_fail(void) { return &g_mock_config_free_fail; }
-int *abstract_http_mock_get_g_mock_response_free_fail(void) { return &g_mock_response_free_fail; }
-int *abstract_http_mock_get_g_mock_multi_free_fail(void) { return &g_mock_multi_free_fail; }
-int *abstract_http_mock_get_g_mock_parts_free_fail(void) { return &g_mock_parts_free_fail; }
-int *abstract_http_mock_get_g_mock_headers_free_fail(void) { return &g_mock_headers_free_fail; }
-int *abstract_http_mock_get_g_mock_cond_free_fail(void) { return &g_mock_cond_free_fail; }
-int *abstract_http_mock_get_g_mock_mutex_free_fail(void) { return &g_mock_mutex_free_fail; }
-int *abstract_http_mock_get_g_mock_mutex_fail(void) { return &g_mock_mutex_fail; }
+int *abstract_http_mock_get_g_mock_config_free_fail(void) {
+  return &g_mock_config_free_fail;
+}
+int *abstract_http_mock_get_g_mock_response_free_fail(void) {
+  return &g_mock_response_free_fail;
+}
+int *abstract_http_mock_get_g_mock_multi_free_fail(void) {
+  return &g_mock_multi_free_fail;
+}
+int *abstract_http_mock_get_g_mock_parts_free_fail(void) {
+  return &g_mock_parts_free_fail;
+}
+int *abstract_http_mock_get_g_mock_headers_free_fail(void) {
+  return &g_mock_headers_free_fail;
+}
+int *abstract_http_mock_get_g_mock_cond_free_fail(void) {
+  return &g_mock_cond_free_fail;
+}
+int *abstract_http_mock_get_g_mock_mutex_free_fail(void) {
+  return &g_mock_mutex_free_fail;
+}
+int *abstract_http_mock_get_g_mock_mutex_fail(void) {
+  return &g_mock_mutex_fail;
+}
 int *abstract_http_mock_get_g_mock_cond_fail(void) { return &g_mock_cond_fail; }
 int *abstract_http_mock_get_g_mock_strcasecmp_fail(void) {
   return &g_mock_strcasecmp_fail;
@@ -1208,7 +1229,6 @@ const char **abstract_http_mock_get_g_mock_recv_data(void) {
 #undef math_get_current_time_ms
 #undef pthread_getspecific
 
-
 ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
 c_abstract_http_mock_malloc(size_t size) {
   if (g_mock_alloc_fail) {
@@ -1520,7 +1540,6 @@ enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
 #include <stddef.h>
 #include <stdio.h>
 
-
 #ifdef _WIN32
 #include <winsock2.h>
 #else
@@ -1542,7 +1561,6 @@ extern int g_mock_recv_fail;
 #undef listen
 #undef accept
 #undef recv
-
 
 #ifdef _WIN32
 /* extern SOCKET socket(int, int, int); */

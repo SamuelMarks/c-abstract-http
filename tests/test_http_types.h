@@ -6,34 +6,21 @@
 #define _XOPEN_SOURCE 500
 #endif
 
-/* clang-format off */
-#include <c_abstract_http/log.h>
 #ifndef TEST_HTTP_TYPES_H
 #define TEST_HTTP_TYPES_H
-extern int g_mock_http_types_strdup_fail;
 
+/* clang-format off */
+#include <c_abstract_http/log.h>
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 #include "mock_alloc.h"
 #endif
-
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
-abstract_http_test_urldecode_alloc(const char *src, size_t src_len, char **out);
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
-abstract_http_test_real_strdup(const char *s, char **out_s);
-
 #if defined(_WIN32)
 #ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #endif
 #include <winsock2.h>
-__declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <dos.h>
 #else
@@ -45,15 +32,26 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #include <unistd.h>
 #endif
 #endif
-
 #include <errno.h>
 #include <greatest.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/thread_pool.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+extern int g_mock_http_types_strdup_fail;
+
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+abstract_http_test_urldecode_alloc(const char *src, size_t src_len, char **out);
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+abstract_http_test_real_strdup(const char *s, char **out_s);
+
+#if defined(_WIN32)
+__declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
+#endif
 
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 /** @brief Documented */
@@ -2967,7 +2965,6 @@ TEST test_http_types_free_ooms_combo(void) {
 
   PASS();
 }
-#endif
 
 TEST test_http_types_init_err(void) {
   struct HttpRequest req;
@@ -2978,6 +2975,7 @@ TEST test_http_types_init_err(void) {
   g_mock_headers_free_fail = 0;
   PASS();
 }
+#endif
 
 SUITE(http_types_suite) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

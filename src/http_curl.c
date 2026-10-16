@@ -100,26 +100,33 @@ int g_mock_curl_check_multi_info_fail = 0;
                                        : (curl_easy_perform)(handle))
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-static int check_mock_setopt_fail(void) {
+/**
+ * @brief Check if mock setopt should fail on this invocation.
+ * @return C_ABSTRACT_HTTP_ERR_NOMEM if failure is triggered,
+ * C_ABSTRACT_HTTP_SUCCESS otherwise.
+ */
+static enum c_abstract_http_error check_mock_setopt_fail(void) {
   if (g_mock_curl_setopt_fail) {
     if (g_mock_curl_setopt_count == 0) {
       g_mock_curl_setopt_count--;
-      return 1;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     g_mock_curl_setopt_count--;
   }
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #undef ABSTRACT_HTTP_CURL_EASY_SETOPT
 #define ABSTRACT_HTTP_CURL_EASY_SETOPT(handle, option, param)                  \
-  (check_mock_setopt_fail() ? CURLE_OUT_OF_MEMORY                              \
-                            : (curl_easy_setopt)(handle, option, param))
+  (check_mock_setopt_fail() != C_ABSTRACT_HTTP_SUCCESS                         \
+       ? CURLE_OUT_OF_MEMORY                                                   \
+       : curl_easy_setopt(handle, option, param))
 
 #undef ABSTRACT_HTTP_CURL_MULTI_SETOPT
 #define ABSTRACT_HTTP_CURL_MULTI_SETOPT(handle, option, param)                 \
-  (check_mock_setopt_fail() ? CURLM_OUT_OF_MEMORY                              \
-                            : (curl_multi_setopt)(handle, option, param))
+  (check_mock_setopt_fail() != C_ABSTRACT_HTTP_SUCCESS                         \
+       ? CURLM_OUT_OF_MEMORY                                                   \
+       : curl_multi_setopt(handle, option, param))
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -167,7 +174,7 @@ static CURLcode mock_curl_easy_getinfo(CURL *curl, CURLINFO info, void *param) {
     *(struct curl_slist **)param = NULL;
     return CURLE_OK;
   }
-  return (curl_easy_getinfo)(curl, info, param);
+  return curl_easy_getinfo(curl, info, param);
 }
 
 #undef ABSTRACT_HTTP_CURL_EASY_GETINFO
@@ -175,7 +182,7 @@ static CURLcode mock_curl_easy_getinfo(CURL *curl, CURLINFO info, void *param) {
 #else
 #undef ABSTRACT_HTTP_CURL_EASY_GETINFO
 #define ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, info, param)                     \
-  (curl_easy_getinfo)(curl, info, param)
+  curl_easy_getinfo(curl, info, param)
 #endif
 
 #undef ABSTRACT_HTTP_CURL_SLIST_APPEND
@@ -338,6 +345,7 @@ enum c_abstract_http_error http_curl_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Initialize a libcurl transport context */
 enum c_abstract_http_error
 http_curl_context_init(struct HttpTransportContext **const ctx) {
   LOG_DEBUG("http_curl_context_init: Entering");
@@ -373,6 +381,7 @@ http_curl_context_init(struct HttpTransportContext **const ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Free a libcurl transport context */
 enum c_abstract_http_error
 http_curl_context_free(struct HttpTransportContext *const ctx) {
   LOG_DEBUG("http_curl_context_free: Entering");
@@ -385,6 +394,7 @@ http_curl_context_free(struct HttpTransportContext *const ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Apply HTTP configuration to a libcurl transport context */
 enum c_abstract_http_error
 http_curl_config_apply(struct HttpTransportContext *ctx,
                        const struct HttpConfig *config) {
@@ -411,7 +421,7 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
 #endif
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (check_mock_setopt_fail())
+    if (check_mock_setopt_fail() != C_ABSTRACT_HTTP_SUCCESS)
       return C_ABSTRACT_HTTP_ERR_IO;
 #else
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
@@ -426,9 +436,14 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
 #endif
   } else if (config->version_mask & HTTP_VERSION_2) {
 #if LIBCURL_VERSION_NUM >= 0x072100 /* 7.33.0 */
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (check_mock_setopt_fail() != C_ABSTRACT_HTTP_SUCCESS)
+      return C_ABSTRACT_HTTP_ERR_IO;
+#else
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
                                        CURL_HTTP_VERSION_2_0) != CURLE_OK)
       return C_ABSTRACT_HTTP_ERR_IO;
+#endif
 #else
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
                                        CURL_HTTP_VERSION_NONE) != CURLE_OK)
@@ -528,13 +543,13 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
       }
     }
   } else {
-    (curl_easy_setopt)(ctx->curl, CURLOPT_PROXY, "");
+    curl_easy_setopt(ctx->curl, CURLOPT_PROXY, "");
   }
 
   if (config->cookie_jar) {
     ctx->cookie_jar = config->cookie_jar;
     /* Enable curl's cookie engine without reading a file */
-    (curl_easy_setopt)(ctx->curl, CURLOPT_COOKIEFILE, "");
+    curl_easy_setopt(ctx->curl, CURLOPT_COOKIEFILE, "");
     /* Instruct curl to write cookies to a dummy state (handled manually or via
      * curl's getinfo later) */
   } else {
@@ -571,18 +586,18 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
   write_ctx->req = req;
   write_ctx->user_aborted = 0;
 
-  (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, NULL);
-  (curl_easy_setopt)(curl, CURLOPT_POSTFIELDS, NULL);
-  (curl_easy_setopt)(curl, CURLOPT_POSTFIELDSIZE, 0L);
-  (curl_easy_setopt)(curl, CURLOPT_UPLOAD, 0L);
-  (curl_easy_setopt)(curl, CURLOPT_NOBODY, 0L);
-  (curl_easy_setopt)(curl, CURLOPT_HTTPGET, 1L);
-  (curl_easy_setopt)(curl, CURLOPT_READFUNCTION, NULL);
-  (curl_easy_setopt)(curl, CURLOPT_READDATA, NULL);
-  (curl_easy_setopt)(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)-1);
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, 0L);
+  curl_easy_setopt(curl, CURLOPT_UPLOAD, 0L);
+  curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
+  curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+  curl_easy_setopt(curl, CURLOPT_READFUNCTION, NULL);
+  curl_easy_setopt(curl, CURLOPT_READDATA, NULL);
+  curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)-1);
 
-  (curl_easy_setopt)(curl, CURLOPT_URL, req->url);
-  (curl_easy_setopt)(curl, CURLOPT_NOSIGNAL, 1L);
+  curl_easy_setopt(curl, CURLOPT_URL, req->url);
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
 
   if (req->read_chunk) {
     switch (req->method) {
@@ -590,21 +605,21 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
     case HTTP_POST:
     case HTTP_PATCH:
     case HTTP_QUERY:
-      (curl_easy_setopt)(curl, CURLOPT_UPLOAD, 1L);
+      curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
       if (req->method == HTTP_PUT) {
-        (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
       } else if (req->method == HTTP_POST) {
-        (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "POST");
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
       } else if (req->method == HTTP_PATCH) {
-        (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
       } else {
-        (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "QUERY");
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "QUERY");
       }
-      (curl_easy_setopt)(curl, CURLOPT_READFUNCTION, math_curl_read_callback);
-      (curl_easy_setopt)(curl, CURLOPT_READDATA, (void *)req);
+      curl_easy_setopt(curl, CURLOPT_READFUNCTION, math_curl_read_callback);
+      curl_easy_setopt(curl, CURLOPT_READDATA, (void *)req);
       if (req->expected_body_len > 0) {
-        (curl_easy_setopt)(curl, CURLOPT_INFILESIZE_LARGE,
-                           (curl_off_t)req->expected_body_len);
+        curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
+                         (curl_off_t)req->expected_body_len);
       }
       break;
     default:
@@ -613,52 +628,52 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
   } else {
     switch (req->method) {
     case HTTP_GET:
-      (curl_easy_setopt)(curl, CURLOPT_HTTPGET, 1L);
+      curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
       break;
     case HTTP_POST:
-      (curl_easy_setopt)(curl, CURLOPT_POST, 1L);
+      curl_easy_setopt(curl, CURLOPT_POST, 1L);
       if (payload) {
         if (payload_len > 0) {
-          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDS, payload);
-          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
+          curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
+          curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
         }
       }
       break;
     case HTTP_PUT:
-      (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+      curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
       if (payload) {
         if (payload_len > 0) {
-          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDS, payload);
-          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
+          curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
+          curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
         }
       }
       break;
     case HTTP_DELETE:
-      (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+      curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
       break;
     case HTTP_HEAD:
-      (curl_easy_setopt)(curl, CURLOPT_NOBODY, 1L);
+      curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
       break;
     case HTTP_PATCH:
-      (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+      curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
       if (payload) {
         if (payload_len > 0) {
-          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDS, payload);
-          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
+          curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
+          curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
         }
       }
       break;
     case HTTP_QUERY:
-      (curl_easy_setopt)(curl, CURLOPT_CUSTOMREQUEST, "QUERY");
+      curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "QUERY");
       if (payload) {
         if (payload_len > 0) {
-          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDS, payload);
-          (curl_easy_setopt)(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
+          curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload);
+          curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)payload_len);
         }
       }
       break;
     default:
-      (curl_easy_setopt)(curl, CURLOPT_HTTPGET, 1L);
+      curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
       break;
     }
   }
@@ -693,7 +708,7 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
     return rc;
   }
 
-  (curl_easy_setopt)(curl, CURLOPT_HTTPHEADER, *out_headers);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, *out_headers);
 
   if (ABSTRACT_HTTP_CURL_EASY_SETOPT(curl, CURLOPT_WRITEFUNCTION,
                                      math_write_memory_callback) != CURLE_OK)
@@ -1172,7 +1187,7 @@ abstract_http_test_set_loop(struct HttpTransportContext *ctx,
 enum c_abstract_http_error http_curl_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
-  enum c_abstract_http_error rc;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   size_t i;
 
   LOG_DEBUG("http_curl_send_multi: Entering");

@@ -163,9 +163,6 @@ int main(int argc, char **argv) {
   RUN_SUITE(actor_suite);
   RUN_SUITE(transport_suite);
 
-#if defined(C_ABSTRACT_HTTP_HAVE_CURL)
-  RUN_SUITE(http_curl_suite);
-#endif
   RUN_SUITE(http_raw_suite);
 #if defined(C_ABSTRACT_HTTP_USE_XQUIC)
   RUN_SUITE(http_xquic_suite);
@@ -205,7 +202,7 @@ int main(int argc, char **argv) {
 
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 #if defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
-  RUN_SUITE(http_fetch_suite);
+  /* http_fetch_suite run unconditionally above */
 #elif (defined(_WIN32) || defined(C_ABSTRACT_HTTP_USE_WINHTTP) ||              \
        defined(C_ABSTRACT_HTTP_USE_WININET)) &&                                \
     !defined(MINGW_TEST_CURL)

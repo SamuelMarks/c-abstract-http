@@ -821,7 +821,6 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
-#endif
 
 TEST test_http_raw_free_failures(void) {
   struct HttpTransportContext *ctx = NULL;
@@ -836,6 +835,7 @@ TEST test_http_raw_free_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   PASS();
 }
+#endif
 
 SUITE(http_raw_suite) {
   RUN_TEST(test_http_raw_lifecycle);

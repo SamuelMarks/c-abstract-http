@@ -993,6 +993,8 @@ TEST test_mock_socket_coverage(void) {
   c_abstract_http_mock_recv(fd, buf, sizeof(buf), 0);
   g_mock_recv_fail = 0;
   g_mock_recv_data = "hello";
+  g_mock_server_reading = 1;
+  c_abstract_http_mock_recv(INVALID_SOCKET, buf, 1, 0);
   g_mock_server_reading = 0;
   c_abstract_http_mock_recv(fd, buf, 1, 0);
   g_mock_recv_data = "";
@@ -1027,6 +1029,8 @@ TEST test_mock_socket_coverage(void) {
   c_abstract_http_mock_recv(fd, buf, sizeof(buf), 0);
   g_mock_recv_fail = 0;
   g_mock_recv_data = "hello";
+  g_mock_server_reading = 1;
+  c_abstract_http_mock_recv(-1, buf, 1, 0);
   g_mock_server_reading = 0;
   c_abstract_http_mock_recv(fd, buf, 1, 0);
   g_mock_recv_data = "";

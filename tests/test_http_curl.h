@@ -1071,6 +1071,8 @@ TEST test_curl_init_fails(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   struct HttpTransportContext *ctx = NULL;
 
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_cleanup());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_cleanup());
   g_mock_curl_init_fail = 3;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_curl_global_init());
   g_mock_curl_init_fail = 1;

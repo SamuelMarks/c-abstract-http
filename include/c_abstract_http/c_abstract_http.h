@@ -41,7 +41,7 @@ extern "C" {
 #include "http_wininet.h"
 #elif defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #include "http_winhttp.h"
-#elif defined(__APPLE__)
+#elif defined(C_ABSTRACT_HTTP_USE_APPLE) || (defined(__APPLE__) && defined(__clang__))
 #include "http_apple.h"
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
 #include "http_xquic.h"
@@ -77,7 +77,7 @@ extern "C" {
 #if defined(_WIN32)
 #include "../../src/http_winhttp.c"
 #include "../../src/http_wininet.c"
-#elif defined(__APPLE__)
+#elif defined(C_ABSTRACT_HTTP_USE_APPLE) || (defined(__APPLE__) && defined(__clang__))
 #include "../../src/http_apple.c"
 #elif defined(__EMSCRIPTEN__)
 #include "../../src/http_wasm.c"

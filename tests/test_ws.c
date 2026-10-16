@@ -2103,7 +2103,7 @@ TEST test_ws_free_ooms(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   PASS();
 }
-#endif
+
 static enum c_abstract_http_error
 mock_send_invalid_body(struct HttpTransportContext *ctx,
                        const struct HttpRequest *req,
@@ -2122,7 +2122,6 @@ mock_send_invalid_body(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_ws_sync_loop_cleanup_ooms(void) {
   struct HttpClient client;
   struct HttpRequest req;

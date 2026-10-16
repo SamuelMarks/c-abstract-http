@@ -63,6 +63,11 @@ int g_mock_server_cond_wait_fail = 0;
 #include <unistd.h>
 #endif
 #endif
+
+#undef recv
+#if !defined(_WIN32)
+extern ssize_t recv(int, void *, size_t, int);
+#endif
 /* clang-format on */
 
 #if defined(_WIN32)

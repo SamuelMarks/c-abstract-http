@@ -128,7 +128,7 @@ http_raw_config_apply(struct HttpTransportContext *ctx,
  * @param hostshort Value in host byte order.
  * @return Value in network byte order.
  */
-static unsigned short raw_htons(unsigned short hostshort) {
+static unsigned short math_htons(unsigned short hostshort) {
   unsigned short out;
   unsigned char *p = (unsigned char *)&out;
   p[0] = (unsigned char)(hostshort >> 8);
@@ -339,7 +339,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
-  addr.sin_port = raw_htons((unsigned short)port);
+  addr.sin_port = math_htons((unsigned short)port);
   memcpy(&addr.sin_addr, he->h_addr_list[0], (size_t)he->h_length);
 
   if ((rc = make_socket_nonblocking(sock)) != C_ABSTRACT_HTTP_SUCCESS) {
