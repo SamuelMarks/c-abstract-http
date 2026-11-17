@@ -209,6 +209,27 @@ TEST test_http_raw_send_requests(void) {
 
   /* 4. URL without explicit path: http://127.0.0.1:port */
   {
+    char url_localhost[128];
+    struct HttpRequest req_lh;
+    struct HttpResponse *res_lh = NULL;
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(url_localhost, sizeof(url_localhost), "http://localhost:%d/test",
+              port);
+#else
+    sprintf(url_localhost, "http://localhost:%d/test", port);
+#endif
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req_lh));
+    req_lh.url = url_localhost;
+    req_lh.method = HTTP_GET;
+    if (http_raw_send(ctx, &req_lh, &res_lh) == C_ABSTRACT_HTTP_SUCCESS &&
+        res_lh) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res_lh));
+      free(res_lh);
+    }
+    req_lh.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req_lh));
+  }
+  {
     char url_no_path[128];
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(url_no_path, sizeof(url_no_path), "http://127.0.0.1:%d", port);
@@ -549,7 +570,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
   g_mock_alloc_fail = 0;
   req.url = url;
 
-  /* 3. gethostbyname failure hook */
+  /* 3. gethostbyname / getaddrinfo failure hook */
   g_mock_raw_gethostbyname_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
   g_mock_raw_gethostbyname_fail = 0;

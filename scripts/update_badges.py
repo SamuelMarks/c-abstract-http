@@ -105,18 +105,18 @@ def main():
 
     src_files = glob.glob("src/*.c")
     for f in src_files:
-        obj_path = os.path.join(
-            build_dir, "CMakeFiles", "c-abstract-http.dir", f + ".o"
-        )
-        obj_path_windows = os.path.join(
-            build_dir, "CMakeFiles", "c-abstract-http.dir", f + ".obj"
-        )
+        candidates = [
+            os.path.join(
+                build_dir, "CMakeFiles", "c-abstract-http-instrumented.dir", f + ".o"
+            ),
+            os.path.join(
+                build_dir, "CMakeFiles", "c-abstract-http-instrumented.dir", f + ".obj"
+            ),
+            os.path.join(build_dir, "CMakeFiles", "c-abstract-http.dir", f + ".o"),
+            os.path.join(build_dir, "CMakeFiles", "c-abstract-http.dir", f + ".obj"),
+        ]
 
-        obj_to_use = None
-        if os.path.exists(obj_path):
-            obj_to_use = obj_path
-        elif os.path.exists(obj_path_windows):
-            obj_to_use = obj_path_windows
+        obj_to_use = next((p for p in candidates if os.path.exists(p)), None)
 
         if obj_to_use is not None:
             try:
@@ -151,6 +151,12 @@ def main():
                         count += 1
             except Exception:
                 pass
+
+    for file in glob.glob("*.gcov"):
+        try:
+            os.remove(file)
+        except OSError:
+            pass
 
     coverage_percent = 0.0
     if count > 0:

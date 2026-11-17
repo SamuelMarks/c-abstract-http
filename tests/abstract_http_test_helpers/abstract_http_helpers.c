@@ -13,7 +13,8 @@
 #include "../mock_alloc.h"
 /* clang-format on */
 
-#if defined(C_ABSTRACT_HTTP_ENABLE_COVERAGE) ||                                \
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                       \
+    defined(C_ABSTRACT_HTTP_ENABLE_COVERAGE) ||                                \
     defined(C_ABSTRACT_HTTP_MOCK_ALLOC)
 #define fwrite c_abstract_http_mock_fwrite
 #define fclose c_abstract_http_mock_fclose

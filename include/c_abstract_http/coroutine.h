@@ -12,14 +12,14 @@
 #ifndef C_ABSTRACT_HTTP_HTTP_COROUTINE_H
 #define C_ABSTRACT_HTTP_HTTP_COROUTINE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <stddef.h>
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Opaque Coroutine state.
@@ -28,8 +28,10 @@ struct AbstractHttpCoroutine;
 
 /**
  * @brief Coroutine entry point function signature.
+ * @param[in] arg User context argument.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-typedef void (*abstract_http_coroutine_cb)(void *arg);
+typedef enum c_abstract_http_error (*abstract_http_coroutine_cb)(void *arg);
 
 /**
  * @brief External hooks for overriding coroutine management.
@@ -39,7 +41,7 @@ struct AbstractHttpCoroutineHooks {
       struct AbstractHttpCoroutine **co, size_t stack_size,
       abstract_http_coroutine_cb cb,
       void *arg); /**< Hook for coroutine initialization */
-  void (*free)(
+  enum c_abstract_http_error (*free)(
       struct AbstractHttpCoroutine *co); /**< Hook for coroutine destruction */
   enum c_abstract_http_error (*resume)(
       struct AbstractHttpCoroutine *co);     /**< Hook for resuming execution */
@@ -75,6 +77,7 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
  * @brief Free resources associated with a coroutine.
  * Must be called after the coroutine finishes.
  * @param[in] co The coroutine handle.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_coroutine_free(struct AbstractHttpCoroutine *co);

@@ -9,8 +9,8 @@
 #if defined(__MSDOS__) || defined(__DOS__) || defined(DOS) || defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS) || 1
 
 #if defined(_WIN32)
-#ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -283,6 +283,38 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Initialize an HttpResponse with OOM fault-injection support.
+ * @param r Response object to initialize.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+static enum c_abstract_http_error
+raw_response_init_checked(struct HttpResponse *r) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_response_init_fail)
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+#endif
+  return http_response_init(r);
+}
+
+/**
+ * @brief Add a parsed header to an HttpResponse with OOM fault-injection
+ * support.
+ * @param headers Headers collection to append to.
+ * @param key Header name.
+ * @param value Header value.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+static enum c_abstract_http_error
+raw_headers_add_checked(struct HttpHeaders *headers, const char *key,
+                        const char *value) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_realloc_fail == 5)
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+#endif
+  return http_headers_add(headers, key, value);
+}
+
 /** @brief Send an HTTP request over raw sockets */
 enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
                                          const struct HttpRequest *req,
@@ -291,7 +323,14 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   char *host = NULL;
   int port = 80;
   char *path = NULL;
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                  \
+    (defined(_MSC_VER) && _MSC_VER < 1400)
   struct hostent *he;
+#else
+  struct addrinfo hints;
+  struct addrinfo *ai_res = NULL;
+  int gai_rc;
+#endif
   struct sockaddr_in addr;
   char *request_buf = NULL;
   size_t req_len = 0;
@@ -300,7 +339,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   size_t len;
   char recv_buf[8192];
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  int rc_send = C_ABSTRACT_HTTP_SUCCESS;
+  enum c_abstract_http_error rc_send = C_ABSTRACT_HTTP_SUCCESS;
   size_t body_len = 0;
   char *body = NULL;
   size_t body_cap = 0;
@@ -313,11 +352,14 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  if ((rc = parse_url(req->url, &host, &port, &path)) !=
-      C_ABSTRACT_HTTP_SUCCESS) {
+  rc = parse_url(req->url, &host, &port, &path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
 
+  memset(&addr, 0, sizeof(addr));
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                  \
+    (defined(_MSC_VER) && _MSC_VER < 1400)
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_raw_gethostbyname_fail)
     he = NULL;
@@ -329,6 +371,36 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     free(path);
     return C_ABSTRACT_HTTP_ERR_IO;
   }
+  addr.sin_family = AF_INET;
+  addr.sin_port = math_htons((unsigned short)port);
+  memcpy(&addr.sin_addr, he->h_addr_list[0], (size_t)he->h_length);
+#else
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_gethostbyname_fail) {
+    free(host);
+    free(path);
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+  if (strcmp(host, "127.0.0.1") == 0) {
+    addr.sin_family = AF_INET;
+    addr.sin_port = math_htons((unsigned short)port);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  } else {
+    gai_rc = getaddrinfo(host, NULL, &hints, &ai_res);
+    if (gai_rc != 0) {
+      free(host);
+      free(path);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    memcpy(&addr, ai_res->ai_addr, sizeof(struct sockaddr_in));
+    addr.sin_port = math_htons((unsigned short)port);
+    freeaddrinfo(ai_res);
+  }
+#endif
 
   sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock == RAW_INVALID_SOCKET) {
@@ -336,11 +408,6 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     free(path);
     return C_ABSTRACT_HTTP_ERR_IO;
   }
-
-  memset(&addr, 0, sizeof(addr));
-  addr.sin_family = AF_INET;
-  addr.sin_port = math_htons((unsigned short)port);
-  memcpy(&addr.sin_addr, he->h_addr_list[0], (size_t)he->h_length);
 
   if ((rc = make_socket_nonblocking(sock)) != C_ABSTRACT_HTTP_SUCCESS) {
     free(host);
@@ -562,7 +629,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     return rc_send;
   }
 
-  *res = calloc(1, sizeof(struct HttpResponse));
+  *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_raw_res_alloc_fail) {
     free(*res);
@@ -575,11 +642,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   }
 
   {
-    enum c_abstract_http_error rc_init = http_response_init(*res);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_raw_response_init_fail)
-      rc_init = C_ABSTRACT_HTTP_ERR_NOMEM;
-#endif
+    enum c_abstract_http_error rc_init = raw_response_init_checked(*res);
     if (rc_init != C_ABSTRACT_HTTP_SUCCESS) {
       free(*res);
       *res = NULL;
@@ -632,11 +695,9 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     }
 
     if (req->on_chunk) {
-      int cb_rc;
-      cb_rc = req->on_chunk(req->on_chunk_user_data, recv_buf, (size_t)r_rc);
-      if (cb_rc != 0) {
-        rc_send = cb_rc;
-        break;
+      rc_send = req->on_chunk(req->on_chunk_user_data, recv_buf, (size_t)r_rc);
+      if (rc_send != C_ABSTRACT_HTTP_SUCCESS) {
+        goto raw_recv_done;
       }
     } else {
       if (body_len + (size_t)r_rc + 1 > body_cap
@@ -663,6 +724,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     }
   }
 
+raw_recv_done:
   RAW_CLOSESOCKET(sock);
 
   if (rc_send != C_ABSTRACT_HTTP_SUCCESS) {
@@ -720,12 +782,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
           if (colon && colon < next_nl) {
             *colon = '\0';
             *next_nl = '\0';
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-            if (g_mock_raw_realloc_fail == 5)
-              rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-            else
-#endif
-              rc = http_headers_add(&(*res)->headers, p_nl, colon + 1);
+            rc = raw_headers_add_checked(&(*res)->headers, p_nl, colon + 1);
             if (rc != C_ABSTRACT_HTTP_SUCCESS) {
               enum c_abstract_http_error rch = http_response_free(*res);
               if (rch != C_ABSTRACT_HTTP_SUCCESS)

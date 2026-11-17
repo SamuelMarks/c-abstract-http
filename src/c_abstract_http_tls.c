@@ -22,7 +22,7 @@
 
 /** @brief Internal struct AbstractHttpTlsKey */
 struct AbstractHttpTlsKey {
-  DWORD dwTlsIndex;
+  DWORD dwTlsIndex; /**< Win32 TlsAlloc slot index */
 };
 
 enum c_abstract_http_error

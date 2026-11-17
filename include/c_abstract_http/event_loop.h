@@ -11,13 +11,13 @@
 #ifndef C_ABSTRACT_HTTP_HTTP_EVENT_LOOP_H
 #define C_ABSTRACT_HTTP_HTTP_EVENT_LOOP_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Opaque structure representing the event loop.
@@ -35,15 +35,24 @@ enum HttpLoopEvent {
 
 /**
  * @brief Callback for socket events.
+ * @param[in] loop Event loop context.
+ * @param[in] fd File descriptor.
+ * @param[in] events Triggered event bitmask.
+ * @param[in] user_data User context pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-typedef void (*http_loop_cb)(struct ModalityEventLoop *loop, int fd, int events,
-                             void *user_data);
+typedef enum c_abstract_http_error (*http_loop_cb)(
+    struct ModalityEventLoop *loop, int fd, int events, void *user_data);
 
 /**
  * @brief Callback for timeout events.
+ * @param[in] loop Event loop context.
+ * @param[in] timer_id Fired timer ID.
+ * @param[in] user_data User context pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-typedef void (*http_timer_cb)(struct ModalityEventLoop *loop, int timer_id,
-                              void *user_data);
+typedef enum c_abstract_http_error (*http_timer_cb)(
+    struct ModalityEventLoop *loop, int timer_id, void *user_data);
 
 /**
  * @brief Hooks for integrating with an external framework's event loop (e.g.,
@@ -93,6 +102,7 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_loop_init_external(
 /**
  * @brief Free an event loop context.
  * @param[in] loop The event loop context.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 http_loop_free(struct ModalityEventLoop *loop);
@@ -186,6 +196,20 @@ http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id);
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_loop_wakeup(struct ModalityEventLoop *loop);
+
+/**
+ * @brief Return the current monotonic/wall clock timestamp in milliseconds.
+ * @return Current timestamp in milliseconds.
+ */
+C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void);
+
+/**
+ * @brief Clear the stop_requested flag on an event loop for test reuse.
+ * @param[in,out] loop Event loop context.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+abstract_http_event_loop_test_unstop(struct ModalityEventLoop *loop);
 
 #ifdef __cplusplus
 }

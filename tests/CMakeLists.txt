@@ -21,12 +21,11 @@ endif()
 include_directories(${greatest_SOURCE_DIR})
 include_directories(../include)
 include_directories(../src)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 # Need to build test helper sources as part of the test executable
 set(TEST_HARNESS_SOURCES
     abstract_http_test_helpers/abstract_http_helpers.c
-    test_coverage_fix.c
-    test_http_curl_dummy.c
     fuzz_sse.c
     fuzz_ws.c
 )
@@ -46,6 +45,12 @@ else()
     set(EXTRA_TEST_SOURCES "")
 endif()
 
+if(TARGET c-abstract-http-instrumented)
+    set(C_ABSTRACT_HTTP_TEST_LINK_TARGET c-abstract-http-instrumented)
+else()
+    set(C_ABSTRACT_HTTP_TEST_LINK_TARGET c-abstract-http)
+endif()
+
 add_executable(c-abstract-http-test ${TEST_SOURCES})
 
 set_target_properties(c-abstract-http-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
@@ -55,10 +60,22 @@ set_target_properties(c-abstract-http-test PROPERTIES C_STANDARD 90 C_STANDARD_R
     else()
         target_compile_options(c-abstract-http-test PRIVATE "-Wall" "-Wextra" "-Werror" "-pedantic" "-std=c89" "-Wconversion" "-Wpointer-arith" "-Wdeclaration-after-statement")
     endif()
-target_link_libraries(c-abstract-http-test PRIVATE c-abstract-http)
+target_link_libraries(c-abstract-http-test PRIVATE ${C_ABSTRACT_HTTP_TEST_LINK_TARGET})
+
+if(C_ABSTRACT_HTTP_COVERAGE_ACTIVE)
+    target_compile_options(c-abstract-http-test PRIVATE "--coverage")
+    target_link_libraries(c-abstract-http-test PRIVATE "--coverage")
+endif()
 
 if(C_ABSTRACT_HTTP_HEADER_ONLY)
     target_compile_definitions(c-abstract-http-test PRIVATE C_ABSTRACT_HTTP_HEADER_ONLY)
+    if(NOT (WIN32 AND BUILD_SHARED_LIBS))
+        target_compile_definitions(c-abstract-http-test PRIVATE ${C_ABSTRACT_HTTP_MOCK_DEFS})
+    endif()
+elseif(NOT (WIN32 AND BUILD_SHARED_LIBS))
+    target_compile_definitions(c-abstract-http-test PRIVATE
+        C_ABSTRACT_HTTP_TEST_OOM=1
+    )
 endif()
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
@@ -83,11 +100,20 @@ set_tests_properties(c-abstract-http-test-arg PROPERTIES TIMEOUT 30)
 
 if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
     add_executable(c-abstract-http-test-ws test_ws.c ${EXTRA_TEST_SOURCES})
-    if(NOT (WIN32 AND BUILD_SHARED_LIBS))
+    if(C_ABSTRACT_HTTP_HEADER_ONLY)
+        target_compile_definitions(c-abstract-http-test-ws PRIVATE C_ABSTRACT_HTTP_HEADER_ONLY)
+        if(NOT (WIN32 AND BUILD_SHARED_LIBS))
+            target_compile_definitions(c-abstract-http-test-ws PRIVATE ${C_ABSTRACT_HTTP_MOCK_DEFS})
+        endif()
+    elseif(NOT (WIN32 AND BUILD_SHARED_LIBS))
         target_compile_definitions(c-abstract-http-test-ws PRIVATE C_ABSTRACT_HTTP_TEST_OOM=1)
     endif()
     set_target_properties(c-abstract-http-test-ws PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-    target_link_libraries(c-abstract-http-test-ws PRIVATE c-abstract-http)
+    target_link_libraries(c-abstract-http-test-ws PRIVATE ${C_ABSTRACT_HTTP_TEST_LINK_TARGET})
+    if(C_ABSTRACT_HTTP_COVERAGE_ACTIVE)
+        target_compile_options(c-abstract-http-test-ws PRIVATE "--coverage")
+        target_link_libraries(c-abstract-http-test-ws PRIVATE "--coverage")
+    endif()
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         target_link_libraries(c-abstract-http-test-ws PRIVATE Threads::Threads)
     endif()
@@ -105,11 +131,20 @@ endif()
 
 if(C_ABSTRACT_HTTP_ENABLE_SSE)
     add_executable(c-abstract-http-test-sse test_sse.c ${EXTRA_TEST_SOURCES})
-    if(NOT (WIN32 AND BUILD_SHARED_LIBS))
+    if(C_ABSTRACT_HTTP_HEADER_ONLY)
+        target_compile_definitions(c-abstract-http-test-sse PRIVATE C_ABSTRACT_HTTP_HEADER_ONLY)
+        if(NOT (WIN32 AND BUILD_SHARED_LIBS))
+            target_compile_definitions(c-abstract-http-test-sse PRIVATE ${C_ABSTRACT_HTTP_MOCK_DEFS})
+        endif()
+    elseif(NOT (WIN32 AND BUILD_SHARED_LIBS))
         target_compile_definitions(c-abstract-http-test-sse PRIVATE C_ABSTRACT_HTTP_TEST_OOM=1)
     endif()
     set_target_properties(c-abstract-http-test-sse PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-    target_link_libraries(c-abstract-http-test-sse PRIVATE c-abstract-http)
+    target_link_libraries(c-abstract-http-test-sse PRIVATE ${C_ABSTRACT_HTTP_TEST_LINK_TARGET})
+    if(C_ABSTRACT_HTTP_COVERAGE_ACTIVE)
+        target_compile_options(c-abstract-http-test-sse PRIVATE "--coverage")
+        target_link_libraries(c-abstract-http-test-sse PRIVATE "--coverage")
+    endif()
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         target_link_libraries(c-abstract-http-test-sse PRIVATE Threads::Threads)
     endif()
@@ -127,10 +162,20 @@ endif()
 
 if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
     add_executable(c-abstract-http-test-crypto test_crypto.c ${EXTRA_TEST_SOURCES})
-    if(NOT (WIN32 AND BUILD_SHARED_LIBS))
+    if(C_ABSTRACT_HTTP_HEADER_ONLY)
+        target_compile_definitions(c-abstract-http-test-crypto PRIVATE C_ABSTRACT_HTTP_HEADER_ONLY)
+        if(NOT (WIN32 AND BUILD_SHARED_LIBS))
+            target_compile_definitions(c-abstract-http-test-crypto PRIVATE ${C_ABSTRACT_HTTP_MOCK_DEFS})
+        endif()
+    elseif(NOT (WIN32 AND BUILD_SHARED_LIBS))
         target_compile_definitions(c-abstract-http-test-crypto PRIVATE C_ABSTRACT_HTTP_TEST_OOM=1)
     endif()
-    target_link_libraries(c-abstract-http-test-crypto PRIVATE c-abstract-http)
+    set_target_properties(c-abstract-http-test-crypto PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+    target_link_libraries(c-abstract-http-test-crypto PRIVATE ${C_ABSTRACT_HTTP_TEST_LINK_TARGET})
+    if(C_ABSTRACT_HTTP_COVERAGE_ACTIVE)
+        target_compile_options(c-abstract-http-test-crypto PRIVATE "--coverage")
+        target_link_libraries(c-abstract-http-test-crypto PRIVATE "--coverage")
+    endif()
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         target_link_libraries(c-abstract-http-test-crypto PRIVATE Threads::Threads)
     endif()
@@ -192,18 +237,18 @@ if(WIN32 AND BUILD_SHARED_LIBS)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 $<TARGET_FILE:c-abstract-http>
                 $<TARGET_FILE_DIR:c-abstract-http-test>
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:c89stringutils>
-                $<TARGET_FILE_DIR:c-abstract-http-test>
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:cfs>
-                $<TARGET_FILE_DIR:c-abstract-http-test>
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:parson>
-                $<TARGET_FILE_DIR:c-abstract-http-test>
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_FILE:c_str_span>
-                $<TARGET_FILE_DIR:c-abstract-http-test>
         )
+        foreach(_dep_tgt c89stringutils cfs parson c_str_span)
+            if(TARGET ${_dep_tgt})
+                get_target_property(_dep_type ${_dep_tgt} TYPE)
+                if(_dep_type STREQUAL "SHARED_LIBRARY")
+                    add_custom_command(TARGET c-abstract-http-test POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            $<TARGET_FILE:${_dep_tgt}>
+                            $<TARGET_FILE_DIR:c-abstract-http-test>
+                    )
+                endif()
+            endif()
+        endforeach()
     endif()
 endif()

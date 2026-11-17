@@ -19,12 +19,6 @@
 #include <string.h>
 /* clang-format on */
 
-#if defined(_MSC_VER)
-#define SPRINTF_S sprintf_s
-#else
-#define SPRINTF_S snprintf
-#endif
-
 enum c_abstract_http_error
 c_abstract_http_sse_init(struct HttpRequest *req,
                          const struct c_abstract_http_sse_config *config) {
@@ -199,7 +193,9 @@ sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
         ev.data_len = ctx->data_offset;
         ev_rc = ctx->on_event(&ev, ctx->user_data);
         if (ev_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          /* Callback return ignored per SSE spec; reset state below */
+          ctx->data_offset = 0;
+          ctx->current_data[0] = '\0';
+          return ev_rc;
         }
       }
     }
@@ -221,7 +217,7 @@ sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
   if (line[0] == ':')
     return C_ABSTRACT_HTTP_SUCCESS;
 
-  colon = memchr(line, ':', len);
+  colon = (const char *)memchr(line, ':', len);
   if (!colon) {
     field_len = len;
     value = "";
@@ -252,9 +248,14 @@ sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
       while (new_cap < ctx->data_offset + value_len + 2)
         new_cap *= 2;
       if (new_cap > C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE) {
-        if (ctx->on_error)
-          ctx->on_error(90, ctx->user_data); /* EMSGSIZE equivalent */
-        return 90;
+        if (ctx->on_error) {
+          enum c_abstract_http_error err_rc =
+              ctx->on_error(C_ABSTRACT_HTTP_ERR_MSGSIZE, ctx->user_data);
+          if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return err_rc;
+          }
+        }
+        return C_ABSTRACT_HTTP_ERR_MSGSIZE;
       }
       {
         char *new_buf = (char *)realloc(ctx->current_data, new_cap);
@@ -345,8 +346,13 @@ enum c_abstract_http_error sse_parser_feed(struct sse_parser_ctx *ctx,
       if (ctx->line_offset + 1 >= ctx->line_capacity) {
         size_t new_cap = ctx->line_capacity * 2;
         if (new_cap > C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE) {
-          if (ctx->on_error)
-            ctx->on_error(ENOMEM, ctx->user_data); /* ENOMEM equivalent */
+          if (ctx->on_error) {
+            enum c_abstract_http_error err_rc =
+                ctx->on_error(ENOMEM, ctx->user_data);
+            if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+              return err_rc;
+            }
+          }
           return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
         {
@@ -374,7 +380,7 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
   enum c_abstract_http_error rc;
   struct HttpResponse *res = NULL;
   struct sse_parser_ctx parser;
-  cah_cppcheck_mut_ptr((void *)exit_flag);
+  cah_cppcheck_mut_ptr(exit_flag);
 
   if (!client || !req) {
     LOG_DEBUG("c_abstract_http_sse_sync_read_loop: Error EINVAL");
@@ -391,20 +397,28 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
 
   rc = c_abstract_http_sse_init(req, NULL);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    if (on_err)
-      on_err(rc, user_data);
+    if (on_err) {
+      enum c_abstract_http_error err_rc = on_err(rc, user_data);
+      if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return err_rc;
+      }
+    }
     return rc;
   }
 
   rc = sse_parser_init(&parser, NULL, on_evt, on_err, on_close, user_data);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    if (on_err)
-      on_err(rc, user_data);
+    if (on_err) {
+      enum c_abstract_http_error err_rc = on_err(rc, user_data);
+      if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return err_rc;
+      }
+    }
     return rc;
   }
 
   rc = client->send(client->transport, req, &res);
-  if (rc != 0 || !res) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS || !res) {
     {
       enum c_abstract_http_error rch = sse_parser_destroy(&parser);
       if (rch != C_ABSTRACT_HTTP_SUCCESS)
@@ -413,7 +427,7 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
     if (on_err) {
       enum c_abstract_http_error err_rc = on_err(rc, user_data);
       if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        /* Keep primary error rc */
+        return err_rc;
       }
     }
     return rc;
@@ -422,21 +436,36 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
   if (res->body && res->body_len > 0) {
     rc = sse_parser_feed(&parser, (const char *)res->body, res->body_len);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error cb_err = C_ABSTRACT_HTTP_SUCCESS;
       if (on_err) {
-        enum c_abstract_http_error err_rc = on_err(rc, user_data);
-        if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          /* Keep primary error rc */
+        cb_err = on_err(rc, user_data);
+        if (cb_err != C_ABSTRACT_HTTP_SUCCESS) {
+          enum c_abstract_http_error rch = sse_parser_destroy(&parser);
+          enum c_abstract_http_error rc_tmp;
+          if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+            free(res);
+            return rch;
+          }
+          rc_tmp = http_response_free(res);
+          free(res);
+          if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+            return rc_tmp;
+          return cb_err;
         }
       }
       {
         enum c_abstract_http_error rch = sse_parser_destroy(&parser);
-        if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+          free(res);
           return rch;
+        }
       }
       {
         enum c_abstract_http_error rc_tmp = http_response_free(res);
-        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
+          free(res);
           return rc_tmp;
+        }
       }
       free(res);
       return rc;
@@ -445,27 +474,31 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
 
   {
     enum c_abstract_http_error rch = sse_parser_destroy(&parser);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+      free(res);
       return rch;
+    }
   }
   {
     enum c_abstract_http_error rc_tmp = http_response_free(res);
-    if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+    if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
+      free(res);
       return rc_tmp;
+    }
   }
   free(res);
 
   if (on_close) {
     enum c_abstract_http_error cls_rc = on_close(user_data);
     if (cls_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      /* Ignore close callback status */
+      return cls_rc;
     }
   }
 
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/** @brief Background task worker for asynchronous SSE read loop */
+/* Background task worker for asynchronous SSE read loop */
 enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg) {
   enum c_abstract_http_error err;
   struct c_abstract_http_sse_async_ctx *ctx =
@@ -480,7 +513,8 @@ enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg) {
     if (ctx->on_err) {
       enum c_abstract_http_error err_rc = ctx->on_err(err, ctx->user_data);
       if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        /* Keep primary error err */
+        free(ctx);
+        return err_rc;
       }
     }
     free(ctx);
@@ -490,7 +524,7 @@ enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/** @brief Register an asynchronous SSE stream reader */
+/* Register an asynchronous SSE stream reader */
 enum c_abstract_http_error c_abstract_http_sse_async_register(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
@@ -537,14 +571,28 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
                                             on_close, user_data, &exit_flag);
 
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      if (on_err)
-        on_err(rc, user_data);
+      if (on_err) {
+        enum c_abstract_http_error err_rc = on_err(rc, user_data);
+        if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return err_rc;
+        }
+      }
       return rc;
     }
-    /* We still return success here because the "registration" succeeded, it
-       just blocked. A true async interface without a thread pool requires
-       native event loop hooks, which we do not currently mandate SSE parsers to
-       intercept natively here yet. */
     return C_ABSTRACT_HTTP_SUCCESS;
   }
+}
+
+/** @brief Free SSE stream resources attached to an HTTP request */
+enum c_abstract_http_error c_abstract_http_sse_free(struct HttpRequest *req) {
+  if (req && req->sse_ctx) {
+    struct sse_parser_ctx *pctx = (struct sse_parser_ctx *)req->sse_ctx;
+    enum c_abstract_http_error rch = sse_parser_destroy(pctx);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+      return rch;
+    }
+    free(pctx);
+    req->sse_ctx = NULL;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }

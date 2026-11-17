@@ -6,10 +6,6 @@
 #ifndef C_ABSTRACT_HTTP_WS_H
 #define C_ABSTRACT_HTTP_WS_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_abstract_http/http_types.h"
 #include "c_abstract_http/win_compat_sym.h"
@@ -18,6 +14,10 @@ extern "C" {
 #include <windef.h>
 #endif
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /* WebSocket public API definitions will go here */
 

@@ -13,7 +13,7 @@ cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  switch ((enum CmpModality)cmp_mod) {
+  switch (cmp_mod) {
   case CMP_MODALITY_SYNC_SINGLE:
     *out_mod = MODALITY_SYNC;
     break;

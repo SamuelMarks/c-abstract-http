@@ -85,7 +85,7 @@ static enum c_abstract_http_error wasm_fetch_close(emscripten_fetch_t *fetch) {
     emscripten_fetch_close(fetch);
 #else
     if (fetch->data) {
-      free((char *)fetch->data);
+      free((void *)(size_t)fetch->data);
     }
     free(fetch);
 #endif
@@ -289,12 +289,7 @@ enum c_abstract_http_error http_wasm_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Initialize a new wasm transport context.
- *
- * @param[out] ctx Pointer to receive context pointer.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Initialize a new wasm transport context. */
 enum c_abstract_http_error
 http_wasm_context_init(struct HttpTransportContext **ctx) {
   enum c_abstract_http_error rc;
@@ -312,12 +307,12 @@ http_wasm_context_init(struct HttpTransportContext **ctx) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_wasm_config_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_config_init(&(*ctx)->config);
+    free(*ctx);
+    *ctx = NULL;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
+#endif
+  rc = http_config_init(&(*ctx)->config);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wasm_context_init: Error http_config_init failed with %d",
               rc);
@@ -329,11 +324,7 @@ http_wasm_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Free a wasm transport context.
- *
- * @param[in] ctx The context to free.
- */
+/* Free a wasm transport context. */
 enum c_abstract_http_error
 http_wasm_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wasm_context_free: Entering");
@@ -346,13 +337,7 @@ http_wasm_context_free(struct HttpTransportContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Apply configuration to wasm transport context.
- *
- * @param[in] ctx The context.
- * @param[in] config The configuration to apply.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Apply configuration to wasm transport context. */
 enum c_abstract_http_error
 http_wasm_config_apply(struct HttpTransportContext *ctx,
                        const struct HttpConfig *config) {
@@ -406,14 +391,7 @@ static enum c_abstract_http_error get_method_str(enum HttpMethod method,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Perform a single HTTP request using wasm fetch.
- *
- * @param[in] ctx The context.
- * @param[in] req The request to send.
- * @param[out] res Pointer to receive response pointer.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Perform a single HTTP request using wasm fetch. */
 enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
                                           const struct HttpRequest *req,
                                           struct HttpResponse **res) {
@@ -495,7 +473,6 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
     }
 
     for (;;) {
-      enum c_abstract_http_error chunk_rc;
       if (body_len == cap) {
         char *new_buf;
         cap *= 2;
@@ -508,13 +485,20 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
         body_buffer = new_buf;
       }
 
-      chunk_rc =
-          req->read_chunk(req->read_chunk_user_data, body_buffer + body_len,
-                          cap - body_len, &out_read);
-      if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        LOG_DEBUG("http_wasm_send: Error read_chunk failed %d", (int)chunk_rc);
-        rc = ECANCELED;
-        goto cleanup;
+      {
+        enum c_abstract_http_error read_rc =
+            req->read_chunk(req->read_chunk_user_data, body_buffer + body_len,
+                            cap - body_len, &out_read);
+        if (read_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          LOG_DEBUG("http_wasm_send: Error read_chunk failed %d", (int)read_rc);
+          if (headers) {
+            free((void *)headers);
+          }
+          free(body_buffer);
+          return (read_rc != C_ABSTRACT_HTTP_SUCCESS)
+                     ? C_ABSTRACT_HTTP_ERR_CANCELED
+                     : read_rc;
+        }
       }
       if (out_read == 0) {
         break;
@@ -530,8 +514,11 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
   }
 
   rc = wasm_fetch_exec(&attr, req->url, &fetch);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS || !fetch) {
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wasm_send: Error EIO (emscripten_fetch failed)");
+    goto cleanup;
+  }
+  if (!fetch) {
     rc = C_ABSTRACT_HTTP_ERR_IO;
     goto cleanup;
   }
@@ -552,11 +539,10 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_wasm_response_init_fail) {
     rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_response_init(*res);
+    goto cleanup;
   }
+#endif
+  rc = http_response_init(*res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_wasm_send: Error http_response_init failed with %d", rc);
     goto cleanup;
@@ -575,14 +561,42 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
     (*res)->body_len = (size_t)fetch->numBytes;
 
     if (req->on_chunk) {
-      enum c_abstract_http_error chunk_rc;
-      chunk_rc = req->on_chunk(req->on_chunk_user_data, (*res)->body,
-                               (*res)->body_len);
-      if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error cb_rc;
+      cb_rc = req->on_chunk(req->on_chunk_user_data, (*res)->body,
+                            (*res)->body_len);
+      if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        enum c_abstract_http_error close_rc;
+        enum c_abstract_http_error free_rc;
         LOG_DEBUG("http_wasm_send: Error ECANCELED (chunk callback failed %d)",
-                  (int)chunk_rc);
-        rc = ECANCELED;
-        goto cleanup;
+                  (int)cb_rc);
+        free((*res)->body);
+        (*res)->body = NULL;
+        close_rc = wasm_fetch_close(fetch);
+        if (close_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(*res);
+          *res = NULL;
+          if (headers) {
+            free((void *)headers);
+          }
+          if (body_buffer) {
+            free(body_buffer);
+          }
+          return close_rc;
+        }
+        free_rc = http_response_free(*res);
+        free(*res);
+        *res = NULL;
+        if (headers) {
+          free((void *)headers);
+        }
+        if (body_buffer) {
+          free(body_buffer);
+        }
+        if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return free_rc;
+        }
+        return (cb_rc != C_ABSTRACT_HTTP_SUCCESS) ? C_ABSTRACT_HTTP_ERR_CANCELED
+                                                  : cb_rc;
       }
       /* If chunk callback consumed data, we free the response body */
       free((*res)->body);
@@ -622,23 +636,20 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
             {
               char *colon = strchr(p, ':');
               if (colon) {
-                enum c_abstract_http_error add_rc;
                 char *val = colon + 1;
                 *colon = '\0';
                 while (*val == ' ')
                   val++;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
                 if (g_mock_wasm_header_add_fail) {
-                  add_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-                } else {
-                  add_rc = http_headers_add(&(*res)->headers, p, val);
-                }
-#else
-                add_rc = http_headers_add(&(*res)->headers, p, val);
-#endif
-                if (add_rc != C_ABSTRACT_HTTP_SUCCESS) {
-                  LOG_DEBUG("http_wasm_send: Error http_headers_add failed");
                   rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+                  free(hdrs_buf);
+                  goto cleanup;
+                }
+#endif
+                rc = http_headers_add(&(*res)->headers, p, val);
+                if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+                  LOG_DEBUG("http_wasm_send: Error http_headers_add failed");
                   free(hdrs_buf);
                   goto cleanup;
                 }
@@ -659,8 +670,25 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
 cleanup:
   if (fetch) {
     enum c_abstract_http_error close_rc = wasm_fetch_close(fetch);
-    if (close_rc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = close_rc;
+    if (close_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (headers) {
+        free((void *)headers);
+      }
+      if (body_buffer) {
+        free(body_buffer);
+      }
+      if (*res) {
+        enum c_abstract_http_error free_rc = http_response_free(*res);
+        free(*res);
+        *res = NULL;
+        if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return free_rc;
+        }
+      }
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+      return close_rc;
     }
   }
   if (headers) {
@@ -686,15 +714,7 @@ cleanup:
   return rc;
 }
 
-/**
- * @brief Perform multiple HTTP requests concurrently via wasm fetch.
- *
- * @param[in] ctx The context.
- * @param[in] loop The event loop context.
- * @param[in] multi The multi request definition.
- * @param[out] futures Array of futures to populate.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Perform multiple HTTP requests concurrently via wasm fetch. */
 enum c_abstract_http_error http_wasm_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
@@ -713,12 +733,15 @@ enum c_abstract_http_error http_wasm_send_multi(
   for (i = 0; i < multi->count; i++) {
     struct HttpResponse *res = NULL;
     rc = http_wasm_send(ctx, multi->requests[i], &res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      futures[i]->response = res;
+      futures[i]->error_code = rc;
+      futures[i]->is_ready = 1;
+      return rc;
+    }
     futures[i]->response = res;
     futures[i]->error_code = rc;
     futures[i]->is_ready = 1;
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      return rc;
-    }
   }
 
   if (loop) {
@@ -804,12 +827,9 @@ enum c_abstract_http_error c_abstract_http_test_wasm_helpers(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 1;
   rc = wasm_fetch_exec(&attr, "http://example.com", &f);
-  if (rc == C_ABSTRACT_HTTP_SUCCESS && f) {
-    rc = wasm_fetch_close(f);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      g_mock_alloc_fail = 0;
-      return rc;
-    }
+  if (rc != C_ABSTRACT_HTTP_ERR_NOMEM) {
+    g_mock_alloc_fail = 0;
+    return rc;
   }
   g_mock_alloc_fail = 0;
 
@@ -818,13 +838,10 @@ enum c_abstract_http_error c_abstract_http_test_wasm_helpers(void) {
   g_mock_alloc_count = 1;
   g_mock_wasm_fetch_timeout = 2;
   rc = wasm_fetch_exec(&attr, "http://example.com", &f);
-  if (rc == C_ABSTRACT_HTTP_SUCCESS && f) {
-    rc = wasm_fetch_close(f);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      g_mock_wasm_fetch_timeout = 0;
-      g_mock_alloc_fail = 0;
-      return rc;
-    }
+  if (rc != C_ABSTRACT_HTTP_ERR_NOMEM) {
+    g_mock_wasm_fetch_timeout = 0;
+    g_mock_alloc_fail = 0;
+    return rc;
   }
   g_mock_wasm_fetch_timeout = 0;
   g_mock_alloc_fail = 0;

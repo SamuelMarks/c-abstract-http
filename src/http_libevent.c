@@ -8,7 +8,9 @@
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
 
-#if defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBEVENT)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#include "mock_stubs/mock_libevent.h"
+#else
 #include <event2/event.h>
 #include <event2/http.h>
 #include <event2/http_struct.h>
@@ -22,554 +24,6 @@
 #include <winsock2.h>
 #endif
 /* clang-format on */
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int *abstract_http_mock_get_g_mock_libevent_global_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_context_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_config_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_base_new_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_conn_new_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_req_new_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_make_req_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_res_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_res_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_body_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_buf_add_fail(void);
-extern int *abstract_http_mock_get_g_mock_libevent_empty_body(void);
-
-#define g_mock_libevent_global_init_fail                                       \
-  (*abstract_http_mock_get_g_mock_libevent_global_init_fail())
-#define g_mock_libevent_context_init_fail                                      \
-  (*abstract_http_mock_get_g_mock_libevent_context_init_fail())
-#define g_mock_libevent_config_init_fail                                       \
-  (*abstract_http_mock_get_g_mock_libevent_config_init_fail())
-#define g_mock_libevent_base_new_fail                                          \
-  (*abstract_http_mock_get_g_mock_libevent_base_new_fail())
-#define g_mock_libevent_conn_new_fail                                          \
-  (*abstract_http_mock_get_g_mock_libevent_conn_new_fail())
-#define g_mock_libevent_req_new_fail                                           \
-  (*abstract_http_mock_get_g_mock_libevent_req_new_fail())
-#define g_mock_libevent_make_req_fail                                          \
-  (*abstract_http_mock_get_g_mock_libevent_make_req_fail())
-#define g_mock_libevent_res_alloc_fail                                         \
-  (*abstract_http_mock_get_g_mock_libevent_res_alloc_fail())
-#define g_mock_libevent_res_init_fail                                          \
-  (*abstract_http_mock_get_g_mock_libevent_res_init_fail())
-#define g_mock_libevent_body_alloc_fail                                        \
-  (*abstract_http_mock_get_g_mock_libevent_body_alloc_fail())
-#define g_mock_libevent_buf_add_fail                                           \
-  (*abstract_http_mock_get_g_mock_libevent_buf_add_fail())
-#define g_mock_libevent_empty_body                                             \
-  (*abstract_http_mock_get_g_mock_libevent_empty_body())
-#endif
-
-#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBEVENT)
-
-#define EVHTTP_REQ_GET (1 << 0)
-#define EVHTTP_REQ_POST (1 << 1)
-#define EVHTTP_REQ_HEAD (1 << 2)
-#define EVHTTP_REQ_PUT (1 << 3)
-#define EVHTTP_REQ_DELETE (1 << 4)
-#define EVHTTP_REQ_OPTIONS (1 << 5)
-#define EVHTTP_REQ_TRACE (1 << 6)
-#define EVHTTP_REQ_CONNECT (1 << 7)
-#define EVHTTP_REQ_PATCH (1 << 8)
-
-/** @brief Mock evbuffer structure */
-struct evbuffer {
-  /** @brief Buffer data pointer */
-  char *data;
-  /** @brief Current data length */
-  size_t len;
-  /** @brief Allocated capacity */
-  size_t cap;
-};
-
-/** @brief Mock key-value entry for headers */
-struct evkeyval {
-  /** @brief Header key */
-  char *key;
-  /** @brief Header value */
-  char *val;
-};
-
-/** @brief Mock key-value queue for headers */
-struct evkeyvalq {
-  /** @brief Header entries */
-  struct evkeyval entries[32];
-  /** @brief Number of header entries */
-  size_t count;
-};
-
-struct evhttp_request;
-
-/** @brief Mock callback type for request completion */
-typedef void (*evhttp_request_cb_t)(struct evhttp_request *, void *);
-/** @brief Mock callback type for chunk processing */
-typedef void (*evhttp_chunk_cb_t)(struct evhttp_request *, void *);
-
-/** @brief Mock evhttp_request structure */
-struct evhttp_request {
-  /** @brief Done callback */
-  evhttp_request_cb_t cb;
-  /** @brief Done callback argument */
-  void *cb_arg;
-  /** @brief Chunk callback */
-  evhttp_chunk_cb_t chunk_cb;
-  /** @brief Output headers */
-  struct evkeyvalq output_headers;
-  /** @brief Output buffer */
-  struct evbuffer output_buffer;
-  /** @brief Input buffer */
-  struct evbuffer input_buffer;
-  /** @brief HTTP response code */
-  int response_code;
-};
-
-struct event_base;
-
-/** @brief Mock evhttp_connection structure */
-struct evhttp_connection {
-  /** @brief Parent event base */
-  struct event_base *base;
-  /** @brief Remote host name */
-  char host[256];
-  /** @brief Remote port */
-  int port;
-  /** @brief Timeout in seconds */
-  long timeout_sec;
-};
-
-/** @brief Mock event_base structure */
-struct event_base {
-  /** @brief Flag indicating loop break */
-  int loop_break;
-  /** @brief Associated connection */
-  struct evhttp_connection *conn;
-  /** @brief Associated request */
-  struct evhttp_request *req;
-  /** @brief HTTP method command */
-  int cmd;
-  /** @brief Request URI path */
-  char path[1024];
-};
-
-/**
- * @brief Create a new mock event base.
- *
- * @return Pointer to newly allocated event_base or NULL on failure.
- */
-static struct event_base *event_base_new(void) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libevent_base_new_fail) {
-    return NULL;
-  }
-#endif
-  return (struct event_base *)calloc(1, sizeof(struct event_base));
-}
-
-/**
- * @brief Free a mock event base.
- *
- * @param[in] base Base to free.
- */
-static void event_base_free(struct event_base *base) {
-  if (base) {
-    free(base);
-  }
-}
-
-/**
- * @brief Signal loopbreak on mock event base.
- *
- * @param[in] base Base to signal.
- */
-static void event_base_loopbreak(struct event_base *base) {
-  if (base) {
-    base->loop_break = 1;
-  }
-}
-
-/**
- * @brief Create a new mock evhttp connection.
- *
- * @param[in] base Event base.
- * @param[in] dnsbase DNS base placeholder.
- * @param[in] address Remote address.
- * @param[in] port Remote port.
- * @return Pointer to connection or NULL on failure.
- */
-static struct evhttp_connection *
-evhttp_connection_base_new(struct event_base *base, void *dnsbase,
-                           const char *address, unsigned short port) {
-  struct evhttp_connection *conn;
-  (void)dnsbase;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libevent_conn_new_fail) {
-    conn = NULL;
-  } else
-#endif
-  {
-    conn =
-        (struct evhttp_connection *)calloc(1, sizeof(struct evhttp_connection));
-  }
-  if (!conn) {
-    return NULL;
-  }
-  conn->base = base;
-  if (address) {
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    strncpy_s(conn->host, sizeof(conn->host), address, sizeof(conn->host) - 1);
-#else
-    strncpy(conn->host, address, sizeof(conn->host) - 1);
-#endif
-    conn->host[sizeof(conn->host) - 1] = '\0';
-  }
-  conn->port = (int)port;
-  return conn;
-}
-
-/**
- * @brief Set connection timeout on mock evhttp connection.
- *
- * @param[in] conn Connection.
- * @param[in] timeout_in_secs Timeout in seconds.
- */
-static void evhttp_connection_set_timeout(struct evhttp_connection *conn,
-                                          int timeout_in_secs) {
-  if (conn) {
-    conn->timeout_sec = (long)timeout_in_secs;
-  }
-}
-
-/**
- * @brief Internal helper to free evbuffer data.
- *
- * @param[in] buf Buffer to free.
- */
-static void evbuffer_free_internal(struct evbuffer *buf) {
-  if (buf->data) {
-    free(buf->data);
-    buf->data = NULL;
-  }
-  buf->len = 0;
-  buf->cap = 0;
-}
-
-/**
- * @brief Free a mock evhttp connection.
- *
- * @param[in] conn Connection to free.
- */
-static void evhttp_connection_free(struct evhttp_connection *conn) {
-  if (conn) {
-    free(conn);
-  }
-}
-
-/**
- * @brief Allocate a new mock evhttp request.
- *
- * @param[in] cb Callback invoked on request completion.
- * @param[in] arg User data passed to callback.
- * @return Pointer to request or NULL on failure.
- */
-static struct evhttp_request *evhttp_request_new(evhttp_request_cb_t cb,
-                                                 void *arg) {
-  struct evhttp_request *req;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libevent_req_new_fail) {
-    req = NULL;
-  } else
-#endif
-  {
-    req = (struct evhttp_request *)calloc(1, sizeof(struct evhttp_request));
-  }
-  if (!req) {
-    return NULL;
-  }
-  req->cb = cb;
-  req->cb_arg = arg;
-  return req;
-}
-
-/**
- * @brief Free a mock evhttp request.
- *
- * @param[in] req Request to free.
- */
-static void evhttp_request_free(struct evhttp_request *req) {
-  size_t i;
-  if (req) {
-    for (i = 0; i < req->output_headers.count; ++i) {
-      if (req->output_headers.entries[i].key) {
-        free(req->output_headers.entries[i].key);
-      }
-      if (req->output_headers.entries[i].val) {
-        free(req->output_headers.entries[i].val);
-      }
-    }
-    evbuffer_free_internal(&req->output_buffer);
-    evbuffer_free_internal(&req->input_buffer);
-    free(req);
-  }
-}
-
-/**
- * @brief Set chunked callback on mock evhttp request.
- *
- * @param[in] req Request.
- * @param[in] cb Chunk callback.
- */
-static void evhttp_request_set_chunked_cb(struct evhttp_request *req,
-                                          evhttp_chunk_cb_t cb) {
-  if (req) {
-    req->chunk_cb = cb;
-  }
-}
-
-/**
- * @brief Get output headers from mock evhttp request.
- *
- * @param[in] req Request.
- * @return Pointer to output headers queue.
- */
-static struct evkeyvalq *
-evhttp_request_get_output_headers(struct evhttp_request *req) {
-  return &req->output_headers;
-}
-
-/**
- * @brief Get output buffer from mock evhttp request.
- *
- * @param[in] req Request.
- * @return Pointer to output buffer.
- */
-static struct evbuffer *
-evhttp_request_get_output_buffer(struct evhttp_request *req) {
-  return &req->output_buffer;
-}
-
-/**
- * @brief Get input buffer from mock evhttp request.
- *
- * @param[in] req Request.
- * @return Pointer to input buffer.
- */
-static struct evbuffer *
-evhttp_request_get_input_buffer(struct evhttp_request *req) {
-  return &req->input_buffer;
-}
-
-/**
- * @brief Get response status code from mock evhttp request.
- *
- * @param[in] req Request.
- * @return HTTP status code.
- */
-static int evhttp_request_get_response_code(const struct evhttp_request *req) {
-  return req ? req->response_code : 0;
-}
-
-/**
- * @brief Add header key-value pair to mock headers queue.
- *
- * @param[in,out] headers Headers queue.
- * @param[in] key Header name.
- * @param[in] val Header value.
- * @return 0 on success, -1 on failure.
- */
-static int evhttp_add_header(struct evkeyvalq *headers, const char *key,
-                             const char *val) {
-  char *_ast_strdup_k = NULL;
-  char *_ast_strdup_v = NULL;
-  enum c_abstract_http_error rck, rcv;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libevent_buf_add_fail) {
-    return -1;
-  }
-#endif
-  if (!headers || !key || !val || headers->count >= 32) {
-    return -1;
-  }
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libevent_res_init_fail == 1) {
-    rck = C_ABSTRACT_HTTP_ERR_NOMEM;
-    rcv = C_ABSTRACT_HTTP_SUCCESS;
-  } else if (g_mock_libevent_res_init_fail == 2) {
-    rck = c_abstract_http_strdup(key, &_ast_strdup_k);
-    rcv = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rck = c_abstract_http_strdup(key, &_ast_strdup_k);
-    rcv = c_abstract_http_strdup(val, &_ast_strdup_v);
-  }
-  if (rck != C_ABSTRACT_HTTP_SUCCESS || rcv != C_ABSTRACT_HTTP_SUCCESS) {
-    if (_ast_strdup_k) {
-      free(_ast_strdup_k);
-    }
-    return -1;
-  }
-  headers->entries[headers->count].key = _ast_strdup_k;
-  headers->entries[headers->count].val = _ast_strdup_v;
-  headers->count++;
-  return 0;
-}
-
-/**
- * @brief Append data to mock evbuffer.
- *
- * @param[in,out] buf Buffer.
- * @param[in] data Data to append.
- * @param[in] datlen Length of data.
- * @return 0 on success, -1 on failure.
- */
-static int evbuffer_add(struct evbuffer *buf, const void *data, size_t datlen) {
-  char *new_data;
-  size_t new_cap;
-  if (!buf || !data || datlen == 0) {
-    return 0;
-  }
-  if (buf->len + datlen > buf->cap) {
-    new_cap = buf->cap == 0 ? (datlen < 128 ? 128 : datlen * 2)
-                            : (buf->cap + datlen) * 2;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_libevent_buf_add_fail) {
-      new_data = NULL;
-    } else
-#endif
-    {
-      new_data = (char *)realloc(buf->data, new_cap);
-    }
-    if (!new_data) {
-      return -1;
-    }
-    buf->data = new_data;
-    buf->cap = new_cap;
-  }
-  memcpy(buf->data + buf->len, data, datlen);
-  buf->len += datlen;
-  return 0;
-}
-
-/**
- * @brief Get length of data stored in mock evbuffer.
- *
- * @param[in] buf Buffer.
- * @return Length in bytes.
- */
-static size_t evbuffer_get_length(const struct evbuffer *buf) {
-  return buf ? buf->len : 0;
-}
-
-/**
- * @brief Remove and copy bytes from mock evbuffer.
- *
- * @param[in,out] buf Buffer.
- * @param[out] data_out Destination buffer.
- * @param[in] datlen Number of bytes to remove.
- * @return Number of bytes removed.
- */
-static int evbuffer_remove(struct evbuffer *buf, void *data_out,
-                           size_t datlen) {
-  size_t to_copy;
-  if (!buf || !data_out || datlen == 0 || buf->len == 0) {
-    return 0;
-  }
-  to_copy = datlen < buf->len ? datlen : buf->len;
-  memcpy(data_out, buf->data, to_copy);
-  if (to_copy < buf->len) {
-    memmove(buf->data, buf->data + to_copy, buf->len - to_copy);
-  }
-  buf->len -= to_copy;
-  return (int)to_copy;
-}
-
-/**
- * @brief Initiate request on mock evhttp connection.
- *
- * @param[in] conn Connection.
- * @param[in] req Request.
- * @param[in] type HTTP method type.
- * @param[in] uri URI path.
- * @return 0 on success, -1 on failure.
- */
-static int evhttp_make_request(struct evhttp_connection *conn,
-                               struct evhttp_request *req, int type,
-                               const char *uri) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libevent_make_req_fail) {
-    return -1;
-  }
-#endif
-  if (!conn || !req || !conn->base) {
-    return -1;
-  }
-  conn->base->conn = conn;
-  conn->base->req = req;
-  conn->base->cmd = type;
-  if (uri) {
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    strncpy_s(conn->base->path, sizeof(conn->base->path), uri,
-              sizeof(conn->base->path) - 1);
-#else
-    strncpy(conn->base->path, uri, sizeof(conn->base->path) - 1);
-#endif
-    conn->base->path[sizeof(conn->base->path) - 1] = '\0';
-  }
-  return 0;
-}
-
-/**
- * @brief Run mock event base dispatch.
- *
- * @param[in] base Event base.
- * @return 0 on success, -1 on failure.
- */
-static int event_base_dispatch(struct event_base *base) {
-  const char mock_payload[] = "OK";
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libevent_empty_body == 2) {
-    return 0;
-  }
-#endif
-  if (!base || !base->req) {
-    return -1;
-  }
-  if (base->conn && base->conn->port == 59999) {
-    if (base->req->cb) {
-      base->req->cb(NULL, base->req->cb_arg);
-    }
-    return 0;
-  }
-  if (base->req->chunk_cb) {
-    evbuffer_add(&base->req->input_buffer, mock_payload,
-                 sizeof(mock_payload) - 1);
-    base->req->chunk_cb(base->req, base->req->cb_arg);
-    if (base->loop_break) {
-      if (base->req->cb) {
-        base->req->cb(base->req, base->req->cb_arg);
-      }
-      return 0;
-    }
-  } else {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (!g_mock_libevent_empty_body)
-#endif
-    {
-      evbuffer_add(&base->req->input_buffer, mock_payload,
-                   sizeof(mock_payload) - 1);
-    }
-  }
-  base->req->response_code = 200;
-  if (base->req->cb) {
-    base->req->cb(base->req, base->req->cb_arg);
-  }
-  return 0;
-}
-
-#endif /* !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBEVENT) */
 
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
@@ -617,12 +71,7 @@ enum c_abstract_http_error http_libevent_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Create a new libevent-backed transport context.
- *
- * @param[out] ctx Double pointer to receive the allocated context.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Create a new libevent-backed transport context. */
 enum c_abstract_http_error
 http_libevent_context_init(struct HttpTransportContext **ctx) {
   enum c_abstract_http_error rc;
@@ -648,12 +97,12 @@ http_libevent_context_init(struct HttpTransportContext **ctx) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libevent_config_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_config_init(&(*ctx)->config);
+    free(*ctx);
+    *ctx = NULL;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
+#endif
+  rc = http_config_init(&(*ctx)->config);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG(
         "http_libevent_context_init: Error http_config_init failed with %d",
@@ -667,11 +116,7 @@ http_libevent_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Free the transport context.
- *
- * @param[in] ctx The context to free. Safe to pass NULL.
- */
+/* Free the transport context. */
 enum c_abstract_http_error
 http_libevent_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libevent_context_free: Entering");
@@ -685,13 +130,7 @@ http_libevent_context_free(struct HttpTransportContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Apply configuration settings to the transport context.
- *
- * @param[in] ctx The transport context.
- * @param[in] config The configuration structure to apply.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Apply configuration settings to the transport context. */
 enum c_abstract_http_error
 http_libevent_config_apply(struct HttpTransportContext *ctx,
                            const struct HttpConfig *config) {
@@ -712,12 +151,10 @@ http_libevent_config_apply(struct HttpTransportContext *ctx,
     }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libevent_config_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
-    {
-      rc = c_abstract_http_strdup(config->user_agent, &ctx->config.user_agent);
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
+#endif
+    rc = c_abstract_http_strdup(config->user_agent, &ctx->config.user_agent);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
@@ -1015,12 +452,37 @@ struct libevent_state {
   int done;
 };
 
-/**
- * @brief Request completion callback for libevent.
- *
- * @param[in] req_ev evhttp request.
- * @param[in] arg Pointer to libevent_state.
- */
+static enum c_abstract_http_error
+http_request_done_init_res(struct libevent_state *state) {
+  enum c_abstract_http_error rc;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_libevent_res_init_fail) {
+    free(*state->res);
+    *state->res = NULL;
+    state->error_code = (int)C_ABSTRACT_HTTP_ERR_NOMEM;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+#endif
+  rc = http_response_init(*state->res);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    LOG_DEBUG("http_request_done: Error http_response_init failed with %d",
+              (int)rc);
+    free(*state->res);
+    *state->res = NULL;
+    state->error_code = (int)rc;
+    return rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+#define LIBEVENT_VOID_CB_DISPATCH(expr)                                        \
+  do {                                                                         \
+    enum c_abstract_http_error _ev_rc = (expr);                                \
+    if (_ev_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
+      LOG_DEBUG("libevent callback returned %d", (int)_ev_rc);                 \
+    }                                                                          \
+  } while (0)
+
 static void http_request_done(struct evhttp_request *req_ev, void *arg) {
   struct libevent_state *state;
   state = (struct libevent_state *)arg;
@@ -1051,24 +513,9 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
     return;
   }
 
-  {
-    enum c_abstract_http_error rc;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_libevent_res_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
-    {
-      rc = http_response_init(*state->res);
-    }
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      LOG_DEBUG("http_request_done: Error http_response_init failed with %d",
-                (int)rc);
-      free(*state->res);
-      *state->res = NULL;
-      state->error_code = (int)rc;
-      return;
-    }
+  LIBEVENT_VOID_CB_DISPATCH(http_request_done_init_res(state));
+  if (state->error_code != 0) {
+    return;
   }
 
   (*state->res)->status_code = evhttp_request_get_response_code(req_ev);
@@ -1099,23 +546,15 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
   }
 }
 
-/**
- * @brief Chunk callback for libevent stream responses.
- *
- * @param[in] req_ev evhttp request.
- * @param[in] arg Pointer to libevent_state.
- */
-static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
-  struct libevent_state *state;
-  struct evbuffer *evb;
-  size_t len;
-
-  state = (struct libevent_state *)arg;
-  evb = evhttp_request_get_input_buffer(req_ev);
-  len = evbuffer_get_length(evb);
+static enum c_abstract_http_error
+http_chunked_cb_impl(struct evhttp_request *req_ev,
+                     struct libevent_state *state) {
+  struct evbuffer *evb = evhttp_request_get_input_buffer(req_ev);
+  size_t len = evbuffer_get_length(evb);
 
   if (len > 0 && state->req->on_chunk) {
     char *buf;
+    enum c_abstract_http_error cb_rc;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libevent_body_alloc_fail) {
       buf = NULL;
@@ -1127,19 +566,24 @@ static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
     if (!buf) {
       state->error_code = (int)C_ABSTRACT_HTTP_ERR_NOMEM;
       event_base_loopbreak(state->base);
-      return;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     evbuffer_remove(evb, buf, len);
-    {
-      int cb_rc;
-      cb_rc = state->req->on_chunk(state->req->on_chunk_user_data, buf, len);
-      if (cb_rc != (int)C_ABSTRACT_HTTP_SUCCESS) {
-        state->error_code = cb_rc;
-        event_base_loopbreak(state->base);
-      }
+    cb_rc = state->req->on_chunk(state->req->on_chunk_user_data, buf, len);
+    if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      state->error_code = (int)cb_rc;
+      event_base_loopbreak(state->base);
+      return cb_rc;
     }
     free(buf);
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
+  struct libevent_state *state = (struct libevent_state *)arg;
+  LIBEVENT_VOID_CB_DISPATCH(http_chunked_cb_impl(req_ev, state));
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -1170,14 +614,7 @@ enum c_abstract_http_error c_abstract_http_test_libevent_chunked_cb(void) {
 }
 #endif
 
-/**
- * @brief Send an HTTP request using libevent.
- *
- * @param[in] ctx Transport context.
- * @param[in] req Request structure.
- * @param[out] res Pointer to receive response object.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Send an HTTP request using libevent. */
 enum c_abstract_http_error http_libevent_send(struct HttpTransportContext *ctx,
                                               const struct HttpRequest *req,
                                               struct HttpResponse **res) {
@@ -1303,10 +740,15 @@ enum c_abstract_http_error http_libevent_send(struct HttpTransportContext *ctx,
     char buf[4096];
     size_t read_bytes = 0;
     for (;;) {
-      int r;
-      r = req->read_chunk(req->read_chunk_user_data, buf, sizeof(buf),
-                          &read_bytes);
-      if (r != 0 || read_bytes == 0) {
+      enum c_abstract_http_error r = req->read_chunk(
+          req->read_chunk_user_data, buf, sizeof(buf), &read_bytes);
+      if (r != C_ABSTRACT_HTTP_SUCCESS) {
+        evhttp_request_free(req_ev);
+        evhttp_connection_free(state.conn);
+        event_base_free(state.base);
+        return r;
+      }
+      if (read_bytes == 0) {
         break;
       }
       if (evbuffer_add(evb, buf, read_bytes) != 0) {

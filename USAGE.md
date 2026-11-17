@@ -1,636 +1,652 @@
 # Usage
 
-This guide covers basic integration, standard HTTP requests, error handling, OAuth2 support, and memory lifecycle in `c-abstract-http`.
+This guide covers CMake integration, client lifecycle, synchronous and concurrent HTTP requests, error percolation, OAuth 2.0 grants, streaming, WebSockets, Server-Sent Events (SSE), multipart uploads, and custom event-loop hooks in `c-abstract-http`.
+
+All examples conform strictly to ISO C89 (ANSI C / C90) and percolate `enum c_abstract_http_error` without discarding `NO_DISCARD` return values.
+
+---
 
 ## 1. Choosing a Backend & Compiling
 
-Before initializing the client in your C code, you must configure the library using CMake. By default, `c-abstract-http` automatically selects the best native backend for your operating system to reduce bloat (e.g., WinHTTP on Windows, CFNetwork on macOS, libcurl on Linux, Emscripten Fetch on WebAssembly).
-
-### Overriding the Default Backend
-If you want to use a specific backend instead of the OS default, pass the corresponding `-D` flag to CMake:
+By default, CMake selects the native OS transport (`WinHTTP` on modern Windows, `WinINet` on MSVC < 2010, `CFNetwork`/`NSURLSession` on macOS/iOS, Emscripten Fetch on WebAssembly, raw sockets on MS-DOS, and `libcurl` on Linux/BSD/POSIX):
 
 ```bash
-# Use the default OS backend (Recommended)
-cmake -B build -S .
-
-# Override: Force libuv backend
-cmake -B build -S . -DC_ABSTRACT_HTTP_USE_LIBUV=ON
-
-# Override: Force HTTP/3 via msh3
-cmake -B build -S . -DC_ABSTRACT_HTTP_USE_MSH3=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
 ```
 
-### Overriding Cryptography
-The library also defaults to the native crypto library of the chosen backend (e.g., Schannel on Windows, SecureTransport on Apple). You can force a specific crypto backend:
+You can override the transport backend or enable single-header amalgamation (`INTERFACE` library) at configure time:
 
 ```bash
-# Force MbedTLS for cryptography
-cmake -B build -S . -DC_ABSTRACT_HTTP_USE_MBEDTLS=ON
+# HTTP/3 via Microsoft msh3 (msquic)
+cmake -S . -B build -DC_ABSTRACT_HTTP_USE_MSH3=ON
+
+# Evented TCP via libuv
+cmake -S . -B build -DC_ABSTRACT_HTTP_USE_LIBUV=ON
+
+# STB-style single-header mode
+cmake -S . -B build -DC_ABSTRACT_HTTP_HEADER_ONLY=ON
 ```
 
-## 2. Initializing the Client
+---
+
+## 2. Initializing & Cleaning Up the Client
+
+Initialize global transport state once at process startup (`transport_global_init`), initialize `struct HttpClient` (`http_client_init`), and bind the compiled transport backend (`transport_factory_init_client`). Tear down in reverse order:
 
 ```c
-#include <c_abstract_http/c_abstract_http.h>
+/* clang-format off */
 #include <stdio.h>
+#include <c_abstract_http/c_abstract_http.h>
+/* clang-format on */
 
 int main(void) {
-    struct HttpClient client;
-    enum c_abstract_http_error rc = http_client_init(&client);
-    if (rc != HTTP_ERROR_NONE) {
-        fprintf(stderr, "Failed to initialize HTTP client: %d\n", rc);
-        return (int)rc;
+  struct HttpClient client;
+  enum c_abstract_http_error rc;
+  enum c_abstract_http_error clean_rc;
+
+  rc = transport_global_init();
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    fprintf(stderr, "transport_global_init failed: %d\n", (int)rc);
+    return 1;
+  }
+
+  rc = http_client_init(&client);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    fprintf(stderr, "http_client_init failed: %d\n", (int)rc);
+    clean_rc = transport_global_cleanup();
+    return clean_rc != C_ABSTRACT_HTTP_SUCCESS ? (int)clean_rc : (int)rc;
+  }
+
+  rc = transport_factory_init_client(&client);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    fprintf(stderr, "transport_factory_init_client failed: %d\n", (int)rc);
+    clean_rc = http_client_free(&client);
+    if (clean_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return (int)clean_rc;
     }
+    clean_rc = transport_global_cleanup();
+    return clean_rc != C_ABSTRACT_HTTP_SUCCESS ? (int)clean_rc : (int)rc;
+  }
 
-    client.config.timeout_ms = 5000;
-    client.config.follow_redirects = 1;
+  client.config.timeout_ms = 5000;
+  client.config.follow_redirects = 1;
 
-    /* Request HTTP/3 with a fallback to HTTP/2 and HTTP/1.1 */
-    client.config.version_mask = HTTP_VERSION_3 | HTTP_VERSION_2 | HTTP_VERSION_1_1;
-    client.config.http3_fallback = 1;
-
-    /* Restrict TLS versions to 1.2 and 1.3 for security */
-    client.config.tls_version_mask = HTTP_TLS_VERSION_1_3 | HTTP_TLS_VERSION_1_2;
-
-    http_client_free(&client);
-    return 0;
+  rc = transport_factory_cleanup_client(&client);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return (int)rc;
+  }
+  rc = http_client_free(&client);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return (int)rc;
+  }
+  rc = transport_global_cleanup();
+  return (int)rc;
 }
 ```
 
-## 3. Simple HTTP GET Request
+---
+
+## 3. Sending Synchronous HTTP Requests
+
+Note that `http_request_free()` frees `req.url` and `req.body` when non-`NULL`. Always allocate `req.url` (for example with `c_abstract_http_strdup`) or reset borrowed pointers to `NULL` before calling `http_request_free(&req)`:
 
 ```c
-#include <c_abstract_http/c_abstract_http.h>
+/* clang-format off */
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-
-int fetch_and_print(struct HttpClient *client) {
-    struct HttpRequest req;
-    struct HttpResponse *res = NULL;
-    int rc = 0;
-
-    http_request_init(&req);
-
-    req.url = malloc(strlen("https://example.com") + 1);
-    if (!req.url) {
-        fprintf(stderr, "Failed to allocate memory for URL\n");
-        rc = -1;
-        goto cleanup;
-    }
-    strcpy(req.url, "https://example.com");
-
-    rc = client->send(client->transport, &req, &res);
-    if (rc != 0) {
-        fprintf(stderr, "Failed to send HTTP request: %d\n", rc);
-        goto cleanup;
-    }
-
-    if (res) {
-        printf("Response Status: %d\n", res->status_code);
-        if (res->body) {
-            printf("Body:\n%.*s\n", (int)res->body_len, (char*)res->body);
-        }
-    }
-
-cleanup:
-    if (res) {
-        http_response_free(res);
-    }
-    http_request_free(&req);
-    return rc;
-}
-```
-
-## 4. Downloading Multiple Files
-
-```c
 #include <c_abstract_http/c_abstract_http.h>
-#include <cfs/cfs.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <c_abstract_http/win_compat_sym.h>
+/* clang-format on */
 
-enum c_abstract_http_error download_files(struct HttpClient *client, const char *dest_dir) {
-    const char *urls[] = {
-        "https://example.com/file1.txt",
-        "https://example.com/file2.txt"
-    };
-    size_t num_urls = sizeof(urls) / sizeof(urls[0]);
-    struct HttpRequest reqs[2];
-    struct HttpRequest *req_ptrs[2];
-    struct HttpFuture f1, f2;
-    struct HttpFuture *futures[2] = { &f1, &f2 };
-    size_t i;
-    enum c_abstract_http_error rc = HTTP_ERROR_NONE;
-    cfs_path dir_path = {0};
-    cfs_error_code ec = {0};
+enum c_abstract_http_error fetch_json(struct HttpClient *client) {
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  const char *content_type = NULL;
+  enum c_abstract_http_error rc;
+  enum c_abstract_http_error free_rc;
 
-    for (i = 0; i < num_urls; ++i) {
-        http_request_init(&reqs[i]);
-        http_future_init(futures[i]);
-    }
-
-    /* Ensure destination directory exists using c-fs */
-    cfs_path_init_str(&dir_path, (const cfs_char_t*)dest_dir);
-    cfs_create_directories(&dir_path, &ec);
-    if (ec.value != 0) {
-        fprintf(stderr, "Failed to create destination directories\n");
-        rc = HTTP_ERROR_UNKNOWN; /* Fallback for non-HTTP errors */
-        goto cleanup_dir;
-    }
-
-    for (i = 0; i < num_urls; ++i) {
-        reqs[i].url = malloc(strlen(urls[i]) + 1);
-        if (!reqs[i].url) {
-            fprintf(stderr, "Failed to allocate memory for URL %zu\n", i);
-            rc = HTTP_ERROR_OUT_OF_MEMORY;
-            goto cleanup;
-        }
-        strcpy(reqs[i].url, urls[i]);
-        req_ptrs[i] = &reqs[i];
-    }
-
-    /* Send requests concurrently */
-    rc = http_client_send_multi(client, req_ptrs, num_urls, futures, NULL, NULL, 0);
-    if (rc != HTTP_ERROR_NONE) {
-        fprintf(stderr, "Failed to send concurrent requests: %d\n", rc);
-        goto cleanup;
-    }
-
-    for (i = 0; i < num_urls; ++i) {
-        if (futures[i]->is_ready && futures[i]->error_code == HTTP_ERROR_NONE && futures[i]->response) {
-            struct HttpResponse *res = futures[i]->response;
-            cfs_path file_path = {0};
-            const char *filename;
-            const cfs_char_t *path_str = NULL;
-            FILE *fp;
-
-            cfs_path_init(&file_path);
-            cfs_path_clone(&file_path, &dir_path);
-
-            /* Extract filename from URL */
-            filename = strrchr(urls[i], '/');
-            if (filename) filename++;
-            else filename = "downloaded_file.txt";
-
-            cfs_path_append(&file_path, (const cfs_char_t*)filename);
-            cfs_path_c_str(&file_path, &path_str);
-
-            if (!path_str || !res->body) {
-                fprintf(stderr, "Failed to resolve path or missing body for %s\n", urls[i]);
-                cfs_path_destroy(&file_path);
-                continue;
-            }
-
-            fp = fopen((const char*)path_str, "wb");
-            if (!fp) {
-                fprintf(stderr, "Failed to open file for writing: %s\n", (const char*)path_str);
-                cfs_path_destroy(&file_path);
-                continue;
-            }
-
-            if (fwrite(res->body, 1, res->body_len, fp) != res->body_len) {
-                fprintf(stderr, "Failed to completely write body to file: %s\n", (const char*)path_str);
-            } else {
-                printf("Saved: %s\n", (const char*)path_str);
-            }
-
-            fclose(fp);
-            cfs_path_destroy(&file_path);
-            http_response_free(res);
-            futures[i]->response = NULL;
-        } else {
-            fprintf(stderr, "Request %zu failed with error code %d\n", i, futures[i]->error_code);
-            rc = HTTP_ERROR_UNKNOWN; /* Mark overall function as failed if any request failed */
-        }
-    }
-
-cleanup:
-    for (i = 0; i < num_urls; ++i) {
-        http_request_free(&reqs[i]);
-        http_future_free(futures[i]);
-    }
-cleanup_dir:
-    cfs_path_destroy(&dir_path);
+  rc = http_request_init(&req);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
+  }
+
+  req.method = HTTP_GET;
+  rc = c_abstract_http_strdup("https://api.example.com/v1/status", &req.url);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free_rc = http_request_free(&req);
+    return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc : rc;
+  }
+
+  rc = http_headers_add(&req.headers, "Accept", "application/json");
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free_rc = http_request_free(&req);
+    return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc : rc;
+  }
+
+  rc = client->send(client->transport, &req, &res);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS && res != NULL) {
+    printf("Status: %d (%" SIZE_T_FMT " bytes)\n", res->status_code,
+           res->body_len);
+    if (http_headers_get(&res->headers, "Content-Type", &content_type) ==
+        C_ABSTRACT_HTTP_SUCCESS) {
+      printf("Content-Type: %s\n", content_type);
+    }
+    free_rc = http_response_free(res);
+    free(res);
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      rc = free_rc;
+    }
+  }
+
+  free_rc = http_request_free(&req);
+  if (free_rc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
+    rc = free_rc;
+  }
+  return rc;
 }
 ```
 
-## 5. OAuth 2.0 Client Support
+---
 
-`c-abstract-http` natively handles OAuth 2.0 flows, making authentication against modern APIs simple and secure.
+## 4. Error Handling
 
-### Password Grant
+Every API call returns `enum c_abstract_http_error` (`0` is `C_ABSTRACT_HTTP_SUCCESS`):
 
 ```c
-int get_token(struct HttpClient *client) {
-    struct HttpRequest req;
-    struct HttpResponse *res = NULL;
-    int rc = 0;
+/* clang-format off */
+#include <stdio.h>
+#include <c_abstract_http/c_abstract_http.h>
+/* clang-format on */
 
-    http_request_init(&req);
-
-    rc = http_request_init_oauth2_password_grant(&req,
-        "https://auth.server/token",
-        "user@example.com",
-        "super_secret_password",
-        "client_id_123",
-        NULL,
-        "read write"
-    );
-    if (rc != 0) {
-        fprintf(stderr, "Failed to initialize password grant: %d\n", rc);
-        goto cleanup;
-    }
-
-    rc = client->send(client->transport, &req, &res);
-    if (rc != 0) {
-        fprintf(stderr, "Failed to send password grant request: %d\n", rc);
-        goto cleanup;
-    }
-
-    if (res) {
-        printf("Response: %s\n", (char*)res->body);
-    }
-
-cleanup:
-    if (res) {
-        http_response_free(res);
-    }
-    http_request_free(&req);
+enum c_abstract_http_error log_transport_result(enum c_abstract_http_error rc) {
+  switch (rc) {
+  case C_ABSTRACT_HTTP_SUCCESS:
+    return C_ABSTRACT_HTTP_SUCCESS;
+  case C_ABSTRACT_HTTP_ERR_INVAL:
+    fprintf(stderr, "Invalid argument (%d)\n", (int)rc);
     return rc;
+  case C_ABSTRACT_HTTP_ERR_NOMEM:
+    fprintf(stderr, "Out of memory (%d)\n", (int)rc);
+    return rc;
+  case C_ABSTRACT_HTTP_ERR_TIMEOUT:
+    fprintf(stderr, "Operation timed out (%d)\n", (int)rc);
+    return rc;
+  case C_ABSTRACT_HTTP_ERR_ACCES:
+    fprintf(stderr, "Permission or TLS verification denied (%d)\n", (int)rc);
+    return rc;
+  default:
+    fprintf(stderr, "Transport error (%d)\n", (int)rc);
+    return rc;
+  }
 }
 ```
+
+---
+
+## 5. OAuth 2.0 Helpers & Localhost Loopback Intercept
+
+`http_types.h` provides RFC-compliant OAuth 2.0 request builders (Client Credentials, Password, Authorization Code + PKCE, Refresh Token, Device Code, JWT Bearer, Token Introspection, and Token Revocation) plus a synchronous loopback callback listener (`http_oauth2_localhost_intercept`).
 
 ### Client Credentials Grant
 
 ```c
-int service_token(struct HttpClient *client) {
-    struct HttpRequest req;
-    struct HttpResponse *res = NULL;
-    int rc = 0;
+/* clang-format off */
+#include <stdlib.h>
+#include <c_abstract_http/c_abstract_http.h>
+/* clang-format on */
 
-    http_request_init(&req);
+enum c_abstract_http_error request_client_token(struct HttpClient *client) {
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  enum c_abstract_http_error rc;
+  enum c_abstract_http_error free_rc;
 
-    rc = http_request_init_oauth2_client_credentials_grant(&req,
-        "https://auth.server/token",
-        "my_client_id",
-        "my_client_secret",
-        "admin_scope"
-    );
-    if (rc != 0) {
-        fprintf(stderr, "Failed to initialize client credentials grant: %d\n", rc);
-        goto cleanup;
-    }
-
-    rc = client->send(client->transport, &req, &res);
-    if (rc != 0) {
-        fprintf(stderr, "Failed to send client credentials request: %d\n", rc);
-        goto cleanup;
-    }
-
-    if (res) {
-        printf("Response: %s\n", (char*)res->body);
-    }
-
-cleanup:
-    if (res) {
-        http_response_free(res);
-    }
-    http_request_free(&req);
+  rc = http_request_init_oauth2_client_credentials_grant(
+      &req, "https://auth.example.com/oauth/token", "my_client_id",
+      "my_client_secret", "read:items");
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
+  }
+
+  rc = client->send(client->transport, &req, &res);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS && res != NULL) {
+    free_rc = http_response_free(res);
+    free(res);
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      rc = free_rc;
+    }
+  }
+
+  free_rc = http_request_free(&req);
+  return rc != C_ABSTRACT_HTTP_SUCCESS ? rc : free_rc;
 }
 ```
 
-### Device Authorization Flow
-
-For smart TVs and headless CLIs:
+### Localhost OAuth 2.0 Redirect Intercept
 
 ```c
-int device_flow(struct HttpClient *client) {
-    struct HttpRequest req;
-    struct HttpResponse *res = NULL;
-    int rc = 0;
+/* clang-format off */
+#include <stdio.h>
+#include <stdlib.h>
+#include <c_abstract_http/c_abstract_http.h>
+/* clang-format on */
 
-    http_request_init(&req);
+enum c_abstract_http_error intercept_oauth_callback(void) {
+  char *code = NULL;
+  char *state = NULL;
+  char *err = NULL;
+  char *err_desc = NULL;
+  const char *reply =
+      "HTTP/1.1 200 OK\r\n"
+      "Content-Type: text/html\r\n"
+      "Connection: close\r\n\r\n"
+      "<html><body>Authentication complete. You may close this tab.</body></html>";
+  enum c_abstract_http_error rc;
 
-    /* 1. Get the device code */
-    rc = http_request_init_oauth2_device_authorization_request(&req,
-        "https://auth.server/device",
-        "my_client_id",
-        NULL
-    );
-    if (rc != 0) {
-        fprintf(stderr, "Failed to initialize device authorization request: %d\n", rc);
-        goto cleanup;
+  rc = http_oauth2_localhost_intercept(8080, reply, &code, &state, &err,
+                                       &err_desc);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+    if (code != NULL) {
+      printf("Authorization code received: %s\n", code);
+    } else if (err != NULL) {
+      fprintf(stderr, "OAuth error: %s (%s)\n", err,
+              err_desc ? err_desc : "no description");
     }
+  }
 
-    rc = client->send(client->transport, &req, &res);
-    if (rc != 0) {
-        fprintf(stderr, "Failed to send device authorization request: %d\n", rc);
-        goto cleanup;
-    }
-
-    if (res) {
-        printf("Device Auth Response: %s\n", (char*)res->body);
-        http_response_free(res);
-        res = NULL;
-    }
-    http_request_free(&req);
-
-    /* 2. Poll for the access token using the device code */
-    http_request_init(&req);
-    rc = http_request_init_oauth2_device_access_token_request(&req,
-        "https://auth.server/token",
-        "my_client_id",
-        "device_code_123"
-    );
-    if (rc != 0) {
-        fprintf(stderr, "Failed to initialize device access token request: %d\n", rc);
-        goto cleanup;
-    }
-
-    rc = client->send(client->transport, &req, &res);
-    if (rc != 0) {
-        fprintf(stderr, "Failed to send device access token request: %d\n", rc);
-        goto cleanup;
-    }
-
-    if (res) {
-        printf("Token Response: %s\n", (char*)res->body);
-    }
-
-cleanup:
-    if (res) {
-        http_response_free(res);
-    }
-    http_request_free(&req);
-    return rc;
+  free(code);
+  free(state);
+  free(err);
+  free(err_desc);
+  return rc;
 }
 ```
 
-### Localhost Intercept Server
+---
 
-To handle the OAuth 2.0 loopback flow for desktop applications:
+## 6. Streaming Downloads & Concurrent Multi-Requests
 
-/* ... assuming `client` is already initialized ... */
+Register `req.on_chunk` (`http_on_chunk_fn`) to stream large responses without buffering the entire payload in memory, or dispatch batches via `http_client_send_multi`:
 
-char *code = NULL;
-char *state = NULL;
-char *err = NULL;
-char *err_desc = NULL;
-enum c_abstract_http_error rc = HTTP_ERROR_NONE;
+```c
+/* clang-format off */
+#include <stdio.h>
+#include <c_abstract_http/c_abstract_http.h>
+#include <c_abstract_http/win_compat_sym.h>
+/* clang-format on */
 
-/* Block until the user completes the flow in their browser and is redirected to http://127.0.0.1:8080 */
-rc = http_oauth2_localhost_intercept(
-    8080,
-    "HTTP/1.1 200 OK\r\n\r\n<html><body>Successfully logged in! You can close this tab.</body></html>",
-    &code, &state, &err, &err_desc
-);
-
-if (rc != HTTP_ERROR_NONE) {
-    fprintf(stderr, "Failed to intercept localhost loopback: %d\n", rc);
-    goto cleanup;
+static enum c_abstract_http_error on_body_chunk(void *user_data,
+                                                const void *chunk,
+                                                size_t len) {
+  size_t *total = (size_t *)user_data;
+  if (chunk) {
+    *total += len;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-    if (err) {
-        fprintf(stderr, "OAuth2 Error: %s - %s\n", err, err_desc ? err_desc : "No description");
-        rc = HTTP_ERROR_UNKNOWN;
-        goto cleanup;
-    }
+static enum c_abstract_http_error on_multi_progress(size_t current_bytes,
+                                                    size_t total_bytes,
+                                                    void *user_data) {
+  if (user_data) {
+  }
+  printf("Progress: %" SIZE_T_FMT " / %" SIZE_T_FMT "\n", current_bytes,
+         total_bytes);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
-    if (code) {
-        printf("Received Auth Code: %s\n", code);
-    }
-
-cleanup:
-    if (code) free(code);
-    if (state) free(state);
-    if (err) free(err);
-    if (err_desc) free(err_desc);
-
-    return rc;
+enum c_abstract_http_error setup_streaming_Callbacks(struct HttpRequest *req,
+                                                     size_t *counter,
+                                                     http_multi_progress_cb *out_cb) {
+  if (!req || !counter || !out_cb) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  req->on_chunk = on_body_chunk;
+  req->on_chunk_user_data = counter;
+  *out_cb = on_multi_progress;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 ```
 
-## 6. Supported Crypto Libraries
+---
 
-By default, `c-abstract-http` uses the native TLS backend of your network library (e.g. Schannel for WinHTTP, SecureTransport for CFNetwork, GnuTLS/OpenSSL for libcurl). You can force a specific crypto library via CMake when building:
+## 7. Raw Sockets Fallback (`http_raw.c`)
+
+For minimal POSIX environments or retro targets such as MS-DOS (OpenWatcom), `c-abstract-http` includes a plain HTTP/1.1 TCP socket transport (`http_raw.c`). Note that `http_raw.c` performs unencrypted HTTP/1.1 over TCP sockets and does not perform TLS negotiation:
 
 ```bash
-cmake -B build -S . \
-    -DC_ABSTRACT_HTTP_USE_MBEDTLS=ON \
-    -DC_ABSTRACT_HTTP_USE_OPENSSL=OFF
+# Force raw sockets transport on Linux, macOS, BSD, or Windows
+cmake -S . -B build -DC_ABSTRACT_HTTP_USE_RAW_SOCKETS=ON
+
+# MS-DOS cross-compilation (automatically selects http_raw.c)
+cmake -S . -B build -DCMAKE_SYSTEM_NAME=DOS
 ```
 
-## 7. DOS and Raw Sockets Fallback
+---
 
-If you are compiling for DOS (e.g. using OpenWatcom) or building for deeply embedded bare-metal systems, `c-abstract-http` automatically switches to its manual **Raw Sockets** implementation (`http_raw.c`). This backend relies solely on `select`, `read`, and `write` POSIX-like methods.
+## 8. WebSockets & Server-Sent Events (SSE)
 
-In such environments, you will usually want to pair the network stack (like Watt-32 or mTCP) with a lightweight cryptography library, like MbedTLS or wolfSSL.
+Both `C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS` and `C_ABSTRACT_HTTP_ENABLE_SSE` default to `ON` in CMake.
 
-You can force this fallback layer on any POSIX system by passing the raw sockets flag:
-
-```bash
-cmake -B build -S . \
-    -DCMAKE_SYSTEM_NAME=DOS \
-    -DC_ABSTRACT_HTTP_USE_MBEDTLS=ON
-```
-
-Available configurations include `C_ABSTRACT_HTTP_USE_OPENSSL`, `C_ABSTRACT_HTTP_USE_MBEDTLS`, `C_ABSTRACT_HTTP_USE_LIBRESSL`, `C_ABSTRACT_HTTP_USE_BORINGSSL`, `C_ABSTRACT_HTTP_USE_WOLFSSL`, `C_ABSTRACT_HTTP_USE_S2N`, `C_ABSTRACT_HTTP_USE_BEARSSL`, `C_ABSTRACT_HTTP_USE_SCHANNEL`, `C_ABSTRACT_HTTP_USE_GNUTLS`, `C_ABSTRACT_HTTP_USE_BOTAN`, `C_ABSTRACT_HTTP_USE_COMMONCRYPTO`, and `C_ABSTRACT_HTTP_USE_WINCRYPT`.
-
-## 8. Streaming Modalities
-
-The `c-abstract-http` library supports **WebSockets** and **Server-Sent Events (SSE)** natively. Their behaviors map dynamically depending on the selected computational modality:
-
-| Modality | HTTP/REST | WebSockets | SSE | Notes |
-|----------|-----------|------------|-----|-------|
-| Sync | Yes | Yes (Blocking) | Yes (Blocking) | Locks the calling thread; best for dedicated streams. |
-| Async | Yes | Yes | Yes | Non-blocking via event loop registration (`libuv`/`epoll`). |
-| Thread Pool | Yes | Yes | Yes | Scales nicely; blocks on worker thread but async to caller. |
-| Multiprocess | Yes | IPC Only | IPC Only | Not recommended for streams without shared memory mappings. |
-| Greenthread | Yes | Yes | Yes | Pauses coroutine on `EAGAIN` yielding context dynamically. |
-| Message Passing | Yes | Actors | Actors | Streams natively translate to Actor mailbox messages. |
-## 9. WebSockets (WS) & Server-Sent Events (SSE)
-
-The library provides zero-dependency C89 state-machines for streaming HTTP protocols, natively integrating bounds-checking and fragmented reconstruction.
-
-### WebSockets
+### WebSockets (`http_ws.h`)
 
 ```c
-#include <c_abstract_http/c_abstract_http.h>
-#include <c_abstract_http/http_ws.h>
+/* clang-format off */
 #include <stdio.h>
+#include <c_abstract_http/c_abstract_http.h>
+#include <c_abstract_http/win_compat_sym.h>
+/* clang-format on */
 
-int on_ws_message(const struct c_abstract_http_ws_event *ev, void *user_data) {
-    if (ev->opcode == C_ABSTRACT_HTTP_WS_OPCODE_TEXT) {
-        printf("Received WS Text: %.*s\n", (int)ev->payload_len, (const char*)ev->payload);
-    } else if (ev->opcode == C_ABSTRACT_HTTP_WS_OPCODE_CLOSE) {
-        printf("WebSocket Closed.\n");
-    }
-    return 0;
+static enum c_abstract_http_error
+on_ws_msg(const struct c_abstract_http_ws_event *ev, void *user_data) {
+  if (user_data) {
+  }
+  printf("Received WS frame opcode=%d (%" SIZE_T_FMT " bytes)\n",
+         (int)ev->opcode, ev->payload_len);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int connect_ws(struct HttpClient *client) {
-    struct HttpRequest req;
-    struct c_abstract_http_ws_config ws_cfg = {0};
-    int rc = 0;
+static enum c_abstract_http_error on_ws_err(int error_code, void *user_data) {
+  if (user_data) {
+  }
+  fprintf(stderr, "WS error: %d\n", error_code);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
-    http_request_init(&req);
-    req.url = "wss://echo.websocket.events";
-    req.method = HTTP_GET;
+static enum c_abstract_http_error on_ws_closed(int status_code,
+                                               void *user_data) {
+  if (user_data) {
+  }
+  printf("WS closed with status %d\n", status_code);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
-    ws_cfg.on_message = on_ws_message;
-    ws_cfg.user_data = NULL;
-    ws_cfg.max_frame_size = 65535;
+enum c_abstract_http_error run_ws_session(struct HttpClient *client) {
+  struct HttpRequest req;
+  struct c_abstract_http_ws_config cfg;
+  enum c_abstract_http_error rc;
+  enum c_abstract_http_error free_rc;
 
-    rc = c_abstract_http_ws_connect(client, &req, &ws_cfg);
-    if (rc != 0) {
-        fprintf(stderr, "Failed to connect WebSocket: %d\n", rc);
-    }
-
-    http_request_free(&req);
+  rc = http_request_init(&req);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
+  }
+
+  rc = c_abstract_http_strdup("https://echo.example.com/ws", &req.url);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free_rc = http_request_free(&req);
+    return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc : rc;
+  }
+
+  cfg.custom_headers = NULL;
+  cfg.subprotocols = "chat";
+  cfg.masking_preference = 1;
+
+  rc = c_abstract_http_ws_init(&req, &cfg);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+    rc = c_abstract_http_ws_sync_read_loop(client, &req, on_ws_msg, on_ws_err,
+                                           on_ws_closed, NULL, NULL);
+    free_rc = c_abstract_http_ws_free(&req);
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = free_rc;
+    }
+  }
+
+  free_rc = http_request_free(&req);
+  return rc != C_ABSTRACT_HTTP_SUCCESS ? rc : free_rc;
 }
 ```
 
-### Server-Sent Events
+### Server-Sent Events (`http_sse.h`)
 
 ```c
-#include <c_abstract_http/c_abstract_http.h>
-#include <c_abstract_http/http_sse.h>
+/* clang-format off */
 #include <stdio.h>
+#include <c_abstract_http/c_abstract_http.h>
+/* clang-format on */
 
-int on_sse_event(const struct c_abstract_http_sse_event *ev, void *user_data) {
-    if (ev->event) {
-        printf("Event: %.*s\n", (int)ev->event_len, ev->event);
-    }
-    if (ev->data) {
-        printf("Data: %.*s\n", (int)ev->data_len, ev->data);
-    }
-    return 0;
+static enum c_abstract_http_error
+on_sse_ev(const struct c_abstract_http_sse_event *ev, void *user_data) {
+  if (user_data) {
+  }
+  printf("Event [%s]: %.*s\n", ev->event ? ev->event : "message",
+         (int)ev->data_len, ev->data ? ev->data : "");
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int connect_sse(struct HttpClient *client) {
-    struct HttpRequest req;
-    struct c_abstract_http_sse_config sse_cfg = {0};
-    int rc = 0;
+static enum c_abstract_http_error on_sse_err(int error_code, void *user_data) {
+  if (user_data) {
+  }
+  fprintf(stderr, "SSE error: %d\n", error_code);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
-    http_request_init(&req);
-    req.url = "https://sse.example.com/stream";
+static enum c_abstract_http_error on_sse_closed(void *user_data) {
+  if (user_data) {
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
-    sse_cfg.on_event = on_sse_event;
-    sse_cfg.user_data = NULL;
+enum c_abstract_http_error run_sse_stream(struct HttpClient *client) {
+  struct HttpRequest req;
+  struct c_abstract_http_sse_config cfg;
+  enum c_abstract_http_error rc;
+  enum c_abstract_http_error free_rc;
 
-    rc = c_abstract_http_sse_connect(client, &req, &sse_cfg);
-    if (rc != 0) {
-        fprintf(stderr, "Failed to connect SSE: %d\n", rc);
-    }
-
-    http_request_free(&req);
+  rc = http_request_init(&req);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
+  }
+
+  rc = c_abstract_http_strdup("https://sse.example.com/events", &req.url);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free_rc = http_request_free(&req);
+    return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc : rc;
+  }
+
+  cfg.last_event_id = NULL;
+  cfg.retry_timeout_ms = 3000;
+
+  rc = c_abstract_http_sse_init(&req, &cfg);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+    rc = c_abstract_http_sse_sync_read_loop(client, &req, on_sse_ev, on_sse_err,
+                                            on_sse_closed, NULL, NULL);
+    free_rc = c_abstract_http_sse_free(&req);
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = free_rc;
+    }
+  }
+
+  free_rc = http_request_free(&req);
+  return rc != C_ABSTRACT_HTTP_SUCCESS ? rc : free_rc;
 }
 ```
 
-## 10. Multipart Form-Data Serialization
+---
 
-The HTTP types layer enables robust multipart/form-data serialization natively, preventing buffer overrun edge-cases securely via sprintf_s_wrapper inside the HttpRequest generation logic:
+## 9. Multipart Form-Data Uploads
+
+Use `http_request_add_part`, optional `http_request_add_part_header_last`, and `http_request_flatten_parts` to construct an RFC 7578 `multipart/form-data` payload in `req.body` and set the boundary `Content-Type` header automatically:
 
 ```c
+/* clang-format off */
+#include <stdlib.h>
+#include <string.h>
 #include <c_abstract_http/c_abstract_http.h>
+/* clang-format on */
 
-int upload_file(struct HttpClient *client) {
-    struct HttpRequest req;
-    struct c_abstract_http_multipart_part parts[2];
-    int rc = 0;
+enum c_abstract_http_error upload_multipart(struct HttpClient *client) {
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  const char *meta_json = "{\"title\":\"report\"}";
+  const char *csv_bytes = "id,score\n1,99\n";
+  enum c_abstract_http_error rc;
+  enum c_abstract_http_error free_rc;
 
-    http_request_init(&req);
-    req.url = "https://api.example.com/upload";
-
-    /* Initialize part 1 */
-    memset(&parts[0], 0, sizeof(parts[0]));
-    parts[0].name = "description";
-    parts[0].data = "Test file upload";
-    parts[0].data_len = strlen(parts[0].data);
-
-    /* Initialize part 2 (File Data) */
-    memset(&parts[1], 0, sizeof(parts[1]));
-    parts[1].name = "file";
-    parts[1].filename = "document.txt";
-    parts[1].content_type = "text/plain";
-    parts[1].data = "Hello, World!";
-    parts[1].data_len = strlen(parts[1].data);
-
-    /* The library generates a random boundary and serializes the payload */
-    rc = http_request_set_multipart_body(&req, parts, 2);
-    if (rc == 0) {
-        struct HttpResponse *res = NULL;
-        client->send(client->transport, &req, &res);
-        if (res) http_response_free(res);
-    }
-
-    http_request_free(&req);
+  rc = http_request_init(&req);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
+  }
+
+  req.method = HTTP_POST;
+  rc = c_abstract_http_strdup("https://api.example.com/upload", &req.url);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free_rc = http_request_free(&req);
+    return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc : rc;
+  }
+
+  rc = http_request_add_part(&req, "metadata", NULL, "application/json",
+                             meta_json, strlen(meta_json));
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free_rc = http_request_free(&req);
+    return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc : rc;
+  }
+
+  rc = http_request_add_part(&req, "attachment", "scores.csv", "text/csv",
+                             csv_bytes, strlen(csv_bytes));
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free_rc = http_request_free(&req);
+    return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc : rc;
+  }
+
+  rc = http_request_add_part_header_last(&req, "X-Part-Source", "cli");
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free_rc = http_request_free(&req);
+    return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc : rc;
+  }
+
+  rc = http_request_flatten_parts(&req);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+    rc = client->send(client->transport, &req, &res);
+    if (rc == C_ABSTRACT_HTTP_SUCCESS && res != NULL) {
+      free_rc = http_response_free(res);
+      free(res);
+      if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        rc = free_rc;
+      }
+    }
+  }
+
+  free_rc = http_request_free(&req);
+  return rc != C_ABSTRACT_HTTP_SUCCESS ? rc : free_rc;
 }
 ```
 
-## 11. Advanced Concurrency (Thread Pools, Event Loops, Coroutines)
+---
 
-`c-abstract-http` supports massive concurrency through specialized pluggable engines. By default, standard OS mechanisms (like `pthreads` or Windows Threads/Fibers) are used, but they can be intercepted.
+## 10. Advanced Concurrency (Thread Pool & External Event Loop)
 
-### Thread Pool Example
+### Cross-Platform Thread Pool (`thread_pool.h`)
+
+Task callbacks match `abstract_http_thread_task_cb` and return `enum c_abstract_http_error`:
 
 ```c
-#include <c_abstract_http/c_abstract_http.h>
-#include <c_abstract_http/thread_pool.h>
+/* clang-format off */
 #include <stdio.h>
+#include <c_abstract_http/c_abstract_http.h>
+/* clang-format on */
 
-void worker_task(void *arg) {
-    const char *url = (const char *)arg;
-    printf("Downloading %s on worker thread...\n", url);
-    /* Execute blocking HTTP requests safely here */
+static enum c_abstract_http_error worker_task(void *arg) {
+  const char *job_name = (const char *)arg;
+  printf("Executing job: %s\n", job_name);
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int dispatch_work(void) {
-    struct AbstractHttpThreadPool *pool;
-    int rc = abstract_http_thread_pool_init(&pool, 4); /* 4 Worker Threads */
-    if (rc != 0) return rc;
+enum c_abstract_http_error run_pool_jobs(void) {
+  struct AbstractHttpThreadPool *pool = NULL;
+  char job1[] = "sync-catalog";
+  char job2[] = "flush-metrics";
+  enum c_abstract_http_error rc;
+  enum c_abstract_http_error free_rc;
 
-    abstract_http_thread_pool_push(pool, worker_task, "https://example.com/1");
-    abstract_http_thread_pool_push(pool, worker_task, "https://example.com/2");
+  rc = abstract_http_thread_pool_init(&pool, 4);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
-    abstract_http_thread_pool_free(pool); /* Blocks until all tasks complete */
-    return 0;
+  rc = abstract_http_thread_pool_push(pool, worker_task, job1);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+    rc = abstract_http_thread_pool_push(pool, worker_task, job2);
+  }
+
+  free_rc = abstract_http_thread_pool_free(pool);
+  return rc != C_ABSTRACT_HTTP_SUCCESS ? rc : free_rc;
 }
 ```
 
-### Hooking into an External Event Loop
-If you are using an application framework like `libuv`, `GTK`, or `c-multiplatform`, you can bind the HTTP event loop directly into your framework:
+### External Event Loop Proxy (`event_loop.h`)
+
+All hook callbacks in `struct HttpLoopHooks` return `enum c_abstract_http_error`:
 
 ```c
+/* clang-format off */
+#include <string.h>
 #include <c_abstract_http/c_abstract_http.h>
-#include <c_abstract_http/event_loop.h>
-#include <stdio.h>
+/* clang-format on */
 
-/* Assume my_custom_add_fd is a function bridging to epoll or select in your app */
-int my_custom_add_fd(void *ctx, int fd, int events, http_loop_cb cb, void *user_data) {
-    /* Bind FD to your framework's reactor */
-    return 0;
+static enum c_abstract_http_error custom_add_fd(void *ctx, int fd, int events,
+                                                http_loop_cb cb,
+                                                void *user_data) {
+  if (ctx || fd || events || cb || user_data) {
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-int setup_external_loop(void) {
-    struct ModalityEventLoop *loop;
-    struct HttpLoopHooks hooks = {0};
+static enum c_abstract_http_error custom_mod_fd(void *ctx, int fd, int events) {
+  if (ctx || fd || events) {
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
-    hooks.add_fd = my_custom_add_fd;
-    /* Map out other hooks: mod_fd, remove_fd, add_timer, cancel_timer, wakeup */
+static enum c_abstract_http_error custom_remove_fd(void *ctx, int fd) {
+  if (ctx || fd) {
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
-    int rc = http_loop_init_external(&loop, &hooks);
-    if (rc == 0) {
-        printf("Event loop successfully proxied!\n");
-        http_loop_free(loop);
-    }
+static enum c_abstract_http_error custom_add_timer(void *ctx, long timeout_ms,
+                                                   http_timer_cb cb,
+                                                   void *user_data,
+                                                   int *out_timer_id) {
+  if (ctx || timeout_ms || cb || user_data) {
+  }
+  if (out_timer_id) {
+    *out_timer_id = 1;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error custom_cancel_timer(void *ctx, int timer_id) {
+  if (ctx || timer_id) {
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error custom_wakeup(void *ctx) {
+  if (ctx) {
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+enum c_abstract_http_error attach_external_loop(void *host_reactor) {
+  struct ModalityEventLoop *loop = NULL;
+  struct HttpLoopHooks hooks;
+  enum c_abstract_http_error rc;
+
+  memset(&hooks, 0, sizeof(hooks));
+  hooks.external_context = host_reactor;
+  hooks.add_fd = custom_add_fd;
+  hooks.mod_fd = custom_mod_fd;
+  hooks.remove_fd = custom_remove_fd;
+  hooks.add_timer = custom_add_timer;
+  hooks.cancel_timer = custom_cancel_timer;
+  hooks.wakeup = custom_wakeup;
+
+  rc = http_loop_init_external(&loop, &hooks);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
+  }
+  return http_loop_free(loop);
 }
 ```

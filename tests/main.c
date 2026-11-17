@@ -45,10 +45,10 @@
 #include "test_actor.h"
 #include "test_transport.h"
 #include "test_http_raw.h"
-#if defined(C_ABSTRACT_HTTP_USE_XQUIC)
+#if defined(C_ABSTRACT_HTTP_USE_XQUIC) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
 #include "test_http_xquic.h"
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#if defined(C_ABSTRACT_HTTP_USE_PICOQUIC) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
 #include "test_http_picoquic.h"
 #endif
 #if defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
@@ -69,7 +69,7 @@
 #if defined(C_ABSTRACT_HTTP_USE_MSH3)
 #include "test_http_msh3.h"
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
 #include "test_http_winhttp.h"
 #endif
 #if defined(C_ABSTRACT_HTTP_USE_WININET)
@@ -81,8 +81,7 @@
 #endif
 
 #if defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
-#include "test_http_fetch.h"
-
+/* Included above */
 #elif (defined(_WIN32) || defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(C_ABSTRACT_HTTP_USE_WININET)) && !defined(MINGW_TEST_CURL)
 /* Windows HTTP backends included above */
 #elif defined(C_ABSTRACT_HTTP_USE_APPLE)
@@ -122,10 +121,7 @@ int main(int argc, char **argv) {
 
 #endif
   if (argc > 1 && strcmp(argv[1], "--test-worker") == 0) {
-#if defined(_WIN32) && !defined(__INTEL_COMPILER)
-    TerminateProcess(GetCurrentProcess(), 1);
-#endif
-    exit(1);
+    return 1;
   }
 
 #if defined(_WIN32)
@@ -164,10 +160,14 @@ int main(int argc, char **argv) {
   RUN_SUITE(transport_suite);
 
   RUN_SUITE(http_raw_suite);
-#if defined(C_ABSTRACT_HTTP_USE_XQUIC)
+#if defined(C_ABSTRACT_HTTP_USE_XQUIC) ||                                      \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
   RUN_SUITE(http_xquic_suite);
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
+#if defined(C_ABSTRACT_HTTP_USE_PICOQUIC) ||                                   \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
   RUN_SUITE(http_picoquic_suite);
 #endif
 #if defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
@@ -188,8 +188,7 @@ int main(int argc, char **argv) {
 #if defined(C_ABSTRACT_HTTP_USE_MSH3)
   RUN_SUITE(http_msh3_suite);
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) ||                 \
-    defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
   RUN_SUITE(http_winhttp_suite);
 #endif
 #if defined(C_ABSTRACT_HTTP_USE_WININET)
@@ -203,7 +202,9 @@ int main(int argc, char **argv) {
 #ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
 #if defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   /* http_fetch_suite run unconditionally above */
-#elif (defined(_WIN32) || defined(C_ABSTRACT_HTTP_USE_WINHTTP) ||              \
+#elif defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+  /* http_raw_suite run unconditionally above */
+#elif (defined(C_ABSTRACT_HTTP_USE_WINHTTP) ||                                 \
        defined(C_ABSTRACT_HTTP_USE_WININET)) &&                                \
     !defined(MINGW_TEST_CURL)
   /* Windows suites run unconditionally above */
@@ -212,9 +213,6 @@ int main(int argc, char **argv) {
 #if defined(C_ABSTRACT_HTTP_HAVE_CURL)
   RUN_SUITE(http_curl_suite);
 #endif
-#elif defined(__ANDROID__)
-  /* Android suite run unconditionally above */
-
 #elif defined(__EMSCRIPTEN__)
   /* No HTTP curl suite for Emscripten */
 

@@ -1,5 +1,5 @@
 #if !defined(C_ABSTRACT_HTTP_TEST_OOM)
-int g_mock_waitpid_fail = 0;
+static int g_mock_waitpid_fail = 0;
 #else
 extern int g_mock_waitpid_fail;
 #define _exit exit
@@ -19,6 +19,7 @@ extern int g_mock_waitpid_fail;
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 #ifndef _WIN32
+extern int g_mock_write_partial;
 int g_mock_write_partial = 0;
 #endif
 #ifdef _MSC_VER
@@ -65,11 +66,6 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-#define execv(path, argv)                                                      \
-  ((int)((path)[0] - (path)[0] + ((argv)[0] - (argv)[0]) - 1))
-#endif
-
 static struct AbstractHttpProcessHooks g_process_hooks = {NULL, NULL, NULL,
                                                           NULL};
 
@@ -85,8 +81,8 @@ abstract_http_process_set_hooks(const struct AbstractHttpProcessHooks *hooks) {
 
 /** @brief Internal struct AbstractHttpProcess */
 struct AbstractHttpProcess {
-  HANDLE hProcess;
-  HANDLE hThread;
+  HANDLE hProcess; /**< Win32 child process handle */
+  HANDLE hThread;  /**< Win32 primary thread handle */
 };
 
 enum c_abstract_http_error
@@ -385,10 +381,8 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
     close((int)(size_t)parent_to_child->read_handle);
     close((int)(size_t)child_to_parent->write_handle);
 
-    if (execv("/proc/self/exe", argv) == -1) {
-      _exit(1);
-    }
-    return C_ABSTRACT_HTTP_SUCCESS;
+    execv("/proc/self/exe", argv);
+    _exit(1);
   }
 
   close((int)(size_t)parent_to_child->read_handle);
@@ -549,11 +543,7 @@ static enum c_abstract_http_error parse_str(const char **p, const char *end,
   }
   if (*p + len > end)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  *str = (char *)c_abstract_http_mock_malloc(len + 1);
-#else
   *str = (char *)malloc(len + 1);
-#endif
   if (!*str)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   memcpy(*str, *p, len);
@@ -684,11 +674,7 @@ abstract_http_ipc_deserialize_request(const char *buf, size_t len,
   if (body_len > 0) {
     if (p + body_len > end)
       return C_ABSTRACT_HTTP_ERR_INVAL;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    req->body = c_abstract_http_mock_malloc(body_len);
-#else
     req->body = malloc(body_len);
-#endif
     if (!req->body)
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     memcpy(req->body, p, body_len);
@@ -880,20 +866,27 @@ enum c_abstract_http_error abstract_http_process_test_write_helpers(int step) {
   char *null_p = NULL;
 
   switch (step) {
-  case 0:
+  case 0: {
     return write_int(NULL, 0);
-  case 1:
+  }
+  case 1: {
     return write_int(&null_p, 0);
-  case 2:
+  }
+  case 2: {
     return write_size(NULL, 0);
-  case 3:
+  }
+  case 3: {
     return write_size(&null_p, 0);
-  case 4:
+  }
+  case 4: {
     return write_str(NULL, "test");
-  case 5:
+  }
+  case 5: {
     return write_str(&null_p, "test");
-  default:
+  }
+  default: {
     return C_ABSTRACT_HTTP_SUCCESS;
+  }
   }
 }
 #endif

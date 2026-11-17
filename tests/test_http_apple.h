@@ -21,11 +21,27 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__APPLE__)
+#include <AvailabilityMacros.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <pthread.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
+
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_apple.h>
 #include <c_abstract_http/http_types.h>
 #include "abstract_http_test_helpers/mock_server.h"
 /* clang-format on */
+
+#if defined(__APPLE__) && (!defined(MAC_OS_X_VERSION_MIN_REQUIRED) ||          \
+                           MAC_OS_X_VERSION_MIN_REQUIRED < 101100)
+#define TEST_APPLE_HAVE_CFSTREAM 1
+#else
+#define TEST_APPLE_HAVE_CFSTREAM 0
+#endif
 
 static enum c_abstract_http_error
 mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
@@ -33,10 +49,18 @@ mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   (void)chunk;
   (void)len;
   (*calls)++;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+static enum c_abstract_http_error
+mock_on_chunk_abort_cb(void *user_data, const void *chunk, size_t len) {
+  (void)user_data;
+  (void)chunk;
+  (void)len;
+  return C_ABSTRACT_HTTP_ERR_CANCELED;
+}
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && TEST_APPLE_HAVE_CFSTREAM
 TEST test_apple_oom_branches(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -358,6 +382,19 @@ TEST test_apple_send_mock_server(void) {
             mock_server_wait_for_request(server, &mock_req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_request_cleanup(&mock_req));
 
+  /* Test real on_chunk returning non-zero error */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = url;
+  req.method = HTTP_GET;
+  req.on_chunk = mock_on_chunk_abort_cb;
+  res = NULL;
+  ASSERT_NEQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            mock_server_wait_for_request(server, &mock_req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_request_cleanup(&mock_req));
+
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
 #endif
@@ -493,14 +530,14 @@ mock_read_chunk(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
   int *calls = (int *)user_data;
   if (*calls >= 2) {
     *out_read = 0;
-    return 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   (*calls)++;
   if (buf_len > 4)
     buf_len = 4;
   memcpy(buf, "test", buf_len);
   *out_read = buf_len;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static enum c_abstract_http_error mock_read_chunk_fail(void *user_data,
@@ -790,6 +827,28 @@ TEST test_apple_send_multi_branches(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
   req1.body = NULL;
 
+  /* Test invalid method in multi */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
+  req1.url = "http://127.0.0.1:1/badmethod";
+  req1.method = (enum HttpMethod)999;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req1));
+  future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+  futures[0] = future1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_apple_send_multi(ctx, loop, &multi, futures));
+  while (!future1->is_ready) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, future1->error_code);
+  if (future1->response) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
+    free(future1->response);
+  }
+  free(future1);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && TEST_APPLE_HAVE_CFSTREAM
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
   ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
@@ -1019,11 +1078,394 @@ TEST test_apple_send_multi_branches(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(fail_loop));
   }
 
+  /* Test extract_response failure in apple_multi_worker */
+  {
+    MockServerPtr srv_ext = NULL;
+    char ext_url[128];
+    struct MockServerRequest mock_ext_req;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&srv_ext));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(srv_ext));
+    sprintf(ext_url, "http://127.0.0.1:%d/fail_extract_response",
+            math_mock_server_get_port(srv_ext));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_mock_strdup(ext_url, &req1.url));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req1));
+    future1 = (struct HttpFuture *)calloc(1, sizeof(struct HttpFuture));
+    futures[0] = future1;
+    g_mock_pthread_create_sync = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_apple_send_multi(ctx, loop, &multi, futures));
+    g_mock_pthread_create_sync = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, future1->error_code);
+    if (future1->response) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(future1->response));
+      free(future1->response);
+    }
+    free(future1);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              mock_server_wait_for_request(srv_ext, &mock_ext_req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              mock_server_request_cleanup(&mock_ext_req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv_ext));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+  }
+#endif /* defined(C_ABSTRACT_HTTP_TEST_OOM) && TEST_APPLE_HAVE_CFSTREAM */
+
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
 #endif
   PASS();
 }
+
+#if defined(__APPLE__)
+struct AppleMiniSrv {
+  int lfd;
+  volatile int stop;
+};
+
+static void *apple_mini_srv_worker(void *arg) {
+  struct AppleMiniSrv *srv = (struct AppleMiniSrv *)arg;
+  char *large_buf = (char *)malloc(20000);
+  if (large_buf) {
+    memset(large_buf, 'Z', 20000);
+  }
+  while (!srv->stop) {
+    fd_set rfds;
+    struct timeval tv;
+    int sret;
+    FD_ZERO(&rfds);
+    FD_SET(srv->lfd, &rfds);
+    tv.tv_sec = 0;
+    tv.tv_usec = 15000;
+    sret = select(srv->lfd + 1, &rfds, NULL, NULL, &tv);
+    if (sret > 0 && FD_ISSET(srv->lfd, &rfds)) {
+      struct sockaddr_in cli;
+      socklen_t clen = sizeof(cli);
+      int cfd = accept(srv->lfd, (struct sockaddr *)&cli, &clen);
+      if (cfd >= 0) {
+        char rbuf[2048];
+        ssize_t nr = recv(cfd, rbuf, sizeof(rbuf) - 1, 0);
+        if (nr > 0) {
+          rbuf[nr] = '\0';
+          if (strstr(rbuf, "/slow") != NULL) {
+            usleep(180000);
+            {
+              const char *hdr = "HTTP/1.1 200 OK\r\nContent-Length: "
+                                "2\r\nConnection: close\r\n\r\nok";
+              send(cfd, hdr, strlen(hdr), 0);
+            }
+          } else if (strstr(rbuf, "/empty") != NULL) {
+            const char *hdr = "HTTP/1.1 204 No Content\r\nContent-Length: "
+                              "0\r\nX-Empty: 1\r\nConnection: close\r\n\r\n";
+            send(cfd, hdr, strlen(hdr), 0);
+          } else if (strstr(rbuf, "/large") != NULL && large_buf) {
+            const char *hdr =
+                "HTTP/1.1 200 OK\r\nContent-Length: 20000\r\nX-Mode: "
+                "large\r\nConnection: close\r\n\r\n";
+            send(cfd, hdr, strlen(hdr), 0);
+            send(cfd, large_buf, 10000, 0);
+            usleep(10000);
+            send(cfd, large_buf + 10000, 10000, 0);
+          } else {
+            const char *hdr =
+                "HTTP/1.1 200 OK\r\nContent-Length: 11\r\nX-Bridge: "
+                "nsurlsession\r\nConnection: close\r\n\r\nhello apple";
+            send(cfd, hdr, strlen(hdr), 0);
+          }
+        }
+        close(cfd);
+      }
+    }
+  }
+  free(large_buf);
+  return NULL;
+}
+
+TEST test_apple_nsurlsession_bridge(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct AppleMiniSrv srv;
+  struct sockaddr_in sin;
+  socklen_t slen = sizeof(sin);
+  pthread_t srv_tid;
+  int port;
+  char url_ok[128];
+  char url_empty[128];
+  char url_large[128];
+  char url_slow[128];
+  int chunk_calls = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_apple_set_use_nsurlsession(NULL, 1));
+
+  srv.lfd = socket(AF_INET, SOCK_STREAM, 0);
+  ASSERT(srv.lfd >= 0);
+  memset(&sin, 0, sizeof(sin));
+  sin.sin_family = AF_INET;
+  sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  sin.sin_port = 0;
+  ASSERT_EQ(0, bind(srv.lfd, (struct sockaddr *)&sin, sizeof(sin)));
+  ASSERT_EQ(0, listen(srv.lfd, 32));
+  ASSERT_EQ(0, getsockname(srv.lfd, (struct sockaddr *)&sin, &slen));
+  port = (int)ntohs(sin.sin_port);
+  ASSERT(port > 0);
+
+  sprintf(url_ok, "http://127.0.0.1:%d/ok", port);
+  sprintf(url_empty, "http://127.0.0.1:%d/empty", port);
+  sprintf(url_large, "http://127.0.0.1:%d/large", port);
+  sprintf(url_slow, "http://127.0.0.1:%d/slow", port);
+
+  srv.stop = 0;
+  ASSERT_EQ(0, pthread_create(&srv_tid, NULL, apple_mini_srv_worker, &srv));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
+
+#if TEST_APPLE_HAVE_CFSTREAM
+  /* Exercise >8192-byte multi-chunk response accumulation on legacy CFStream */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_set_use_nsurlsession(ctx, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = url_large;
+  req.method = HTTP_GET;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(20000U, (unsigned int)res->body_len);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+#else
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            http_apple_set_use_nsurlsession(ctx, 0));
+#endif
+
+  /* Switch to modern NSURLSession pure-C89 bridge */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_set_use_nsurlsession(ctx, 1));
+
+  /* 1. Invalid method & URL validation */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = url_ok;
+  req.method = (enum HttpMethod)999;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
+
+  req.method = HTTP_GET;
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
+  req.url = (char *)"";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
+  req.url = (char *)"ht tp:// bad";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
+
+  /* 2. POST with headers + body -> 200 OK with headers & body */
+  req.url = url_ok;
+  req.method = HTTP_POST;
+  req.body = "payload";
+  req.body_len = 7;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "X-Client", "c89"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_STR_EQ("hello apple", (const char *)res->body);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  req.url = NULL;
+  req.body = NULL;
+  req.body_len = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 3. Empty 204 response + non-NULL 0-length request body */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = url_empty;
+  req.method = HTTP_POST;
+  req.body = "ignored";
+  req.body_len = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+  ASSERT_EQ(204, res->status_code);
+  ASSERT_EQ(0U, (unsigned int)res->body_len);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  req.url = NULL;
+  req.body = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 4. Streaming upload (read_chunk success & failure) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = url_ok;
+  req.method = HTTP_PUT;
+  chunk_calls = 0;
+  req.read_chunk = mock_read_chunk;
+  req.read_chunk_user_data = &chunk_calls;
+  req.expected_body_len = 8;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.read_chunk = mock_read_chunk_fail;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 5. Streaming download (on_chunk success & abort) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = url_ok;
+  chunk_calls = 0;
+  req.on_chunk = mock_on_chunk_cb;
+  req.on_chunk_user_data = &chunk_calls;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+  ASSERT(chunk_calls > 0);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.on_chunk = mock_on_chunk_abort_cb;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED, http_apple_send(ctx, &req, &res));
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 6. Connection error & timeout (-1001) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)"http://127.0.0.1:1/refused";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  cfg.timeout_ms = 50;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
+  req.url = url_slow;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT, http_apple_send(ctx, &req, &res));
+  cfg.timeout_ms = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 7. Multi-request via NSURLSession (loop, NULL loop, failing wakeup) */
+  {
+    struct HttpRequest mreq1, mreq2;
+    struct HttpMultiRequest multi;
+    struct HttpFuture f1, f2;
+    struct HttpFuture *futs[2];
+    struct ModalityEventLoop *loop = NULL;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&mreq1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&mreq2));
+    mreq1.url = url_ok;
+    mreq2.url = (char *)"ht tp:// bad";
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &mreq1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &mreq2));
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    futs[0] = &f1;
+    futs[1] = &f2;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_apple_send_multi(ctx, loop, &multi, futs));
+    while (!f1.is_ready || !f2.is_ready) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+    }
+    ASSERT_EQ(200, f1.response->status_code);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, f2.error_code);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    /* Sync worker with NULL loop and failing wakeup */
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    multi.count = 1;
+    g_mock_pthread_create_sync = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_apple_send_multi(ctx, NULL, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+
+    {
+      struct ModalityEventLoop *fail_loop = NULL;
+      struct HttpLoopHooks hooks;
+      memset(&hooks, 0, sizeof(hooks));
+      hooks.wakeup = dummy_apple_fail_wakeup;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_init_external(&fail_loop, &hooks));
+      memset(&f1, 0, sizeof(f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_apple_send_multi(ctx, fail_loop, &multi, futs));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+      free(f1.response);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(fail_loop));
+    }
+    g_mock_pthread_create_sync = 0;
+#else
+    /* Async multi with NULL loop */
+    memset(&f1, 0, sizeof(f1));
+    multi.count = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_apple_send_multi(ctx, NULL, &multi, futs));
+    while (!f1.is_ready) {
+      usleep(5000);
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+#endif
+    multi.count = 2;
+    mreq1.url = NULL;
+    mreq2.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&mreq1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&mreq2));
+  }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* 8. OOM sweep across NSURLSession allocations & cleanup */
+  {
+    int step;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    req.url = url_ok;
+
+    g_mock_headers_init_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
+    g_mock_headers_init_fail = 0;
+
+    req.url = (char *)"http://127.0.0.1:1/refused";
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
+    g_mock_response_free_fail = 0;
+
+    req.url = url_ok;
+    for (step = 0; step < 20; ++step) {
+      enum c_abstract_http_error orc;
+      res = NULL;
+      g_mock_alloc_count = step;
+      g_mock_alloc_fail = 1;
+      orc = http_apple_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+      }
+    }
+    req.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  }
+#endif
+
+  srv.stop = 1;
+  pthread_join(srv_tid, NULL);
+  close(srv.lfd);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx));
+  PASS();
+}
+#endif /* defined(__APPLE__) */
 
 SUITE(http_apple_suite) {
   RUN_TEST(test_apple_send_multi_branches);
@@ -1035,7 +1477,10 @@ SUITE(http_apple_suite) {
   RUN_TEST(test_apple_config);
   RUN_TEST(test_apple_send_invalid);
   RUN_TEST(test_apple_send_all_methods);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(__APPLE__)
+  RUN_TEST(test_apple_nsurlsession_bridge);
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && TEST_APPLE_HAVE_CFSTREAM
   RUN_TEST(test_apple_oom_branches);
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

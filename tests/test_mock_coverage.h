@@ -6,8 +6,6 @@
 #include "abstract_http_test_helpers/mock_server.h"
 #include "fuzz_sse.h"
 #include "fuzz_ws.h"
-#include "test_coverage_fix.h"
-#include "test_http_curl_dummy.h"
 #ifdef _WIN32
 typedef int socklen_t;
 #endif
@@ -50,90 +48,105 @@ TEST test_mock_alloc_coverage(void) {
 
 TEST test_mock_alloc_more(void) {
   char *out2 = NULL;
+  int *mock_int_ptr = NULL;
+  const char **mock_recv_ptr = NULL;
 
-  /* Call getters */
-  abstract_http_mock_get_g_mock_sha1_fail();
-  abstract_http_mock_get_g_mock_alloc_fail();
-  abstract_http_mock_get_g_mock_alloc_count();
-  abstract_http_mock_get_g_mock_pthread_fail();
-  abstract_http_mock_get_g_mock_pipe_fail();
-  abstract_http_mock_get_g_mock_fork_fail();
-  abstract_http_mock_get_g_mock_waitpid_fail();
-  abstract_http_mock_get_g_mock_select_fail();
-  abstract_http_mock_get_g_mock_select_error_fds();
-  abstract_http_mock_get_g_mock_time_jump();
-  abstract_http_mock_get_g_mock_time_jump_count();
-  abstract_http_mock_get_g_mock_fwrite_fail();
-  abstract_http_mock_get_g_mock_fclose_fail();
-  abstract_http_mock_get_g_mock_socket_fail();
-  abstract_http_mock_get_g_mock_bind_fail();
-  abstract_http_mock_get_g_mock_listen_fail();
-  abstract_http_mock_get_g_mock_accept_fail();
-  abstract_http_mock_get_g_mock_recv_fail();
-  abstract_http_mock_get_g_mock_mutex_fail();
-  abstract_http_mock_get_g_mock_cond_fail();
-  abstract_http_mock_get_g_mock_strcasecmp_fail();
-  abstract_http_mock_get_g_mock_headers_init_fail();
-  abstract_http_mock_get_g_mock_parts_init_fail();
-  abstract_http_mock_get_g_mock_multi_init_fail();
-  abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail();
-  abstract_http_mock_get_g_mock_urlencode_append_fail();
-  abstract_http_mock_get_g_mock_mask_key_fail();
-  abstract_http_mock_get_g_mock_serialize_fail();
-  abstract_http_mock_get_g_mock_pack_header_fail();
-  abstract_http_mock_get_g_mock_accept_fd();
-  abstract_http_mock_get_g_mock_server_reading();
-  abstract_http_mock_get_g_mock_recv_data();
-  abstract_http_mock_get_g_mock_winhttp_open_fail();
-  abstract_http_mock_get_g_mock_winhttp_connect_fail();
-  abstract_http_mock_get_g_mock_winhttp_open_request_fail();
-  abstract_http_mock_get_g_mock_winhttp_send_request_fail();
-  abstract_http_mock_get_g_mock_winhttp_write_data_fail();
-  abstract_http_mock_get_g_mock_winhttp_receive_response_fail();
-  abstract_http_mock_get_g_mock_winhttp_query_headers_fail();
-  abstract_http_mock_get_g_mock_winhttp_query_data_available_fail();
-  abstract_http_mock_get_g_mock_winhttp_read_data_fail();
-  abstract_http_mock_get_g_mock_winhttp_set_timeouts_fail();
-  abstract_http_mock_get_g_mock_winhttp_set_option_fail();
-  abstract_http_mock_get_g_mock_winhttp_crack_url_fail();
-  abstract_http_mock_get_g_mock_winhttp_add_request_headers_fail();
-  abstract_http_mock_get_g_mock_winhttp_queue_work_item_fail();
-  abstract_http_mock_get_g_mock_winhttp_context_init_fail();
-  abstract_http_mock_get_g_mock_winhttp_response_init_fail();
-  abstract_http_mock_get_g_mock_winhttp_status_code();
-  abstract_http_mock_get_g_mock_winhttp_cookie_count();
-  abstract_http_mock_get_g_mock_winhttp_read_chunks();
-  abstract_http_mock_get_g_mock_winhttp_total_body_realloc_fail();
-  abstract_http_mock_get_g_mock_winhttp_read_buf_alloc_fail();
-  abstract_http_mock_get_g_mock_winhttp_res_alloc_fail();
-  abstract_http_mock_get_g_mock_wininet_open_fail();
-  abstract_http_mock_get_g_mock_wininet_connect_fail();
-  abstract_http_mock_get_g_mock_wininet_open_request_fail();
-  abstract_http_mock_get_g_mock_wininet_send_request_fail();
-  abstract_http_mock_get_g_mock_wininet_send_request_ex_fail();
-  abstract_http_mock_get_g_mock_wininet_write_file_fail();
-  abstract_http_mock_get_g_mock_wininet_end_request_fail();
-  abstract_http_mock_get_g_mock_wininet_query_info_fail();
-  abstract_http_mock_get_g_mock_wininet_read_file_fail();
-  abstract_http_mock_get_g_mock_wininet_set_option_fail();
-  abstract_http_mock_get_g_mock_wininet_crack_url_fail();
-  abstract_http_mock_get_g_mock_wininet_add_headers_fail();
-  abstract_http_mock_get_g_mock_wininet_context_init_fail();
-  abstract_http_mock_get_g_mock_wininet_response_init_fail();
-  abstract_http_mock_get_g_mock_wininet_status_code();
-  abstract_http_mock_get_g_mock_wininet_cookie_count();
-  abstract_http_mock_get_g_mock_wininet_read_chunks();
-  abstract_http_mock_get_g_mock_wininet_read_chunk_alloc_fail();
-  abstract_http_mock_get_g_mock_wininet_body_realloc_fail();
-  abstract_http_mock_get_g_mock_wininet_res_alloc_fail();
-  abstract_http_mock_get_g_mock_wasm_fetch_fail();
-  abstract_http_mock_get_g_mock_wasm_fetch_timeout();
-  abstract_http_mock_get_g_mock_wasm_config_init_fail();
-  abstract_http_mock_get_g_mock_wasm_response_init_fail();
-  abstract_http_mock_get_g_mock_wasm_header_add_fail();
-  abstract_http_mock_get_g_mock_wasm_headers_len_zero();
-  abstract_http_mock_get_g_mock_msh3_zero_addrlen();
-  abstract_http_mock_get_g_mock_msh3_cond_wait_loop();
+#define ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(name)                               \
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,                                         \
+            abstract_http_mock_get_g_mock_##name(NULL));                       \
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,                                           \
+            abstract_http_mock_get_g_mock_##name(&mock_int_ptr));              \
+  ASSERT(mock_int_ptr == &g_mock_##name);
+
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(sha1_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(alloc_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(alloc_count)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(pthread_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(pthread_create_sync)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(pipe_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(fork_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(waitpid_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(select_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(select_error_fds)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(time_jump)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(time_jump_count)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(fwrite_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(fclose_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(socket_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(bind_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(listen_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(accept_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(recv_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(mutex_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(cond_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(strcasecmp_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(headers_init_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(parts_init_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(multi_init_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(sprintf_s_wrapper_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(urlencode_append_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(mask_key_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(serialize_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(pack_header_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(accept_fd)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(server_reading)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_open_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_connect_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_open_request_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_send_request_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_write_data_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_receive_response_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_query_headers_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_query_data_available_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_read_data_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_set_timeouts_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_set_option_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_crack_url_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_add_request_headers_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_queue_work_item_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_context_init_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_response_init_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_status_code)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_cookie_count)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_read_chunks)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_total_body_realloc_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_read_buf_alloc_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(winhttp_res_alloc_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_open_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_connect_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_open_request_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_send_request_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_send_request_ex_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_write_file_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_end_request_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_query_info_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_read_file_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_set_option_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_crack_url_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_add_headers_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_context_init_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_response_init_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_status_code)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_cookie_count)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_read_chunks)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_read_chunk_alloc_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_body_realloc_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wininet_res_alloc_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wasm_fetch_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wasm_fetch_timeout)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wasm_config_init_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wasm_response_init_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wasm_header_add_fail)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(wasm_headers_len_zero)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(msh3_zero_addrlen)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(msh3_cond_wait_loop)
+#undef ABSTRACT_HTTP_TEST_MOCK_INT_GETTER
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_mock_get_g_mock_recv_data(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_mock_get_g_mock_recv_data(&mock_recv_ptr));
+  ASSERT(mock_recv_ptr == &g_mock_recv_data);
 
 #if !defined(_WIN32)
   {
@@ -754,11 +767,9 @@ TEST test_mock_server_coverage(void) {
 
 TEST test_abstract_http_helpers_coverage(void) {
   enum c_abstract_http_error rc;
-  int val;
   const char *tmp_filename;
   FILE *fh;
 
-  val = 0;
   tmp_filename = "test_helper_output.tmp";
   fh = NULL;
 
@@ -808,21 +819,6 @@ TEST test_abstract_http_helpers_coverage(void) {
   g_mock_fclose_fail = 0;
   remove(tmp_filename);
 #endif
-
-  /* test_coverage_fix_verify */
-  rc = test_coverage_fix_verify(NULL);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
-  rc = test_coverage_fix_verify(&val);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  ASSERT_EQ(42, val);
-
-  /* test_http_curl_dummy_verify */
-  val = 0;
-  rc = test_http_curl_dummy_verify(NULL);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
-  rc = test_http_curl_dummy_verify(&val);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  ASSERT_EQ(1, val);
 
   PASS();
 }
@@ -879,18 +875,18 @@ TEST test_fuzz_harness_coverage(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* fuzz_sse alloc fail */
-  *abstract_http_mock_get_g_mock_alloc_fail() = 1;
+  g_mock_alloc_fail = 1;
   rc = test_fuzz_sse_run(sse_valid, sizeof(sse_valid) - 1, &out_rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   rc = test_fuzz_sse_run(sse_valid, sizeof(sse_valid) - 1, NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  *abstract_http_mock_get_g_mock_alloc_fail() = 0;
+  g_mock_alloc_fail = 0;
 
   /* fuzz_sse parser destroy fail */
-  *abstract_http_mock_get_g_mock_cond_free_fail() = 1;
+  g_mock_cond_free_fail = 1;
   rc = test_fuzz_sse_run(sse_valid, sizeof(sse_valid) - 1, &out_rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
-  *abstract_http_mock_get_g_mock_cond_free_fail() = 0;
+  g_mock_cond_free_fail = 0;
 #endif
 #else
   rc = test_fuzz_sse_run(NULL, 0, &out_rc);
@@ -926,12 +922,12 @@ TEST test_fuzz_harness_coverage(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   /* fuzz_ws alloc fail */
-  *abstract_http_mock_get_g_mock_alloc_fail() = 1;
+  g_mock_alloc_fail = 1;
   rc = test_fuzz_ws_run(ws_valid, sizeof(ws_valid), &out_rc);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   rc = test_fuzz_ws_run(ws_valid, sizeof(ws_valid), NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  *abstract_http_mock_get_g_mock_alloc_fail() = 0;
+  g_mock_alloc_fail = 0;
   /* fuzz_ws parser destroy fail */
   g_mock_parser_destroy_fail = 1;
   rc = test_fuzz_ws_run(ws_valid, sizeof(ws_valid), &out_rc);
@@ -1050,226 +1046,247 @@ TEST test_mock_socket_coverage(void) {
 }
 
 TEST test_mock_alloc_all_getters(void) {
-  abstract_http_mock_get_g_mock_getsockname_fail();
-  abstract_http_mock_get_g_mock_sha1_fail();
-  abstract_http_mock_get_g_mock_alloc_fail();
-  abstract_http_mock_get_g_mock_alloc_count();
-  abstract_http_mock_get_g_mock_pthread_fail();
-  abstract_http_mock_get_g_mock_pthread_create_sync();
-  abstract_http_mock_get_g_mock_pipe_fail();
-  abstract_http_mock_get_g_mock_fork_fail();
-  abstract_http_mock_get_g_mock_waitpid_fail();
-  abstract_http_mock_get_g_mock_select_fail();
-  abstract_http_mock_get_g_mock_select_error_fds();
-  abstract_http_mock_get_g_mock_time_jump();
-  abstract_http_mock_get_g_mock_time_jump_count();
-  abstract_http_mock_get_g_mock_fwrite_fail();
-  abstract_http_mock_get_g_mock_fclose_fail();
-  abstract_http_mock_get_g_mock_socket_fail();
-  abstract_http_mock_get_g_mock_bind_fail();
-  abstract_http_mock_get_g_mock_listen_fail();
-  abstract_http_mock_get_g_mock_accept_fail();
-  abstract_http_mock_get_g_mock_recv_fail();
-  abstract_http_mock_get_g_mock_config_free_fail();
-  abstract_http_mock_get_g_mock_response_free_fail();
-  abstract_http_mock_get_g_mock_multi_free_fail();
-  abstract_http_mock_get_g_mock_parts_free_fail();
-  abstract_http_mock_get_g_mock_headers_free_fail();
-  abstract_http_mock_get_g_mock_cond_free_fail();
-  abstract_http_mock_get_g_mock_mutex_free_fail();
-  abstract_http_mock_get_g_mock_mutex_fail();
-  abstract_http_mock_get_g_mock_cond_fail();
-  abstract_http_mock_get_g_mock_strcasecmp_fail();
-  abstract_http_mock_get_g_mock_headers_init_fail();
-  abstract_http_mock_get_g_mock_parts_init_fail();
-  abstract_http_mock_get_g_mock_multi_init_fail();
-  abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail();
-  abstract_http_mock_get_g_mock_urlencode_append_fail();
-  abstract_http_mock_get_g_mock_mask_key_fail();
-  abstract_http_mock_get_g_mock_serialize_fail();
-  abstract_http_mock_get_g_mock_pack_header_fail();
-  abstract_http_mock_get_g_mock_raw_send_fail();
-  abstract_http_mock_get_g_mock_raw_connect_fail();
-  abstract_http_mock_get_g_mock_raw_gethostbyname_fail();
-  abstract_http_mock_get_g_mock_raw_nonblocking_fail();
-  abstract_http_mock_get_g_mock_raw_blocking_fail();
-  abstract_http_mock_get_g_mock_raw_realloc_fail();
-  abstract_http_mock_get_g_mock_raw_response_init_fail();
-  abstract_http_mock_get_g_mock_raw_res_alloc_fail();
-  abstract_http_mock_get_g_mock_aria2_system_fail();
-  abstract_http_mock_get_g_mock_aria2_fopen_fail();
-  abstract_http_mock_get_g_mock_aria2_response_init_fail();
-  abstract_http_mock_get_g_mock_aria2_config_init_fail();
-  abstract_http_mock_get_g_mock_xquic_config_init_fail();
-  abstract_http_mock_get_g_mock_xquic_engine_present();
-  abstract_http_mock_get_g_mock_picoquic_create_fail();
-  abstract_http_mock_get_g_mock_picoquic_config_init_fail();
-  abstract_http_mock_get_g_mock_picoquic_response_init_fail();
-  abstract_http_mock_get_g_mock_picoquic_quic_null_on_free();
-  abstract_http_mock_get_g_mock_wasm_fetch_fail();
-  abstract_http_mock_get_g_mock_wasm_fetch_timeout();
-  abstract_http_mock_get_g_mock_wasm_config_init_fail();
-  abstract_http_mock_get_g_mock_wasm_response_init_fail();
-  abstract_http_mock_get_g_mock_wasm_header_add_fail();
-  abstract_http_mock_get_g_mock_wasm_headers_len_zero();
-  abstract_http_mock_get_g_mock_fetch_global_init_fail();
-  abstract_http_mock_get_g_mock_fetch_context_init_fail();
-  abstract_http_mock_get_g_mock_fetch_config_init_fail();
-  abstract_http_mock_get_g_mock_fetch_parse_fail();
-  abstract_http_mock_get_g_mock_fetch_req_fail();
-  abstract_http_mock_get_g_mock_fetch_err_code();
-  abstract_http_mock_get_g_mock_fetch_empty_body();
-  abstract_http_mock_get_g_mock_fetch_response_init_fail();
-  abstract_http_mock_get_g_mock_fetch_response_alloc_fail();
-  abstract_http_mock_get_g_mock_fetch_upload_alloc_fail();
-  abstract_http_mock_get_g_mock_fetch_upload_realloc_fail();
-  abstract_http_mock_get_g_mock_fetch_body_realloc_fail();
-  abstract_http_mock_get_g_mock_fetch_loop_wakeup_fail();
-  abstract_http_mock_get_g_mock_nghttp3_global_init_fail();
-  abstract_http_mock_get_g_mock_nghttp3_context_init_fail();
-  abstract_http_mock_get_g_mock_nghttp3_config_init_fail();
-  abstract_http_mock_get_g_mock_nghttp3_conn_new_fail();
-  abstract_http_mock_get_g_mock_nghttp3_response_alloc_fail();
-  abstract_http_mock_get_g_mock_nghttp3_response_init_fail();
-  abstract_http_mock_get_g_mock_nghttp3_send_fail();
-  abstract_http_mock_get_g_mock_nghttp3_loop_wakeup_fail();
-  abstract_http_mock_get_g_mock_libevent_global_init_fail();
-  abstract_http_mock_get_g_mock_libevent_context_init_fail();
-  abstract_http_mock_get_g_mock_libevent_config_init_fail();
-  abstract_http_mock_get_g_mock_libevent_base_new_fail();
-  abstract_http_mock_get_g_mock_libevent_conn_new_fail();
-  abstract_http_mock_get_g_mock_libevent_req_new_fail();
-  abstract_http_mock_get_g_mock_libevent_make_req_fail();
-  abstract_http_mock_get_g_mock_libevent_res_alloc_fail();
-  abstract_http_mock_get_g_mock_libevent_res_init_fail();
-  abstract_http_mock_get_g_mock_libevent_body_alloc_fail();
-  abstract_http_mock_get_g_mock_libevent_buf_add_fail();
-  abstract_http_mock_get_g_mock_libevent_empty_body();
-  abstract_http_mock_get_g_mock_libuv_global_init_fail();
-  abstract_http_mock_get_g_mock_libuv_context_init_fail();
-  abstract_http_mock_get_g_mock_libuv_config_init_fail();
-  abstract_http_mock_get_g_mock_libuv_req_buf_alloc_fail();
-  abstract_http_mock_get_g_mock_libuv_res_alloc_fail();
-  abstract_http_mock_get_g_mock_libuv_res_init_fail();
-  abstract_http_mock_get_g_mock_libuv_body_alloc_fail();
-  abstract_http_mock_get_g_mock_libuv_body_realloc_fail();
-  abstract_http_mock_get_g_mock_libuv_headers_realloc_fail();
-  abstract_http_mock_get_g_mock_libuv_addrinfo_fail();
-  abstract_http_mock_get_g_mock_libuv_connect_fail();
-  abstract_http_mock_get_g_mock_libuv_write_fail();
-  abstract_http_mock_get_g_mock_libuv_read_fail();
-  abstract_http_mock_get_g_mock_libuv_alloc_fail();
-  abstract_http_mock_get_g_mock_lsquic_global_init_fail();
-  abstract_http_mock_get_g_mock_lsquic_context_init_fail();
-  abstract_http_mock_get_g_mock_lsquic_config_init_fail();
-  abstract_http_mock_get_g_mock_lsquic_engine_new_fail();
-  abstract_http_mock_get_g_mock_lsquic_res_alloc_fail();
-  abstract_http_mock_get_g_mock_lsquic_res_init_fail();
-  abstract_http_mock_get_g_mock_lsquic_body_alloc_fail();
-  abstract_http_mock_get_g_mock_lsquic_read_fail();
-  abstract_http_mock_get_g_mock_libsoup3_global_init_fail();
-  abstract_http_mock_get_g_mock_libsoup3_context_init_fail();
-  abstract_http_mock_get_g_mock_libsoup3_config_init_fail();
-  abstract_http_mock_get_g_mock_libsoup3_session_new_fail();
-  abstract_http_mock_get_g_mock_libsoup3_msg_new_fail();
-  abstract_http_mock_get_g_mock_libsoup3_send_fail();
-  abstract_http_mock_get_g_mock_libsoup3_res_alloc_fail();
-  abstract_http_mock_get_g_mock_libsoup3_res_init_fail();
-  abstract_http_mock_get_g_mock_libsoup3_body_alloc_fail();
-  abstract_http_mock_get_g_mock_libsoup3_uri_parse_fail();
-  abstract_http_mock_get_g_mock_android_getenv_detached();
-  abstract_http_mock_get_g_mock_android_getenv_fail();
-  abstract_http_mock_get_g_mock_android_attach_fail();
-  abstract_http_mock_get_g_mock_android_new_string_fail();
-  abstract_http_mock_get_g_mock_android_find_class_fail();
-  abstract_http_mock_get_g_mock_android_get_method_fail();
-  abstract_http_mock_get_g_mock_android_new_object_fail();
-  abstract_http_mock_get_g_mock_android_call_object_fail();
-  abstract_http_mock_get_g_mock_android_res_alloc_fail();
-  abstract_http_mock_get_g_mock_android_res_init_fail();
-  abstract_http_mock_get_g_mock_android_input_stream_fail();
-  abstract_http_mock_get_g_mock_android_error_stream_fail();
-  abstract_http_mock_get_g_mock_android_read_exception();
-  abstract_http_mock_get_g_mock_android_body_alloc_fail();
-  abstract_http_mock_get_g_mock_android_body_realloc_fail();
-  abstract_http_mock_get_g_mock_android_final_body_realloc_fail();
-  abstract_http_mock_get_g_mock_android_cleanup_exception();
-  abstract_http_mock_get_g_mock_android_read_chunks();
-  abstract_http_mock_get_g_mock_android_status_code();
-  abstract_http_mock_get_g_mock_android_config_init_fail();
-  abstract_http_mock_get_g_mock_msh3_api_open_fail();
-  abstract_http_mock_get_g_mock_msh3_config_open_fail();
-  abstract_http_mock_get_g_mock_msh3_conn_open_fail();
-  abstract_http_mock_get_g_mock_msh3_request_open_fail();
-  abstract_http_mock_get_g_mock_msh3_send_fail();
-  abstract_http_mock_get_g_mock_msh3_shutdown_error();
-  abstract_http_mock_get_g_mock_msh3_header_alloc_fail();
-  abstract_http_mock_get_g_mock_msh3_body_realloc_fail();
-  abstract_http_mock_get_g_mock_msh3_getaddrinfo_fail();
-  abstract_http_mock_get_g_mock_msh3_getaddrinfo_null_result();
-  abstract_http_mock_get_g_mock_msh3_mutex_init_fail();
-  abstract_http_mock_get_g_mock_msh3_config_init_fail();
-  abstract_http_mock_get_g_mock_msh3_global_lock_fail();
-  abstract_http_mock_get_g_mock_msh3_res_alloc_fail();
-  abstract_http_mock_get_g_mock_msh3_res_init_fail();
-  abstract_http_mock_get_g_mock_msh3_cond_init_fail();
-  abstract_http_mock_get_g_mock_msh3_send_lock_fail();
-  abstract_http_mock_get_g_mock_msh3_cond_wait_fail();
-  abstract_http_mock_get_g_mock_msh3_header_add_fail();
-  abstract_http_mock_get_g_mock_msh3_cb_mutex_lock_fail();
-  abstract_http_mock_get_g_mock_msh3_parse_url_alloc_fail();
-  abstract_http_mock_get_g_mock_msh3_extra_events();
-  abstract_http_mock_get_g_mock_msh3_zero_addrlen();
-  abstract_http_mock_get_g_mock_msh3_cond_wait_loop();
-  abstract_http_mock_get_g_mock_winhttp_open_fail();
-  abstract_http_mock_get_g_mock_winhttp_connect_fail();
-  abstract_http_mock_get_g_mock_winhttp_open_request_fail();
-  abstract_http_mock_get_g_mock_winhttp_send_request_fail();
-  abstract_http_mock_get_g_mock_winhttp_write_data_fail();
-  abstract_http_mock_get_g_mock_winhttp_receive_response_fail();
-  abstract_http_mock_get_g_mock_winhttp_query_headers_fail();
-  abstract_http_mock_get_g_mock_winhttp_query_data_available_fail();
-  abstract_http_mock_get_g_mock_winhttp_read_data_fail();
-  abstract_http_mock_get_g_mock_winhttp_set_timeouts_fail();
-  abstract_http_mock_get_g_mock_winhttp_set_option_fail();
-  abstract_http_mock_get_g_mock_winhttp_crack_url_fail();
-  abstract_http_mock_get_g_mock_winhttp_add_request_headers_fail();
-  abstract_http_mock_get_g_mock_winhttp_queue_work_item_fail();
-  abstract_http_mock_get_g_mock_winhttp_context_init_fail();
-  abstract_http_mock_get_g_mock_winhttp_response_init_fail();
-  abstract_http_mock_get_g_mock_winhttp_status_code();
-  abstract_http_mock_get_g_mock_winhttp_cookie_count();
-  abstract_http_mock_get_g_mock_winhttp_read_chunks();
-  abstract_http_mock_get_g_mock_winhttp_total_body_realloc_fail();
-  abstract_http_mock_get_g_mock_winhttp_read_buf_alloc_fail();
-  abstract_http_mock_get_g_mock_winhttp_res_alloc_fail();
-  abstract_http_mock_get_g_mock_winhttp_close_fail();
-  abstract_http_mock_get_g_mock_winhttp_cookie_set_fail();
-  abstract_http_mock_get_g_mock_wininet_open_fail();
-  abstract_http_mock_get_g_mock_wininet_connect_fail();
-  abstract_http_mock_get_g_mock_wininet_open_request_fail();
-  abstract_http_mock_get_g_mock_wininet_send_request_fail();
-  abstract_http_mock_get_g_mock_wininet_send_request_ex_fail();
-  abstract_http_mock_get_g_mock_wininet_write_file_fail();
-  abstract_http_mock_get_g_mock_wininet_end_request_fail();
-  abstract_http_mock_get_g_mock_wininet_query_info_fail();
-  abstract_http_mock_get_g_mock_wininet_read_file_fail();
-  abstract_http_mock_get_g_mock_wininet_set_option_fail();
-  abstract_http_mock_get_g_mock_wininet_crack_url_fail();
-  abstract_http_mock_get_g_mock_wininet_add_headers_fail();
-  abstract_http_mock_get_g_mock_wininet_context_init_fail();
-  abstract_http_mock_get_g_mock_wininet_response_init_fail();
-  abstract_http_mock_get_g_mock_wininet_status_code();
-  abstract_http_mock_get_g_mock_wininet_cookie_count();
-  abstract_http_mock_get_g_mock_wininet_read_chunks();
-  abstract_http_mock_get_g_mock_wininet_read_chunk_alloc_fail();
-  abstract_http_mock_get_g_mock_wininet_body_realloc_fail();
-  abstract_http_mock_get_g_mock_wininet_res_alloc_fail();
-  abstract_http_mock_get_g_mock_wininet_close_fail();
-  abstract_http_mock_get_g_mock_wininet_cookie_set_fail();
-  abstract_http_mock_get_g_mock_accept_fd();
-  abstract_http_mock_get_g_mock_server_reading();
-  abstract_http_mock_get_g_mock_recv_data();
+  int *mock_int_ptr = NULL;
+  const char **mock_recv_ptr = NULL;
+
+#define ABSTRACT_HTTP_ASSERT_GETTER(name)                                      \
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,                                         \
+            abstract_http_mock_get_g_mock_##name(NULL));                       \
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,                                           \
+            abstract_http_mock_get_g_mock_##name(&mock_int_ptr));              \
+  ASSERT(mock_int_ptr == &g_mock_##name);
+
+  ABSTRACT_HTTP_ASSERT_GETTER(getsockname_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(sha1_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(alloc_count)
+  ABSTRACT_HTTP_ASSERT_GETTER(pthread_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(pthread_create_sync)
+  ABSTRACT_HTTP_ASSERT_GETTER(pipe_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fork_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(waitpid_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(select_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(select_error_fds)
+  ABSTRACT_HTTP_ASSERT_GETTER(time_jump)
+  ABSTRACT_HTTP_ASSERT_GETTER(time_jump_count)
+  ABSTRACT_HTTP_ASSERT_GETTER(fwrite_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fclose_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(socket_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(bind_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(listen_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(accept_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(recv_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(config_free_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(response_free_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(multi_free_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(parts_free_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(headers_free_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(cond_free_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(mutex_free_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(mutex_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(cond_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(strcasecmp_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(headers_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(parts_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(multi_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(sprintf_s_wrapper_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(urlencode_append_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(mask_key_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(serialize_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(pack_header_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(raw_send_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(raw_connect_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(raw_gethostbyname_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(raw_nonblocking_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(raw_blocking_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(raw_realloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(raw_response_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(raw_res_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(aria2_system_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(aria2_fopen_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(aria2_response_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(aria2_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(xquic_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(xquic_engine_present)
+  ABSTRACT_HTTP_ASSERT_GETTER(picoquic_create_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(picoquic_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(picoquic_response_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(picoquic_quic_null_on_free)
+  ABSTRACT_HTTP_ASSERT_GETTER(wasm_fetch_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wasm_fetch_timeout)
+  ABSTRACT_HTTP_ASSERT_GETTER(wasm_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wasm_response_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wasm_header_add_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wasm_headers_len_zero)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_global_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_context_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_parse_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_req_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_err_code)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_empty_body)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_response_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_response_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_upload_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_upload_realloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_body_realloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(fetch_loop_wakeup_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(nghttp3_global_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(nghttp3_context_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(nghttp3_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(nghttp3_conn_new_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(nghttp3_response_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(nghttp3_response_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(nghttp3_send_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(nghttp3_loop_wakeup_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_global_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_context_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_base_new_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_conn_new_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_req_new_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_make_req_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_res_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_res_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_body_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_buf_add_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libevent_empty_body)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_global_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_context_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_req_buf_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_res_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_res_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_body_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_body_realloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_headers_realloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_addrinfo_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_connect_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_write_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_read_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libuv_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(lsquic_global_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(lsquic_context_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(lsquic_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(lsquic_engine_new_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(lsquic_res_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(lsquic_res_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(lsquic_body_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(lsquic_read_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libsoup3_global_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libsoup3_context_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libsoup3_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libsoup3_session_new_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libsoup3_msg_new_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libsoup3_send_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libsoup3_res_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libsoup3_res_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libsoup3_body_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(libsoup3_uri_parse_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_getenv_detached)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_getenv_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_attach_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_new_string_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_find_class_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_get_method_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_new_object_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_call_object_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_res_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_res_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_input_stream_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_error_stream_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_read_exception)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_body_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_body_realloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_final_body_realloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_cleanup_exception)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_read_chunks)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_status_code)
+  ABSTRACT_HTTP_ASSERT_GETTER(android_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_api_open_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_config_open_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_conn_open_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_request_open_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_send_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_shutdown_error)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_header_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_body_realloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_getaddrinfo_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_getaddrinfo_null_result)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_mutex_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_config_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_global_lock_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_res_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_res_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_cond_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_send_lock_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_cond_wait_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_header_add_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_cb_mutex_lock_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_parse_url_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_extra_events)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_zero_addrlen)
+  ABSTRACT_HTTP_ASSERT_GETTER(msh3_cond_wait_loop)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_open_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_connect_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_open_request_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_send_request_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_write_data_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_receive_response_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_query_headers_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_query_data_available_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_read_data_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_set_timeouts_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_set_option_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_crack_url_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_add_request_headers_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_queue_work_item_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_context_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_response_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_status_code)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_cookie_count)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_read_chunks)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_total_body_realloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_read_buf_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_res_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_close_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(winhttp_cookie_set_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_open_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_connect_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_open_request_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_send_request_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_send_request_ex_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_write_file_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_end_request_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_query_info_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_read_file_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_set_option_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_crack_url_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_add_headers_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_context_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_response_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_status_code)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_cookie_count)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_read_chunks)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_read_chunk_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_body_realloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_res_alloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_close_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(wininet_cookie_set_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(accept_fd)
+  ABSTRACT_HTTP_ASSERT_GETTER(server_reading)
+  ABSTRACT_HTTP_ASSERT_GETTER(timer_heap_swap_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(cond_init_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(queue_malloc_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(parser_destroy_fail)
+  ABSTRACT_HTTP_ASSERT_GETTER(http_types_strdup_fail)
+#undef ABSTRACT_HTTP_ASSERT_GETTER
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            abstract_http_mock_get_g_mock_recv_data(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_mock_get_g_mock_recv_data(&mock_recv_ptr));
+  ASSERT(mock_recv_ptr == &g_mock_recv_data);
   PASS();
 }
 

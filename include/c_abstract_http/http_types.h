@@ -11,12 +11,46 @@
 #ifndef C_ABSTRACT_HTTP_HTTP_TYPES_H
 #define C_ABSTRACT_HTTP_HTTP_TYPES_H
 
+/* clang-format off */
+#include <errno.h>
+#include <stddef.h>
+#include <stdio.h>
+
+#if defined(_MSC_VER) && (_MSC_VER < 1600)
+/** @brief 64-bit signed integer for legacy MSVC */
+typedef __int64 abstract_http_int64_t;
+/** @brief 64-bit unsigned integer for legacy MSVC */
+typedef unsigned __int64 abstract_http_uint64_t;
+/** @brief 8-bit signed integer for legacy MSVC */
+typedef signed char int8_t;
+/** @brief 8-bit unsigned integer for legacy MSVC */
+typedef unsigned char uint8_t;
+/** @brief 16-bit signed integer for legacy MSVC */
+typedef short int16_t;
+/** @brief 16-bit unsigned integer for legacy MSVC */
+typedef unsigned short uint16_t;
+/** @brief 32-bit signed integer for legacy MSVC */
+typedef int int32_t;
+/** @brief 32-bit unsigned integer for legacy MSVC */
+typedef unsigned int uint32_t;
+/** @brief 64-bit signed integer for legacy MSVC */
+typedef __int64 int64_t;
+/** @brief 64-bit unsigned integer for legacy MSVC */
+typedef unsigned __int64 uint64_t;
+#else
+#include <stdint.h>
+/** @brief 64-bit signed integer typedef */
+typedef int64_t abstract_http_int64_t;
+/** @brief 64-bit unsigned integer typedef */
+typedef uint64_t abstract_http_uint64_t;
+#endif
+
+#include "c_abstract_http/no_discard.h"
+/* clang-format on */
+
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
-
-/* clang-format off */
-#ifndef __cplusplus
+#else
 #if !defined(inline)
 #if defined(_MSC_VER)
 #define inline __inline
@@ -32,137 +66,144 @@ extern "C" {
 #define __forceinline __inline__
 #endif
 #endif
-#endif
-
-#include <errno.h>
-#include <stddef.h>
-#include <stdio.h>
+#endif /* __cplusplus */
 
 #ifndef ENOTSUP
-/** @brief ENOTSUP macro */
+/** @brief ENOTSUP fallback macro */
 #define ENOTSUP EINVAL
 #endif
 
 #ifndef ENOSYS
-/** @brief ENOSYS macro */
+/** @brief ENOSYS fallback macro */
 #define ENOSYS EINVAL
 #endif
 
 #ifndef ECANCELED
-/** @brief ECANCELED macro */
+/** @brief ECANCELED fallback macro */
 #define ECANCELED EINVAL
 #endif
 
+#ifndef ELOOP
+/** @brief ELOOP fallback macro */
+#define ELOOP 40
+#endif
+
+#ifndef ECONNREFUSED
+/** @brief ECONNREFUSED fallback macro */
+#define ECONNREFUSED 111
+#endif
+
+#ifndef EHOSTUNREACH
+/** @brief EHOSTUNREACH fallback macro */
+#define EHOSTUNREACH 113
+#endif
+
 /**
- * @brief Macro to suppress cppcheck warnings about unused mutable pointers
+ * @brief Macro to suppress cppcheck warnings about unused mutable pointers.
+ * @param x Pointer expression.
  */
 #define cah_cppcheck_mut_ptr(x) ((void)(x))
 
-/** @brief Error: WebSocket framing violation or protocol error */
-#define C_ABSTRACT_HTTP_ERR_WS_FRAMING -1001
-
-/** @brief Error: WebSocket handshake failed or was rejected */
-#define C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE -1002
-
-/** @brief Error: SSE stream parse error */
-#define C_ABSTRACT_HTTP_ERR_SSE_PARSE -1003
-
-/** @brief Error: SSE stream exceeded maximum buffer size (OOM prevention) */
-#define C_ABSTRACT_HTTP_ERR_SSE_OOM -1004
-
-/** @brief Error: WebSocket connection closed gracefully or unexpectedly */
-#define C_ABSTRACT_HTTP_ERR_WS_CLOSED -1005
-
 #ifndef C_ABSTRACT_HTTP_NUM_FORMAT
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-/** @brief C_ABSTRACT_HTTP_NUM_FORMAT macro */
+/** @brief Portable 64-bit signed integer printf format specifier */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%I64d"
 #elif defined(__LP64__) || defined(_LP64) || defined(__x86_64__) ||            \
     defined(__aarch64__)
-/** @brief C_ABSTRACT_HTTP_NUM_FORMAT macro */
+/** @brief Portable 64-bit signed integer printf format specifier */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%ld"
-#else
-/** @brief C_ABSTRACT_HTTP_NUM_FORMAT macro */
+#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+/** @brief Portable 64-bit signed integer printf format specifier */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%lld"
-#endif
-#endif
-
-#if defined(_MSC_VER) && (_MSC_VER < 1600)
-typedef __int64 abstract_http_int64_t;
-typedef unsigned __int64 abstract_http_uint64_t;
-/** @brief ABSTRACT_HTTP_INT64_FMT macro */
-#define ABSTRACT_HTTP_INT64_FMT "%I64d"
-
-typedef signed char int8_t;
-typedef unsigned char uint8_t;
-typedef short int16_t;
-typedef unsigned short uint16_t;
-typedef int int32_t;
-typedef unsigned int uint32_t;
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-
 #else
-#include <stdint.h>
-
-/** @brief abstract_http_int64_t typedef */
-typedef int64_t abstract_http_int64_t;
-/** @brief abstract_http_uint64_t typedef */
-typedef uint64_t abstract_http_uint64_t;
-/** @brief ABSTRACT_HTTP_INT64_FMT macro */
-#define ABSTRACT_HTTP_INT64_FMT C_ABSTRACT_HTTP_NUM_FORMAT
+/** @brief Portable C89 signed long printf format specifier */
+#define C_ABSTRACT_HTTP_NUM_FORMAT "%ld"
+#endif
 #endif
 
-#include "c_abstract_http/no_discard.h"
+/** @brief 64-bit signed integer printf format alias */
+#define ABSTRACT_HTTP_INT64_FMT C_ABSTRACT_HTTP_NUM_FORMAT
 
-/**
- * @def C_ABSTRACT_HTTP_API
- * @brief Public symbol visibility export/import macro.
- */
 #ifndef C_ABSTRACT_HTTP_API
 #if defined(_WIN32) || defined(__CYGWIN__)
 #if defined(C_ABSTRACT_HTTP_BUILD_SHARED)
 #if defined(c_abstract_http_EXPORTS)
+/** @brief Public symbol visibility export macro */
 #define C_ABSTRACT_HTTP_API __declspec(dllexport)
 #else
+/** @brief Public symbol visibility import macro */
 #define C_ABSTRACT_HTTP_API __declspec(dllimport)
 #endif
 #else
+/** @brief Public symbol visibility static macro */
 #define C_ABSTRACT_HTTP_API
 #endif
-#elif __GNUC__ >= 4
+#elif defined(__GNUC__) && (__GNUC__ >= 4)
+/** @brief Public symbol visibility default attribute */
 #define C_ABSTRACT_HTTP_API __attribute__((visibility("default")))
 #else
+/** @brief Public symbol visibility fallback macro */
 #define C_ABSTRACT_HTTP_API
 #endif
 #endif
-/* clang-format on */
 
+#if !defined(__DOXYGEN__) &&                                                   \
+    (defined(__clang__) || (defined(_MSC_VER) && _MSC_VER >= 1700) ||          \
+     (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L) ||             \
+     (defined(__cplusplus) && __cplusplus >= 201703L) ||                       \
+     (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L))
+/**
+ * @brief Error codes returned by abstract HTTP operations.
+ */
+typedef enum NO_DISCARD c_abstract_http_error {
+#else
 /**
  * @brief Error codes returned by abstract HTTP operations.
  */
 typedef enum c_abstract_http_error {
-  C_ABSTRACT_HTTP_SUCCESS = 0,
-  C_ABSTRACT_HTTP_ERR_INVAL = -1,
-  C_ABSTRACT_HTTP_ERR_NOMEM = -2,
-  C_ABSTRACT_HTTP_ERR_IO = -3,
-  C_ABSTRACT_HTTP_ERR_NOTSUP = -4,
-  C_ABSTRACT_HTTP_ERR_TIMEOUT = -5,
-  C_ABSTRACT_HTTP_ERR_SYSCALL = -6
+#endif
+  C_ABSTRACT_HTTP_SUCCESS = 0,              /**< Operation succeeded */
+  C_ABSTRACT_HTTP_ERR_INVAL = -1,           /**< Invalid argument */
+  C_ABSTRACT_HTTP_ERR_NOMEM = -2,           /**< Out of memory */
+  C_ABSTRACT_HTTP_ERR_IO = -3,              /**< Network or I/O failure */
+  C_ABSTRACT_HTTP_ERR_NOTSUP = -4,          /**< Operation not supported */
+  C_ABSTRACT_HTTP_ERR_TIMEOUT = -5,         /**< Operation timed out */
+  C_ABSTRACT_HTTP_ERR_SYSCALL = -6,         /**< Underlying syscall failed */
+  C_ABSTRACT_HTTP_ERR_WS_FRAMING = -1001,   /**< WebSocket framing violation */
+  C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE = -1002, /**< WebSocket handshake failed */
+  C_ABSTRACT_HTTP_ERR_SSE_PARSE = -1003,    /**< SSE stream parse error */
+  C_ABSTRACT_HTTP_ERR_SSE_OOM = -1004,      /**< SSE stream buffer limit hit */
+  C_ABSTRACT_HTTP_ERR_WS_CLOSED = -1005,    /**< WebSocket closed */
+  C_ABSTRACT_HTTP_ERR_ACCES = EACCES,       /**< Permission/TLS verify denied */
+  C_ABSTRACT_HTTP_ERR_EXIST = EEXIST,       /**< Resource already exists */
+  C_ABSTRACT_HTTP_ERR_LOOP = ELOOP,         /**< Too many redirects */
+  C_ABSTRACT_HTTP_ERR_MSGSIZE = 90,         /**< Message/frame too large */
+  C_ABSTRACT_HTTP_ERR_CONNREFUSED = ECONNREFUSED, /**< Connection refused */
+  C_ABSTRACT_HTTP_ERR_HOSTUNREACH = EHOSTUNREACH, /**< Host unreachable */
+  C_ABSTRACT_HTTP_ERR_CANCELED = ECANCELED /**< Operation canceled by user */
 } c_abstract_http_error_t;
 
-/* --- Platform Compatibility Macros --- */
-#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
-#define NUM_LONG_FMT "z"
-#else
+/** @brief Portable long length modifier */
 #define NUM_LONG_FMT "l"
-#endif
 
 #ifndef c_abstract_http_strdup
+/** @brief Portable string duplication function alias */
 #define c_abstract_http_strdup c_abstract_http_strdup
 #endif
+/**
+ * @brief Duplicate a NUL-terminated string onto the heap.
+ * @param[in] s Input NUL-terminated string.
+ * @param[out] out_s Output pointer receiving newly allocated string.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 c_abstract_http_strdup(const char *s, char **out_s);
+/**
+ * @brief OOM-mockable string duplication helper used in test builds.
+ * @param[in] s Input NUL-terminated string.
+ * @param[out] out_s Output pointer receiving newly allocated string.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
+ */
 NO_DISCARD extern enum c_abstract_http_error
 c_abstract_http_mock_strdup(const char *s, char **out_s);
 
@@ -234,7 +275,7 @@ struct HttpParts {
  * @brief Callback function signature for receiving response body chunks.
  * @param user_data User provided context pointer.
  * @param chunk Pointer to the received data chunk.
- * @param chunk_len Length of the received data chunk.
+ * @param len Length of the received data chunk.
  * @return 0 to continue reading, non-zero to abort the request.
  */
 typedef enum c_abstract_http_error (*http_on_chunk_fn)(void *user_data,
@@ -247,7 +288,7 @@ typedef enum c_abstract_http_error (*http_on_chunk_fn)(void *user_data,
  * @param user_data User provided context pointer.
  * @param buf Buffer to fill with data.
  * @param buf_len Maximum number of bytes to write to buf.
- * @param out_read Pointer to store the number of bytes actually written. Set to
+ * @param out_len Pointer to store the number of bytes actually written. Set to
  * 0 to indicate EOF.
  * @return 0 on success, non-zero to abort the request.
  */
@@ -485,7 +526,6 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_client_send_multi(
 
 /* --- Lifecycle Management --- */
 
-/** @brief http_headers_init definition */
 /**
  * @brief Executes the http_headers_init operation.
  * @param headers The headers parameter.
@@ -493,14 +533,15 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_client_send_multi(
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_headers_init(struct HttpHeaders *headers);
-/** @brief http_headers_free definition */
+
 /**
  * @brief Executes the http_headers_free operation.
  * @param headers The headers parameter.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_headers_free(struct HttpHeaders *headers);
-/** @brief http_headers_add definition */
+
 /**
  * @brief Executes the http_headers_add operation.
  * @param headers The headers parameter.
@@ -516,7 +557,8 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_headers_add(
  * @param headers The headers container.
  * @param key The header key to search for (case-insensitive).
  * @param out Pointer to store the found header value.
- * @return 0 on success, ENOENT if not found, EINVAL on bad input.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, C_ABSTRACT_HTTP_ERR_INVAL if not
+ * found or on invalid input.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_headers_get(
     const struct HttpHeaders *headers, const char *key, const char **out);
@@ -525,7 +567,8 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_headers_get(
  * @brief Removes a header by key.
  * @param headers The headers container.
  * @param key The header key to remove (case-insensitive).
- * @return 0 on success, ENOENT if not found, EINVAL on bad input.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, C_ABSTRACT_HTTP_ERR_INVAL if not
+ * found or on invalid input.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_headers_remove(struct HttpHeaders *headers, const char *key);
@@ -541,6 +584,7 @@ http_cookie_jar_init(struct HttpCookieJar *jar);
 /**
  * @brief Free resources held by a cookie jar.
  * @param jar The cookie jar to free.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_cookie_jar_free(struct HttpCookieJar *jar);
@@ -560,12 +604,12 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_cookie_jar_set(
  * @param jar The cookie jar.
  * @param name Cookie name.
  * @param out Pointer to store the found cookie value string.
- * @return 0 on success, ENOENT if not found, EINVAL on bad input.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, C_ABSTRACT_HTTP_ERR_INVAL if not
+ * found or on invalid input.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_cookie_jar_get(
     const struct HttpCookieJar *jar, const char *name, const char **out);
 
-/** @brief http_config_init definition */
 /**
  * @brief Executes the http_config_init operation.
  * @param config The config parameter.
@@ -573,15 +617,15 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_cookie_jar_get(
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_config_init(struct HttpConfig *config);
-/** @brief http_config_free definition */
+
 /**
  * @brief Executes the http_config_free operation.
  * @param config The config parameter.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_config_free(struct HttpConfig *config);
 
-/** @brief http_client_init definition */
 /**
  * @brief Executes the http_client_init operation.
  * @param client The client parameter.
@@ -589,15 +633,15 @@ http_config_free(struct HttpConfig *config);
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_client_init(struct HttpClient *client);
-/** @brief http_client_free definition */
+
 /**
  * @brief Executes the http_client_free operation.
  * @param client The client parameter.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_client_free(struct HttpClient *client);
 
-/** @brief http_request_init definition */
 /**
  * @brief Executes the http_request_init operation.
  * @param req The req parameter.
@@ -605,10 +649,11 @@ http_client_free(struct HttpClient *client);
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_request_init(struct HttpRequest *req);
-/** @brief http_request_free definition */
+
 /**
  * @brief Executes the http_request_free operation.
  * @param req The req parameter.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_request_free(struct HttpRequest *req);
@@ -624,6 +669,7 @@ http_modality_context_init(struct ModalityContext *ctx);
 /**
  * @brief Free a ModalityContext.
  * @param ctx Context to free.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_modality_context_free(struct ModalityContext *ctx);
@@ -639,6 +685,7 @@ http_future_init(struct HttpFuture *future);
 /**
  * @brief Free a HttpFuture.
  * @param future Future to free.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_future_free(struct HttpFuture *future);
@@ -654,6 +701,7 @@ http_multi_request_init(struct HttpMultiRequest *multi);
 /**
  * @brief Free an HttpMultiRequest.
  * @param multi Multi-request to free.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_multi_request_free(struct HttpMultiRequest *multi);
@@ -667,7 +715,6 @@ http_multi_request_free(struct HttpMultiRequest *multi);
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_multi_request_add(struct HttpMultiRequest *multi, struct HttpRequest *req);
 
-/** @brief http_request_set_auth_bearer definition */
 /**
  * @brief Executes the http_request_set_auth_bearer operation.
  * @param req The req parameter.
@@ -915,7 +962,7 @@ http_oauth2_build_authorization_url(
  *
  * @param[in] port Port to bind to (e.g., 8080).
  * @param[in] html_response Complete HTTP response to send (e.g., "HTTP/1.1 200
- * OK\r\n\r\n...").
+ * OK\\r\\n\\r\\n...").
  * @param[out] out_code Allocated string containing 'code' (or NULL if not
  * found).
  * @param[out] out_state Allocated string containing 'state' (or NULL if not
@@ -931,7 +978,6 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
                                 char **out_code, char **out_state,
                                 char **out_error, char **out_error_desc);
 
-/** @brief http_response_init definition */
 /**
  * @brief Executes the http_response_init operation.
  * @param res The res parameter.
@@ -939,13 +985,15 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_response_init(struct HttpResponse *res);
-/** @brief http_response_free definition */
+
 /**
  * @brief Executes the http_response_free operation.
  * @param res The res parameter.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_response_free(struct HttpResponse *res);
+
 /**
  * @brief Saves an HTTP response to a file.
  * @param res The HTTP response object.
@@ -968,8 +1016,10 @@ http_parts_init(struct HttpParts *parts);
 /**
  * @brief Free parts container contents.
  * @param[in] parts Container to clean.
+ * @return 0 on success, or an error code.
  */
-NO_DISCARD c_abstract_http_error_t http_parts_free(struct HttpParts *parts);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_parts_free(struct HttpParts *parts);
 
 /**
  * @brief Add a part to the request.

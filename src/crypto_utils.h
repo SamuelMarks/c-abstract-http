@@ -1,10 +1,6 @@
 #ifndef C_ABSTRACT_HTTP_CRYPTO_UTILS_H
 #define C_ABSTRACT_HTTP_CRYPTO_UTILS_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /**
  * @file crypto_utils.h
  * @brief Internal cryptographic and Base64 utilities.
@@ -13,22 +9,11 @@ extern "C" {
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
 #include <stddef.h>
-
-#if defined(_MSC_VER) && (_MSC_VER < 1600)
-/** @brief Fixed-width integer types for legacy MSVC */
-typedef signed char int8_t;
-typedef unsigned char uint8_t;
-typedef short int16_t;
-typedef unsigned short uint16_t;
-/** @brief 32-bit signed integer */
-typedef int int32_t;
-typedef unsigned int uint32_t;
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-#else
-#include <stdint.h>
-#endif
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief SHA-1 Context.
@@ -44,7 +29,8 @@ struct sha1_ctx {
  * @param ctx The context to initialize.
  * @return 0 on success.
  */
-enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx);
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+sha1_init(struct sha1_ctx *ctx);
 
 /**
  * @brief Update a SHA-1 context with data.
@@ -53,8 +39,8 @@ enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx);
  * @param len The length of the data.
  * @return 0 on success.
  */
-enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
-                                       const unsigned char *data, size_t len);
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+sha1_update(struct sha1_ctx *ctx, const unsigned char *data, size_t len);
 
 /**
  * @brief Finalize a SHA-1 hash.
@@ -62,8 +48,8 @@ enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
  * @param out_hash The 20-byte array to store the resulting hash.
  * @return 0 on success.
  */
-enum c_abstract_http_error sha1_final(struct sha1_ctx *ctx,
-                                      unsigned char out_hash[20]);
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+sha1_final(struct sha1_ctx *ctx, unsigned char out_hash[20]);
 
 /**
  * @brief Base64 encode data.
@@ -73,8 +59,9 @@ enum c_abstract_http_error sha1_final(struct sha1_ctx *ctx,
  * @param out_len Pointer to store the length of the string.
  * @return 0 on success, ENOMEM on allocation failure.
  */
-enum c_abstract_http_error base64_encode(const unsigned char *in, size_t in_len,
-                                         char **out_str, size_t *out_len);
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+base64_encode(const unsigned char *in, size_t in_len, char **out_str,
+              size_t *out_len);
 
 /**
  * @brief Base64 decode a string.
@@ -84,9 +71,9 @@ enum c_abstract_http_error base64_encode(const unsigned char *in, size_t in_len,
  * @param out_len Pointer to store the length of the data.
  * @return 0 on success, ENOMEM on allocation failure, EINVAL on invalid input.
  */
-enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
-                                         unsigned char **out_data,
-                                         size_t *out_len);
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+base64_decode(const char *in, size_t in_len, unsigned char **out_data,
+              size_t *out_len);
 
 /**
  * @brief Compare two strings in constant time.
@@ -94,7 +81,7 @@ enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
  * @param b The second string.
  * @return 1 if equal, 0 if different.
  */
-int math_is_const_time_streq(const char *a, const char *b);
+C_ABSTRACT_HTTP_API int math_is_const_time_streq(const char *a, const char *b);
 
 #ifdef __cplusplus
 }

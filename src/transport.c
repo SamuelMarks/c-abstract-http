@@ -13,16 +13,8 @@
 #include <c_abstract_http/http_picoquic.h>
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
 #include <c_abstract_http/http_msh3.h>
-#elif defined(C_ABSTRACT_HTTP_USE_WININET)
-#include <c_abstract_http/http_wininet.h>
-#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-#include <c_abstract_http/http_winhttp.h>
-#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
-#include <c_abstract_http/http_apple.h>
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
 #include <c_abstract_http/http_xquic.h>
-#elif defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
-#include <c_abstract_http/http_wasm.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include <c_abstract_http/http_libsoup3.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
@@ -31,7 +23,23 @@
 #include <c_abstract_http/http_libevent.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
 #include <c_abstract_http/http_fetch.h>
-#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) || defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+#elif defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+#include <c_abstract_http/http_raw.h>
+#elif defined(C_ABSTRACT_HTTP_USE_WININET)
+#include <c_abstract_http/http_wininet.h>
+#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP)
+#include <c_abstract_http/http_winhttp.h>
+#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
+#include <c_abstract_http/http_apple.h>
+#elif defined(C_ABSTRACT_HTTP_USE_WASM) || defined(__EMSCRIPTEN__)
+#include <c_abstract_http/http_wasm.h>
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(_MSC_VER) && _MSC_VER < 1600
+#include <c_abstract_http/http_wininet.h>
+#else
+#include <c_abstract_http/http_winhttp.h>
+#endif
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <c_abstract_http/http_raw.h>
 #else
 #include <c_abstract_http/http_curl.h>
@@ -50,17 +58,8 @@ enum c_abstract_http_error transport_global_init(void) {
   return http_picoquic_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
   return http_msh3_global_init();
-#elif defined(C_ABSTRACT_HTTP_USE_WININET)
-  return http_wininet_global_init();
-#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) ||               \
-    defined(__WIN32__) || defined(__WINDOWS__)
-  return http_winhttp_global_init();
-#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
-  return http_apple_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   return http_xquic_global_init();
-#elif defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
-  return http_wasm_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   return http_libsoup3_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
@@ -69,8 +68,23 @@ enum c_abstract_http_error transport_global_init(void) {
   return http_libevent_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   return http_fetch_global_init();
-#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
-    defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+#elif defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+  return http_raw_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_WININET)
+  return http_wininet_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP)
+  return http_winhttp_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
+  return http_apple_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_WASM) || defined(__EMSCRIPTEN__)
+  return http_wasm_global_init();
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(_MSC_VER) && _MSC_VER < 1600
+  return http_wininet_global_init();
+#else
+  return http_winhttp_global_init();
+#endif
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   return http_raw_global_init();
 #else
   return http_curl_global_init();
@@ -86,17 +100,8 @@ enum c_abstract_http_error transport_global_cleanup(void) {
   return http_picoquic_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
   return http_msh3_global_cleanup();
-#elif defined(C_ABSTRACT_HTTP_USE_WININET)
-  return http_wininet_global_cleanup();
-#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) ||               \
-    defined(__WIN32__) || defined(__WINDOWS__)
-  return http_winhttp_global_cleanup();
-#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
-  return http_apple_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   return http_xquic_global_cleanup();
-#elif defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
-  return http_wasm_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   return http_libsoup3_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
@@ -105,19 +110,30 @@ enum c_abstract_http_error transport_global_cleanup(void) {
   return http_libevent_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   return http_fetch_global_cleanup();
-#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
-    defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+#elif defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+  return http_raw_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_WININET)
+  return http_wininet_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP)
+  return http_winhttp_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
+  return http_apple_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_WASM) || defined(__EMSCRIPTEN__)
+  return http_wasm_global_cleanup();
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(_MSC_VER) && _MSC_VER < 1600
+  return http_wininet_global_cleanup();
+#else
+  return http_winhttp_global_cleanup();
+#endif
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   return http_raw_global_cleanup();
 #else
   return http_curl_global_cleanup();
 #endif
 }
 
-/**
- * @brief Initialize a client with the active transport backend.
- * @param[out] client Client structure to initialize.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
- */
+/* Initialize a client with the active transport backend. */
 enum c_abstract_http_error
 transport_factory_init_client(struct HttpClient *client) {
   enum c_abstract_http_error err;
@@ -143,27 +159,6 @@ transport_factory_init_client(struct HttpClient *client) {
   }
   client->send = http_msh3_send;
   client->send_multi = http_msh3_send_multi;
-#elif defined(C_ABSTRACT_HTTP_USE_WININET)
-  err = http_wininet_context_init(&client->transport);
-  if (err != C_ABSTRACT_HTTP_SUCCESS) {
-    return err;
-  }
-  client->send = http_wininet_send;
-#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) ||               \
-    defined(__WIN32__) || defined(__WINDOWS__)
-  err = http_winhttp_context_init(&client->transport);
-  if (err != C_ABSTRACT_HTTP_SUCCESS) {
-    return err;
-  }
-  client->send = http_winhttp_send;
-  client->send_multi = http_winhttp_send_multi;
-#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
-  err = http_apple_context_init(&client->transport);
-  if (err != C_ABSTRACT_HTTP_SUCCESS) {
-    return err;
-  }
-  client->send = http_apple_send;
-  client->send_multi = http_apple_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   err = http_xquic_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
@@ -171,12 +166,6 @@ transport_factory_init_client(struct HttpClient *client) {
   }
   client->send = http_xquic_send;
   client->send_multi = http_xquic_send_multi;
-#elif defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
-  err = http_wasm_context_init(&client->transport);
-  if (err != C_ABSTRACT_HTTP_SUCCESS) {
-    return err;
-  }
-  client->send = http_wasm_send;
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   err = http_libsoup3_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
@@ -202,8 +191,55 @@ transport_factory_init_client(struct HttpClient *client) {
   }
   client->send = http_fetch_send;
   client->send_multi = http_fetch_send_multi;
-#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
-    defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+#elif defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+  err = http_raw_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_raw_send;
+  client->send_multi = http_raw_send_multi;
+#elif defined(C_ABSTRACT_HTTP_USE_WININET)
+  err = http_wininet_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_wininet_send;
+#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP)
+  err = http_winhttp_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_winhttp_send;
+  client->send_multi = http_winhttp_send_multi;
+#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
+  err = http_apple_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_apple_send;
+  client->send_multi = http_apple_send_multi;
+#elif defined(C_ABSTRACT_HTTP_USE_WASM) || defined(__EMSCRIPTEN__)
+  err = http_wasm_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_wasm_send;
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(_MSC_VER) && _MSC_VER < 1600
+  err = http_wininet_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_wininet_send;
+#else
+  err = http_winhttp_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_winhttp_send;
+  client->send_multi = http_winhttp_send_multi;
+#endif
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   err = http_raw_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
     return err;
@@ -221,11 +257,7 @@ transport_factory_init_client(struct HttpClient *client) {
   return err;
 }
 
-/**
- * @brief Cleanup a client's active transport context.
- * @param[in,out] client Client structure to cleanup.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
- */
+/* Cleanup a client's active transport context. */
 enum c_abstract_http_error
 transport_factory_cleanup_client(struct HttpClient *client) {
   if (!client || !client->transport) {
@@ -245,36 +277,9 @@ transport_factory_cleanup_client(struct HttpClient *client) {
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
-#elif defined(C_ABSTRACT_HTTP_USE_WININET)
-  {
-    enum c_abstract_http_error rc =
-        http_wininet_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
-#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP) || defined(_WIN32) ||               \
-    defined(__WIN32__) || defined(__WINDOWS__)
-  {
-    enum c_abstract_http_error rc =
-        http_winhttp_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
-#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
-  {
-    enum c_abstract_http_error rc = http_apple_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   {
     enum c_abstract_http_error rc = http_xquic_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
-#elif defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
-  {
-    enum c_abstract_http_error rc = http_wasm_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
@@ -304,8 +309,55 @@ transport_factory_cleanup_client(struct HttpClient *client) {
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
-#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                \
-    defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+#elif defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+  {
+    enum c_abstract_http_error rc = http_raw_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_WININET)
+  {
+    enum c_abstract_http_error rc =
+        http_wininet_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_WINHTTP)
+  {
+    enum c_abstract_http_error rc =
+        http_winhttp_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_APPLE)
+  {
+    enum c_abstract_http_error rc = http_apple_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_WASM) || defined(__EMSCRIPTEN__)
+  {
+    enum c_abstract_http_error rc = http_wasm_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+#elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+#if defined(_MSC_VER) && _MSC_VER < 1600
+  {
+    enum c_abstract_http_error rc =
+        http_wininet_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+#else
+  {
+    enum c_abstract_http_error rc =
+        http_winhttp_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+#endif
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   {
     enum c_abstract_http_error rc = http_raw_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)

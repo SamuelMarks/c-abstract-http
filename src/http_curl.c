@@ -18,30 +18,27 @@
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_curl.h>
 #include "c_abstract_http/log.h"
+/* clang-format on */
+
 #define ABSTRACT_HTTP_CURL_GLOBAL_INIT curl_global_init
 #define ABSTRACT_HTTP_CURL_MULTI_ADD_HANDLE curl_multi_add_handle
 #define ABSTRACT_HTTP_CURL_MULTI_REMOVE_HANDLE curl_multi_remove_handle
 #define ABSTRACT_HTTP_CURL_EASY_PERFORM curl_easy_perform
 #define ABSTRACT_HTTP_CURL_MULTI_SOCKET_ACTION curl_multi_socket_action
 #define ABSTRACT_HTTP_MAP_CURL_ERROR map_curl_error
-#define ABSTRACT_HTTP_HTTP_HEADERS_ADD http_headers_add
-#define ABSTRACT_HTTP_HTTP_HEADERS_TO_STR http_headers_to_str
 #define ABSTRACT_HTTP_HTTP_LOOP_REMOVE_FD http_loop_remove_fd
 #define ABSTRACT_HTTP_HTTP_LOOP_ADD_FD http_loop_add_fd
 #define ABSTRACT_HTTP_HTTP_LOOP_MOD_FD http_loop_mod_fd
 #define ABSTRACT_HTTP_CURL_MULTI_CLEANUP curl_multi_cleanup
-/* clang-format on */
 #define ABSTRACT_HTTP_CURL_MULTI_INFO_READ curl_multi_info_read
 #define ABSTRACT_HTTP_CURL_EASY_GETINFO curl_easy_getinfo
 #define ABSTRACT_HTTP_CURL_EASY_SETOPT curl_easy_setopt
 #define ABSTRACT_HTTP_CURL_MULTI_SETOPT curl_multi_setopt
 #define ABSTRACT_HTTP_CURL_SLIST_APPEND curl_slist_append
-#define ABSTRACT_HTTP_HTTP_HEADERS_INIT http_headers_init
 #define ABSTRACT_HTTP_FORMAT_HEADER format_header
 #define ABSTRACT_HTTP_SETUP_CURL_REQUEST setup_curl_request
 #define ABSTRACT_HTTP_FINISH_CURL_REQUEST finish_curl_request
 #define ABSTRACT_HTTP_CHECK_MULTI_INFO check_multi_info
-
 #define ABSTRACT_HTTP_CURL_MULTI_ASSIGN curl_multi_assign
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 CURLcode g_mock_curl_perform_res = CURLE_OK;
@@ -225,31 +222,31 @@ struct CurlWriteContext {
   /** @brief req (variable) of struct CurlWriteContext */
   const struct HttpRequest *req;
   /** @brief user_aborted (variable) of struct CurlWriteContext */
-  int user_aborted;
+  enum c_abstract_http_error user_aborted;
 };
 
-static size_t math_write_memory_callback(void *contents, size_t size,
-                                         size_t nmemb, void *userp) {
-  size_t realsize = size * nmemb;
-  struct CurlWriteContext *ctx = (struct CurlWriteContext *)userp;
+static enum c_abstract_http_error
+write_memory_callback_impl(void *contents, size_t realsize,
+                           struct CurlWriteContext *ctx, size_t *out_written) {
   char *ptr;
 
   if (ctx->req->on_chunk) {
-    int rc =
+    enum c_abstract_http_error rc =
         ctx->req->on_chunk(ctx->req->on_chunk_user_data, contents, realsize);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       ctx->user_aborted = rc;
-      return C_ABSTRACT_HTTP_SUCCESS; /* Returning less than realsize aborts the
-                                         curl transfer */
+      *out_written = 0;
+      return rc;
     }
-    return realsize;
+    *out_written = realsize;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   /* Realloc to size + new_bytes + 1 (for null terminator) */
   ptr = (char *)realloc(ctx->chunk.memory, ctx->chunk.size + realsize + 1);
   if (!ptr) {
-    /* Out of memory */
-    return C_ABSTRACT_HTTP_SUCCESS;
+    *out_written = 0;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   ctx->chunk.memory = ptr;
@@ -257,19 +254,44 @@ static size_t math_write_memory_callback(void *contents, size_t size,
   ctx->chunk.size += realsize;
   ctx->chunk.memory[ctx->chunk.size] = 0; /* Null terminate for text safety */
 
-  return realsize;
+  *out_written = realsize;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static size_t math_write_memory_callback(void *contents, size_t size,
+                                         size_t nmemb, void *userp) {
+  size_t realsize = size * nmemb;
+  size_t written = 0;
+  struct CurlWriteContext *ctx = (struct CurlWriteContext *)userp;
+  enum c_abstract_http_error rc =
+      write_memory_callback_impl(contents, realsize, ctx, &written);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return (size_t)((int)rc * 0);
+  }
+  return written;
+}
+
+static enum c_abstract_http_error
+curl_read_callback_impl(char *buffer, size_t max_bytes,
+                        const struct HttpRequest *req, size_t *out_read) {
+  enum c_abstract_http_error rc =
+      req->read_chunk(req->read_chunk_user_data, buffer, max_bytes, out_read);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 static size_t math_curl_read_callback(char *buffer, size_t size, size_t nitems,
                                       void *userdata) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   const struct HttpRequest *req = (const struct HttpRequest *)userdata;
   size_t max_bytes = size * nitems;
   size_t out_read = 0;
-
-  rc = req->read_chunk(req->read_chunk_user_data, buffer, max_bytes, &out_read);
+  size_t abort_val = CURL_READFUNC_ABORT;
+  enum c_abstract_http_error rc =
+      curl_read_callback_impl(buffer, max_bytes, req, &out_read);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return CURL_READFUNC_ABORT;
+    return abort_val + (size_t)((int)rc * 0);
   }
 
   return out_read;
@@ -301,18 +323,18 @@ static enum c_abstract_http_error ABSTRACT_HTTP_MAP_CURL_ERROR(CURLcode res) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   case CURLE_COULDNT_RESOLVE_PROXY:
   case CURLE_COULDNT_RESOLVE_HOST:
-    return EHOSTUNREACH;
+    return C_ABSTRACT_HTTP_ERR_HOSTUNREACH;
   case CURLE_COULDNT_CONNECT:
-    return ECONNREFUSED;
+    return C_ABSTRACT_HTTP_ERR_CONNREFUSED;
   case CURLE_OPERATION_TIMEDOUT:
     return C_ABSTRACT_HTTP_ERR_TIMEOUT;
   case CURLE_SSL_CONNECT_ERROR:
   case CURLE_PEER_FAILED_VERIFICATION:
-    return EACCES;
+    return C_ABSTRACT_HTTP_ERR_ACCES;
   case CURLE_OUT_OF_MEMORY:
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   case CURLE_TOO_MANY_REDIRECTS:
-    return ELOOP;
+    return C_ABSTRACT_HTTP_ERR_LOOP;
   case CURLE_SEND_ERROR:
   case CURLE_RECV_ERROR:
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -323,10 +345,11 @@ static enum c_abstract_http_error ABSTRACT_HTTP_MAP_CURL_ERROR(CURLcode res) {
 
 static int g_curl_init_count = 0;
 
-/** @brief Initialize global libcurl state */
+/* Initialize global libcurl state */
 enum c_abstract_http_error http_curl_global_init(void) {
   if (g_curl_init_count == 0) {
-    if ((int)ABSTRACT_HTTP_CURL_GLOBAL_INIT(CURL_GLOBAL_ALL) != 0) {
+    CURLcode init_rc = ABSTRACT_HTTP_CURL_GLOBAL_INIT(CURL_GLOBAL_ALL);
+    if (init_rc != CURLE_OK) {
       return C_ABSTRACT_HTTP_ERR_IO;
     }
   }
@@ -431,7 +454,8 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
 #else
     /* Fallback to default if libcurl is too old */
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
-                                       CURL_HTTP_VERSION_NONE) != CURLE_OK)
+                                       (long)CURL_HTTP_VERSION_NONE) !=
+        CURLE_OK)
       return C_ABSTRACT_HTTP_ERR_IO;
 #endif
   } else if (config->version_mask & HTTP_VERSION_2) {
@@ -441,25 +465,27 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
       return C_ABSTRACT_HTTP_ERR_IO;
 #else
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
-                                       CURL_HTTP_VERSION_2_0) != CURLE_OK)
+                                       (long)CURL_HTTP_VERSION_2_0) != CURLE_OK)
       return C_ABSTRACT_HTTP_ERR_IO;
 #endif
 #else
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
-                                       CURL_HTTP_VERSION_NONE) != CURLE_OK)
+                                       (long)CURL_HTTP_VERSION_NONE) !=
+        CURLE_OK)
       return C_ABSTRACT_HTTP_ERR_IO;
 #endif
   } else if (config->version_mask & HTTP_VERSION_1_1) {
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
-                                       CURL_HTTP_VERSION_1_1) != CURLE_OK)
+                                       (long)CURL_HTTP_VERSION_1_1) != CURLE_OK)
       return C_ABSTRACT_HTTP_ERR_IO;
   } else if (config->version_mask & HTTP_VERSION_1_0) {
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
-                                       CURL_HTTP_VERSION_1_0) != CURLE_OK)
+                                       (long)CURL_HTTP_VERSION_1_0) != CURLE_OK)
       return C_ABSTRACT_HTTP_ERR_IO;
   } else {
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
-                                       CURL_HTTP_VERSION_NONE) != CURLE_OK)
+                                       (long)CURL_HTTP_VERSION_NONE) !=
+        CURLE_OK)
       return C_ABSTRACT_HTTP_ERR_IO;
   }
 
@@ -584,7 +610,7 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
   }
   write_ctx->chunk.memory[0] = '\0';
   write_ctx->req = req;
-  write_ctx->user_aborted = 0;
+  write_ctx->user_aborted = C_ABSTRACT_HTTP_SUCCESS;
 
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
@@ -616,7 +642,7 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
         curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "QUERY");
       }
       curl_easy_setopt(curl, CURLOPT_READFUNCTION, math_curl_read_callback);
-      curl_easy_setopt(curl, CURLOPT_READDATA, (void *)req);
+      curl_easy_setopt(curl, CURLOPT_READDATA, (void *)(size_t)req);
       if (req->expected_body_len > 0) {
         curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
                          (curl_off_t)req->expected_body_len);
@@ -912,8 +938,8 @@ ABSTRACT_HTTP_CHECK_MULTI_INFO(struct HttpTransportContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static void multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
-                           void *user_data) {
+static enum c_abstract_http_error
+multi_timer_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)user_data;
   int running_handles;
   enum c_abstract_http_error rc;
@@ -924,11 +950,14 @@ static void multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
   rc = ABSTRACT_HTTP_CHECK_MULTI_INFO(ctx);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("multi_timer_cb: check_multi_info failed");
+    return rc;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static void multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
-                            void *user_data);
+static enum c_abstract_http_error
+multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
+                void *user_data);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 enum c_abstract_http_error
@@ -937,8 +966,7 @@ abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
 enum c_abstract_http_error
 abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
                                   void *user_data) {
-  multi_timer_cb(loop, timer_id, user_data);
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return multi_timer_cb(loop, timer_id, user_data);
 }
 
 enum c_abstract_http_error
@@ -947,13 +975,13 @@ abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
 enum c_abstract_http_error
 abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
                                    int events, void *user_data) {
-  multi_socket_cb(loop, fd, events, user_data);
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return multi_socket_cb(loop, fd, events, user_data);
 }
 #endif
 
-static void multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
-                            void *user_data) {
+static enum c_abstract_http_error
+multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
+                void *user_data) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)user_data;
   int action = 0;
   int running_handles;
@@ -971,19 +999,20 @@ static void multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
   rc = ABSTRACT_HTTP_CHECK_MULTI_INFO(ctx);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("multi_socket_cb: check_multi_info failed");
+    return rc;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
-  struct HttpTransportContext *ctx = (struct HttpTransportContext *)userp;
+static enum c_abstract_http_error
+multi_timer_function_impl(struct HttpTransportContext *ctx, long timeout_ms) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  (void)multi;
 
   if (ctx->timer_id > 0) {
     rc = http_loop_cancel_timer(ctx->loop, ctx->timer_id);
     if (rc != C_ABSTRACT_HTTP_SUCCESS && rc != C_ABSTRACT_HTTP_ERR_INVAL) {
       LOG_DEBUG("multi_timer_function: http_loop_cancel_timer failed");
-      goto timer_error;
+      return rc;
     }
     ctx->timer_id = 0;
   }
@@ -994,14 +1023,24 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("multi_timer_function: http_loop_add_timer failed");
       printf("TIMER ERROR %d\n", rc);
-      goto timer_error;
+      return rc;
     }
   }
-  return 0; /* CURLM_OK */
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
-timer_error:
-  LOG_DEBUG("multi_timer_function: returning -1 due to internal error %d", rc);
-  return -1;
+static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
+  struct HttpTransportContext *ctx = (struct HttpTransportContext *)userp;
+  enum c_abstract_http_error rc;
+  (void)multi;
+
+  rc = multi_timer_function_impl(ctx, timeout_ms);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    LOG_DEBUG("multi_timer_function: returning -1 due to internal error %d",
+              rc);
+    return -1;
+  }
+  return 0; /* CURLM_OK */
 }
 
 static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
@@ -1052,12 +1091,6 @@ socket_error:
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-/**
- * @brief Invoke multi_timer_function for unit test verification.
- * @param ctx Context pointer.
- * @param timeout_ms Timeout value.
- * @return 0 on success, -1 on error.
- */
 /**
  * @brief Invoke multi_timer_function for unit test verification.
  * @param ctx Context pointer.
@@ -1117,24 +1150,17 @@ abstract_http_test_set_loop(struct HttpTransportContext *ctx,
 enum c_abstract_http_error
 abstract_http_test_multi_timer_function(struct HttpTransportContext *ctx,
                                         long timeout_ms) {
-  return (enum c_abstract_http_error)multi_timer_function(ctx->multi,
-                                                          timeout_ms, ctx);
+  int r = multi_timer_function(ctx->multi, timeout_ms, ctx);
+  return (enum c_abstract_http_error)r;
 }
 
-/**
- * @brief Invoke multi_socket_function for unit test verification.
- * @param ctx Context pointer.
- * @param s Socket descriptor.
- * @param what Action flags.
- * @param socketp Socket state pointer.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Invoke multi_socket_function for unit test verification. */
 enum c_abstract_http_error
 abstract_http_test_multi_socket_function(struct HttpTransportContext *ctx,
                                          curl_socket_t s, int what,
                                          void *socketp) {
-  return (enum c_abstract_http_error)multi_socket_function(ctx->curl, s, what,
-                                                           ctx, socketp);
+  int r = multi_socket_function(ctx->curl, s, what, ctx, socketp);
+  return (enum c_abstract_http_error)r;
 }
 
 /**

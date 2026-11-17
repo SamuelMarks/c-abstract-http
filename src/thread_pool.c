@@ -39,16 +39,17 @@ extern int g_mock_cond_free_fail;
 
 /** @brief Internal struct AbstractHttpMutex */
 struct AbstractHttpMutex {
-  CRITICAL_SECTION cs;
+  CRITICAL_SECTION cs; /**< Win32 critical section */
 };
 
 /** @brief Internal struct AbstractHttpCond */
 struct AbstractHttpCond {
-#if defined(_MSC_VER) && _MSC_VER < 1600
-  HANDLE semaphore;
-  int waiters;
+#if (defined(_MSC_VER) && _MSC_VER < 1600) ||                                  \
+    (defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600)
+  HANDLE semaphore; /**< Pre-Vista condition semaphore */
+  int waiters;      /**< Number of waiting threads */
 #else
-  CONDITION_VARIABLE cv;
+  CONDITION_VARIABLE cv; /**< Win32 Vista+ condition variable */
 #endif
 };
 
@@ -113,7 +114,8 @@ abstract_http_cond_init(struct AbstractHttpCond **cond) {
   *cond = (struct AbstractHttpCond *)malloc(sizeof(struct AbstractHttpCond));
   if (!*cond)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
-#if defined(_MSC_VER) && _MSC_VER < 1600
+#if (defined(_MSC_VER) && _MSC_VER < 1600) ||                                  \
+    (defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600)
   (*cond)->semaphore = CreateSemaphore(NULL, 0, MAXLONG, NULL);
   (*cond)->waiters = 0;
 #else
@@ -131,7 +133,8 @@ abstract_http_cond_wait(struct AbstractHttpCond *cond,
   if (g_mock_cond_fail == 1)
     return C_ABSTRACT_HTTP_ERR_IO;
 #endif
-#if defined(_MSC_VER) && _MSC_VER < 1600
+#if (defined(_MSC_VER) && _MSC_VER < 1600) ||                                  \
+    (defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600)
   cond->waiters++;
   LeaveCriticalSection(&mutex->cs);
   WaitForSingleObject(cond->semaphore, INFINITE);
@@ -152,7 +155,8 @@ abstract_http_cond_signal(struct AbstractHttpCond *cond) {
   if (g_mock_cond_fail == 4)
     g_mock_cond_fail = 2;
 #endif
-#if defined(_MSC_VER) && _MSC_VER < 1600
+#if (defined(_MSC_VER) && _MSC_VER < 1600) ||                                  \
+    (defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600)
   if (cond->waiters > 0) {
     cond->waiters--;
     ReleaseSemaphore(cond->semaphore, 1, NULL);
@@ -171,7 +175,8 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   if (g_mock_cond_fail == 3)
     return C_ABSTRACT_HTTP_ERR_IO;
 #endif
-#if defined(_MSC_VER) && _MSC_VER < 1600
+#if (defined(_MSC_VER) && _MSC_VER < 1600) ||                                  \
+    (defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600)
   if (cond->waiters > 0) {
     ReleaseSemaphore(cond->semaphore, cond->waiters, NULL);
     cond->waiters = 0;
@@ -189,7 +194,8 @@ abstract_http_cond_free(struct AbstractHttpCond *cond) {
     return C_ABSTRACT_HTTP_ERR_IO;
 #endif
   if (cond) {
-#if defined(_MSC_VER) && _MSC_VER < 1600
+#if (defined(_MSC_VER) && _MSC_VER < 1600) ||                                  \
+    (defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600)
     if (cond->semaphore) {
       CloseHandle(cond->semaphore);
     }
@@ -199,19 +205,35 @@ abstract_http_cond_free(struct AbstractHttpCond *cond) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Win32 thread handle alias */
 typedef HANDLE abstract_http_thread_t;
+/** @brief Win32 thread return type */
 #define ABSTRACT_HTTP_THREAD_FUNC DWORD
+/** @brief Win32 thread argument type */
 typedef LPVOID abstract_http_thread_arg_t;
+/** @brief Win32 thread start routine function pointer */
+typedef DWORD(WINAPI *abstract_http_win32_thread_fn)(LPVOID);
 
+/**
+ * @brief Spawn a Win32 worker thread.
+ * @param thread Output thread handle.
+ * @param start_routine Thread entry point.
+ * @param arg Thread argument pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
 static enum c_abstract_http_error
 thread_create(abstract_http_thread_t *thread,
-              ABSTRACT_HTTP_THREAD_FUNC(WINAPI *start_routine)(
-                  abstract_http_thread_arg_t),
+              abstract_http_win32_thread_fn start_routine,
               abstract_http_thread_arg_t arg) {
   *thread = CreateThread(NULL, 0, start_routine, arg, 0, NULL);
   return (*thread == NULL) ? C_ABSTRACT_HTTP_ERR_IO : C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Join and close a Win32 worker thread handle.
+ * @param thread Thread handle to wait on and close.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
 static enum c_abstract_http_error thread_join(abstract_http_thread_t thread) {
   if (!thread)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -351,7 +373,8 @@ abstract_http_mutex_lock(struct AbstractHttpMutex *mutex) {
   if (g_mock_mutex_fail == 3)
     g_mock_mutex_fail = 1;
 #endif
-  return pthread_mutex_lock(&mutex->mtx);
+  return pthread_mutex_lock(&mutex->mtx) == 0 ? C_ABSTRACT_HTTP_SUCCESS
+                                              : C_ABSTRACT_HTTP_ERR_IO;
 }
 
 enum c_abstract_http_error
@@ -366,7 +389,8 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
   if (g_mock_mutex_fail == 4)
     g_mock_mutex_fail = 2;
 #endif
-  return pthread_mutex_unlock(&mutex->mtx);
+  return pthread_mutex_unlock(&mutex->mtx) == 0 ? C_ABSTRACT_HTTP_SUCCESS
+                                                : C_ABSTRACT_HTTP_ERR_IO;
 }
 
 enum c_abstract_http_error
@@ -405,7 +429,9 @@ abstract_http_cond_wait(struct AbstractHttpCond *cond,
   if (g_mock_cond_fail == 1)
     return C_ABSTRACT_HTTP_ERR_IO;
 #endif
-  return pthread_cond_wait(&cond->cond, &mutex->mtx);
+  return pthread_cond_wait(&cond->cond, &mutex->mtx) == 0
+             ? C_ABSTRACT_HTTP_SUCCESS
+             : C_ABSTRACT_HTTP_ERR_IO;
 }
 
 enum c_abstract_http_error
@@ -418,7 +444,8 @@ abstract_http_cond_signal(struct AbstractHttpCond *cond) {
   if (g_mock_cond_fail == 4)
     g_mock_cond_fail = 2;
 #endif
-  return pthread_cond_signal(&cond->cond);
+  return pthread_cond_signal(&cond->cond) == 0 ? C_ABSTRACT_HTTP_SUCCESS
+                                               : C_ABSTRACT_HTTP_ERR_IO;
 }
 
 enum c_abstract_http_error
@@ -429,7 +456,8 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   if (g_mock_cond_fail == 3)
     return C_ABSTRACT_HTTP_ERR_IO;
 #endif
-  return pthread_cond_broadcast(&cond->cond);
+  return pthread_cond_broadcast(&cond->cond) == 0 ? C_ABSTRACT_HTTP_SUCCESS
+                                                  : C_ABSTRACT_HTTP_ERR_IO;
 }
 
 enum c_abstract_http_error
@@ -501,44 +529,41 @@ struct AbstractHttpThreadPool {
   int stop;
 };
 
-#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-static DWORD WINAPI worker_thread(abstract_http_thread_arg_t arg) {
-#else
-static void *worker_thread(abstract_http_thread_arg_t arg) {
-#endif
-  struct AbstractHttpThreadPool *pool = (struct AbstractHttpThreadPool *)arg;
+#define THREAD_POOL_RUN_TASK(cb_fn, cb_arg)                                    \
+  do {                                                                         \
+    enum c_abstract_http_error _t_rc = (cb_fn)((cb_arg));                      \
+    if (_t_rc != C_ABSTRACT_HTTP_SUCCESS) {                                    \
+      LOG_DEBUG("worker_thread: task callback returned error %d", (int)_t_rc); \
+    }                                                                          \
+  } while (0)
 
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+static enum c_abstract_http_error
+worker_thread_loop(struct AbstractHttpThreadPool *pool) {
   for (;;) {
     struct TaskNode *task = NULL;
     enum c_abstract_http_error err;
 
     err = abstract_http_mutex_lock(pool->lock);
     if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      rc = err;
-      break;
+      return err;
     }
 
     while (!pool->stop && !pool->head) {
       err = abstract_http_cond_wait(pool->cond, pool->lock);
       if (err != C_ABSTRACT_HTTP_SUCCESS) {
-        rc = err;
-        break;
+        enum c_abstract_http_error u_err =
+            abstract_http_mutex_unlock(pool->lock);
+        if (u_err != C_ABSTRACT_HTTP_SUCCESS) {
+          return u_err;
+        }
+        return err;
       }
-    }
-
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      err = abstract_http_mutex_unlock(pool->lock);
-      if (err != C_ABSTRACT_HTTP_SUCCESS) {
-        rc = err;
-      }
-      break;
     }
 
     if (pool->stop && !pool->head) {
       err = abstract_http_mutex_unlock(pool->lock);
       if (err != C_ABSTRACT_HTTP_SUCCESS) {
-        rc = err;
+        return err;
       }
       break;
     }
@@ -551,25 +576,40 @@ static void *worker_thread(abstract_http_thread_arg_t arg) {
 
     err = abstract_http_mutex_unlock(pool->lock);
     if (err != C_ABSTRACT_HTTP_SUCCESS) {
-      rc = err;
-      /* We should probably execute the task anyway since we popped it */
+      THREAD_POOL_RUN_TASK(task->cb, task->arg);
+      free(task);
+      return err;
     }
 
-    {
-      enum c_abstract_http_error task_rc = task->cb(task->arg);
-      if (task_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        LOG_DEBUG("worker_thread: task callback returned error %d",
-                  (int)task_rc);
-      }
-    }
+    THREAD_POOL_RUN_TASK(task->cb, task->arg);
     free(task);
   }
-#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
-  return (ABSTRACT_HTTP_THREAD_FUNC)(unsigned long)rc;
-#else
-  return (ABSTRACT_HTTP_THREAD_FUNC)(unsigned long)rc;
-#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+static DWORD WINAPI worker_thread(abstract_http_thread_arg_t arg) {
+#else
+static void *worker_thread(abstract_http_thread_arg_t arg) {
+#endif
+  struct AbstractHttpThreadPool *pool = (struct AbstractHttpThreadPool *)arg;
+  enum c_abstract_http_error rc = worker_thread_loop(pool);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return (ABSTRACT_HTTP_THREAD_FUNC)(unsigned long)rc;
+  }
+  return (ABSTRACT_HTTP_THREAD_FUNC)0;
+}
+
+#define THREAD_POOL_JOIN_ACCUM(th, acc_err)                                    \
+  do {                                                                         \
+    enum c_abstract_http_error _j_rc = thread_join((th));                      \
+    if (_j_rc != C_ABSTRACT_HTTP_SUCCESS) {                                    \
+      LOG_DEBUG("thread_pool: thread_join failed %d", (int)_j_rc);             \
+      if ((acc_err) == C_ABSTRACT_HTTP_SUCCESS) {                              \
+        (acc_err) = _j_rc;                                                     \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
 
 enum c_abstract_http_error
 abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
@@ -619,46 +659,55 @@ abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
   p->stop = 0;
 
   for (i = 0; i < num_threads; ++i) {
-    if (thread_create(&p->threads[i], worker_thread, p) != 0) {
+    enum c_abstract_http_error tc_rc =
+        thread_create(&p->threads[i], worker_thread, p);
+    if (tc_rc != C_ABSTRACT_HTTP_SUCCESS) {
       enum c_abstract_http_error berr;
-      enum c_abstract_http_error lerr;
+      enum c_abstract_http_error cleanup_err;
       /* If we fail partway, trigger stop and join what we have */
-      lerr = abstract_http_mutex_lock(p->lock);
+      cleanup_err = abstract_http_mutex_lock(p->lock);
+      if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
+        goto init_join_threads;
+      }
       p->stop = 1;
       berr = ABSTRACT_HTTP_COND_BROADCAST(p->cond);
       if (berr != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG("abstract_http_thread_pool_init: broadcast failed with %d",
                   (int)berr);
       }
-      if (lerr == C_ABSTRACT_HTTP_SUCCESS) {
-        enum c_abstract_http_error uerr = abstract_http_mutex_unlock(p->lock);
-        if (uerr != C_ABSTRACT_HTTP_SUCCESS) {
-          LOG_DEBUG("abstract_http_thread_pool_init: unlock failed with %d",
-                    (int)uerr);
-        }
+      cleanup_err = abstract_http_mutex_unlock(p->lock);
+      if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
+        LOG_DEBUG("abstract_http_thread_pool_init: unlock failed with %d",
+                  (int)cleanup_err);
+        goto init_join_threads;
       }
+    init_join_threads:
       while (i > 0) {
-        enum c_abstract_http_error j_rc;
         i--;
-        j_rc = thread_join(p->threads[i]);
-        if (j_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          LOG_DEBUG("abstract_http_thread_pool_init: thread_join failed %d",
-                    (int)j_rc);
-        }
+        THREAD_POOL_JOIN_ACCUM(p->threads[i], cleanup_err);
       }
       {
         enum c_abstract_http_error rc = abstract_http_cond_free(p->cond);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(p->threads);
+          free(p);
           return rc;
+        }
       }
       {
         enum c_abstract_http_error rc = abstract_http_mutex_free(p->lock);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(p->threads);
+          free(p);
           return rc;
+        }
       }
       free(p->threads);
       free(p);
-      return C_ABSTRACT_HTTP_ERR_IO;
+      if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
+        return cleanup_err;
+      }
+      return tc_rc;
     }
   }
 
@@ -726,10 +775,11 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
     }
     if (pool->stop) {
       err = abstract_http_mutex_unlock(pool->lock);
-      free(task);
       if (err != C_ABSTRACT_HTTP_SUCCESS) {
+        free(task);
         return err;
       }
+      free(task);
       LOG_DEBUG("abstract_http_thread_pool_push: Error EINVAL (pool stopped)");
       return C_ABSTRACT_HTTP_ERR_INVAL;
     }
@@ -743,12 +793,17 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
     }
 
     err = abstract_http_cond_signal(pool->cond);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error unlock_err =
+          abstract_http_mutex_unlock(pool->lock);
+      if (unlock_err != C_ABSTRACT_HTTP_SUCCESS) {
+        return unlock_err;
+      }
+      return err;
+    }
     {
       enum c_abstract_http_error unlock_err =
           abstract_http_mutex_unlock(pool->lock);
-      if (err != C_ABSTRACT_HTTP_SUCCESS) {
-        return err;
-      }
       if (unlock_err != C_ABSTRACT_HTTP_SUCCESS) {
         return unlock_err;
       }
@@ -762,6 +817,7 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
 enum c_abstract_http_error
 abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
   size_t i;
+  enum c_abstract_http_error join_err = C_ABSTRACT_HTTP_SUCCESS;
   LOG_DEBUG("abstract_http_thread_pool_free: Entering");
   if (!pool) {
     LOG_DEBUG("abstract_http_thread_pool_free: Exiting early (pool NULL)");
@@ -782,12 +838,17 @@ abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
     }
     pool->stop = 1;
     err = ABSTRACT_HTTP_COND_BROADCAST(pool->cond);
+    if (err != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error unlock_err =
+          abstract_http_mutex_unlock(pool->lock);
+      if (unlock_err != C_ABSTRACT_HTTP_SUCCESS) {
+        return unlock_err;
+      }
+      return err;
+    }
     {
       enum c_abstract_http_error unlock_err =
           abstract_http_mutex_unlock(pool->lock);
-      if (err != C_ABSTRACT_HTTP_SUCCESS) {
-        return err;
-      }
       if (unlock_err != C_ABSTRACT_HTTP_SUCCESS) {
         return unlock_err;
       }
@@ -795,11 +856,7 @@ abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
   }
 
   for (i = 0; i < pool->num_threads; ++i) {
-    enum c_abstract_http_error j_rc = thread_join(pool->threads[i]);
-    if (j_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      LOG_DEBUG("abstract_http_thread_pool_free: thread_join failed %d",
-                (int)j_rc);
-    }
+    THREAD_POOL_JOIN_ACCUM(pool->threads[i], join_err);
   }
 
   /* Free any remaining tasks in queue */
@@ -822,22 +879,31 @@ abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
   free(pool->threads);
   free(pool);
   LOG_DEBUG("abstract_http_thread_pool_free: Exiting");
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return join_err;
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 enum c_abstract_http_error
 abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool);
 extern int g_mock_pthread_fail;
+
+/**
+ * @brief Acquire pool lock or inject simulated lock error in OOM test builds.
+ * @param lock Pool mutex handle.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+static enum c_abstract_http_error
+pool_lock_for_stop(struct AbstractHttpMutex *lock) {
+  if (g_mock_pthread_fail == 3) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  return abstract_http_mutex_lock(lock);
+}
+
 enum c_abstract_http_error
 abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool) {
   if (pool) {
-    enum c_abstract_http_error err;
-    if (g_mock_pthread_fail == 3) {
-      err = C_ABSTRACT_HTTP_ERR_INVAL;
-    } else {
-      err = abstract_http_mutex_lock(pool->lock);
-    }
+    enum c_abstract_http_error err = pool_lock_for_stop(pool->lock);
     if (err != C_ABSTRACT_HTTP_SUCCESS) {
       return err;
     }
@@ -881,8 +947,7 @@ enum c_abstract_http_error abstract_http_thread_pool_test_inject_task(
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   {
-    struct TaskNode *t =
-        (struct TaskNode *)c_abstract_http_mock_malloc(sizeof(struct TaskNode));
+    struct TaskNode *t = (struct TaskNode *)malloc(sizeof(struct TaskNode));
     if (!t) {
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
@@ -900,7 +965,7 @@ abstract_http_thread_pool_test_worker(struct AbstractHttpThreadPool *pool);
 /** @brief Run worker thread routine once for testing */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_worker(struct AbstractHttpThreadPool *pool) {
-  return (enum c_abstract_http_error)(size_t)worker_thread(pool);
+  return worker_thread_loop(pool);
 }
 
 /** @brief Create a dummy thread pool structure for testing */

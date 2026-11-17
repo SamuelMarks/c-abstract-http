@@ -11,14 +11,14 @@
 #ifndef C_ABSTRACT_HTTP_HTTP_PROCESS_H
 #define C_ABSTRACT_HTTP_HTTP_PROCESS_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <stddef.h>
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Opaque process handle.
@@ -60,18 +60,19 @@ abstract_http_process_set_hooks(const struct AbstractHttpProcessHooks *hooks);
 
 /**
  * @brief Initialize an IPC pipe pair.
- * @param[out] pipe The pipe structure to populate.
+ * @param[out] ipc_pipe The pipe structure to populate.
  * @return 0 on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
-abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *pipe);
+abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *ipc_pipe);
 
 /**
  * @brief Close an IPC pipe.
- * @param[in] pipe The pipe to close.
+ * @param[in] ipc_pipe The pipe to close.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe);
+abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *ipc_pipe);
 
 /**
  * @brief Spawn a child process.

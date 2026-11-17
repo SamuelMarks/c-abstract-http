@@ -14,11 +14,6 @@ extern "C" {
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
 #include <stddef.h>
-#if defined(_MSC_VER) && _MSC_VER < 1600
-typedef unsigned __int8 uint8_t;
-#else
-#include <stdint.h>
-#endif
 /* clang-format on */
 
 /**

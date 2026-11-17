@@ -16,13 +16,13 @@
 #ifndef C_ABSTRACT_HTTP_HTTP_WININET_H
 #define C_ABSTRACT_HTTP_HTTP_WININET_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Initialize the global WinInet environment.
@@ -59,6 +59,7 @@ http_wininet_context_init(struct HttpTransportContext **ctx);
  * Closes the root HINTERNET handle.
  *
  * @param[in] ctx The context to free. Satisfies NULL-safety.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 http_wininet_context_free(struct HttpTransportContext *ctx);

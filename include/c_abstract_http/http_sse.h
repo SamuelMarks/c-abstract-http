@@ -6,10 +6,6 @@
 #ifndef C_ABSTRACT_HTTP_SSE_H
 #define C_ABSTRACT_HTTP_SSE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include "c_abstract_http/http_types.h"
 #include "c_abstract_http/win_compat_sym.h"
@@ -18,6 +14,10 @@ extern "C" {
 #include <windef.h>
 #endif
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /* SSE public API definitions will go here */
 
@@ -126,6 +126,15 @@ c_abstract_http_sse_async_register(struct HttpClient *client,
                                    c_abstract_http_sse_on_error on_err,
                                    c_abstract_http_sse_on_close on_close,
                                    void *user_data);
+
+/**
+ * @brief Clean up internal SSE resources attached to an HttpRequest.
+ *
+ * @param req The HTTP request containing the SSE context.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+c_abstract_http_sse_free(struct HttpRequest *req);
 
 #ifdef __cplusplus
 }

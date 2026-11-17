@@ -16,10 +16,6 @@
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
 
-#if defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV)
-#include <uv.h>
-#endif
-
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -35,398 +31,13 @@ typedef SSIZE_T ssize_t;
 #include <sys/socket.h>
 #include <netdb.h>
 #endif
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#include "mock_stubs/mock_libuv.h"
+#else
+#include <uv.h>
+#endif
 /* clang-format on */
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int *abstract_http_mock_get_g_mock_libuv_global_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_context_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_config_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_req_buf_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_res_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_res_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_body_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_body_realloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_headers_realloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_addrinfo_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_connect_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_write_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_read_fail(void);
-extern int *abstract_http_mock_get_g_mock_libuv_alloc_fail(void);
-
-#define g_mock_libuv_global_init_fail                                          \
-  (*abstract_http_mock_get_g_mock_libuv_global_init_fail())
-#define g_mock_libuv_context_init_fail                                         \
-  (*abstract_http_mock_get_g_mock_libuv_context_init_fail())
-#define g_mock_libuv_config_init_fail                                          \
-  (*abstract_http_mock_get_g_mock_libuv_config_init_fail())
-#define g_mock_libuv_req_buf_alloc_fail                                        \
-  (*abstract_http_mock_get_g_mock_libuv_req_buf_alloc_fail())
-#define g_mock_libuv_res_alloc_fail                                            \
-  (*abstract_http_mock_get_g_mock_libuv_res_alloc_fail())
-#define g_mock_libuv_res_init_fail                                             \
-  (*abstract_http_mock_get_g_mock_libuv_res_init_fail())
-#define g_mock_libuv_body_alloc_fail                                           \
-  (*abstract_http_mock_get_g_mock_libuv_body_alloc_fail())
-#define g_mock_libuv_body_realloc_fail                                         \
-  (*abstract_http_mock_get_g_mock_libuv_body_realloc_fail())
-#define g_mock_libuv_headers_realloc_fail                                      \
-  (*abstract_http_mock_get_g_mock_libuv_headers_realloc_fail())
-#define g_mock_libuv_addrinfo_fail                                             \
-  (*abstract_http_mock_get_g_mock_libuv_addrinfo_fail())
-#define g_mock_libuv_connect_fail                                              \
-  (*abstract_http_mock_get_g_mock_libuv_connect_fail())
-#define g_mock_libuv_write_fail                                                \
-  (*abstract_http_mock_get_g_mock_libuv_write_fail())
-#define g_mock_libuv_read_fail                                                 \
-  (*abstract_http_mock_get_g_mock_libuv_read_fail())
-#define g_mock_libuv_alloc_fail                                                \
-  (*abstract_http_mock_get_g_mock_libuv_alloc_fail())
-#endif
-
-#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV)
-
-#define UV_RUN_DEFAULT 0
-#define UV_EOF (-4095)
-
-#if defined(_WIN32) && !defined(__GNUC__)
-typedef unsigned long ULONG;
-#else
-typedef unsigned long ULONG;
-#endif
-
-/** @brief Mock uv_buf_t structure */
-typedef struct uv_buf_s {
-  /** @brief Pointer to base buffer */
-  char *base;
-  /** @brief Buffer length */
-  size_t len;
-} uv_buf_t;
-
-/** @brief Forward declare structs */
-struct uv_handle_s;
-struct uv_stream_s;
-struct uv_tcp_s;
-struct uv_connect_s;
-struct uv_getaddrinfo_s;
-struct uv_timer_s;
-struct uv_write_s;
-struct uv_loop_s;
-
-/** @brief Forward declare handle */
-typedef struct uv_handle_s uv_handle_t;
-/** @brief Forward declare stream */
-typedef struct uv_stream_s uv_stream_t;
-
-/** @brief Callback for closing handles */
-typedef void (*uv_close_cb)(uv_handle_t *handle);
-/** @brief Callback for allocating memory */
-typedef void (*uv_alloc_cb)(uv_handle_t *handle, size_t suggested_size,
-                            uv_buf_t *buf);
-/** @brief Callback for reading data */
-typedef void (*uv_read_cb)(uv_stream_t *stream, ssize_t nread,
-                           const uv_buf_t *buf);
-/** @brief Callback for write completion */
-typedef void (*uv_write_cb)(struct uv_write_s *req, int status);
-/** @brief Callback for connection completion */
-typedef void (*uv_connect_cb)(struct uv_connect_s *req, int status);
-/** @brief Callback for getaddrinfo completion */
-typedef void (*uv_getaddrinfo_cb)(struct uv_getaddrinfo_s *resolver, int status,
-                                  struct addrinfo *res);
-/** @brief Callback for timer expiration */
-typedef void (*uv_timer_cb)(struct uv_timer_s *handle);
-
-/** @brief Mock base uv_handle_s */
-struct uv_handle_s {
-  /** @brief User data pointer */
-  void *data;
-  /** @brief Closing flag */
-  int is_closing;
-};
-
-/** @brief Mock uv_stream_s */
-struct uv_stream_s {
-  /** @brief User data pointer */
-  void *data;
-  /** @brief Closing flag */
-  int is_closing;
-  /** @brief Read callback */
-  uv_read_cb read_cb;
-  /** @brief Alloc callback */
-  uv_alloc_cb alloc_cb;
-};
-
-/** @brief Mock uv_tcp_t */
-typedef struct uv_tcp_s {
-  /** @brief User data pointer */
-  void *data;
-  /** @brief Closing flag */
-  int is_closing;
-  /** @brief Read callback */
-  uv_read_cb read_cb;
-  /** @brief Alloc callback */
-  uv_alloc_cb alloc_cb;
-  /** @brief Connect callback */
-  uv_connect_cb connect_cb;
-} uv_tcp_t;
-
-/** @brief Mock uv_connect_t */
-typedef struct uv_connect_s {
-  /** @brief User data pointer */
-  void *data;
-} uv_connect_t;
-
-/** @brief Mock uv_getaddrinfo_t */
-typedef struct uv_getaddrinfo_s {
-  /** @brief User data pointer */
-  void *data;
-  /** @brief Callback */
-  uv_getaddrinfo_cb cb;
-  /** @brief Port string */
-  char port_str[16];
-} uv_getaddrinfo_t;
-
-/** @brief Mock uv_timer_t */
-typedef struct uv_timer_s {
-  /** @brief User data pointer */
-  void *data;
-  /** @brief Closing flag */
-  int is_closing;
-  /** @brief Timer callback */
-  uv_timer_cb timer_cb;
-  /** @brief Active flag */
-  int active;
-} uv_timer_t;
-
-/** @brief Mock uv_write_t */
-typedef struct uv_write_s {
-  /** @brief User data pointer */
-  void *data;
-  /** @brief Write callback */
-  uv_write_cb write_cb;
-} uv_write_t;
-
-/** @brief Mock uv_loop_t */
-typedef struct uv_loop_s {
-  /** @brief User data pointer */
-  void *data;
-  /** @brief Run flag */
-  int stop;
-} uv_loop_t;
-
-/**
- * @brief Initialize a buffer structure.
- *
- * @param[in] base Base pointer.
- * @param[in] len Length in bytes.
- * @return Initialized uv_buf_t.
- */
-static uv_buf_t uv_buf_init(char *base, unsigned int len) {
-  uv_buf_t buf;
-  buf.base = base;
-  buf.len = (size_t)len;
-  return buf;
-}
-
-/**
- * @brief Initialize an event loop.
- *
- * @param[out] loop Loop to initialize.
- * @return 0 on success.
- */
-static int uv_loop_init(uv_loop_t *loop) {
-  memset(loop, 0, sizeof(*loop));
-  return 0;
-}
-
-/**
- * @brief Close an event loop.
- *
- * @param[in] loop Loop to close.
- * @return 0 on success.
- */
-static int uv_loop_close(uv_loop_t *loop) {
-  (void)loop;
-  return 0;
-}
-
-/**
- * @brief Initialize a TCP handle.
- *
- * @param[in] loop Event loop.
- * @param[out] tcp TCP handle to initialize.
- * @return 0 on success.
- */
-static int uv_tcp_init(uv_loop_t *loop, uv_tcp_t *tcp) {
-  (void)loop;
-  memset(tcp, 0, sizeof(*tcp));
-  return 0;
-}
-
-/**
- * @brief Initialize a timer handle.
- *
- * @param[in] loop Event loop.
- * @param[out] timer Timer handle.
- * @return 0 on success.
- */
-static int uv_timer_init(uv_loop_t *loop, uv_timer_t *timer) {
-  (void)loop;
-  memset(timer, 0, sizeof(*timer));
-  return 0;
-}
-
-/**
- * @brief Start a timer handle.
- *
- * @param[in] timer Timer handle.
- * @param[in] cb Timer callback.
- * @param[in] timeout Timeout in milliseconds.
- * @param[in] repeat Repeat interval.
- * @return 0 on success.
- */
-static int uv_timer_start(uv_timer_t *timer, uv_timer_cb cb, uint64_t timeout,
-                          uint64_t repeat) {
-  (void)timeout;
-  (void)repeat;
-  timer->timer_cb = cb;
-  timer->active = 1;
-  return 0;
-}
-
-/**
- * @brief Stop a timer handle.
- *
- * @param[in] timer Timer handle.
- * @return 0 on success.
- */
-static int uv_timer_stop(uv_timer_t *timer) {
-  timer->active = 0;
-  return 0;
-}
-
-/**
- * @brief Close a handle.
- *
- * @param[in] handle Handle to close.
- * @param[in] close_cb Optional close callback.
- */
-static void uv_close(uv_handle_t *handle, uv_close_cb close_cb) {
-  handle->is_closing = 1;
-  close_cb(handle);
-}
-
-/**
- * @brief Free addrinfo struct.
- *
- * @param[in] ai Pointer to addrinfo.
- */
-static void uv_freeaddrinfo(struct addrinfo *ai) {
-  if (ai) {
-    free(ai->ai_addr);
-    free(ai);
-  }
-}
-
-/**
- * @brief Asynchronously resolve address.
- *
- * @param[in] loop Loop pointer.
- * @param[out] resolver Resolver handle.
- * @param[in] cb Completion callback.
- * @param[in] node Node hostname.
- * @param[in] service Service port string.
- * @param[in] hints Addrinfo hints.
- * @return 0 on success, -1 on failure.
- */
-static int uv_getaddrinfo(uv_loop_t *loop, uv_getaddrinfo_t *resolver,
-                          uv_getaddrinfo_cb cb, const char *node,
-                          const char *service, const struct addrinfo *hints) {
-  (void)loop;
-  (void)node;
-  (void)hints;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libuv_addrinfo_fail == 2) {
-    return -1;
-  }
-#endif
-  resolver->cb = cb;
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  strncpy_s(resolver->port_str, sizeof(resolver->port_str), service,
-            sizeof(resolver->port_str) - 1);
-#else
-  strncpy(resolver->port_str, service, sizeof(resolver->port_str) - 1);
-#endif
-  resolver->port_str[sizeof(resolver->port_str) - 1] = '\0';
-  return 0;
-}
-
-/**
- * @brief Connect TCP socket.
- *
- * @param[in] req Connect request handle.
- * @param[in] handle TCP handle.
- * @param[in] addr Socket address.
- * @param[in] cb Connection callback.
- * @return 0 on success, -1 on failure.
- */
-static int uv_tcp_connect(uv_connect_t *req, uv_tcp_t *handle,
-                          const struct sockaddr *addr, uv_connect_cb cb) {
-  (void)addr;
-  (void)req;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libuv_connect_fail == 2) {
-    return -1;
-  }
-#endif
-  handle->connect_cb = cb;
-  return 0;
-}
-
-/**
- * @brief Write data to stream.
- *
- * @param[in] req Write request handle.
- * @param[in] handle Stream handle.
- * @param[in] bufs Array of buffers.
- * @param[in] nbufs Number of buffers.
- * @param[in] cb Completion callback.
- * @return 0 on success, -1 on failure.
- */
-static int uv_write(uv_write_t *req, uv_stream_t *handle, const uv_buf_t bufs[],
-                    unsigned int nbufs, uv_write_cb cb) {
-  (void)handle;
-  (void)bufs;
-  (void)nbufs;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libuv_write_fail == 2) {
-    return -1;
-  }
-#endif
-  req->write_cb = cb;
-  return 0;
-}
-
-/**
- * @brief Start reading data from stream.
- *
- * @param[in] stream Stream handle.
- * @param[in] alloc_cb Memory allocation callback.
- * @param[in] read_cb Data received callback.
- * @return 0 on success.
- */
-static int uv_read_start(uv_stream_t *stream, uv_alloc_cb alloc_cb,
-                         uv_read_cb read_cb) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libuv_read_fail == 2) {
-    return -1;
-  }
-#endif
-  stream->alloc_cb = alloc_cb;
-  stream->read_cb = read_cb;
-  return 0;
-}
-
-#endif /* !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV) */
 
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
@@ -463,12 +74,7 @@ enum c_abstract_http_error http_libuv_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Create a new libuv-backed transport context.
- *
- * @param[out] ctx Double pointer to receive newly allocated context.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Create a new libuv-backed transport context. */
 enum c_abstract_http_error
 http_libuv_context_init(struct HttpTransportContext **ctx) {
   enum c_abstract_http_error rc;
@@ -494,12 +100,12 @@ http_libuv_context_init(struct HttpTransportContext **ctx) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libuv_config_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_config_init(&(*ctx)->config);
+    free(*ctx);
+    *ctx = NULL;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
+#endif
+  rc = http_config_init(&(*ctx)->config);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_libuv_context_init: Error http_config_init failed with %d",
               (int)rc);
@@ -512,30 +118,24 @@ http_libuv_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Free the transport context.
- *
- * @param[in] ctx Context to free.
- */
+/* Free the transport context. */
 enum c_abstract_http_error
 http_libuv_context_free(struct HttpTransportContext *ctx) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   LOG_DEBUG("http_libuv_context_free: Entering");
   if (ctx) {
     rc = http_config_free(&ctx->config);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(ctx);
+      return rc;
+    }
     free(ctx);
   }
   LOG_DEBUG("http_libuv_context_free: Exiting");
-  return rc;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Apply configuration to the transport context.
- *
- * @param[in] ctx Context.
- * @param[in] config Configuration to apply.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Apply configuration to the transport context. */
 enum c_abstract_http_error
 http_libuv_config_apply(struct HttpTransportContext *ctx,
                         const struct HttpConfig *config) {
@@ -556,12 +156,10 @@ http_libuv_config_apply(struct HttpTransportContext *ctx,
   if (config->user_agent) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libuv_config_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
-    {
-      rc = c_abstract_http_strdup(config->user_agent, &ctx->config.user_agent);
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
+#endif
+    rc = c_abstract_http_strdup(config->user_agent, &ctx->config.user_agent);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
@@ -572,12 +170,10 @@ http_libuv_config_apply(struct HttpTransportContext *ctx,
   if (config->proxy_url) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libuv_config_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
-    {
-      rc = c_abstract_http_strdup(config->proxy_url, &ctx->config.proxy_url);
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
+#endif
+    rc = c_abstract_http_strdup(config->proxy_url, &ctx->config.proxy_url);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
@@ -588,13 +184,11 @@ http_libuv_config_apply(struct HttpTransportContext *ctx,
   if (config->proxy_username) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libuv_config_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
-    {
-      rc = c_abstract_http_strdup(config->proxy_username,
-                                  &ctx->config.proxy_username);
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
+#endif
+    rc = c_abstract_http_strdup(config->proxy_username,
+                                &ctx->config.proxy_username);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
@@ -605,13 +199,11 @@ http_libuv_config_apply(struct HttpTransportContext *ctx,
   if (config->proxy_password) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libuv_config_init_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    } else
-#endif
-    {
-      rc = c_abstract_http_strdup(config->proxy_password,
-                                  &ctx->config.proxy_password);
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
+#endif
+    rc = c_abstract_http_strdup(config->proxy_password,
+                                &ctx->config.proxy_password);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
@@ -633,7 +225,7 @@ static enum c_abstract_http_error get_method_str(enum HttpMethod method,
   if (!out_str) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  switch (method) {
+  switch ((int)method) {
   case HTTP_GET:
     *out_str = "GET";
     break;
@@ -750,20 +342,31 @@ static void libuv_on_close(uv_handle_t *handle) {
   }
 }
 
+#define LIBUV_VOID_CB_DISPATCH(expr)                                           \
+  do {                                                                         \
+    enum c_abstract_http_error _uv_rc = (expr);                                \
+    if (_uv_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
+      LOG_DEBUG("libuv_cb: impl returned %d", (int)_uv_rc);                    \
+    }                                                                          \
+  } while (0)
+
 /**
  * @brief Finish libuv operation and clean up handles.
  *
  * @param[in,out] state State pointer.
  * @param[in] error Error code.
+ * @return Error enum matching error.
  */
-static void libuv_finish(struct libuv_state *state, int error) {
+static enum c_abstract_http_error
+libuv_finish(struct libuv_state *state, enum c_abstract_http_error error) {
   if (state->done) {
-    return;
+    return error;
   }
   state->done = 1;
-  state->error_code = error;
+  state->error_code = (int)error;
+  uv_stop(&state->loop);
 
-  LOG_DEBUG("libuv_finish: Finished with error=%d", error);
+  LOG_DEBUG("libuv_finish: Finished with error=%d", (int)error);
 
   if (state->has_timer) {
     uv_timer_stop(&state->timer);
@@ -775,6 +378,7 @@ static void libuv_finish(struct libuv_state *state, int error) {
     uv_close((uv_handle_t *)&state->socket, libuv_on_close);
     state->has_socket = 0;
   }
+  return error;
 }
 
 /**
@@ -784,7 +388,7 @@ static void libuv_finish(struct libuv_state *state, int error) {
  */
 static void libuv_on_timeout(uv_timer_t *handle) {
   struct libuv_state *state = (struct libuv_state *)handle->data;
-  libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_TIMEOUT);
+  LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_TIMEOUT));
 }
 
 /**
@@ -877,26 +481,24 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
   }
   if (!*state->res) {
     LOG_DEBUG("parse_headers: Error ENOMEM");
-    libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_NOMEM);
-    return C_ABSTRACT_HTTP_ERR_NOMEM;
+    return libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM);
   }
   r = *state->res;
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libuv_res_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_response_init(r);
+    free(*state->res);
+    *state->res = NULL;
+    return libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM);
   }
+#endif
+  rc = http_response_init(r);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("parse_headers: Error http_response_init failed with %d",
               (int)rc);
     free(*state->res);
     *state->res = NULL;
-    libuv_finish(state, (int)rc);
-    return rc;
+    return libuv_finish(state, rc);
   }
 
   /* Parse status line */
@@ -925,15 +527,16 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
       }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
       if (g_mock_libuv_headers_realloc_fail) {
-        add_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+        LOG_DEBUG("parse_headers: Mock http_headers_add failure");
       } else
 #endif
       {
         add_rc = http_headers_add(&r->headers, p, val);
-      }
-      if (add_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        LOG_DEBUG("parse_headers: Error http_headers_add failed with %d",
-                  (int)add_rc);
+        if (add_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          LOG_DEBUG("parse_headers: Error http_headers_add failed with %d",
+                    (int)add_rc);
+          return libuv_finish(state, add_rc);
+        }
       }
     }
     p = line_end + 2;
@@ -945,13 +548,14 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
 
     if (state->req->on_chunk) {
       if (body_len > 0) {
-        int chunk_rc;
+        enum c_abstract_http_error chunk_rc;
         chunk_rc = state->req->on_chunk(state->req->on_chunk_user_data,
                                         state->res_buf + hdr_len, body_len);
-        if (chunk_rc != 0) {
-          LOG_DEBUG("parse_headers: Error on_chunk failed %d", chunk_rc);
-          libuv_finish(state, (int)ECANCELED);
-          return C_ABSTRACT_HTTP_ERR_IO;
+        if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          LOG_DEBUG("parse_headers: Error on_chunk failed %d", (int)chunk_rc);
+          LIBUV_VOID_CB_DISPATCH(
+              libuv_finish(state, C_ABSTRACT_HTTP_ERR_CANCELED));
+          return chunk_rc;
         }
       }
       state->res_len = hdr_len;
@@ -968,8 +572,7 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
         }
         if (!r->body) {
           LOG_DEBUG("parse_headers: Error ENOMEM copying body");
-          libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_NOMEM);
-          return C_ABSTRACT_HTTP_ERR_NOMEM;
+          return libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM);
         }
         memcpy(r->body, state->res_buf + hdr_len, body_len);
         ((char *)r->body)[body_len] = '\0';
@@ -1028,10 +631,20 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   libuv_on_close(NULL);
   uv_loop_close(NULL);
   rc = parse_url(NULL, &h, &p, &path);
+  if (rc != C_ABSTRACT_HTTP_ERR_INVAL)
+    return rc;
   rc = parse_url("http://127.0.0.1", NULL, &p, &path);
+  if (rc != C_ABSTRACT_HTTP_ERR_INVAL)
+    return rc;
   rc = parse_url("http://127.0.0.1", &h, NULL, &path);
+  if (rc != C_ABSTRACT_HTTP_ERR_INVAL)
+    return rc;
   rc = parse_url("http://127.0.0.1", &h, &p, NULL);
+  if (rc != C_ABSTRACT_HTTP_ERR_INVAL)
+    return rc;
   rc = parse_url("http://127.0.0.1/path:8080", &h, &p, &path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
   free(h);
   h = NULL;
   free(path);
@@ -1052,9 +665,17 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     rc = parse_headers(&state);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf1);
+      return rc;
+    }
     /* Also test parse_headers when headers_parsed == 1 */
     state.headers_parsed = 1;
     rc = parse_headers(&state);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf1);
+      return rc;
+    }
     state.headers_parsed = 0;
     free(buf1);
   }
@@ -1074,6 +695,10 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     rc = parse_headers(&state);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf2);
+      return rc;
+    }
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
@@ -1096,6 +721,10 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     rc = parse_headers(&state);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf3);
+      return rc;
+    }
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
@@ -1119,6 +748,10 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     rc = parse_headers(&state);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf4);
+      return rc;
+    }
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
@@ -1133,6 +766,10 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     test_res = NULL;
     state.res = &test_res;
     rc = parse_headers(&state);
+    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf4);
+      return rc;
+    }
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
@@ -1148,6 +785,8 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   state.headers_parsed = 0;
   state.res_buf = NULL;
   rc = parse_headers(&state);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
 
   /* test parse_headers with body alloc fail */
   {
@@ -1164,6 +803,11 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     state.res = &test_res;
     g_mock_libuv_body_alloc_fail = 1;
     rc = parse_headers(&state);
+    if (rc != C_ABSTRACT_HTTP_ERR_NOMEM) {
+      g_mock_libuv_body_alloc_fail = 0;
+      free(buf5);
+      return rc;
+    }
     g_mock_libuv_body_alloc_fail = 0;
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
@@ -1189,6 +833,11 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     state.res = &test_res;
     g_mock_libuv_headers_realloc_fail = 1;
     rc = parse_headers(&state);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      g_mock_libuv_headers_realloc_fail = 0;
+      free(buf6);
+      return rc;
+    }
     g_mock_libuv_headers_realloc_fail = 0;
     rc = http_response_free(test_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
@@ -1200,11 +849,17 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
 
   /* test parse_headers NULL */
   rc = parse_headers(NULL);
+  if (rc != C_ABSTRACT_HTTP_ERR_INVAL)
+    return rc;
 
   /* test libuv_finish double call */
   state.done = 0;
-  libuv_finish(&state, 0);
-  libuv_finish(&state, 0);
+  rc = libuv_finish(&state, C_ABSTRACT_HTTP_SUCCESS);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
+  rc = libuv_finish(&state, C_ABSTRACT_HTTP_SUCCESS);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
 
   /* test libuv_on_read edge branches */
   {
@@ -1240,8 +895,16 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   /* test parse_url dup_rc fail */
   g_mock_libuv_req_buf_alloc_fail = 3;
   rc = parse_url("http://127.0.0.1/path", &h, &p, &path);
+  if (rc != C_ABSTRACT_HTTP_ERR_NOMEM) {
+    g_mock_libuv_req_buf_alloc_fail = 0;
+    return rc;
+  }
   g_mock_libuv_req_buf_alloc_fail = 4;
   rc = parse_url("http://127.0.0.1", &h, &p, &path);
+  if (rc != C_ABSTRACT_HTTP_ERR_NOMEM) {
+    g_mock_libuv_req_buf_alloc_fail = 0;
+    return rc;
+  }
   g_mock_libuv_req_buf_alloc_fail = 0;
 
   /* test uv_run NULL */
@@ -1273,63 +936,100 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
 
   /* test uv_run alloc_cb failure branches */
   {
-    uv_loop_t loop_alloc;
     struct libuv_state st_alloc;
     struct HttpResponse *res_obj = NULL;
-    memset(&loop_alloc, 0, sizeof(loop_alloc));
     memset(&st_alloc, 0, sizeof(st_alloc));
-    loop_alloc.data = &st_alloc;
-    st_alloc.socket.read_cb = libuv_on_read;
-    st_alloc.socket.alloc_cb = libuv_alloc_cb;
+    uv_loop_init(&st_alloc.loop);
+    st_alloc.loop.data = &st_alloc;
+    uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
+    uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
+                  libuv_on_read);
     st_alloc.socket.data = &st_alloc;
     st_alloc.res = &res_obj;
     st_alloc.req = &req;
     req.on_chunk = test_helper_chunk_cb;
     g_mock_libuv_alloc_fail = 1;
-    uv_run(&loop_alloc, 0);
+    uv_run(&st_alloc.loop, 0);
 
     memset(&st_alloc, 0, sizeof(st_alloc));
-    st_alloc.socket.read_cb = libuv_on_read;
-    st_alloc.socket.alloc_cb = libuv_alloc_cb;
+    uv_loop_init(&st_alloc.loop);
+    st_alloc.loop.data = &st_alloc;
+    uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
+    uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
+                  libuv_on_read);
     st_alloc.socket.data = &st_alloc;
     st_alloc.res = &res_obj;
     st_alloc.req = &req;
     req.on_chunk = test_helper_chunk_cb;
     g_mock_libuv_alloc_fail = 2;
-    uv_run(&loop_alloc, 0);
+    uv_run(&st_alloc.loop, 0);
+    if (res_obj) {
+      rc = http_response_free(res_obj);
+      free(res_obj);
+      res_obj = NULL;
+      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+        return rc;
+    }
+    free(st_alloc.res_buf);
 
     memset(&st_alloc, 0, sizeof(st_alloc));
-    st_alloc.socket.read_cb = libuv_on_read;
-    st_alloc.socket.alloc_cb = libuv_alloc_cb;
+    uv_loop_init(&st_alloc.loop);
+    st_alloc.loop.data = &st_alloc;
+    uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
+    uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
+                  libuv_on_read);
     st_alloc.socket.data = &st_alloc;
     st_alloc.res = &res_obj;
     st_alloc.req = &req;
     req.on_chunk = NULL;
     g_mock_libuv_alloc_fail = 2;
-    uv_run(&loop_alloc, 0);
+    uv_run(&st_alloc.loop, 0);
     g_mock_libuv_alloc_fail = 0;
+    if (res_obj) {
+      rc = http_response_free(res_obj);
+      free(res_obj);
+      res_obj = NULL;
+      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+        return rc;
+    }
+    free(st_alloc.res_buf);
 
     memset(&st_alloc, 0, sizeof(st_alloc));
-    st_alloc.socket.read_cb = libuv_on_read;
-    st_alloc.socket.alloc_cb = libuv_alloc_cb;
+    uv_loop_init(&st_alloc.loop);
+    st_alloc.loop.data = &st_alloc;
+    uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
+    uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
+                  libuv_on_read);
     st_alloc.socket.data = &st_alloc;
     st_alloc.res = &res_obj;
     st_alloc.req = &req;
     req.on_chunk = test_helper_chunk_cb_err;
-    uv_run(&loop_alloc, 0);
+    uv_run(&st_alloc.loop, 0);
     req.on_chunk = NULL;
+    if (res_obj) {
+      rc = http_response_free(res_obj);
+      free(res_obj);
+      res_obj = NULL;
+      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+        return rc;
+    }
+    free(st_alloc.res_buf);
 
     memset(&st_alloc, 0, sizeof(st_alloc));
-    st_alloc.socket.read_cb = libuv_on_read;
-    st_alloc.socket.alloc_cb = libuv_alloc_cb;
+    uv_loop_init(&st_alloc.loop);
+    st_alloc.loop.data = &st_alloc;
+    uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
+    uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
+                  libuv_on_read);
     st_alloc.socket.data = &st_alloc;
     st_alloc.res = &test_res;
     st_alloc.req = &req;
     req.on_chunk = test_helper_chunk_cb;
     g_mock_libuv_res_alloc_fail = 1;
-    uv_run(&loop_alloc, 0);
+    uv_run(&st_alloc.loop, 0);
     g_mock_libuv_res_alloc_fail = 0;
     req.on_chunk = NULL;
+    free(st_alloc.res_buf);
   }
 
   rc = http_request_free(&req);
@@ -1339,38 +1039,30 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
 }
 #endif
 
-/**
- * @brief Data received callback for libuv socket.
- *
- * @param[in] stream Stream handle.
- * @param[in] nread Bytes read or error code.
- * @param[in] buf Buffer structure.
- */
-static void libuv_on_read(uv_stream_t *stream, ssize_t nread,
-                          const uv_buf_t *buf) {
-  struct libuv_state *state = (struct libuv_state *)stream->data;
-  if (buf) {
-  }
-
+/* Internal read handler returning enum c_abstract_http_error. */
+static enum c_abstract_http_error libuv_on_read_impl(struct libuv_state *state,
+                                                     ssize_t nread) {
   if (nread < 0) {
-    if (nread != UV_EOF) {
+    if (nread == UV_ENOBUFS) {
+      return libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM);
+    } else if (nread != UV_EOF) {
       LOG_DEBUG("libuv_on_read: Connection error, nread=%ld", (long)nread);
-      libuv_finish(state, (int)ECONNREFUSED);
+      return libuv_finish(state, C_ABSTRACT_HTTP_ERR_CONNREFUSED);
     } else {
       if (!state->headers_parsed) {
         enum c_abstract_http_error p_rc = parse_headers(state);
         if (p_rc != C_ABSTRACT_HTTP_SUCCESS) {
           LOG_DEBUG("libuv_on_read: parse_headers failed %d", (int)p_rc);
+          LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_SUCCESS));
+          return p_rc;
         }
       }
-      libuv_finish(state, 0);
+      return libuv_finish(state, C_ABSTRACT_HTTP_SUCCESS);
     }
-    return;
   }
 
   if (!state->res_buf) {
-    libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_NOMEM);
-    return;
+    return libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM);
   }
 
   state->res_len += (size_t)nread;
@@ -1379,16 +1071,17 @@ static void libuv_on_read(uv_stream_t *stream, ssize_t nread,
     enum c_abstract_http_error p_rc = parse_headers(state);
     if (p_rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("libuv_on_read: parse_headers failed %d", (int)p_rc);
+      return p_rc;
     }
   } else if (state->req->on_chunk) {
-    int chunk_rc;
+    enum c_abstract_http_error chunk_rc;
     chunk_rc = state->req->on_chunk(
         state->req->on_chunk_user_data,
         state->res_buf + state->res_len - (size_t)nread, (size_t)nread);
-    if (chunk_rc != 0) {
-      LOG_DEBUG("libuv_on_read: Error on_chunk failed %d", chunk_rc);
-      libuv_finish(state, (int)ECANCELED);
-      return;
+    if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      LOG_DEBUG("libuv_on_read: Error on_chunk failed %d", (int)chunk_rc);
+      LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_CANCELED));
+      return chunk_rc;
     }
     state->res_len -= (size_t)nread;
   } else {
@@ -1404,8 +1097,7 @@ static void libuv_on_read(uv_stream_t *stream, ssize_t nread,
     }
     if (!new_body) {
       LOG_DEBUG("libuv_on_read: Error ENOMEM reallocating body");
-      libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_NOMEM);
-      return;
+      return libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM);
     }
     memcpy(new_body + r->body_len,
            state->res_buf + state->res_len - (size_t)nread, (size_t)nread);
@@ -1413,6 +1105,15 @@ static void libuv_on_read(uv_stream_t *stream, ssize_t nread,
     r->body_len += (size_t)nread;
     ((char *)r->body)[r->body_len] = '\0';
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static void libuv_on_read(uv_stream_t *stream, ssize_t nread,
+                          const uv_buf_t *buf) {
+  struct libuv_state *state = (struct libuv_state *)stream->data;
+  if (buf) {
+  }
+  LIBUV_VOID_CB_DISPATCH(libuv_on_read_impl(state, nread));
 }
 
 /**
@@ -1425,14 +1126,14 @@ static void libuv_on_write(uv_write_t *req, int status) {
   struct libuv_state *state = (struct libuv_state *)req->data;
   if (status < 0) {
     LOG_DEBUG("libuv_on_write: Error status=%d", status);
-    libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_IO);
+    LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO));
     return;
   }
 
   if (uv_read_start((uv_stream_t *)&state->socket, libuv_alloc_cb,
                     libuv_on_read) < 0) {
     LOG_DEBUG("libuv_on_write: Error uv_read_start failed");
-    libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_IO);
+    LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO));
   }
 }
 
@@ -1448,7 +1149,8 @@ static void libuv_on_connect(uv_connect_t *req, int status) {
 
   if (status < 0) {
     LOG_DEBUG("libuv_on_connect: Error status=%d", status);
-    libuv_finish(state, (int)ECONNREFUSED);
+    LIBUV_VOID_CB_DISPATCH(
+        libuv_finish(state, C_ABSTRACT_HTTP_ERR_CONNREFUSED));
     return;
   }
 
@@ -1458,7 +1160,7 @@ static void libuv_on_connect(uv_connect_t *req, int status) {
   if (uv_write(&state->write_req, (uv_stream_t *)&state->socket, &buf, 1,
                libuv_on_write) < 0) {
     LOG_DEBUG("libuv_on_connect: Error uv_write failed");
-    libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_IO);
+    LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO));
   }
 }
 
@@ -1475,7 +1177,8 @@ static void libuv_on_resolved(uv_getaddrinfo_t *resolver, int status,
 
   if (status < 0) {
     LOG_DEBUG("libuv_on_resolved: Error status=%d", status);
-    libuv_finish(state, (int)EHOSTUNREACH);
+    LIBUV_VOID_CB_DISPATCH(
+        libuv_finish(state, C_ABSTRACT_HTTP_ERR_HOSTUNREACH));
     uv_freeaddrinfo(res);
     return;
   }
@@ -1485,7 +1188,8 @@ static void libuv_on_resolved(uv_getaddrinfo_t *resolver, int status,
   if (uv_tcp_connect(&state->connect_req, &state->socket, res->ai_addr,
                      libuv_on_connect) < 0) {
     LOG_DEBUG("libuv_on_resolved: Error uv_tcp_connect failed");
-    libuv_finish(state, (int)ECONNREFUSED);
+    LIBUV_VOID_CB_DISPATCH(
+        libuv_finish(state, C_ABSTRACT_HTTP_ERR_CONNREFUSED));
   }
 
   uv_freeaddrinfo(res);
@@ -1600,142 +1304,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV)
-/**
- * @brief Run mock event loop dispatching scheduled callbacks.
- *
- * @param[in] loop Loop pointer.
- * @param[in] mode Run mode.
- * @return 0 on success.
- */
-static int uv_run(uv_loop_t *loop, int mode) {
-  struct libuv_state *state;
-  struct addrinfo *ai;
-  if (mode) {
-  }
-
-  if (!loop || !loop->data) {
-    return 0;
-  }
-  state = (struct libuv_state *)loop->data;
-
-  ai = (struct addrinfo *)calloc(1, sizeof(struct addrinfo));
-  ai->ai_addr = (struct sockaddr *)calloc(1, sizeof(struct sockaddr));
-  if (state->resolver.cb) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_libuv_addrinfo_fail) {
-      state->resolver.cb(&state->resolver, -1, NULL);
-      return 0;
-    }
-#endif
-    state->resolver.cb(&state->resolver, 0, ai);
-  }
-
-  if (state->socket.connect_cb) {
-    int port;
-    port = atoi(state->resolver.port_str);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_libuv_connect_fail || port == 59999)
-#else
-    if (port == 59999)
-#endif
-    {
-      state->socket.connect_cb(&state->connect_req, -1);
-      return 0;
-    }
-    state->socket.connect_cb(&state->connect_req, 0);
-  }
-
-  if (state->write_req.write_cb) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_libuv_write_fail) {
-      state->write_req.write_cb(&state->write_req, -1);
-      return 0;
-    }
-#endif
-    state->write_req.write_cb(&state->write_req, 0);
-  }
-
-  if (state->socket.read_cb) {
-    uv_buf_t buf;
-    memset(&buf, 0, sizeof(buf));
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_libuv_read_fail) {
-      state->socket.read_cb((uv_stream_t *)&state->socket, -1, &buf);
-      return 0;
-    }
-#endif
-    if (state->req->on_chunk) {
-      const char resp_headers[] = "HTTP/1.1 200 OK\r\n\r\n";
-      const char chunk[] = "OK";
-      state->socket.alloc_cb((uv_handle_t *)&state->socket,
-                             sizeof(resp_headers) - 1, &buf);
-      if (buf.base) {
-        memcpy(buf.base, resp_headers, sizeof(resp_headers) - 1);
-        state->socket.read_cb((uv_stream_t *)&state->socket,
-                              (ssize_t)(sizeof(resp_headers) - 1), &buf);
-      } else {
-        libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_NOMEM);
-        return 0;
-      }
-      if (!state->done) {
-        state->socket.alloc_cb((uv_handle_t *)&state->socket, sizeof(chunk) - 1,
-                               &buf);
-        if (buf.base) {
-          memcpy(buf.base, chunk, sizeof(chunk) - 1);
-          state->socket.read_cb((uv_stream_t *)&state->socket,
-                                (ssize_t)(sizeof(chunk) - 1), &buf);
-        } else {
-          libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_NOMEM);
-          return 0;
-        }
-      }
-      if (!state->done) {
-        state->socket.read_cb((uv_stream_t *)&state->socket, UV_EOF, &buf);
-      }
-    } else {
-      const char resp_headers[] = "HTTP/1.1 200 OK\r\nHeader: Value\r\n\r\n";
-      const char body_chunk[] = "OK";
-      state->socket.alloc_cb((uv_handle_t *)&state->socket,
-                             sizeof(resp_headers) - 1, &buf);
-      if (buf.base) {
-        memcpy(buf.base, resp_headers, sizeof(resp_headers) - 1);
-        state->socket.read_cb((uv_stream_t *)&state->socket,
-                              (ssize_t)(sizeof(resp_headers) - 1), &buf);
-      } else {
-        libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_NOMEM);
-        return 0;
-      }
-      if (!state->done) {
-        state->socket.alloc_cb((uv_handle_t *)&state->socket,
-                               sizeof(body_chunk) - 1, &buf);
-        if (buf.base) {
-          memcpy(buf.base, body_chunk, sizeof(body_chunk) - 1);
-          state->socket.read_cb((uv_stream_t *)&state->socket,
-                                (ssize_t)(sizeof(body_chunk) - 1), &buf);
-        } else {
-          libuv_finish(state, (int)C_ABSTRACT_HTTP_ERR_NOMEM);
-          return 0;
-        }
-      }
-      if (!state->done) {
-        state->socket.read_cb((uv_stream_t *)&state->socket, UV_EOF, &buf);
-      }
-    }
-  }
-
-  return 0;
-}
-#endif
-
-/**
- * @brief Send an HTTP request using libuv.
- *
- * @param[in] ctx Transport context.
- * @param[in] req Request structure.
- * @param[out] res Pointer to receive response object.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Send an HTTP request using libuv. */
 enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
                                            const struct HttpRequest *req,
                                            struct HttpResponse **res) {
@@ -1772,7 +1341,7 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   rc = parse_url(req->url, &host, &port, &path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_libuv_send: Error parse_url failed %d", (int)rc);
-    return C_ABSTRACT_HTTP_ERR_INVAL;
+    return rc;
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -1903,8 +1472,15 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   } else if (req->read_chunk) {
     size_t out_read;
     char chunk_buf[4096];
-    while (req->read_chunk(req->read_chunk_user_data, chunk_buf,
-                           sizeof(chunk_buf), &out_read) == 0) {
+    for (;;) {
+      enum c_abstract_http_error chunk_rc = req->read_chunk(
+          req->read_chunk_user_data, chunk_buf, sizeof(chunk_buf), &out_read);
+      if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(host);
+        free(path);
+        free(state.req_buf);
+        return chunk_rc;
+      }
       if (out_read == 0) {
         break;
       }
@@ -1967,7 +1543,8 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   state.resolver.data = &state;
   if (uv_getaddrinfo(&state.loop, &state.resolver, libuv_on_resolved, host,
                      port_str, &hints) < 0) {
-    libuv_finish(&state, (int)EHOSTUNREACH);
+    LIBUV_VOID_CB_DISPATCH(
+        libuv_finish(&state, C_ABSTRACT_HTTP_ERR_HOSTUNREACH));
   }
 
   uv_run(&state.loop, UV_RUN_DEFAULT);
@@ -1983,14 +1560,12 @@ cleanup:
 
   if (state.error_code != 0) {
     if (*res) {
-      {
-        enum c_abstract_http_error free_rc = http_response_free(*res);
-        if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          /* ignore free error on failure path */
-        }
-      }
+      enum c_abstract_http_error free_rc = http_response_free(*res);
       free(*res);
       *res = NULL;
+      if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return free_rc;
+      }
     }
     LOG_DEBUG("http_libuv_send: Error returning %d", state.error_code);
     return (enum c_abstract_http_error)state.error_code;

@@ -17,13 +17,13 @@
 #ifndef C_ABSTRACT_HTTP_HTTP_LIBEVENT_H
 #define C_ABSTRACT_HTTP_HTTP_LIBEVENT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Initialize the global libevent environment safely.
@@ -65,6 +65,7 @@ http_libevent_context_init(struct HttpTransportContext **ctx);
  * Cleans up the internal libevent handle and any cached configuration.
  *
  * @param[in] ctx The context to free. Safe to pass NULL.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 http_libevent_context_free(struct HttpTransportContext *ctx);

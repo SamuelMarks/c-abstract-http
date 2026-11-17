@@ -7,6 +7,10 @@
 #endif
 
 /* clang-format off */
+#ifdef C_ABSTRACT_HTTP_HEADER_ONLY
+#define C_ABSTRACT_HTTP_IMPLEMENTATION
+#include <c_abstract_http/c_abstract_http.h>
+#endif
 #include "../src/crypto_utils.h"
 #include "greatest.h"
 #include <errno.h>
@@ -144,9 +148,6 @@ TEST test_math_is_const_time_streq(void) {
   ASSERT_EQ(0, math_is_const_time_streq("hello", "helloo"));
   PASS();
 }
-
-#include <errno.h>
-/* clang-format on */
 
 TEST test_crypto_errors(void) {
   struct sha1_ctx ctx;

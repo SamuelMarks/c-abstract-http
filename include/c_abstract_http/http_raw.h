@@ -6,14 +6,14 @@
 #ifndef C_ABSTRACT_HTTP_HTTP_RAW_H
 #define C_ABSTRACT_HTTP_HTTP_RAW_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Initialize the global raw socket environment.

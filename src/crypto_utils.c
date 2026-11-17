@@ -183,7 +183,9 @@ enum c_abstract_http_error base64_encode(const unsigned char *in, size_t in_len,
   if (!out)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
-  for (i = 0, j = 0; i < in_len;) {
+  i = 0;
+  j = 0;
+  while (i < in_len) {
     uint32_t octet_a, octet_b, octet_c, triple;
     octet_a = (unsigned char)in[i++];
     octet_b = i < in_len ? (unsigned char)in[i++] : 0;
@@ -258,7 +260,9 @@ enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
   if (!out)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
-  for (i = 0, j = 0; i < in_len;) {
+  i = 0;
+  j = 0;
+  while (i < in_len) {
     sextet_a = in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];
     i++;
     sextet_b = in[i] == '=' ? 0 : base64_decode_table[(unsigned char)in[i]];

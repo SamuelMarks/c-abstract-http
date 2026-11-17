@@ -8,605 +8,12 @@
 #include <c_abstract_http/http_libsoup3.h>
 #include "c_abstract_http/log.h"
 
-#if defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBSOUP3)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#include "mock_stubs/mock_libsoup3.h"
+#else
 #include <libsoup/soup.h>
 #endif
 /* clang-format on */
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int *abstract_http_mock_get_g_mock_libsoup3_global_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libsoup3_context_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libsoup3_config_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libsoup3_session_new_fail(void);
-extern int *abstract_http_mock_get_g_mock_libsoup3_msg_new_fail(void);
-extern int *abstract_http_mock_get_g_mock_libsoup3_send_fail(void);
-extern int *abstract_http_mock_get_g_mock_libsoup3_res_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_libsoup3_res_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_libsoup3_body_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_libsoup3_uri_parse_fail(void);
-
-#define g_mock_libsoup3_global_init_fail                                       \
-  (*abstract_http_mock_get_g_mock_libsoup3_global_init_fail())
-#define g_mock_libsoup3_context_init_fail                                      \
-  (*abstract_http_mock_get_g_mock_libsoup3_context_init_fail())
-#define g_mock_libsoup3_config_init_fail                                       \
-  (*abstract_http_mock_get_g_mock_libsoup3_config_init_fail())
-#define g_mock_libsoup3_session_new_fail                                       \
-  (*abstract_http_mock_get_g_mock_libsoup3_session_new_fail())
-#define g_mock_libsoup3_msg_new_fail                                           \
-  (*abstract_http_mock_get_g_mock_libsoup3_msg_new_fail())
-#define g_mock_libsoup3_send_fail                                              \
-  (*abstract_http_mock_get_g_mock_libsoup3_send_fail())
-#define g_mock_libsoup3_res_alloc_fail                                         \
-  (*abstract_http_mock_get_g_mock_libsoup3_res_alloc_fail())
-#define g_mock_libsoup3_res_init_fail                                          \
-  (*abstract_http_mock_get_g_mock_libsoup3_res_init_fail())
-#define g_mock_libsoup3_body_alloc_fail                                        \
-  (*abstract_http_mock_get_g_mock_libsoup3_body_alloc_fail())
-#define g_mock_libsoup3_uri_parse_fail                                         \
-  (*abstract_http_mock_get_g_mock_libsoup3_uri_parse_fail())
-#endif
-
-#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBSOUP3)
-
-typedef unsigned int guint;
-typedef unsigned char guint8;
-typedef unsigned long gsize;
-typedef const void *gconstpointer;
-typedef int gboolean;
-
-#define TRUE 1
-#define FALSE 0
-
-#define G_IO_ERROR 1
-#define G_IO_ERROR_CONNECTION_REFUSED 1
-#define G_IO_ERROR_TIMED_OUT 2
-#define G_URI_FLAGS_NONE 0
-
-/** @brief Mock GError structure */
-struct GError {
-  /** @brief Error domain */
-  int domain;
-  /** @brief Error code */
-  int code;
-  /** @brief Error message */
-  char *message;
-};
-typedef struct GError GError;
-
-/** @brief Mock GUri structure */
-struct GUri {
-  /** @brief URI string */
-  char *uri_string;
-};
-typedef struct GUri GUri;
-
-/** @brief Mock GBytes structure */
-struct GBytes {
-  /** @brief Buffer data pointer */
-  void *data;
-  /** @brief Buffer size */
-  size_t size;
-};
-typedef struct GBytes GBytes;
-
-/** @brief Mock GByteArray structure */
-struct GByteArray {
-  /** @brief Array data */
-  guint8 *data;
-  /** @brief Current length */
-  size_t len;
-  /** @brief Capacity */
-  size_t cap;
-};
-typedef struct GByteArray GByteArray;
-
-/** @brief Mock SoupMessageHeaders structure */
-struct SoupMessageHeaders {
-  /** @brief Header keys */
-  char *keys[32];
-  /** @brief Header values */
-  char *values[32];
-  /** @brief Count of headers */
-  size_t count;
-};
-typedef struct SoupMessageHeaders SoupMessageHeaders;
-
-/** @brief Mock SoupMessage structure */
-struct SoupMessage {
-  /** @brief HTTP method */
-  char *method;
-  /** @brief URL */
-  char *url;
-  /** @brief Request headers */
-  SoupMessageHeaders headers;
-  /** @brief Request body bytes */
-  GBytes *request_body;
-  /** @brief HTTP response status code */
-  unsigned int status_code;
-};
-typedef struct SoupMessage SoupMessage;
-
-/** @brief Mock SoupSession structure */
-struct SoupSession {
-  /** @brief Session timeout */
-  guint timeout;
-  /** @brief User agent string */
-  char *user_agent;
-  /** @brief Proxy URI */
-  GUri *proxy_uri;
-};
-typedef struct SoupSession SoupSession;
-
-/**
- * @brief Create a new mock SoupSession.
- *
- * @return Pointer to session or NULL on failure.
- */
-static SoupSession *soup_session_new(void) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libsoup3_session_new_fail) {
-    return NULL;
-  }
-#endif
-  return (SoupSession *)calloc(1, sizeof(SoupSession));
-}
-
-/**
- * @brief Create a new mock SoupMessage.
- *
- * @param[in] method HTTP method string.
- * @param[in] uri URL string.
- * @return Pointer to message or NULL on failure.
- */
-static SoupMessage *soup_message_new(const char *method, const char *uri) {
-  SoupMessage *msg;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libsoup3_msg_new_fail == 1) {
-    return NULL;
-  }
-#endif
-  if (!uri) {
-    return NULL;
-  }
-  msg = (SoupMessage *)calloc(1, sizeof(SoupMessage));
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libsoup3_msg_new_fail == 2) {
-    free(msg);
-    msg = NULL;
-  }
-#endif
-  if (!msg) {
-    return NULL;
-  }
-  if (c_abstract_http_strdup(method, &msg->method) != C_ABSTRACT_HTTP_SUCCESS)
-    return NULL;
-  if (c_abstract_http_strdup(uri, &msg->url) != C_ABSTRACT_HTTP_SUCCESS)
-    return NULL;
-  msg->status_code = 200;
-  return msg;
-}
-
-/**
- * @brief Get request headers from mock SoupMessage.
- *
- * @param[in] msg Message.
- * @return Pointer to headers.
- */
-static SoupMessageHeaders *soup_message_get_request_headers(SoupMessage *msg) {
-  return &msg->headers;
-}
-
-/**
- * @brief Append header to mock headers.
- *
- * @param[in,out] hdrs Headers structure.
- * @param[in] name Header name.
- * @param[in] value Header value.
- */
-static void soup_message_headers_append(SoupMessageHeaders *hdrs,
-                                        const char *name, const char *value) {
-  if (c_abstract_http_strdup(name, &hdrs->keys[hdrs->count]) !=
-      C_ABSTRACT_HTTP_SUCCESS)
-    return;
-  if (c_abstract_http_strdup(value, &hdrs->values[hdrs->count]) !=
-      C_ABSTRACT_HTTP_SUCCESS)
-    return;
-  hdrs->count++;
-}
-
-/**
- * @brief Create mock GBytes.
- *
- * @param[in] data Data pointer.
- * @param[in] size Size of data.
- * @return Pointer to GBytes or NULL on failure.
- */
-static GBytes *g_bytes_new(const void *data, size_t size) {
-  GBytes *b = (GBytes *)calloc(1, sizeof(GBytes));
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libsoup3_msg_new_fail == 3) {
-    free(b);
-    return NULL;
-  }
-#endif
-  b->data = malloc(size);
-  memcpy(b->data, data, size);
-  b->size = size;
-  return b;
-}
-
-/**
- * @brief Get data and size from mock GBytes.
- *
- * @param[in] bytes GBytes object.
- * @param[out] size Pointer to receive size.
- * @return Pointer to data.
- */
-static gconstpointer g_bytes_get_data(GBytes *bytes, gsize *size) {
-  if (!bytes) {
-    if (size) {
-      *size = 0;
-    }
-    return NULL;
-  }
-  if (size) {
-    *size = (gsize)bytes->size;
-  }
-  return bytes->data;
-}
-
-/**
- * @brief Free mock GBytes.
- *
- * @param[in] bytes GBytes to free.
- */
-static void g_bytes_unref(GBytes *bytes) {
-  if (bytes) {
-    free(bytes->data);
-    free(bytes);
-  }
-}
-
-/**
- * @brief Set request body on mock SoupMessage.
- *
- * @param[in,out] msg Message.
- * @param[in] content_type Content type.
- * @param[in] bytes Body bytes.
- */
-static void soup_message_set_request_body_from_bytes(SoupMessage *msg,
-                                                     const char *content_type,
-                                                     GBytes *bytes) {
-  (void)content_type;
-  msg->request_body = bytes;
-}
-
-/**
- * @brief Create mock GByteArray.
- *
- * @return Pointer to GByteArray.
- */
-static GByteArray *g_byte_array_new(void) {
-  return (GByteArray *)calloc(1, sizeof(GByteArray));
-}
-
-/**
- * @brief Append data to mock GByteArray.
- *
- * @param[in,out] arr Array.
- * @param[in] data Data.
- * @param[in] len Length.
- * @return Array pointer.
- */
-static GByteArray *g_byte_array_append(GByteArray *arr, const guint8 *data,
-                                       guint len) {
-  if (arr->len + len > arr->cap) {
-    size_t new_cap = arr->cap == 0 ? 128 : arr->cap * 2;
-    while (new_cap < arr->len + len) {
-      new_cap *= 2;
-    }
-    arr->data = (guint8 *)realloc(arr->data, new_cap);
-    arr->cap = new_cap;
-  }
-  memcpy(arr->data + arr->len, data, len);
-  arr->len += len;
-  return arr;
-}
-
-/**
- * @brief Free mock GByteArray.
- *
- * @param[in] arr Array.
- * @param[in] free_segment Free segment flag.
- * @return NULL.
- */
-static guint8 *g_byte_array_free(GByteArray *arr, gboolean free_segment) {
-  if (arr) {
-    if (free_segment && arr->data) {
-      free(arr->data);
-    }
-    free(arr);
-  }
-  return NULL;
-}
-
-/**
- * @brief Free mock GByteArray to GBytes.
- *
- * @param[in] arr Array.
- * @return Pointer to GBytes.
- */
-static GBytes *g_byte_array_free_to_bytes(GByteArray *arr) {
-  GBytes *b;
-  if (!arr) {
-    return NULL;
-  }
-  b = (GBytes *)calloc(1, sizeof(GBytes));
-  b->data = arr->data;
-  b->size = arr->len;
-  free(arr);
-  return b;
-}
-
-/**
- * @brief Set mock object properties.
- *
- * @param[in,out] obj Object pointer.
- * @param[in] first_property_name Property name.
- */
-static void g_object_set(void *obj, const char *first_property_name, ...) {
-  va_list args;
-  const char *prop;
-  SoupSession *session = (SoupSession *)obj;
-
-  if (!obj || !first_property_name) {
-    return;
-  }
-
-  va_start(args, first_property_name);
-  prop = first_property_name;
-  while (prop) {
-    if (strcmp(prop, "timeout") == 0) {
-      session->timeout = va_arg(args, guint);
-    } else if (strcmp(prop, "user-agent") == 0) {
-      const char *ua = va_arg(args, const char *);
-      if (session->user_agent) {
-        free(session->user_agent);
-        session->user_agent = NULL;
-      }
-      if (ua) {
-        if (c_abstract_http_strdup(ua, &session->user_agent) !=
-            C_ABSTRACT_HTTP_SUCCESS)
-          return;
-      }
-    } else if (strcmp(prop, "proxy-uri") == 0) {
-      session->proxy_uri = va_arg(args, GUri *);
-    } else {
-      void *ignored_arg = va_arg(args, void *);
-      if (ignored_arg) {
-        /* property ignored */
-      }
-    }
-    prop = va_arg(args, const char *);
-  }
-  va_end(args);
-}
-
-/**
- * @brief Free mock object.
- *
- * @param[in] obj Object to free.
- */
-static void g_object_unref(void *obj) {
-  if (obj) {
-    SoupSession *s = (SoupSession *)obj;
-    free(s->user_agent);
-    free(s);
-  }
-}
-
-/**
- * @brief Free mock GError.
- *
- * @param[in] error Error to free.
- */
-static void g_error_free(GError *error) {
-  if (error) {
-    free(error->message);
-    free(error);
-  }
-}
-
-/**
- * @brief Check if mock error matches domain and code.
- *
- * @param[in] error Error.
- * @param[in] domain Domain.
- * @param[in] code Code.
- * @return TRUE if matching, FALSE otherwise.
- */
-static gboolean g_error_matches(const GError *error, int domain, int code) {
-  if (!error) {
-    return FALSE;
-  }
-  return (error->domain == domain && error->code == code);
-}
-
-/**
- * @brief Parse mock URI.
- *
- * @param[in] uri URI string.
- * @param[in] flags Flags.
- * @param[out] error Optional error pointer.
- * @return Pointer to GUri or NULL on failure.
- */
-static GUri *g_uri_parse(const char *uri, int flags, GError **error) {
-  GUri *u;
-  (void)flags;
-  (void)error;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libsoup3_uri_parse_fail) {
-    return NULL;
-  }
-#endif
-  if (!uri) {
-    return NULL;
-  }
-  u = (GUri *)calloc(1, sizeof(GUri));
-  if (c_abstract_http_strdup(uri, &u->uri_string) != C_ABSTRACT_HTTP_SUCCESS)
-    return NULL;
-  return u;
-}
-
-/**
- * @brief Free mock GUri.
- *
- * @param[in] uri URI to free.
- */
-static void g_uri_unref(GUri *uri) {
-  if (uri) {
-    free(uri->uri_string);
-    free(uri);
-  }
-}
-
-/**
- * @brief Get response status code from mock message.
- *
- * @param[in] msg Message.
- * @return HTTP status code.
- */
-static guint soup_message_get_status(const SoupMessage *msg) {
-  return msg->status_code;
-}
-
-/**
- * @brief Send request and read response synchronously on mock session.
- *
- * @param[in] session Session.
- * @param[in] msg Message.
- * @param[in] cancellable Cancellable.
- * @param[out] error Error pointer.
- * @return GBytes response or NULL on failure.
- */
-static GBytes *soup_session_send_and_read(SoupSession *session,
-                                          SoupMessage *msg, void *cancellable,
-                                          GError **error) {
-  (void)session;
-  (void)cancellable;
-  *error = NULL;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_libsoup3_send_fail == 1) {
-    *error = (GError *)calloc(1, sizeof(GError));
-    (*error)->domain = G_IO_ERROR;
-    (*error)->code = G_IO_ERROR_CONNECTION_REFUSED;
-    if (c_abstract_http_strdup("Connection refused", &(*error)->message) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return;
-    return NULL;
-  }
-  if (g_mock_libsoup3_send_fail == 2) {
-    *error = (GError *)calloc(1, sizeof(GError));
-    (*error)->domain = G_IO_ERROR;
-    (*error)->code = G_IO_ERROR_TIMED_OUT;
-    if (c_abstract_http_strdup("Timed out", &(*error)->message) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return;
-    return NULL;
-  }
-  if (g_mock_libsoup3_send_fail == 3) {
-    *error = (GError *)calloc(1, sizeof(GError));
-    (*error)->domain = G_IO_ERROR;
-    (*error)->code = 999;
-    if (c_abstract_http_strdup("Generic IO error", &(*error)->message) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return;
-    return NULL;
-  }
-#endif
-  if (strstr(msg->url, "59999")) {
-    *error = (GError *)calloc(1, sizeof(GError));
-    (*error)->domain = G_IO_ERROR;
-    (*error)->code = G_IO_ERROR_CONNECTION_REFUSED;
-    if (c_abstract_http_strdup("Connection refused", &(*error)->message) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return;
-    return NULL;
-  }
-  return g_bytes_new("OK", 2);
-}
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-/** @brief Expose internal helpers for test coverage */
-enum c_abstract_http_error c_abstract_http_test_libsoup3_helpers(void);
-
-/**
- * @brief Expose internal helpers for test coverage.
- *
- * @return C_ABSTRACT_HTTP_SUCCESS on success.
- */
-enum c_abstract_http_error c_abstract_http_test_libsoup3_helpers(void) {
-  gsize sz = 0;
-  GBytes *b;
-  SoupSession *sess;
-
-  g_mock_libsoup3_msg_new_fail = 2;
-  soup_message_new("GET", "http://example.com");
-  g_mock_libsoup3_msg_new_fail = 3;
-  g_bytes_new("A", 1);
-  g_mock_libsoup3_msg_new_fail = 0;
-
-  b = g_bytes_new("A", 1);
-  sess = soup_session_new();
-  soup_message_new(NULL, NULL);
-  g_bytes_get_data(NULL, NULL);
-  g_bytes_get_data(NULL, &sz);
-  g_bytes_get_data(b, NULL);
-  g_bytes_unref(b);
-  g_bytes_unref(NULL);
-  g_byte_array_free_to_bytes(NULL);
-  {
-    GByteArray *arr = g_byte_array_new();
-    guint8 big[256];
-    memset(big, 'X', sizeof(big));
-    g_byte_array_append(arr, big, 10);
-    g_byte_array_append(arr, big, 200);
-    g_byte_array_append(arr, big, 10);
-    g_byte_array_free(arr, TRUE);
-  }
-  {
-    GByteArray *tmp = g_byte_array_new();
-    tmp->data = (guint8 *)malloc(1);
-    g_byte_array_free(tmp, TRUE);
-    tmp = g_byte_array_new();
-    g_byte_array_free(tmp, FALSE);
-    g_byte_array_free(NULL, FALSE);
-  }
-  g_object_set(NULL, NULL);
-  g_object_set(sess, NULL);
-  g_object_set(sess, "user-agent", "agent", NULL);
-  g_object_set(sess, "unknown", NULL, NULL);
-  g_object_set(sess, "unknown", "val", NULL);
-  g_object_unref(sess);
-  g_object_unref(NULL);
-  g_error_free(NULL);
-  {
-    GError err;
-    memset(&err, 0, sizeof(err));
-    err.domain = 1;
-    err.code = 2;
-    g_error_matches(NULL, 1, 2);
-    g_error_matches(&err, 999, 2);
-    g_error_matches(&err, 1, 999);
-  }
-  g_uri_parse(NULL, 0, NULL);
-  g_uri_unref(NULL);
-  return C_ABSTRACT_HTTP_SUCCESS;
-}
-#endif
-
-#endif /* !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBSOUP3) */
 
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
@@ -647,12 +54,7 @@ enum c_abstract_http_error http_libsoup3_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Initialize libsoup3 transport context.
- *
- * @param[out] ctx Double pointer to receive context.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Initialize libsoup3 transport context. */
 enum c_abstract_http_error
 http_libsoup3_context_init(struct HttpTransportContext **ctx) {
   enum c_abstract_http_error rc;
@@ -679,12 +81,12 @@ http_libsoup3_context_init(struct HttpTransportContext **ctx) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libsoup3_config_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_config_init(&(*ctx)->config);
+    free(*ctx);
+    *ctx = NULL;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
+#endif
+  rc = http_config_init(&(*ctx)->config);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG(
         "http_libsoup3_context_init: Error http_config_init failed with %d",
@@ -699,11 +101,13 @@ http_libsoup3_context_init(struct HttpTransportContext **ctx) {
     enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_libsoup3_context_init: Error soup_session_new failed");
     free_rc = http_config_free(&(*ctx)->config);
-    free(*ctx);
-    *ctx = NULL;
     if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(*ctx);
+      *ctx = NULL;
       return free_rc;
     }
+    free(*ctx);
+    *ctx = NULL;
     return C_ABSTRACT_HTTP_ERR_IO;
   }
   (*ctx)->cookie_jar = NULL;
@@ -712,11 +116,7 @@ http_libsoup3_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Free libsoup3 transport context.
- *
- * @param[in] ctx Context to free.
- */
+/* Free libsoup3 transport context. */
 enum c_abstract_http_error
 http_libsoup3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libsoup3_context_free: Entering");
@@ -733,13 +133,7 @@ http_libsoup3_context_free(struct HttpTransportContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Apply configuration to libsoup3 context.
- *
- * @param[in,out] ctx Transport context.
- * @param[in] config Configuration to apply.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Apply configuration to libsoup3 context. */
 enum c_abstract_http_error
 http_libsoup3_config_apply(struct HttpTransportContext *ctx,
                            const struct HttpConfig *config) {
@@ -864,7 +258,7 @@ static enum c_abstract_http_error get_method_string(enum HttpMethod method,
   if (!out) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  switch (method) {
+  switch ((int)method) {
   case HTTP_GET:
     *out = "GET";
     break;
@@ -920,14 +314,7 @@ c_abstract_http_test_libsoup3_method_str(enum HttpMethod method,
 }
 #endif
 
-/**
- * @brief Send an HTTP request using libsoup3.
- *
- * @param[in] ctx Transport context.
- * @param[in] req Request structure.
- * @param[out] res Pointer to receive response object.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Send an HTTP request using libsoup3. */
 enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
                                               const struct HttpRequest *req,
                                               struct HttpResponse **res) {
@@ -992,12 +379,13 @@ enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
     GByteArray *byte_array = g_byte_array_new();
 
     for (;;) {
-      int chunk_rc = req->read_chunk(req->read_chunk_user_data, buf,
-                                     sizeof(buf), &out_read);
-      if (chunk_rc != 0) {
+      enum c_abstract_http_error chunk_rc = req->read_chunk(
+          req->read_chunk_user_data, buf, sizeof(buf), &out_read);
+      if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
         g_byte_array_free(byte_array, TRUE);
-        rc = C_ABSTRACT_HTTP_ERR_IO;
-        goto cleanup;
+        g_object_unref(msg);
+        return (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) ? C_ABSTRACT_HTTP_ERR_IO
+                                                     : chunk_rc;
       }
       if (out_read == 0) {
         break;
@@ -1016,7 +404,7 @@ enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
     LOG_DEBUG("http_libsoup3_send: Error g_error %d: %s", error->code,
               error->message);
     if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CONNECTION_REFUSED)) {
-      rc = (enum c_abstract_http_error)ECONNREFUSED;
+      rc = C_ABSTRACT_HTTP_ERR_CONNREFUSED;
     } else if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_TIMED_OUT)) {
       rc = C_ABSTRACT_HTTP_ERR_TIMEOUT;
     } else {
@@ -1041,12 +429,13 @@ enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libsoup3_res_init_fail) {
+    free(new_res);
+    new_res = NULL;
     rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_response_init(new_res);
+    goto cleanup;
   }
+#endif
+  rc = http_response_init(new_res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_libsoup3_send: Error http_response_init failed with %d",
               (int)rc);
@@ -1059,13 +448,26 @@ enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
 
   resp_data = g_bytes_get_data(resp_bytes, &resp_len);
   if (req->on_chunk) {
-    int chunk_rc = req->on_chunk(req->on_chunk_user_data, resp_data, resp_len);
-    if (chunk_rc != 0) {
-      LOG_DEBUG("http_libsoup3_send: Error on_chunk failed %d", chunk_rc);
-      rc = (enum c_abstract_http_error)ECANCELED;
+    enum c_abstract_http_error chunk_rc =
+        req->on_chunk(req->on_chunk_user_data, resp_data, resp_len);
+    if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error free_rc;
+      LOG_DEBUG("http_libsoup3_send: Error on_chunk failed %d", (int)chunk_rc);
+      free_rc = http_response_free(new_res);
       free(new_res);
       new_res = NULL;
-      goto cleanup;
+      if (resp_bytes) {
+        g_bytes_unref(resp_bytes);
+      }
+      if (msg) {
+        g_object_unref(msg);
+      }
+      if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return free_rc;
+      }
+      return (chunk_rc != C_ABSTRACT_HTTP_SUCCESS)
+                 ? C_ABSTRACT_HTTP_ERR_CANCELED
+                 : chunk_rc;
     }
     new_res->body = NULL;
     new_res->body_len = 0;

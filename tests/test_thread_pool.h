@@ -282,7 +282,12 @@ dummy_hook_push(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
   (void)ctx;
   (void)cb;
   (void)arg;
-  return 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error dummy_failing_task_cb(void *arg) {
+  (void)arg;
+  return C_ABSTRACT_HTTP_ERR_IO;
 }
 
 TEST test_thread_pool_edge_cases(void) {
@@ -459,7 +464,7 @@ TEST test_thread_pool_edge_cases(void) {
               abstract_http_thread_pool_test_worker(dummy_pool));
     g_mock_mutex_fail = 0;
 
-    /* Case 5: task popped + unlock fail */
+    /* Case 5: task popped + unlock fail (succeeding & failing callbacks) */
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               abstract_http_thread_pool_test_clear_stop(dummy_pool));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -470,6 +475,14 @@ TEST test_thread_pool_edge_cases(void) {
               abstract_http_thread_pool_test_worker(dummy_pool));
     g_mock_mutex_fail = 0;
     g_mock_cond_fail = 0;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(dummy_pool, dummy_failing_task_cb,
+                                             NULL));
+    g_mock_mutex_fail = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              abstract_http_thread_pool_test_worker(dummy_pool));
+    g_mock_mutex_fail = 0;
 
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               abstract_http_thread_pool_free(dummy_pool));
@@ -498,20 +511,20 @@ TEST test_thread_pool_pthread_create_failures(void) {
   rc = abstract_http_thread_pool_init(&pool, 2);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
 
-  /* Fail on second thread, broadcast fails and join fails */
+  /* Fail on third thread, broadcast fails and both joins fail */
   g_mock_pthread_fail = 6;
   g_mock_cond_fail = 3;
-  g_mock_alloc_count = 1;
-  rc = abstract_http_thread_pool_init(&pool, 2);
+  g_mock_alloc_count = 2;
+  rc = abstract_http_thread_pool_init(&pool, 3);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   g_mock_pthread_fail = 0;
   g_mock_cond_fail = 0;
 
-  /* Free with join failure */
-  rc = abstract_http_thread_pool_init(&pool, 1);
+  /* Free with join failure across 2 threads */
+  rc = abstract_http_thread_pool_init(&pool, 2);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   g_mock_pthread_fail = 3;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, abstract_http_thread_pool_free(pool));
   g_mock_pthread_fail = 0;
 #endif
 
@@ -653,6 +666,23 @@ TEST test_thread_pool_fallback_paths(void) {
   g_mock_alloc_count = 0;
   rc = abstract_http_thread_pool_push(pool, test_task_cb, NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
+  g_mock_alloc_fail = 0;
+
+  /* Combined cond_signal + mutex_unlock failure in push */
+  g_mock_cond_fail = 2;
+  g_mock_mutex_fail = 2;
+  rc = abstract_http_thread_pool_push(pool, test_task_cb, NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
+  g_mock_cond_fail = 0;
+  g_mock_mutex_fail = 0;
+
+  /* Combined cond_broadcast + mutex_unlock failure in free */
+  g_mock_cond_fail = 3;
+  g_mock_mutex_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, abstract_http_thread_pool_free(pool));
+  g_mock_cond_fail = 0;
+  g_mock_mutex_fail = 0;
+
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
 
   PASS();

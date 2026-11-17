@@ -11,14 +11,14 @@
 #ifndef C_ABSTRACT_HTTP_HTTP_ACTOR_H
 #define C_ABSTRACT_HTTP_HTTP_ACTOR_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <stddef.h>
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Opaque Message Bus type.
@@ -65,7 +65,7 @@ typedef enum c_abstract_http_error (*abstract_http_actor_handler_cb)(
 struct AbstractHttpActorHooks {
   enum c_abstract_http_error (*bus_init)(
       struct AbstractHttpMessageBus **bus); /**< Hook for bus initialization */
-  void (*bus_free)(
+  enum c_abstract_http_error (*bus_free)(
       struct AbstractHttpMessageBus *bus); /**< Hook for bus destruction */
   enum c_abstract_http_error (*bus_process)(
       struct AbstractHttpMessageBus *bus,
@@ -104,6 +104,7 @@ abstract_http_message_bus_init(struct AbstractHttpMessageBus **bus);
 /**
  * @brief Free a message bus.
  * @param[in] bus The bus handle.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus);

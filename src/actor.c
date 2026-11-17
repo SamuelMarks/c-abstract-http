@@ -15,30 +15,32 @@
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
-/** @brief Mockable string duplication helper */
-extern enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
-                                                              char **out);
-
 #ifndef ABSTRACT_HTTP_MALLOC
+/** @brief Internal heap allocation wrapper */
 #define ABSTRACT_HTTP_MALLOC malloc
 #endif
 
 #ifndef ABSTRACT_HTTP_CALLOC
+/** @brief Internal zero-initialized heap allocation wrapper */
 #define ABSTRACT_HTTP_CALLOC calloc
 #endif
 
 #ifndef ABSTRACT_HTTP_REALLOC
+/** @brief Internal heap reallocation wrapper */
 #define ABSTRACT_HTTP_REALLOC realloc
 #endif
 
 #ifndef ABSTRACT_HTTP_FREE
+/** @brief Internal heap deallocation wrapper */
 #define ABSTRACT_HTTP_FREE free
 #endif
 
 #ifndef c_abstract_http_strdup
+/** @brief Internal string duplication wrapper */
 #define c_abstract_http_strdup c_abstract_http_strdup
 #endif
 
+/** @brief Active custom actor message-bus and execution hooks */
 static struct AbstractHttpActorHooks g_actor_hooks = {NULL, NULL, NULL, NULL,
                                                       NULL, NULL, NULL};
 
@@ -128,8 +130,7 @@ abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus) {
   LOG_DEBUG("abstract_http_message_bus_free: Entering");
   if (g_actor_hooks.bus_free) {
     LOG_DEBUG("abstract_http_message_bus_free: Hooking");
-    g_actor_hooks.bus_free(bus);
-    return C_ABSTRACT_HTTP_SUCCESS;
+    return g_actor_hooks.bus_free(bus);
   }
 
   if (!bus) {

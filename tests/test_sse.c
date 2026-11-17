@@ -7,11 +7,16 @@
 #endif
 
 /* clang-format off */
+#ifdef C_ABSTRACT_HTTP_HEADER_ONLY
+#define C_ABSTRACT_HTTP_IMPLEMENTATION
+#include <c_abstract_http/c_abstract_http.h>
+#endif
 #include "greatest.h"
 
 #include "../include/c_abstract_http/http_sse.h"
 #include "../include/c_abstract_http/thread_pool.h"
 #include "../src/sse_internal.h"
+#include "sse_config.h"
 #include "mock_alloc.h"
 #include <string.h>
 /* clang-format on */
@@ -887,13 +892,8 @@ TEST test_sse_sync_loop_errors(void) {
 
 static enum c_abstract_http_error
 mock_push_success(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
-  enum c_abstract_http_error rc;
   (void)ctx;
-  rc = cb(arg); /* call it synchronously for the test */
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    /* task completed with error */
-  }
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return cb(arg);
 }
 
 TEST test_sse_async_register_success(void) {
@@ -1374,7 +1374,221 @@ TEST test_sse_mock_free_failures(void) {
 }
 #endif
 
+static enum c_abstract_http_error
+test_sse_on_event_abort(const struct c_abstract_http_sse_event *ev,
+                        void *user_data) {
+  (void)ev;
+  (void)user_data;
+  return C_ABSTRACT_HTTP_ERR_CANCELED;
+}
+
+static enum c_abstract_http_error test_sse_on_error_abort(int error_code,
+                                                          void *user_data) {
+  (void)error_code;
+  (void)user_data;
+  return C_ABSTRACT_HTTP_ERR_CANCELED;
+}
+
+static enum c_abstract_http_error test_sse_on_close_abort(void *user_data) {
+  (void)user_data;
+  return C_ABSTRACT_HTTP_ERR_CANCELED;
+}
+
+static enum c_abstract_http_error
+test_sse_mock_send_valid_event(struct HttpTransportContext *ctx,
+                               const struct HttpRequest *req,
+                               struct HttpResponse **res) {
+  const char *payload = "data: hello\n\n";
+  enum c_abstract_http_error rc;
+  (void)ctx;
+  (void)req;
+  *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
+  if (!*res)
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  rc = http_response_init(*res);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(*res);
+    *res = NULL;
+    return rc;
+  }
+  (*res)->status_code = 200;
+  (*res)->body = malloc(strlen(payload) + 1);
+  if (!(*res)->body) {
+    enum c_abstract_http_error fr_rc = http_response_free(*res);
+    free(*res);
+    *res = NULL;
+    if (fr_rc != C_ABSTRACT_HTTP_SUCCESS)
+      return fr_rc;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  memcpy((*res)->body, payload, strlen(payload) + 1);
+  (*res)->body_len = strlen(payload);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_sse_callback_error_percolation(void) {
+  struct sse_parser_ctx parser;
+  struct HttpClient client;
+  struct HttpRequest req;
+  char *huge_data;
+  size_t huge_cap = (size_t)C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE + 64;
+
+  /* 1. on_event returning non-zero in sse_process_line */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, test_sse_on_event_abort, NULL, NULL,
+                            NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+            sse_parser_feed(&parser, "data: hi\n\n", 10));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sse_parser_destroy(&parser));
+
+  /* 2. on_error returning non-zero on data capacity limit in sse_process_line
+   */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, NULL, test_sse_on_error_abort, NULL,
+                            NULL));
+  huge_data = (char *)malloc(huge_cap);
+  ASSERT(huge_data != NULL);
+  memcpy(huge_data, "data: ", 6);
+  memset(huge_data + 6, 'x', (size_t)(C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE / 2));
+  huge_data[6 + (C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE / 2)] = '\n';
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      sse_parser_feed(&parser, huge_data,
+                      7 + (size_t)(C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE / 2)));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_CANCELED,
+      sse_parser_feed(&parser, huge_data,
+                      7 + (size_t)(C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE / 2)));
+  free(huge_data);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sse_parser_destroy(&parser));
+
+  /* 2b. on_error returning non-zero on single line capacity limit in
+   * sse_parser_feed */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&parser, NULL, NULL, test_sse_on_error_abort, NULL,
+                            NULL));
+  huge_data = (char *)malloc(huge_cap);
+  ASSERT(huge_data != NULL);
+  memset(huge_data, 'x', huge_cap);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+            sse_parser_feed(&parser, huge_data, huge_cap));
+  free(huge_data);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sse_parser_destroy(&parser));
+
+  /* 3. sync_read_loop on_error abort when client->send fails */
+  memset(&client, 0, sizeof(client));
+  client.send = test_sse_mock_send_err;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+            c_abstract_http_sse_sync_read_loop(&client, &req, NULL,
+                                               test_sse_on_error_abort, NULL,
+                                               NULL, NULL));
+
+  /* 4. sync_read_loop on_error abort when sse_parser_feed fails */
+  client.send = test_sse_mock_send_valid_event;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+            c_abstract_http_sse_sync_read_loop(
+                &client, &req, test_sse_on_event_abort, test_sse_on_error_abort,
+                NULL, NULL, NULL));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* 4b. sync_read_loop on_error abort + parser_destroy / response_free OOM */
+  g_mock_cond_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_sse_sync_read_loop(
+                &client, &req, test_sse_on_event_abort, test_sse_on_error_abort,
+                NULL, NULL, NULL));
+  g_mock_cond_free_fail = 0;
+
+  g_mock_response_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_sse_sync_read_loop(
+                &client, &req, test_sse_on_event_abort, test_sse_on_error_abort,
+                NULL, NULL, NULL));
+  g_mock_response_free_fail = 0;
+
+  /* 4c. sync_read_loop sse_init OOM and sse_parser_init OOM with on_err abort
+   */
+  {
+    int ac;
+    for (ac = 0; ac < 20; ++ac) {
+      struct HttpRequest req_fresh;
+      enum c_abstract_http_error lrc;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req_fresh));
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = ac;
+      lrc = c_abstract_http_sse_sync_read_loop(
+          &client, &req_fresh, NULL, test_sse_on_error_abort, NULL, NULL, NULL);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED, lrc);
+      }
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req_fresh));
+    }
+  }
+#endif
+
+  /* 5. sync_read_loop on_close returning non-zero */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+            c_abstract_http_sse_sync_read_loop(&client, &req, NULL, NULL,
+                                               test_sse_on_close_abort, NULL,
+                                               NULL));
+
+  /* 6. async_task on_err returning non-zero */
+  {
+    struct c_abstract_http_sse_async_ctx *actx =
+        (struct c_abstract_http_sse_async_ctx *)calloc(1, sizeof(*actx));
+    ASSERT(actx != NULL);
+    actx->client = &client;
+    actx->req = &req;
+    actx->on_evt = test_sse_on_event_abort;
+    actx->on_err = test_sse_on_error_abort;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+              c_abstract_http_sse_async_task(actx));
+  }
+
+  /* 7. async_register sync fallback on_err returning non-zero */
+  client.send = test_sse_mock_send_err;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+            c_abstract_http_sse_async_register(
+                &client, &req, NULL, test_sse_on_error_abort, NULL, NULL));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  PASS();
+}
+
+TEST test_sse_free_helper(void) {
+  struct HttpRequest req;
+  struct sse_parser_ctx *pctx;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(NULL));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+  pctx = (struct sse_parser_ctx *)malloc(sizeof(*pctx));
+  ASSERT(pctx != NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(pctx, NULL, NULL, NULL, NULL, NULL));
+  req.sse_ctx = pctx;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_cond_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_sse_free(&req));
+  g_mock_cond_free_fail = 0;
+  ASSERT(req.sse_ctx != NULL);
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+  ASSERT_EQ(NULL, req.sse_ctx);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  PASS();
+}
+
 SUITE(sse_suite) {
+  RUN_TEST(test_sse_free_helper);
+  RUN_TEST(test_sse_callback_error_percolation);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_mock_free_failures);
 #endif

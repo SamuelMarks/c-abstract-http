@@ -110,9 +110,16 @@ struct TestActorState {
    if (!bus)
      return C_ABSTRACT_HTTP_ERR_INVAL;
    *bus = (struct AbstractHttpMessageBus *)(size_t)1;
-   return 0;
+   return C_ABSTRACT_HTTP_SUCCESS;
  }
- static void mock_bus_free(struct AbstractHttpMessageBus *bus) { if (bus) {} }
+ static enum c_abstract_http_error mock_bus_free(struct AbstractHttpMessageBus *bus) {
+   if (bus) {}
+   return C_ABSTRACT_HTTP_SUCCESS;
+ }
+ static enum c_abstract_http_error mock_bus_free_fail(struct AbstractHttpMessageBus *bus) {
+   if (bus) {}
+   return C_ABSTRACT_HTTP_ERR_IO;
+ }
  static enum c_abstract_http_error mock_bus_process(struct AbstractHttpMessageBus *bus, int *out_processed) {
 
    if (!bus || !out_processed)
@@ -185,6 +192,10 @@ static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, 
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_get_name(actor, &name));
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(bus));
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(NULL));
+
+   hooks.bus_free = mock_bus_free_fail;
+   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_set_hooks(&hooks));
+   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, abstract_http_message_bus_free(bus));
 
   {
     struct AbstractHttpActorHooks z;

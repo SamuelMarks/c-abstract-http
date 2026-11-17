@@ -17,163 +17,17 @@
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
 
-#if defined(C_ABSTRACT_HTTP_HAVE_REAL_FETCH)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#include "mock_stubs/mock_fetch.h"
+#else
 #include <fetch.h>
 #endif
 /* clang-format on */
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern int *abstract_http_mock_get_g_mock_fetch_global_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_fetch_context_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_fetch_config_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_fetch_parse_fail(void);
-extern int *abstract_http_mock_get_g_mock_fetch_req_fail(void);
-extern int *abstract_http_mock_get_g_mock_fetch_err_code(void);
-extern int *abstract_http_mock_get_g_mock_fetch_empty_body(void);
-extern int *abstract_http_mock_get_g_mock_fetch_response_init_fail(void);
-extern int *abstract_http_mock_get_g_mock_fetch_response_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_fetch_upload_alloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_fetch_upload_realloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_fetch_body_realloc_fail(void);
-extern int *abstract_http_mock_get_g_mock_fetch_loop_wakeup_fail(void);
-
-#define g_mock_fetch_global_init_fail                                          \
-  (*abstract_http_mock_get_g_mock_fetch_global_init_fail())
-#define g_mock_fetch_context_init_fail                                         \
-  (*abstract_http_mock_get_g_mock_fetch_context_init_fail())
-#define g_mock_fetch_config_init_fail                                          \
-  (*abstract_http_mock_get_g_mock_fetch_config_init_fail())
-#define g_mock_fetch_parse_fail                                                \
-  (*abstract_http_mock_get_g_mock_fetch_parse_fail())
-#define g_mock_fetch_req_fail (*abstract_http_mock_get_g_mock_fetch_req_fail())
-#define g_mock_fetch_err_code (*abstract_http_mock_get_g_mock_fetch_err_code())
-#define g_mock_fetch_empty_body                                                \
-  (*abstract_http_mock_get_g_mock_fetch_empty_body())
-#define g_mock_fetch_response_init_fail                                        \
-  (*abstract_http_mock_get_g_mock_fetch_response_init_fail())
-#define g_mock_fetch_response_alloc_fail                                       \
-  (*abstract_http_mock_get_g_mock_fetch_response_alloc_fail())
-#define g_mock_fetch_upload_alloc_fail                                         \
-  (*abstract_http_mock_get_g_mock_fetch_upload_alloc_fail())
-#define g_mock_fetch_upload_realloc_fail                                       \
-  (*abstract_http_mock_get_g_mock_fetch_upload_realloc_fail())
-#define g_mock_fetch_body_realloc_fail                                         \
-  (*abstract_http_mock_get_g_mock_fetch_body_realloc_fail())
-#define g_mock_fetch_loop_wakeup_fail                                          \
-  (*abstract_http_mock_get_g_mock_fetch_loop_wakeup_fail())
-#endif
-
-#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_FETCH)
-/**
- * @brief Libfetch URL structure stub.
- */
-struct url {
-  /** @brief Scheme */
-  char scheme[32];
-  /** @brief User */
-  char user[64];
-  /** @brief Password */
-  char pwd[64];
-  /** @brief Host */
-  char host[256];
-  /** @brief Port */
-  int port;
-  /** @brief Document */
-  char doc[1024];
-  /** @brief Offset */
-  size_t offset;
-  /** @brief Length */
-  size_t length;
-};
-
-#define FETCH_OK 0
-#define FETCH_TIMEOUT 1
-#define FETCH_DOWN 2
-#define FETCH_NETWORK 3
-#define FETCH_RESOLV 4
-#define FETCH_MEMORY 5
-
-static int fetchLastErrCode = 0;
-
-/**
- * @brief Parse URL string into libfetch url structure stub.
- *
- * @param[in] url_str URL string.
- * @return Pointer to allocated url structure, or NULL on failure.
- */
-static struct url *fetchParseURL(const char *url_str) {
-  struct url *u;
-  if (strcmp(url_str, "invalid://url") == 0) {
-    return NULL;
-  }
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_fetch_parse_fail) {
-    return NULL;
-  }
-#endif
-  u = (struct url *)calloc(1, sizeof(struct url));
-  return u;
-}
-
-/**
- * @brief Free libfetch url structure stub.
- *
- * @param[in] u URL structure to free.
- */
-static enum c_abstract_http_error fetchFreeURL(struct url *u) {
-  free(u);
+static enum c_abstract_http_error fetch_free_url_wrap(struct url *u) {
+  fetchFreeURL(u);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-
-/**
- * @brief Send HTTP request stub using libfetch API.
- *
- * @param[in] u URL structure.
- * @param[in] method HTTP method string.
- * @param[in] flags Flags string.
- * @param[in] content_type Content-Type header string.
- * @param[in] body Request body.
- * @return FILE stream pointer, or NULL on failure.
- */
-static FILE *fetchReqHTTP(struct url *u, const char *method, const char *flags,
-                          const char *content_type, const char *body) {
-  FILE *f;
-  (void)u;
-  (void)method;
-  (void)flags;
-  (void)content_type;
-  (void)body;
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_fetch_req_fail) {
-    fetchLastErrCode =
-        g_mock_fetch_err_code ? g_mock_fetch_err_code : FETCH_DOWN;
-    return NULL;
-  }
-  if (g_mock_fetch_empty_body) {
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    if (tmpfile_s(&f) != 0) {
-      f = NULL;
-    }
-#else
-    f = tmpfile();
-#endif
-    return f;
-  }
-#endif
-
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  if (tmpfile_s(&f) != 0) {
-    f = NULL;
-  }
-#else
-  f = tmpfile();
-#endif
-  fputs("HTTP/1.1 200 OK\r\n\r\nMock response body from libfetch", f);
-  rewind(f);
-  return f;
-}
-#endif
 
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
@@ -227,7 +81,7 @@ static enum c_abstract_http_error get_fetch_method_str(enum HttpMethod method,
   if (!out_str) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  switch (method) {
+  switch ((int)method) {
   case HTTP_GET:
     *out_str = "GET";
     break;
@@ -300,11 +154,7 @@ c_abstract_http_test_fetch_method_str(enum HttpMethod method,
 }
 #endif
 
-/**
- * @brief Initialize global libfetch resources.
- *
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Initialize global libfetch resources. */
 enum c_abstract_http_error http_fetch_global_init(void) {
   LOG_DEBUG("http_fetch_global_init: Entering");
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -319,11 +169,7 @@ enum c_abstract_http_error http_fetch_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Clean up global libfetch resources.
- *
- * @return C_ABSTRACT_HTTP_SUCCESS on success.
- */
+/* Clean up global libfetch resources. */
 enum c_abstract_http_error http_fetch_global_cleanup(void) {
   LOG_DEBUG("http_fetch_global_cleanup: Entering");
   if (g_fetch_init_count > 0 && --g_fetch_init_count == 0) {
@@ -333,12 +179,7 @@ enum c_abstract_http_error http_fetch_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Initialize a new libfetch transport context.
- *
- * @param[out] ctx Double pointer to receive newly allocated context.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Initialize a new libfetch transport context. */
 enum c_abstract_http_error
 http_fetch_context_init(struct HttpTransportContext **const ctx) {
   enum c_abstract_http_error rc;
@@ -365,13 +206,12 @@ http_fetch_context_init(struct HttpTransportContext **const ctx) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_fetch_config_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_config_init(&c->config);
+    free(c);
+    *ctx = NULL;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
-
+#endif
+  rc = http_config_init(&c->config);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_fetch_context_init: Error http_config_init failed with %d",
               (int)rc);
@@ -385,11 +225,7 @@ http_fetch_context_init(struct HttpTransportContext **const ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Free a libfetch transport context.
- *
- * @param[in] ctx The context to free. Safe to pass NULL.
- */
+/* Free a libfetch transport context. */
 enum c_abstract_http_error
 http_fetch_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_fetch_context_free: Entering");
@@ -403,13 +239,7 @@ http_fetch_context_free(struct HttpTransportContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Apply configuration to libfetch transport context.
- *
- * @param[in,out] ctx The transport context.
- * @param[in] config The configuration to apply.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Apply configuration to libfetch transport context. */
 enum c_abstract_http_error
 http_fetch_config_apply(struct HttpTransportContext *ctx,
                         const struct HttpConfig *config) {
@@ -462,14 +292,7 @@ http_fetch_config_apply(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Perform a single HTTP request using libfetch.
- *
- * @param[in] ctx The transport context.
- * @param[in] req The request to send.
- * @param[out] res Double pointer to receive the allocated response object.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Perform a single HTTP request using libfetch. */
 enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
                                            const struct HttpRequest *req,
                                            struct HttpResponse **const res) {
@@ -569,7 +392,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
     if (!upload_body) {
       LOG_DEBUG("http_fetch_send: Error ENOMEM (upload_body)");
       {
-        enum c_abstract_http_error rch = fetchFreeURL(u);
+        enum c_abstract_http_error rch = fetch_free_url_wrap(u);
         if (rch != C_ABSTRACT_HTTP_SUCCESS)
           return rch;
       }
@@ -586,7 +409,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
         LOG_DEBUG("http_fetch_send: read_chunk aborted");
         free(upload_body);
         {
-          enum c_abstract_http_error rch = fetchFreeURL(u);
+          enum c_abstract_http_error rch = fetch_free_url_wrap(u);
           if (rch != C_ABSTRACT_HTTP_SUCCESS)
             return rch;
         }
@@ -611,7 +434,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
           LOG_DEBUG("http_fetch_send: Error ENOMEM reallocating upload_body");
           free(upload_body);
           {
-            enum c_abstract_http_error rch = fetchFreeURL(u);
+            enum c_abstract_http_error rch = fetch_free_url_wrap(u);
             if (rch != C_ABSTRACT_HTTP_SUCCESS)
               return rch;
           }
@@ -632,7 +455,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   f = fetchReqHTTP(u, method_str, "", NULL, body_ptr);
 
   {
-    enum c_abstract_http_error rch = fetchFreeURL(u);
+    enum c_abstract_http_error rch = fetch_free_url_wrap(u);
     if (rch != C_ABSTRACT_HTTP_SUCCESS)
       return rch;
   }
@@ -640,7 +463,10 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   if (!f) {
     enum c_abstract_http_error map_rc = map_fetch_error(fetchLastErrCode, &rc);
     if (map_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      rc = map_rc;
+      if (upload_body) {
+        free(upload_body);
+      }
+      return map_rc;
     }
     LOG_DEBUG("http_fetch_send: Error fetchReqHTTP failed, rc=%d", (int)rc);
     if (upload_body) {
@@ -668,13 +494,15 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_fetch_response_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-  } else
-#endif
-  {
-    rc = http_response_init(new_res);
+    free(new_res);
+    fclose(f);
+    if (upload_body) {
+      free(upload_body);
+    }
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
-
+#endif
+  rc = http_response_init(new_res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_fetch_send: Error http_response_init failed with %d",
               (int)rc);
@@ -690,11 +518,23 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
 
   while ((bytes_read = fread(buf, 1, sizeof(buf), f)) > 0) {
     if (req->on_chunk) {
-      rc = (enum c_abstract_http_error)req->on_chunk(req->on_chunk_user_data,
-                                                     buf, bytes_read);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        LOG_DEBUG("http_fetch_send: Error on_chunk failed with %d", (int)rc);
-        break;
+      enum c_abstract_http_error chunk_rc =
+          req->on_chunk(req->on_chunk_user_data, buf, bytes_read);
+      if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        enum c_abstract_http_error free_rc;
+        LOG_DEBUG("http_fetch_send: Error on_chunk failed with %d",
+                  (int)chunk_rc);
+        fclose(f);
+        if (upload_body) {
+          free(upload_body);
+        }
+        free_rc = http_response_free(new_res);
+        free(new_res);
+        *res = NULL;
+        if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return free_rc;
+        }
+        return chunk_rc;
       }
     } else {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -741,15 +581,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Dispatch multiple HTTP requests using libfetch.
- *
- * @param[in] ctx Pointer to an initialized HttpTransportContext.
- * @param[in,out] loop Event loop to drive the execution.
- * @param[in] multi Multi-request specification.
- * @param[out] futures Array of returned HttpFuture handles.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Dispatch multiple HTTP requests using libfetch. */
 enum c_abstract_http_error http_fetch_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
@@ -765,23 +597,24 @@ enum c_abstract_http_error http_fetch_send_multi(
     struct HttpResponse *res;
     res = NULL;
     rc = http_fetch_send(ctx, multi->requests[i], &res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      futures[i]->response = res;
+      futures[i]->error_code = rc;
+      futures[i]->is_ready = 1;
+      return rc;
+    }
     futures[i]->response = res;
     futures[i]->error_code = rc;
     futures[i]->is_ready = 1;
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      return rc;
-    }
   }
 
   if (loop) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_fetch_loop_wakeup_fail) {
-      rc = C_ABSTRACT_HTTP_ERR_IO;
-    } else
-#endif
-    {
-      rc = http_loop_wakeup(loop);
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
+#endif
+    rc = http_loop_wakeup(loop);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }

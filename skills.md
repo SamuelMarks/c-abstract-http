@@ -1,94 +1,106 @@
 # Contributor & Agent Skills
 
-This document outlines standard operating procedures (SOPs) and technical "skills" for developers or autonomous agents contributing to `c-abstract-http`.
+This document defines standard operating procedures (SOPs) and strict engineering invariants for contributors and autonomous agents working on `c-abstract-http`.
 
-## 1. Extending the Backend (Adding a new Transport)
+## 1. Extending the Library with a New Transport Backend
 
-Before implementing a new transport backend, consider how it interacts with the OS defaults. The library is structured to automatically use the best native APIs per platform (WinHTTP on Windows, CFNetwork on Apple, libcurl on Linux, etc.), unless explicitly overridden via a CMake `-D` flag (e.g., `-DC_ABSTRACT_HTTP_USE_LIBUV=ON`).
+1. **Public Header**: Create `include/c_abstract_http/http_<backend>.h` wrapped in a single `#ifdef __cplusplus` guard and a single `/* clang-format off */` / `/* clang-format on */` `#include` block. Declare `http_<backend>_global_init`, `http_<backend>_global_cleanup`, `http_<backend>_context_init`, `http_<backend>_context_free`, `http_<backend>_send` (`http_send_fn`), and (if supported) `http_<backend>_send_multi` (`http_send_multi_fn`), all prefixed with `NO_DISCARD C_ABSTRACT_HTTP_API` and returning `enum c_abstract_http_error` (`c_abstract_http_error_t`).
+2. **Implementation**: Implement `src/http_<backend>.c` in strict ISO C89, translating every third-party/OS failure into `enum c_abstract_http_error`.
+3. **Factory & Amalgamation Wiring**:
+   - Wire `C_ABSTRACT_HTTP_USE_<BACKEND>` into `src/transport.c` (`transport_global_init`, `transport_global_cleanup`, `transport_factory_init_client`, `transport_factory_cleanup_client`) **above** implicit OS fallbacks (`_WIN32`, `__APPLE__`, `DOS`).
+   - Mirror the header and `#ifdef C_ABSTRACT_HTTP_IMPLEMENTATION` `.c` include in `include/c_abstract_http/c_abstract_http.h`.
+   - Add `option(C_ABSTRACT_HTTP_USE_<BACKEND> ... OFF)` and wire both the `if(C_ABSTRACT_HTTP_HEADER_ONLY)` (`INTERFACE`) and compiled library branches in `CMakeLists.txt`.
+4. **Testing & OOM Stubs**: Add deterministic mock stubs under `tests/mock_stubs/mock_<backend>.h` (if the external C library is optional), unit/OOM tests in `tests/test_http_<backend>.h`, and register the suite in `tests/main.c`.
 
-If you are implementing a new transport backend (e.g., `http_lwip.c` for embedded systems):
-- **Define Context:** Create a `struct HttpTransportContext` in your implementation file (`src/http_lwip.c`).
-- **Implement Interface:** You must supply initialization logic, configuration logic, and a `send` implementation conforming to the `http_send_fn` typedef inside `http_types.h`.
-- **Memory Handling:** Your `send` function must populate a `struct HttpResponse **res`. Ensure you gracefully handle the case where reading the socket fails halfway through, cleaning up whatever `res` struct you started to allocate.
-- **Wire up Transport:** Add the new backend dispatch logic inside `src/transport.c` guarded by the appropriate preprocessor macro (e.g., `#elif defined(LWIP)` or `#elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)`). Add it to `CMakeLists.txt`.
+## 2. Strict ISO C89 (ANSI C / C90) Compliance
 
-## 2. Extending Cryptography (Adding a new TLS Backend)
+Every `.c` and `.h` file is compiled with `-std=c89 -pedantic -Wall -Wextra -Werror -Wdeclaration-after-statement` on GCC/Clang and `/W4 /WX` on MSVC:
+- **Comments**: Use `/* ... */` exclusively. Never use `//` comments.
+- **Declarations**: Declare all local variables at the very top of a `{ ... }` block before any executable statement.
+- **Forbidden Headers**: Never `#include <stdbool.h>` (use `int` with `0`/`1`) and never `#include <windows.h>` (include `<winsock2.h>` / `<ws2tcpip.h>` or forward-declare minimal Win32 signatures using `include/c_abstract_http/win_compat_sym.h`). Guard `<stdint.h>` and `<unistd.h>` for `_MSC_VER < 1600`.
 
-If you are adding another cryptographic library (e.g., `NSS`):
-- Expose an `option(C_ABSTRACT_HTTP_USE_NSS ...)` in the root `CMakeLists.txt`.
-- Add its `FetchContent` or `vcpkg`/`PkgConfig` resolution routing inside `c_abstract_http_apply_crypto`.
-- Map the choice downward to any HTTP backends that optionally wrap it. For example, if you chose to inject `NSS`, add a matching `set(CURL_USE_NSS ON CACHE BOOL "" FORCE)` inside the `c_abstract_http_configure_curl` macro so the transport natively embraces it.
-- Finally, surface the capability into `vcpkg.json`'s `features` block.
+## 3. Mandatory Enum Error Return & Percolation Policy
 
-## 3. Navigating the `enum c_abstract_http_error` Return Error Code Pattern
-When implementing string manipulations, getters, or memory reads, standard C patterns often return a pointer or NULL on failure. In this library, you MUST NOT return pointers.
-Instead, return a standardized error code `enum c_abstract_http_error` (defined in `c_abstract_http/http_types.h`).
+Every non-void, non-math function MUST return `enum c_abstract_http_error` (`c_abstract_http_error_t`), pass outputs via pointer parameters, and percolate errors without `(void)` return discards.
 
-### Bad (Do Not Do This)
+### Bad (Forbidden)
 ```c
-const char* get_header(struct HttpHeaders* h, const char* k) {
-    /* ... logic ... */
-    if (not_found) return NULL;
-    return val;
-}
+const char *http_headers_get(const struct HttpHeaders *h, const char *key);
 ```
 
-### Good (Do This)
+### Good (Required)
 ```c
-enum c_abstract_http_error get_header(struct HttpHeaders* h, const char* k, const char** out) {
-    if (!h || !k || !out) return HTTP_ERROR_INVALID_ARGUMENT;
-    /* ... logic ... */
-    if (not_found) return HTTP_ERROR_NOT_FOUND;
-    *out = val;
-    return HTTP_ERROR_NONE; /* SUCCESS */
-}
+/**
+ * @brief Retrieve a header value by case-insensitive key.
+ * @param headers The headers container.
+ * @param key Header name to look up.
+ * @param out Output pointer receiving the borrowed header value.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or C_ABSTRACT_HTTP_ERR_INVAL.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_headers_get(
+    const struct HttpHeaders *headers, const char *key, const char **out);
 ```
 
-## 4. Safe MSVC Extensions
+At every call site, capture and immediately check the returned enum without mutating the error variable before returning it:
+```c
+enum c_abstract_http_error rc;
+rc = http_headers_add(&req.headers, "Accept", "application/json");
+if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+  LOG_DEBUG("http_headers_add failed: %d", (int)rc);
+  return rc;
+}
+```
+Validate with `python3 scripts/validate_api_signatures.py`, `check_no_discard_void_clang.py`, and `check_error_percolation_clang.py`.
 
-Legacy MSVC and security policies demand the usage of `*_s` functions instead of POSIX standards where buffer overflows are a risk. However, you cannot unconditionally apply `_s` functions because they do not exist in standard GCC/Clang on Linux.
+## 4. MSVC Safe CRT & Portable String Handling
 
-When writing to buffers using functions like `sprintf`, `strcpy`, `strcat`, or opening files with `fopen`, you must format it like so:
-
+Guard MSVC Safe CRT calls (`sprintf_s`, `strcpy_s`, `strncpy_s`, `_vsnprintf_s`) with `#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)` and provide standard C89 / `c89stringutils` fallbacks for GCC, Clang, MinGW, and OpenWatcom:
 ```c
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    /* MSVC Safe Path */
-    sprintf_s(buf, buf_len, "Value: %d", 42);
-    fopen_s(&fh, "file.txt", "r");
+strcpy_s(dest, dest_cap, src);
 #else
-    /* Standard POSIX / GCC Path */
-    sprintf(buf, "Value: %d", 42);
-    fh = fopen("file.txt", "r");
+strcpy(dest, src);
 #endif
 ```
 
-## 5. Handling `size_t` Formatting
+## 5. Portable `size_t` & 64-Bit Integer Formatting
 
-Printing `size_t` requires caution to not break MSVC C89 mode. Use the globally defined `NUM_FORMAT` macro.
+Never use `%zu` or `%lld` directly in format strings (unsupported on MSVC 2005 / legacy MSVCRT):
+- For `size_t`, include `<c_abstract_http/win_compat_sym.h>` and use `"%" SIZE_T_FMT` (which expands to `"Iu"`, `"zu"`, or `"lu"`):
+  ```c
+  printf("Payload bytes: %" SIZE_T_FMT "\n", body_len);
+  ```
+- For signed 64-bit integers (`abstract_http_int64_t`), include `<c_abstract_http/http_types.h>` and use `C_ABSTRACT_HTTP_NUM_FORMAT` (which includes `%` and expands to `"%I64d"`, `"%ld"`, or `"%lld"`):
+  ```c
+  printf("Timestamp: " C_ABSTRACT_HTTP_NUM_FORMAT "\n", ts_ms);
+  ```
 
-```c
-/* Do this: */
-sprintf(buf, "Size=" NUM_FORMAT, len);
+## 6. Dependency & CMake `FetchContent` Policy
 
-/* Never this: */
-sprintf(buf, "Size=%zu", len);
-```
+- Always use `FetchContent_MakeAvailable` (never `FetchContent_Populate`).
+- Always track the `master` branch (never pin commit hashes) for `SamuelMarks/*` repositories (`c-fs`, `c-orm`, `cdd-c`, `c-ci`, `greatest`).
+- Ensure any CMake flag or definition works identically for `STATIC`, `SHARED` (`BUILD_SHARED_LIBS=ON`), and `INTERFACE` (`C_ABSTRACT_HTTP_HEADER_ONLY=ON`) builds.
 
-## 6. Refactoring `<windows.h>`
+## 7. Header Formatting, `extern "C"`, and Clang-Format Safety
 
-If you are pulling in Windows APIs, never include `<windows.h>`.
-Identify the precise SDK headers needed (e.g., `<windef.h>`, `<winnt.h>`, `<winbase.h>`) and include those in order. `windef.h` almost always goes first. If necessary, wrap in `#ifdef _WIN32`.
-## 5. FetchContent Policy
-Always use FetchContent_MakeAvailable over the deprecated FetchContent_Populate pattern in modern CMake logic to ensure robust, warning-free dependency resolution.
+- Wrap every public header in `#ifdef __cplusplus` / `extern "C" {` ... `#endif /* __cplusplus */` at most **once** per file.
+- Wrap every `#include` block in `/* clang-format off */` and `/* clang-format on */` at most **once** per file to preserve include ordering on Windows/Winsock headers.
+- Format all C/C++ headers and sources before finishing:
+  ```bash
+  fd -eh -ec -x clang-format -i --style=LLVM
+  ```
 
-## 6. Header Guards & C++ Interop
-Every public header MUST be wrapped with #ifdef __cplusplus and extern "C" exactly once. Furthermore, strictly guard POSIX/C99 headers like <stdint.h>, <stdbool.h>, and <unistd.h> using #if defined(_MSC_VER) with local typedef fallbacks to support compilation on legacy environments like MSVC 2005.
+## 8. 100% Documentation & 100% Line/Branch Coverage
 
-## 7. Clang-Format Safety
-All #include blocks MUST be wrapped in /* clang-format off */ and /* clang-format on */ (maximum once per file). This strictly preserves include ordering and dependency hierarchies during automated formatting.
+- **Doxygen**: Every public and internal file, struct, field, enum, macro, typedef, and function must have complete Doxygen comments (`0` warnings with `WARN_NO_PARAMDOC=YES`).
+- **Coverage & OOM Testing**: Maintain `100.0%` line, function, and branch coverage in `src/` (`gcovr --fail-under-line 100 --fail-under-branch 100`) using `greatest.h` suites and `tests/mock_alloc.h` fault injection (`g_mock_alloc_fail`, `g_mock_strdup_fail`, etc.). Do not introduce unreachable defensive branches that cannot be exercised by tests.
 
-## 8. Pluggable Execution Modalities (Actors, Threads, Event Loops)
-When extending or bridging the concurrency capabilities of the library to an external framework (such as `c-multiplatform`), you must implement the respective `*Hooks` structure (e.g., `HttpLoopHooks` in `event_loop.h`, `AbstractHttpThreadPoolHooks` in `thread_pool.h`).
-- **Do not modify the generic C-side headers.** The hook structures (`*Hooks`) are specifically designed to enable Inversion-of-Control.
-- Ensure that memory allocated inside a hook proxy is correctly cleaned up inside the corresponding `free` hook.
-- When adapting an event loop (`HttpLoopHooks`), the custom `add_fd` and `mod_fd` functions should never block the main loop of the host framework.
+## 9. Parser Safety & Fuzzing (WebSockets & SSE)
+
+- Respect `C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE` and `C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE` bounds before buffer growth, returning `C_ABSTRACT_HTTP_ERR_MSGSIZE` / `C_ABSTRACT_HTTP_ERR_SSE_OOM` on violations.
+- Keep `tests/fuzz_ws.c` and `tests/fuzz_sse.c` deterministic and leak-free (`-DC_ABSTRACT_HTTP_ENABLE_FUZZING=ON`).
+
+## 10. Concurrency & External Event Loop Integration
+
+- Guard multi-threaded code and tests with `#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED`.
+- Thread pool tasks (`abstract_http_thread_task_cb`), loop socket callbacks (`http_loop_cb`), timer callbacks (`http_timer_cb`), and external `struct HttpLoopHooks` functions all return `enum c_abstract_http_error` and must never block the host reactor thread.

@@ -17,8 +17,8 @@
 #include <stdlib.h>
 #include <string.h>
 #if defined(_WIN32)
-#ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
@@ -2650,7 +2650,8 @@ TEST test_http_types_complete_coverage(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern enum c_abstract_http_error c_abstract_http_test_http_types_helpers(void);
+extern enum c_abstract_http_error
+c_abstract_http_test_http_types_helpers(int step);
 
 TEST test_http_types_oauth_and_multipart_failures(void) {
   int i;
@@ -2658,7 +2659,10 @@ TEST test_http_types_oauth_and_multipart_failures(void) {
   enum c_abstract_http_error rc;
 
   /* 1. Internal helpers */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_http_types_helpers());
+  for (i = 0; i < 7; ++i) {
+    ASSERT_EQ(i == 5 ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_INVAL,
+              c_abstract_http_test_http_types_helpers(i));
+  }
 
   /* 2. Multipart sprintf_s_wrapper failure branches */
   for (i = 1; i <= 16; ++i) {

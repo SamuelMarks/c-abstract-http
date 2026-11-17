@@ -845,19 +845,38 @@ TEST test_fetch_mock_coverage(void) {
   ASSERT_STR_EQ("GET", str_out);
 #endif
 
-  abstract_http_mock_get_g_mock_fetch_global_init_fail();
-  abstract_http_mock_get_g_mock_fetch_context_init_fail();
-  abstract_http_mock_get_g_mock_fetch_config_init_fail();
-  abstract_http_mock_get_g_mock_fetch_parse_fail();
-  abstract_http_mock_get_g_mock_fetch_req_fail();
-  abstract_http_mock_get_g_mock_fetch_err_code();
-  abstract_http_mock_get_g_mock_fetch_empty_body();
-  abstract_http_mock_get_g_mock_fetch_response_init_fail();
-  abstract_http_mock_get_g_mock_fetch_response_alloc_fail();
-  abstract_http_mock_get_g_mock_fetch_upload_alloc_fail();
-  abstract_http_mock_get_g_mock_fetch_upload_realloc_fail();
-  abstract_http_mock_get_g_mock_fetch_body_realloc_fail();
-  abstract_http_mock_get_g_mock_fetch_loop_wakeup_fail();
+  {
+    int *mock_ptr = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_get_g_mock_fetch_global_init_fail(&mock_ptr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_get_g_mock_fetch_context_init_fail(&mock_ptr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_get_g_mock_fetch_config_init_fail(&mock_ptr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_get_g_mock_fetch_parse_fail(&mock_ptr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_get_g_mock_fetch_req_fail(&mock_ptr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_get_g_mock_fetch_err_code(&mock_ptr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_get_g_mock_fetch_empty_body(&mock_ptr));
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        abstract_http_mock_get_g_mock_fetch_response_init_fail(&mock_ptr));
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        abstract_http_mock_get_g_mock_fetch_response_alloc_fail(&mock_ptr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_get_g_mock_fetch_upload_alloc_fail(&mock_ptr));
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        abstract_http_mock_get_g_mock_fetch_upload_realloc_fail(&mock_ptr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_get_g_mock_fetch_body_realloc_fail(&mock_ptr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_mock_get_g_mock_fetch_loop_wakeup_fail(&mock_ptr));
+  }
   PASS();
 }
 

@@ -11,14 +11,14 @@
 #ifndef C_ABSTRACT_HTTP_HTTP_MSH3_H
 #define C_ABSTRACT_HTTP_HTTP_MSH3_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Opaque context definition.
@@ -54,6 +54,7 @@ http_msh3_context_init(struct HttpTransportContext **ctx);
  * @brief Free a MsH3 transport context and its associated resources.
  *
  * @param[in] ctx The context to free.
+ * @return 0 on success, or an error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 http_msh3_context_free(struct HttpTransportContext *ctx);

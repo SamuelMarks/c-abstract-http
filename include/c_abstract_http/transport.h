@@ -8,13 +8,13 @@
 #ifndef C_ABSTRACT_HTTP_TRANSPORT_H
 #define C_ABSTRACT_HTTP_TRANSPORT_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Initialize the global transport layer.

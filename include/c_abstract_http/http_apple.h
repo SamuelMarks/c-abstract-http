@@ -10,13 +10,13 @@
 #ifndef C_ABSTRACT_HTTP_HTTP_APPLE_H
 #define C_ABSTRACT_HTTP_HTTP_APPLE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 /**
  * @brief Initialize global Apple networking environment.
@@ -59,6 +59,20 @@ http_apple_context_free(struct HttpTransportContext *ctx);
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_apple_config_apply(
     struct HttpTransportContext *ctx, const struct HttpConfig *config);
+
+/**
+ * @brief Select between the modern NSURLSession C-bridge and legacy CFStream.
+ *
+ * When compiled with `MACOSX_DEPLOYMENT_TARGET >= 10.11`, deprecated
+ * `CFReadStreamCreateForHTTPRequest` APIs are omitted at compile time and
+ * attempting to disable `NSURLSession` returns `C_ABSTRACT_HTTP_ERR_NOTSUP`.
+ *
+ * @param[in] ctx The transport context.
+ * @param[in] enabled Non-zero to dispatch via `NSURLSession`, 0 for `CFStream`.
+ * @return `C_ABSTRACT_HTTP_SUCCESS` on success, or an error enum.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_apple_set_use_nsurlsession(struct HttpTransportContext *ctx, int enabled);
 
 /**
  * @brief The send implementation for Apple.

@@ -7,9 +7,11 @@
 /* clang-format off */
 #if !defined(_WIN32)
 #ifndef _DEFAULT_SOURCE
+/** @brief Enable default POSIX/BSD definitions */
 #define _DEFAULT_SOURCE 1
 #endif
 #ifndef _POSIX_C_SOURCE
+/** @brief Enable POSIX.1-2008 definitions */
 #define _POSIX_C_SOURCE 200809L
 #endif
 #endif
@@ -33,8 +35,11 @@
 #endif
 /* clang-format on */
 
+/** @brief Reference count for global MsH3 initialization */
 static int g_msh3_init_count = 0;
+/** @brief Global initialization mutex for MsH3 */
 static struct AbstractHttpMutex *g_msh3_mutex = NULL;
+/** @brief Shared MsH3 API instance */
 static MSH3_API *g_msh3_api = NULL;
 
 /** @brief Internal struct HttpTransportContext */
@@ -47,22 +52,16 @@ struct HttpTransportContext {
   struct HttpConfig base_config;
 };
 
-/**
- * @brief Initialize the global MsH3 state.
- *
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Initialize the global MsH3 state. */
 enum c_abstract_http_error http_msh3_global_init(void) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
   if (!g_msh3_mutex) {
-    {
-      rc = abstract_http_mutex_init(&g_msh3_mutex);
-    }
+    rc = abstract_http_mutex_init(&g_msh3_mutex);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
   }
-  { rc = abstract_http_mutex_lock(g_msh3_mutex); }
+  rc = abstract_http_mutex_lock(g_msh3_mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
@@ -79,24 +78,24 @@ enum c_abstract_http_error http_msh3_global_init(void) {
   }
   {
     enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(g_msh3_mutex);
-    if (u_rc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = u_rc;
+    if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+      return u_rc;
     }
   }
   return rc;
 }
 
-/**
- * @brief Clean up global MsH3 state.
- *
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Clean up global MsH3 state. */
 enum c_abstract_http_error http_msh3_global_cleanup(void) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  enum c_abstract_http_error unlock_rc;
   if (!g_msh3_mutex) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  { rc = abstract_http_mutex_lock(g_msh3_mutex); }
+  rc = abstract_http_mutex_lock(g_msh3_mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
@@ -107,23 +106,29 @@ enum c_abstract_http_error http_msh3_global_cleanup(void) {
     WSACleanup();
 #endif
   }
-  rc = abstract_http_mutex_unlock(g_msh3_mutex);
+  unlock_rc = abstract_http_mutex_unlock(g_msh3_mutex);
+  if (unlock_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (g_msh3_init_count == 0) {
+      enum c_abstract_http_error free_rc =
+          abstract_http_mutex_free(g_msh3_mutex);
+      g_msh3_mutex = NULL;
+      if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return free_rc;
+      }
+    }
+    return unlock_rc;
+  }
   if (g_msh3_init_count == 0) {
     enum c_abstract_http_error free_rc = abstract_http_mutex_free(g_msh3_mutex);
     g_msh3_mutex = NULL;
-    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = free_rc;
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return free_rc;
     }
   }
-  return rc;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Initialize a new MsH3 transport context.
- *
- * @param[out] ctx Double pointer to receive allocated context.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Initialize a new MsH3 transport context. */
 enum c_abstract_http_error
 http_msh3_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
@@ -140,7 +145,7 @@ http_msh3_context_init(struct HttpTransportContext **ctx) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  { rc = http_config_init(&c->base_config); }
+  rc = http_config_init(&c->base_config);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_context_init: Error http_config_init failed with %d",
               (int)rc);
@@ -155,11 +160,7 @@ http_msh3_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Free MsH3 transport context.
- *
- * @param[in] ctx The context to free. Satisfies NULL safety.
- */
+/* Free MsH3 transport context. */
 enum c_abstract_http_error
 http_msh3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_msh3_context_free: Entering");
@@ -179,13 +180,7 @@ http_msh3_context_free(struct HttpTransportContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Apply configuration settings to MsH3 context.
- *
- * @param[in,out] ctx The transport context.
- * @param[in] config The configuration to apply.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Apply configuration settings to MsH3 context. */
 enum c_abstract_http_error
 http_msh3_config_apply(struct HttpTransportContext *ctx,
                        const struct HttpConfig *config) {
@@ -245,6 +240,14 @@ struct msh3_req_ctx {
   enum c_abstract_http_error error_code;
 };
 
+/**
+ * @brief MsH3 per-request event callback handling headers, body data, and
+ * shutdown.
+ * @param req MsH3 request handle.
+ * @param ctx Pointer to struct msh3_req_ctx.
+ * @param ev Incoming MsH3 request event.
+ * @return MSH3_STATUS_SUCCESS.
+ */
 static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
                                              MSH3_REQUEST_EVENT *ev) {
   struct msh3_req_ctx *rctx = (struct msh3_req_ctx *)ctx;
@@ -371,6 +374,13 @@ static MSH3_STATUS MSH3_CALL msh3_request_cb(MSH3_REQUEST *req, void *ctx,
   return MSH3_STATUS_SUCCESS;
 }
 
+/**
+ * @brief MsH3 connection event callback.
+ * @param conn MsH3 connection handle.
+ * @param ctx Callback context.
+ * @param ev Incoming connection event.
+ * @return MSH3_STATUS_SUCCESS.
+ */
 static MSH3_STATUS MSH3_CALL msh3_conn_cb(MSH3_CONNECTION *conn, void *ctx,
                                           MSH3_CONNECTION_EVENT *ev) {
   if (!conn || !ctx || !ev) {
@@ -379,6 +389,15 @@ static MSH3_STATUS MSH3_CALL msh3_conn_cb(MSH3_CONNECTION *conn, void *ctx,
   return MSH3_STATUS_SUCCESS;
 }
 
+/**
+ * @brief Split an HTTP(S) URL into scheme, host, port, and path strings.
+ * @param url Input URL string.
+ * @param host Newly allocated host string.
+ * @param port Newly allocated port string.
+ * @param path Newly allocated path string.
+ * @param scheme Newly allocated scheme string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
 static enum c_abstract_http_error parse_url(const char *url, char **host,
                                             char **port, char **path,
                                             char **scheme) {
@@ -514,14 +533,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Synchronously send HTTP request via MsH3.
- *
- * @param[in] ctx Transport context.
- * @param[in] req HTTP request.
- * @param[out] res Double pointer to receive response.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Synchronously send HTTP request via MsH3. */
 enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
                                           const struct HttpRequest *req,
                                           struct HttpResponse **res) {
@@ -560,7 +572,7 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
   sprintf(authority, "%s:%s", host, port_str);
 #endif
 
-  { *res = (struct HttpResponse *)calloc(1, sizeof(**res)); }
+  *res = (struct HttpResponse *)calloc(1, sizeof(**res));
   if (!*res) {
     LOG_DEBUG("http_msh3_send: Error ENOMEM");
     free(host);
@@ -570,7 +582,7 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  { rc = http_response_init(*res); }
+  rc = http_response_init(*res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("http_msh3_send: Error http_response_init failed with %d",
               (int)rc);
@@ -588,11 +600,7 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_DGRAM;
 
-  {
-    rc = (enum c_abstract_http_error)getaddrinfo(host, port_str, &hints,
-                                                 &result);
-  }
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+  if (getaddrinfo(host, port_str, &hints, &result) != 0) {
     enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_msh3_send: Error getaddrinfo failed for host '%s'", host);
     free(host);
@@ -634,15 +642,14 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
   }
 
   if (!MsH3ConnectionStart(conn, ctx->config, host, &addr)) {
-    /* MSH3 doesn't typically return an error code from start but let's check it
-     */
+    /* MSH3 doesn't typically return an error code from start */
   }
 
   memset(&rctx, 0, sizeof(rctx));
   rctx.res = *res;
   rctx.error_code = C_ABSTRACT_HTTP_SUCCESS;
 
-  { rc = abstract_http_mutex_init(&rctx.mutex); }
+  rc = abstract_http_mutex_init(&rctx.mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_msh3_send: Error abstract_http_mutex_init failed with %d",
@@ -661,7 +668,7 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
     return rc;
   }
 
-  { rc = abstract_http_cond_init(&rctx.cond); }
+  rc = abstract_http_cond_init(&rctx.cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     enum c_abstract_http_error mtx_rc;
     enum c_abstract_http_error free_rc;
@@ -738,54 +745,139 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
       LOG_DEBUG("http_msh3_send: Error MsH3RequestSend failed");
       rctx.error_code = C_ABSTRACT_HTTP_ERR_IO;
     } else {
-      { rc = abstract_http_mutex_lock(rctx.mutex); }
-      if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-        while (!rctx.is_complete) {
-          rc = abstract_http_cond_wait(rctx.cond, rctx.mutex);
-          if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-            LOG_DEBUG(
-                "http_msh3_send: Error abstract_http_cond_wait failed with %d",
-                (int)rc);
-            rctx.error_code = rc;
-            break;
-          }
-        }
-        {
-          enum c_abstract_http_error cond_rc =
-              abstract_http_mutex_unlock(rctx.mutex);
-          if (cond_rc != C_ABSTRACT_HTTP_SUCCESS &&
-              rctx.error_code == C_ABSTRACT_HTTP_SUCCESS) {
-            rctx.error_code = cond_rc;
-          }
-        }
-      } else {
+      msh3_status = abstract_http_mutex_lock(rctx.mutex);
+      if (msh3_status != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG(
             "http_msh3_send: Error abstract_http_mutex_lock failed with %d",
-            (int)rc);
-        rctx.error_code = rc;
+            (int)msh3_status);
+        MsH3RequestClose(mreq);
+        goto cleanup_conn;
       }
+      while (!rctx.is_complete) {
+        msh3_status = abstract_http_cond_wait(rctx.cond, rctx.mutex);
+        if (msh3_status != C_ABSTRACT_HTTP_SUCCESS) {
+          enum c_abstract_http_error unlock_rc;
+          LOG_DEBUG(
+              "http_msh3_send: Error abstract_http_cond_wait failed with %d",
+              (int)msh3_status);
+          unlock_rc = abstract_http_mutex_unlock(rctx.mutex);
+          if (unlock_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            MsH3RequestClose(mreq);
+            MsH3ConnectionClose(conn);
+            {
+              enum c_abstract_http_error c_rc =
+                  abstract_http_cond_free(rctx.cond);
+              if (c_rc != C_ABSTRACT_HTTP_SUCCESS) {
+                free(host);
+                free(port_str);
+                free(path);
+                free(scheme);
+                free(*res);
+                *res = NULL;
+                return c_rc;
+              }
+            }
+            {
+              enum c_abstract_http_error m_rc =
+                  abstract_http_mutex_free(rctx.mutex);
+              if (m_rc != C_ABSTRACT_HTTP_SUCCESS) {
+                free(host);
+                free(port_str);
+                free(path);
+                free(scheme);
+                free(*res);
+                *res = NULL;
+                return m_rc;
+              }
+            }
+            {
+              enum c_abstract_http_error f_rc = http_response_free(*res);
+              free(host);
+              free(port_str);
+              free(path);
+              free(scheme);
+              free(*res);
+              *res = NULL;
+              if (f_rc != C_ABSTRACT_HTTP_SUCCESS) {
+                return f_rc;
+              }
+            }
+            return unlock_rc;
+          }
+          MsH3RequestClose(mreq);
+          goto cleanup_conn;
+        }
+      }
+      msh3_status = abstract_http_mutex_unlock(rctx.mutex);
+      if (msh3_status != C_ABSTRACT_HTTP_SUCCESS) {
+        MsH3RequestClose(mreq);
+        goto cleanup_conn;
+      }
+      msh3_status = rctx.error_code;
+      MsH3RequestClose(mreq);
     }
-
-    msh3_status = rctx.error_code;
-    MsH3RequestClose(mreq);
+    if (msh3_status == C_ABSTRACT_HTTP_SUCCESS &&
+        rctx.error_code != C_ABSTRACT_HTTP_SUCCESS) {
+      msh3_status = rctx.error_code;
+      MsH3RequestClose(mreq);
+    }
   } else {
     LOG_DEBUG("http_msh3_send: Error MsH3RequestOpen failed");
     msh3_status = C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
+cleanup_conn:
   MsH3ConnectionClose(conn);
   {
-    enum c_abstract_http_error cond_free_rc =
-        abstract_http_cond_free(rctx.cond);
-    enum c_abstract_http_error mtx_free_rc =
-        abstract_http_mutex_free(rctx.mutex);
-    if (cond_free_rc != C_ABSTRACT_HTTP_SUCCESS &&
-        msh3_status == C_ABSTRACT_HTTP_SUCCESS) {
-      msh3_status = cond_free_rc;
+    enum c_abstract_http_error cond_free_rc;
+    enum c_abstract_http_error mtx_free_rc;
+    cond_free_rc = abstract_http_cond_free(rctx.cond);
+    if (cond_free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      mtx_free_rc = abstract_http_mutex_free(rctx.mutex);
+      if (mtx_free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(host);
+        free(port_str);
+        free(path);
+        free(scheme);
+        free(*res);
+        *res = NULL;
+        return mtx_free_rc;
+      }
+      free(host);
+      free(port_str);
+      free(path);
+      free(scheme);
+      if (*res) {
+        enum c_abstract_http_error free_rc = http_response_free(*res);
+        free(*res);
+        *res = NULL;
+        if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return free_rc;
+        }
+      }
+      if (msh3_status != C_ABSTRACT_HTTP_SUCCESS) {
+        return msh3_status;
+      }
+      return cond_free_rc;
     }
-    if (mtx_free_rc != C_ABSTRACT_HTTP_SUCCESS &&
-        msh3_status == C_ABSTRACT_HTTP_SUCCESS) {
-      msh3_status = mtx_free_rc;
+    mtx_free_rc = abstract_http_mutex_free(rctx.mutex);
+    if (mtx_free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(host);
+      free(port_str);
+      free(path);
+      free(scheme);
+      if (*res) {
+        enum c_abstract_http_error free_rc = http_response_free(*res);
+        free(*res);
+        *res = NULL;
+        if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return free_rc;
+        }
+      }
+      if (msh3_status != C_ABSTRACT_HTTP_SUCCESS) {
+        return msh3_status;
+      }
+      return mtx_free_rc;
     }
   }
 
@@ -810,15 +902,7 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/**
- * @brief Asynchronously send multi-requests via MsH3.
- *
- * @param[in] ctx Transport context.
- * @param[in] loop Event loop.
- * @param[in] multi Multi-request structure.
- * @param[out] futures Array of futures.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
- */
+/* Asynchronously send multi-requests via MsH3. */
 enum c_abstract_http_error http_msh3_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
@@ -836,6 +920,12 @@ enum c_abstract_http_error http_msh3_send_multi(
   for (i = 0; i < multi->count; i++) {
     struct HttpResponse *res = NULL;
     rc = http_msh3_send(ctx, multi->requests[i], &res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      futures[i]->response = res;
+      futures[i]->error_code = rc;
+      futures[i]->is_ready = 1;
+      return rc;
+    }
     futures[i]->response = res;
     futures[i]->error_code = rc;
     futures[i]->is_ready = 1;

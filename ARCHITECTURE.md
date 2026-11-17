@@ -1,141 +1,66 @@
 # Architecture
 
-The `c-abstract-http` library is designed to offer a clean, unified API over disparate native networking implementations. By standardizing across diverse backends, it allows C applications to interact seamlessly with web services while minimizing payload bloat and dependency footprint.
+`c-abstract-http` provides a unified, strict ISO C89 (ANSI C / C90) client networking interface across native OS HTTP stacks, evented C libraries, WebAssembly, HTTP/3 QUIC engines, and raw sockets.
 
-## Core Philosophy
+## 1. Core Principles
 
-1. **Native By Default**: The library avoids shipping thick protocol implementations (like libcurl) when the underlying OS already provides a robust HTTP client stack (like WinHTTP/WinINet on Windows or CFNetwork on Apple).
-2. **C89 Purity**: All code is written in strict C89 to maximize portability. C++ features and syntax are strictly avoided.
-3. **Robust Error Propagation (The `enum c_abstract_http_error` Return Paradigm)**:
-   - All functions that perform an operation, allocate memory, or query state **must return an `enum c_abstract_http_error`** representing an exit code (e.g., `HTTP_ERROR_NONE` for success, `HTTP_ERROR_INVALID_ARGUMENT`, `HTTP_ERROR_OUT_OF_MEMORY`, etc.).
-   - If a function needs to return a value (e.g., retrieving a header), it does so by accepting an `out` pointer (e.g., `const char** out_val`).
-   - This allows the caller to perfectly trace failure paths without ambiguous `NULL` returns.
-4. **Zero-Bloat Windows Headers**:
-   - `c-abstract-http` enforces a strict ban on `#include <windows.h>`.
-   - Instead, the codebase utilizes leaner headers like `<windef.h>`, `<winnt.h>`, `<winbase.h>`, `<winnls.h>`, and `<winerror.h>`.
-   - This prevents macro collisions, drastically reduces compile time, and keeps the namespace clean for consuming applications.
-5. **MSVC Safe CRT Features**:
-   - On MSVC environments (`_MSC_VER`), dangerous CRT functions (`sprintf`, `strcpy`, `fopen`) are avoided.
-   - The library employs `#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)` compiler guards to selectively utilize `_s` extensions (`sprintf_s`, `strcpy_s`, `fopen_s`) to prevent buffer overruns without sacrificing compatibility with GCC, Clang, or MinGW.
+- **Strict Enum Error Percolation**: Every non-void, non-math function across all **28** public headers in `include/c_abstract_http/` and all internal translation units in `src/` returns `enum c_abstract_http_error` (`c_abstract_http_error_t`) and is annotated with `NO_DISCARD` (`__attribute__((warn_unused_result))` on GCC/Clang, `_Check_return_` on MSVC >= 2012, `[[nodiscard]]` on C23/C++17). Out-parameters are passed by pointer (`C_ABSTRACT_HTTP_SUCCESS = 0`, `C_ABSTRACT_HTTP_ERR_INVAL`, `C_ABSTRACT_HTTP_ERR_NOMEM`, `C_ABSTRACT_HTTP_ERR_IO`, `C_ABSTRACT_HTTP_ERR_NOTSUP`, `C_ABSTRACT_HTTP_ERR_TIMEOUT`, `C_ABSTRACT_HTTP_ERR_SYSCALL`, `C_ABSTRACT_HTTP_ERR_WS_FRAMING`, `C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE`, `C_ABSTRACT_HTTP_ERR_SSE_PARSE`, `C_ABSTRACT_HTTP_ERR_SSE_OOM`, `C_ABSTRACT_HTTP_ERR_WS_CLOSED`, `C_ABSTRACT_HTTP_ERR_ACCES`, `C_ABSTRACT_HTTP_ERR_EXIST`, `C_ABSTRACT_HTTP_ERR_LOOP`, `C_ABSTRACT_HTTP_ERR_MSGSIZE`, `C_ABSTRACT_HTTP_ERR_CONNREFUSED`, `C_ABSTRACT_HTTP_ERR_HOSTUNREACH`, `C_ABSTRACT_HTTP_ERR_CANCELED`).
+- **Opaque Contexts & Explicit Vtables**: `struct HttpTransportContext` is opaque to callers. `struct HttpClient` exposes explicit function pointers (`http_send_fn send`, `http_send_multi_fn send_multi`) bound by `transport_factory_init_client()`.
+- **Zero Global Application State**: Aside from one-time library/Winsock bootstrap (`transport_global_init()` / `transport_global_cleanup()`), state lives inside `struct HttpClient`, `struct ModalityEventLoop`, `struct AbstractHttpThreadPool`, `struct HttpRequest`, and `struct HttpResponse`.
+- **ISO C89 & Legacy Toolchain Discipline**:
+  - Zero `//` comments; all declarations appear at the top of blocks.
+  - Zero `#include <stdbool.h>` (uses `int` with `_Bool=int` guard where needed) and zero `#include <windows.h>` (uses targeted `<winsock2.h>`, `<ws2tcpip.h>`, or explicit Win32 API prototypes plus `win_compat_sym.h` architecture guards).
+  - Guarded `<stdint.h>` and `<unistd.h>` includes with `typedef` fallbacks for MSVC 2005 (`_MSC_VER < 1600`).
+  - MSVC Safe CRT paths (`sprintf_s`, `strcpy_s`, `strncpy_s`, `_vsnprintf_s`) guarded by `#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)` alongside portable `c89stringutils` and `c-fs` (`cfs`) helpers.
+  - Portable format specifiers: `"%" SIZE_T_FMT` (`win_compat_sym.h`) for `size_t` and `C_ABSTRACT_HTTP_NUM_FORMAT` (`http_types.h`) for 64-bit signed integers (`abstract_http_int64_t`).
+  - Single `extern "C"` guard per header and single `/* clang-format off */` / `/* clang-format on */` block protecting `#include` ordering per file.
 
-6. **C++ Interoperability**:
-   - Universal extern "C" encapsulation is strictly enforced across all 93 public headers.
-   - Allows seamless drop-in usage from C++ codebases without name mangling issues.
-7. **Robust Legacy Support (MSVC 2005)**:
-   - C89 purity extends to handling modern POSIX headers (<stdint.h>, <stdbool.h>, <unistd.h>).
-   - The library employs custom #if defined(_MSC_VER) && _MSC_VER < 1600 guards with safe 	ypedef fallbacks, guaranteeing successful compilation on toolchains as old as MSVC 2005.
-8. **Clang-Format Header Safeguards**:
-   - Every #include hierarchy is shielded by /* clang-format off */ and /* clang-format on */.
-   - Ensures automated formatting never silently breaks delicate header dependency orders.
+## 2. Layered Component Architecture
 
-## Execution Modalities & Inversion of Control (IoC)
+### Layer 1: Abstract Network Interface (`http_types.h`, `transport.h`)
+Defines transport-agnostic value and handle types:
+- `struct HttpClient`, `struct HttpConfig`, `struct HttpRequest`, `struct HttpResponse`, `struct HttpHeaders`, `struct HttpCookieJar`, `struct HttpPart` / `struct HttpParts`, `struct HttpMultiRequest`, and `struct HttpFuture`.
+- Built-in RFC 7578 `multipart/form-data` flattening (`http_request_add_part`, `http_request_flatten_parts`), URL encoding, and OAuth2 grant request builders (`src/http_types.c`).
+- Global and per-client backend lifecycle dispatch (`src/transport.c`).
 
-To accommodate varied concurrency models, `c-abstract-http` supports multiple execution modalities natively through the dispatcher. Crucially, the library implements a strict **Inversion of Control (Hooks) Architecture** across all concurrent modalities. This allows developers to use the library's built-in implementations (e.g., lightweight `pthread` wrappers or Windows Fibers) or inject their own external framework's scheduler via `*Hooks` structures (e.g., `HttpLoopHooks`, `AbstractHttpThreadPoolHooks`, `AbstractHttpCoroutineHooks`, `AbstractHttpActorHooks`, `AbstractHttpProcessHooks`).
+### Layer 2: Execution & Concurrency Modalities
+- **Asynchronous Event Loop (`event_loop.h` / `src/event_loop.c`)**: Cross-platform `ModalityEventLoop` providing socket readiness polling, a min-heap timer queue, thread-safe wakeup signaling, and `struct HttpLoopHooks` (`http_loop_init_external`) to proxy into external host loops.
+- **Thread Pool & Synchronization (`thread_pool.h` / `src/thread_pool.c`)**: `AbstractHttpThreadPool`, `AbstractHttpMutex`, and `AbstractHttpCond` backed by pthreads on POSIX and Win32 threads / `CRITICAL_SECTION` / Semaphore+Event condition variables (Windows XP / MSVC 2005 compatible) on Windows, with no-op fallbacks when `C_ABSTRACT_HTTP_SINGLE_THREADED` is active.
+- **Thread-Local Storage (`c_abstract_http_tls.h` / `src/c_abstract_http_tls.c`)**: Cross-platform thread-local key management (`pthread_key_t` / `TlsAlloc`) — note this module provides **Thread-Local Storage**, not network transport encryption.
+- **Coroutines (`coroutine.h` / `src/coroutine.c`)**: Cooperative stackful coroutines using `ucontext` on POSIX (with thread fallback where unavailable) and Win32 Fibers (`CreateFiber` / `SwitchToFiber`) on Windows.
+- **Actor Bus (`actor.h` / `src/actor.c`)**: Lightweight publish/subscribe message bus and actor mailbox dispatch.
+- **Multiprocessing IPC (`process.h` / `src/process.c`)**: Child process spawning (`fork`/`execv` on POSIX, `CreateProcess` on Windows) and framed pipe serialization for out-of-process HTTP execution (`MODALITY_MULTIPROCESS`).
+- **`c-multiplatform` Adapter (`cmp_integration.h` / `src/cmp_integration.c`)**: Maps `cmp_modality_t` constants and progress callbacks onto `c-abstract-http` execution primitives when `C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION=ON`.
 
-- **Sync** (`MODALITY_SYNC`): Blocking, sequential requests natively executed on the calling thread.
-- **Async** (`MODALITY_ASYNC`): Non-blocking execution mapped to the underlying backend's native event loop (e.g., libuv, libevent, IOCP). Hookable via `HttpLoopHooks` and `event_loop.h`.
-- **Thread Pool** (`MODALITY_THREAD_POOL`): Background worker thread execution, abstracting synchronization. Hookable via `AbstractHttpThreadPoolHooks` and `thread_pool.h`.
-- **Multiprocess** (`MODALITY_MULTIPROCESS`): Isolates networking logic in separate processes, communicating via IPC. Hookable via `AbstractHttpProcessHooks` and `process.h`.
-- **Greenthread** (`MODALITY_GREENTHREAD`): Cooperative user-space threads (e.g., `ucontext`/Fibers abstractions). Hookable via `AbstractHttpCoroutineHooks` and `coroutine.h`.
-- **Message Passing** (`MODALITY_MESSAGE_PASSING`): Actor-model abstraction utilizing message pipes. Hookable via `AbstractHttpActorHooks` and `actor.h`.
+### Layer 3: Streaming Protocols (`http_ws.h`, `http_sse.h`)
+- **WebSockets (`src/http_ws.c`, `src/ws_internal.h`, `src/crypto_utils.c`)**: Incremental RFC 6455 frame parser/serializer, masking, control-frame handling (Ping/Pong/Close), synchronous read loop, and asynchronous `on_chunk` registration. Uses standalone C89 SHA-1, Base64, and constant-time comparison routines in `src/crypto_utils.c` for `Sec-WebSocket-Accept` verification.
+- **Server-Sent Events (`src/http_sse.c`, `src/sse_internal.h`)**: Incremental W3C SSE line/event state machine supporting `id:`, `event:`, multi-line `data:`, `retry:`, BOM stripping, and `Last-Event-ID` reconnection headers.
 
-### `c-multiplatform` Integration
-The library ships with first-class adapter layers for the `c-multiplatform` engine (`cmp_integration.h`). This integration allows applications to seamlessly inject the `c-multiplatform` runtime configuration (including UI progress dispatchers and thread pool constraints) directly into the `c-abstract-http` pipeline.
+### Layer 4: Transport Backends
+Explicit `-DC_ABSTRACT_HTTP_USE_*` overrides take precedence over OS defaults in `CMakeLists.txt`, `src/transport.c`, and `include/c_abstract_http/c_abstract_http.h`:
 
-## Abstraction Layers
+1. **Explicit Overrides**:
+   - `C_ABSTRACT_HTTP_USE_PICOQUIC` -> `src/http_picoquic.c` (`picoquic` + `picotls`/MbedTLS HTTP/3)
+   - `C_ABSTRACT_HTTP_USE_MSH3` -> `src/http_msh3.c` (Microsoft `msh3` / `msquic` HTTP/3)
+   - `C_ABSTRACT_HTTP_USE_XQUIC` -> `src/http_xquic.c` (Alibaba `xquic` HTTP/3)
+   - `C_ABSTRACT_HTTP_USE_LIBSOUP3` -> `src/http_libsoup3.c` (GNOME `libsoup-3.0`)
+   - `C_ABSTRACT_HTTP_USE_LIBUV` -> `src/http_libuv.c` (`libuv` async TCP HTTP)
+   - `C_ABSTRACT_HTTP_USE_LIBEVENT` -> `src/http_libevent.c` (`libevent` `evhttp`, built with `EVENT__DISABLE_OPENSSL=ON`)
+   - `C_ABSTRACT_HTTP_USE_LIBFETCH` -> `src/http_fetch.c` (BSD `libfetch`)
+   - `C_ABSTRACT_HTTP_USE_RAW_SOCKETS` -> `src/http_raw.c` (raw BSD/Winsock plain TCP HTTP/1.1; always compiled into the core library so `http_raw_*` APIs remain directly callable as a fallback)
+   - `C_ABSTRACT_HTTP_USE_WININET` -> `src/http_wininet.c` (Windows `WinINet`)
+2. **Default OS Fallbacks**:
+   - **Emscripten (`__EMSCRIPTEN__`)**: `src/http_wasm.c` (`-s FETCH=1`)
+   - **Windows (`WIN32`)**: `src/http_wininet.c` on `_MSC_VER < 1600`, otherwise `src/http_winhttp.c` (`WinHTTP`)
+   - **Apple (`APPLE` with Clang/AppleClang)**: `src/http_apple.c` (`NSURLSession` pure-C `objc_msgSend` runtime bridge on macOS 10.11+ or `C_ABSTRACT_HTTP_APPLE_USE_NSURLSESSION=ON`, with `CFNetwork` `CFHTTPMessage`/`CFReadStream` fallback)
+   - **MS-DOS (`CMAKE_SYSTEM_NAME STREQUAL "DOS"`)**: `src/http_raw.c`
+   - **POSIX / Linux / BSD Default**: `src/http_curl.c` (`libcurl` easy + multi interfaces)
 
-### 1. Target Platforms
+## 3. Build, Amalgamation & Test Instrumentation Architecture
 
-`c-abstract-http` explicitly supports:
-- **Windows**: MSVC (2005, 2022, 2026), MinGW, Cygwin
-- **macOS / iOS**: Clang / Apple Frameworks
-- **Linux / POSIX**: GCC / Clang
-- **FreeBSD**: Clang
-- **Android**: NDK
-- **WebAssembly**: Emscripten
-- **DOS**: OpenWatcom (with fallback support for Watt-32 / mTCP)
-
-### 2. Target Network Libraries & OS Defaults
-
-The dispatcher layer evaluates the compiled platform and wires up the backend's specific `send` and `send_multi` implementations. **Native default backends are strictly preferred** to reduce binary size, avoid heavy third-party dependencies, and leverage system-provided root certificate stores.
-
-#### Default Backend Selection
-When no override flags are provided, CMake automatically configures the following targets based on your OS:
-- **Windows (`WIN32`)**: Maps to `http_winhttp.c` / `http_wininet.c` (WinHTTP / WinINet).
-- **macOS/iOS (`APPLE`)**: Maps to `http_apple.c` (CFNetwork/Foundation).
-- **Android (`ANDROID`)**: Maps to `http_android.c` (JNI HttpURLConnection).
-- **WebAssembly (`EMSCRIPTEN`)**: Maps to `http_wasm.c` (Emscripten Fetch API).
-- **DOS (`DOS`)**: Maps to `http_raw.c` (Raw BSD sockets via `select`/`read`/`write`).
-- **Linux/POSIX (Fallback)**: Maps to `http_curl.c` (libcurl).
-
-#### Build-Time Overrides (`-D` flags)
-To support specialized environments (like async event loops or HTTP/3), developers can bypass the OS default by passing `-D` flags to CMake. This triggers `#elif` branches in `transport.c` and changes the source files compiled in `CMakeLists.txt`:
-- `-DC_ABSTRACT_HTTP_USE_LIBUV=ON` -> Compiles `http_libuv.c`
-- `-DC_ABSTRACT_HTTP_USE_LIBEVENT=ON` -> Compiles `http_libevent.c`
-- `-DC_ABSTRACT_HTTP_USE_LSQUIC=ON` -> Compiles `http_lsquic.c`
-- `-DC_ABSTRACT_HTTP_USE_PICOQUIC=ON` -> Compiles `http_picoquic.c`
-- `-DC_ABSTRACT_HTTP_USE_NGHTTP3=ON` -> Compiles `http_nghttp3.c`
-- `-DC_ABSTRACT_HTTP_USE_MSH3=ON` -> Compiles `http_msh3.c`
-- `-DC_ABSTRACT_HTTP_USE_ARIA2=ON` -> Compiles `http_aria2.c`
-- `-DC_ABSTRACT_HTTP_USE_LIBSOUP3=ON` -> Compiles `http_libsoup3.c`
-- `-DC_ABSTRACT_HTTP_USE_LIBFETCH=ON` -> Compiles `http_fetch.c`
-
-### 3. Streaming Modalities (WebSockets & SSE)
-The library provides native, zero-dependency implementations for **WebSockets (RFC 6455)** and **Server-Sent Events (SSE)**.
-- **WebSocket Framing Engine**: A fully portable C89 state machine parses WebSocket frames chunk-by-chunk. It handles 16-bit and 64-bit payload unmasking dynamically, reconstructs fragmented `FIN=0` messages gracefully, and enforces bounds checking based on `C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE` to prevent DoS attacks.
-- **SSE Chunk Buffer**: Uses a dynamic line-reader state machine to capture streaming `text/event-stream` payloads without exploding memory constraints. Supports `Last-Event-ID` tracking for reconnect loops.
-
-### 4. Advanced Protocol Implementations
-The library avoids pushing complex HTTP specifications onto the consumer, integrating them securely into the core C89 types layer:
-- **OAuth 2.0 Workflows**: First-class memory-safe generation of OAuth 2.0 token requests (Password, Refresh, Authorization Code, Device Authorization, Client Credentials, JWT Bearer) and Token Management (Revocation, Introspection).
-- **Multipart Form-Data & Muxing**: Robust, random-boundary multipart/form-data serialization logic using safe CRT string formatting natively within the HttpRequest lifecycle.
-
-### 5. Cryptography Integration
-
-To preserve the "Native By Default" philosophy without locking consumers into a heavy OpenSSL dependency, the library dynamically injects cryptography routines natively into the underlying HTTP abstraction via a unified CMake macro (`c_abstract_http_apply_crypto`).
-If a backend like `libcurl` or `libevent` is used, its configuration is mapped downwards (e.g., bridging `C_ABSTRACT_HTTP_USE_WOLFSSL` to `CURL_USE_WOLFSSL`). This allows developers to seamlessly pivot between the following crypto libraries without ever modifying their application's code:
-
-- **MbedTLS**
-- **OpenSSL**
-- **LibreSSL**
-- **BoringSSL**
-- **wolfSSL**
-- **s2n-tls**
-- **BearSSL**
-- **Schannel** (Native Windows)
-- **GnuTLS**
-- **Botan**
-- **CommonCrypto** (Native macOS/iOS)
-- **wincrypt**
-
-### 6. CMake Configuration
-
-CMake configuration drives the abstraction mapping and code generation:
-
-**Core Build Flags**
-- `C_ABSTRACT_HTTP_HEADER_ONLY`: Package as a single header (STB-style library).
-- `C_ABSTRACT_HTTP_CRT_LINKAGE`: MSVC CRT Linkage (`Static` or `Shared`).
-- `C_ABSTRACT_HTTP_CHARSET`: Character set (`Unicode` or `ANSI`).
-- `C_ABSTRACT_HTTP_THREADING`: Threading model (`Multi-threaded` or `Single-threaded`).
-- `C_ABSTRACT_HTTP_LTO`: Enable Link Time Optimization (`-flto` / `/GL`).
-- `C_ABSTRACT_HTTP_MSVC_RTC`: Enable MSVC Runtime Checks (`RTC1`, `RTCs`, `RTCu`).
-
-**Backend Overrides**
-- `C_ABSTRACT_HTTP_USE_LIBSOUP3`: Force libsoup3 over libcurl.
-- `C_ABSTRACT_HTTP_USE_LIBUV`: Force libuv over libcurl.
-- `C_ABSTRACT_HTTP_USE_LIBEVENT`: Force libevent over libcurl.
-- `C_ABSTRACT_HTTP_USE_LIBFETCH`: Force libfetch over libcurl.
-
-**Cryptography Backends**
-- `C_ABSTRACT_HTTP_USE_MBEDTLS`
-- `C_ABSTRACT_HTTP_USE_OPENSSL`
-- `C_ABSTRACT_HTTP_USE_LIBRESSL`
-- `C_ABSTRACT_HTTP_USE_BORINGSSL`
-- `C_ABSTRACT_HTTP_USE_WOLFSSL`
-- `C_ABSTRACT_HTTP_USE_S2N`
-- `C_ABSTRACT_HTTP_USE_BEARSSL`
-- `C_ABSTRACT_HTTP_USE_SCHANNEL`
-- `C_ABSTRACT_HTTP_USE_GNUTLS`
-- `C_ABSTRACT_HTTP_USE_BOTAN`
-- `C_ABSTRACT_HTTP_USE_COMMONCRYPTO`
-- `C_ABSTRACT_HTTP_USE_WINCRYPT`
+- **Dependency Resolution (`c_abstract_http_resolve_dependency`)**: Checks `find_package(..., QUIET)` when `TRY_SYS_LIB=ON` and falls back to CMake `FetchContent_MakeAvailable` (using `master` for `SamuelMarks/*` repositories such as `c-fs` and `greatest`).
+- **Cryptography Flag Mapping**: `c_abstract_http_apply_crypto()` resolves and links the requested TLS/crypto library (`OPENSSL`, `MBEDTLS`, `WOLFSSL`, `BORINGSSL`, `LIBRESSL`, `S2N`, `BEARSSL`, `GNUTLS`, `BOTAN`, `SCHANNEL`, `COMMONCRYPTO`, `WINCRYPT`), while `c_abstract_http_configure_curl()` maps `OPENSSL`/`BORINGSSL`/`LIBRESSL`, `MBEDTLS`, `WOLFSSL`, `SCHANNEL`, and `COMMONCRYPTO` onto `CURL_USE_*` cache variables when `libcurl` is built from source.
+- **Single-Header Mode (`C_ABSTRACT_HTTP_HEADER_ONLY=ON`)**: Configures `c-abstract-http` as a CMake `INTERFACE` library. Defining `C_ABSTRACT_HTTP_IMPLEMENTATION` in one C translation unit before `#include <c_abstract_http/c_abstract_http.h>` compiles the core modules, optional WS/SSE layers, and the selected transport backend together.
+- **Isolated OOM & Syscall Fault Injection (`c-abstract-http-instrumented`)**:
+  - Production `c-abstract-http` (`STATIC`, `SHARED`, or `INTERFACE`) never leaks test allocator or socket macro redefinitions to downstream consumers.
+  - When `BUILD_TESTING=ON` (non-header-only, non-Win32-DLL), `CMakeLists.txt` builds a separate `c-abstract-http-instrumented` static target with `PRIVATE` `C_ABSTRACT_HTTP_TEST_OOM=1` and `c_abstract_http_mock_*` symbol overrides (`tests/mock_alloc.c`) plus header-only backend mock stubs (`tests/mock_stubs/*.h`) to achieve 100% line, function, and branch test coverage.

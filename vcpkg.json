@@ -5,15 +5,21 @@
     {
       "name": "curl",
       "platform": "!windows & !osx"
-    },
-    {
-      "name": "libuv"
-    },
-    {
-      "name": "libevent"
     }
   ],
   "features": {
+    "libuv": {
+      "description": "Use libuv transport backend",
+      "dependencies": [
+        "libuv"
+      ]
+    },
+    "libevent": {
+      "description": "Use libevent transport backend",
+      "dependencies": [
+        "libevent"
+      ]
+    },
     "mbedtls": {
       "description": "Use mbedtls for cryptography",
       "dependencies": [

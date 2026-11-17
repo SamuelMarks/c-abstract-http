@@ -2,23 +2,19 @@
 /* clang-format off */
 #include <ctype.h>
 #include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 #include <c_abstract_http/http_types.h>
+#include <c_abstract_http/log.h>
 #include <c89stringutils_string_extras.h>
-
-
-
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef _WINSOCK_DEPRECATED_NO_WARNINGS
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -33,10 +29,6 @@
 #endif
 #endif
 #endif
-
-#include <c_abstract_http/http_types.h>
-
-#include <stdarg.h>
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -57,12 +49,8 @@ extern int g_mock_multi_free_fail;
 extern int g_mock_config_free_fail;
 extern int g_mock_parts_free_fail;
 extern int g_mock_http_types_strdup_fail;
-extern int *abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail(void);
-extern int *abstract_http_mock_get_g_mock_urlencode_append_fail(void);
-#define g_mock_sprintf_s_wrapper_fail                                          \
-  (*abstract_http_mock_get_g_mock_sprintf_s_wrapper_fail())
-#define g_mock_urlencode_append_fail                                           \
-  (*abstract_http_mock_get_g_mock_urlencode_append_fail())
+extern int g_mock_sprintf_s_wrapper_fail;
+extern int g_mock_urlencode_append_fail;
 #endif
 
 static enum c_abstract_http_error
@@ -202,8 +190,7 @@ abstract_http_test_real_strdup(const char *s, char **out_s) {
 enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers,
                                             const char *key,
                                             const char *value) {
-  char *_ast_strdup_0 = NULL;
-  char *_ast_strdup_1 = NULL;
+  enum c_abstract_http_error rc;
   if (!headers || !key || !value)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
@@ -217,20 +204,15 @@ enum c_abstract_http_error http_headers_add(struct HttpHeaders *headers,
     headers->capacity = new_cap;
   }
 
-  headers->headers[headers->count].key =
-      (c_abstract_http_strdup(key, &_ast_strdup_0) == C_ABSTRACT_HTTP_SUCCESS
-           ? _ast_strdup_0
-           : NULL);
-  if (!headers->headers[headers->count].key)
-    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  rc = c_abstract_http_strdup(key, &headers->headers[headers->count].key);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
 
-  headers->headers[headers->count].value =
-      (c_abstract_http_strdup(value, &_ast_strdup_1) == C_ABSTRACT_HTTP_SUCCESS
-           ? _ast_strdup_1
-           : NULL);
-  if (!headers->headers[headers->count].value) {
+  rc = c_abstract_http_strdup(value, &headers->headers[headers->count].value);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     free(headers->headers[headers->count].key);
-    return C_ABSTRACT_HTTP_ERR_NOMEM;
+    headers->headers[headers->count].key = NULL;
+    return rc;
   }
 
   headers->count++;
@@ -351,9 +333,6 @@ http_request_add_part(struct HttpRequest *req, const char *name,
                       const char *filename, const char *content_type,
                       const void *data, size_t data_len) {
   enum c_abstract_http_error rc;
-  char *_ast_strdup_2 = NULL;
-  char *_ast_strdup_3 = NULL;
-  char *_ast_strdup_4 = NULL;
   struct HttpParts *p;
   if (!req || !name || (!data && data_len > 0))
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -376,60 +355,46 @@ http_request_add_part(struct HttpRequest *req, const char *name,
     return rc;
   }
 
-  p->parts[p->count].name =
-      (c_abstract_http_strdup(name, &_ast_strdup_2) == C_ABSTRACT_HTTP_SUCCESS
-           ? _ast_strdup_2
-           : NULL);
-  if (!p->parts[p->count].name) {
-    {
-      enum c_abstract_http_error rch =
-          http_headers_free(&p->parts[p->count].headers);
-      if (rch != C_ABSTRACT_HTTP_SUCCESS)
-        return rch;
-    }
-    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  rc = c_abstract_http_strdup(name, &p->parts[p->count].name);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    enum c_abstract_http_error rch =
+        http_headers_free(&p->parts[p->count].headers);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+      return rch;
+    return rc;
   }
 
   if (filename) {
-    p->parts[p->count].filename =
-        (c_abstract_http_strdup(filename, &_ast_strdup_3) ==
-                 C_ABSTRACT_HTTP_SUCCESS
-             ? _ast_strdup_3
-             : NULL);
-    if (!p->parts[p->count].filename) {
+    rc = c_abstract_http_strdup(filename, &p->parts[p->count].filename);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error rch;
       free(p->parts[p->count].name);
-      {
-        enum c_abstract_http_error rch =
-            http_headers_free(&p->parts[p->count].headers);
-        if (rch != C_ABSTRACT_HTTP_SUCCESS)
-          return rch;
-      }
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
+      p->parts[p->count].name = NULL;
+      rch = http_headers_free(&p->parts[p->count].headers);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
+      return rc;
     }
   }
 
   if (content_type) {
-    p->parts[p->count].content_type =
-        (c_abstract_http_strdup(content_type, &_ast_strdup_4) ==
-                 C_ABSTRACT_HTTP_SUCCESS
-             ? _ast_strdup_4
-             : NULL);
-    if (!p->parts[p->count].content_type) {
+    rc = c_abstract_http_strdup(content_type, &p->parts[p->count].content_type);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error rch;
       if (p->parts[p->count].filename)
         free(p->parts[p->count].filename);
       free(p->parts[p->count].name);
-      {
-        enum c_abstract_http_error rch =
-            http_headers_free(&p->parts[p->count].headers);
-        if (rch != C_ABSTRACT_HTTP_SUCCESS)
-          return rch;
-      }
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
+      p->parts[p->count].filename = NULL;
+      p->parts[p->count].name = NULL;
+      rch = http_headers_free(&p->parts[p->count].headers);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS)
+        return rch;
+      return rc;
     }
   }
 
   /* Reference data, do not copy yet. Serialization will copy. */
-  p->parts[p->count].data = (void *)data;
+  p->parts[p->count].data = (void *)(size_t)data;
   p->parts[p->count].data_len = data_len;
 
   p->count++;
@@ -632,7 +597,7 @@ enum c_abstract_http_error http_request_flatten_parts(struct HttpRequest *req) {
 
   {
     char ct[128];
-    int hdr_rc;
+    enum c_abstract_http_error hdr_rc;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     /* MSVC Safe Path */
     sprintf_s(ct, sizeof(ct), "multipart/form-data; boundary=%s", boundary);
@@ -693,8 +658,7 @@ enum c_abstract_http_error http_cookie_jar_free(struct HttpCookieJar *jar) {
 enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
                                                const char *name,
                                                const char *value) {
-  char *_ast_strdup_cname = NULL;
-  char *_ast_strdup_cval = NULL;
+  enum c_abstract_http_error rc;
   size_t i;
 
   if (!jar || !name || !value)
@@ -703,12 +667,10 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
   /* Check for existing */
   for (i = 0; i < jar->count; ++i) {
     if (strcmp(jar->cookies[i].name, name) == 0) {
-      char *new_val = (c_abstract_http_strdup(value, &_ast_strdup_cval) ==
-                               C_ABSTRACT_HTTP_SUCCESS
-                           ? _ast_strdup_cval
-                           : NULL);
-      if (!new_val)
-        return C_ABSTRACT_HTTP_ERR_NOMEM;
+      char *new_val = NULL;
+      rc = c_abstract_http_strdup(value, &new_val);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+        return rc;
       free(jar->cookies[i].value);
       jar->cookies[i].value = new_val;
       return C_ABSTRACT_HTTP_SUCCESS;
@@ -728,22 +690,15 @@ enum c_abstract_http_error http_cookie_jar_set(struct HttpCookieJar *jar,
 
   memset(&jar->cookies[jar->count], 0, sizeof(struct HttpCookie));
 
-  jar->cookies[jar->count].name =
-      (c_abstract_http_strdup(name, &_ast_strdup_cname) ==
-               C_ABSTRACT_HTTP_SUCCESS
-           ? _ast_strdup_cname
-           : NULL);
-  if (!jar->cookies[jar->count].name)
-    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  rc = c_abstract_http_strdup(name, &jar->cookies[jar->count].name);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
 
-  jar->cookies[jar->count].value =
-      (c_abstract_http_strdup(value, &_ast_strdup_cval) ==
-               C_ABSTRACT_HTTP_SUCCESS
-           ? _ast_strdup_cval
-           : NULL);
-  if (!jar->cookies[jar->count].value) {
+  rc = c_abstract_http_strdup(value, &jar->cookies[jar->count].value);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     free(jar->cookies[jar->count].name);
-    return C_ABSTRACT_HTTP_ERR_NOMEM;
+    jar->cookies[jar->count].name = NULL;
+    return rc;
   }
 
   jar->count++;
@@ -768,7 +723,7 @@ enum c_abstract_http_error http_cookie_jar_get(const struct HttpCookieJar *jar,
 
 /** @brief Initialize an HTTP configuration structure */
 enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
-  char *_ast_strdup_5 = NULL;
+  enum c_abstract_http_error rc;
   if (!config)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
@@ -783,11 +738,7 @@ enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   config->proxy_username = NULL;
   config->proxy_password = NULL;
   config->cookie_jar = NULL;
-  config->user_agent =
-      (c_abstract_http_strdup("c_abstract_http/0.1.0", &_ast_strdup_5) ==
-               C_ABSTRACT_HTTP_SUCCESS
-           ? _ast_strdup_5
-           : NULL);
+  config->user_agent = NULL;
 
   /* Retry defaults */
   config->retry_count = 0;
@@ -800,8 +751,9 @@ enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   config->tls_version_mask = HTTP_TLS_VERSION_DEFAULT;
   config->http3_fallback = 1;
 
-  if (!config->user_agent)
-    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  rc = c_abstract_http_strdup("c_abstract_http/0.1.0", &config->user_agent);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
 
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -1079,8 +1031,8 @@ enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error base64_encode(const unsigned char *src,
-                                                size_t len, char **out) {
+static enum c_abstract_http_error
+http_types_base64_encode(const unsigned char *src, size_t len, char **out) {
   static const char b64[] =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   char *res;
@@ -1091,7 +1043,9 @@ static enum c_abstract_http_error base64_encode(const unsigned char *src,
   if (!res)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
-  for (i = 0, j = 0; i < len;) {
+  i = 0;
+  j = 0;
+  while (i < len) {
     unsigned long octet_a = src[i++];
     unsigned long octet_b = i < len ? src[i++] : 0;
     unsigned long octet_c = i < len ? src[i++] : 0;
@@ -1138,10 +1092,12 @@ enum c_abstract_http_error http_request_set_auth_basic_userpwd(
   sprintf(raw, "%s:%s", username, password);
 #endif
 
-  rc = base64_encode((const unsigned char *)raw, len - 1, &encoded);
-  free(raw);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+  rc = http_types_base64_encode((const unsigned char *)raw, len - 1, &encoded);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(raw);
     return rc;
+  }
+  free(raw);
 
   rc = http_request_set_auth_basic(req, encoded);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -2419,7 +2375,7 @@ enum c_abstract_http_error http_client_send_multi(
   }
 
   /* Dispatch based on modality */
-  switch (client->config.modality) {
+  switch ((int)client->config.modality) {
   case MODALITY_ASYNC:
     if (client->send_multi && client->loop) {
       rc = client->send_multi(client->transport, client->loop, &multi, futures);
@@ -2480,68 +2436,62 @@ enum c_abstract_http_error http_client_send_multi(
   return rc;
 }
 
-/** @brief Write a formatted debug log message */
-enum c_abstract_http_error c_abstract_http_log_debug(const char *fmt, ...);
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((format(printf, 1, 2)))
 #endif
-/** @brief Write a formatted debug log message */
-enum c_abstract_http_error
+C_ABSTRACT_HTTP_API void
 c_abstract_http_log_debug(const char *fmt, ...) {
 #ifdef DEBUG
   va_list args;
   if (!fmt)
-    return C_ABSTRACT_HTTP_ERR_INVAL;
+    return;
   va_start(args, fmt);
   vfprintf(stderr, fmt, args);
   va_end(args);
 #else
   if (!fmt)
-    return C_ABSTRACT_HTTP_ERR_INVAL;
+    return;
 #endif
-  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /**
  * @brief Expose internal http_types helpers for test coverage.
  *
- * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ * @param step Test case selector (0..6).
+ * @return Error code returned by the exercised internal helper.
  */
-enum c_abstract_http_error c_abstract_http_test_http_types_helpers(void);
+enum c_abstract_http_error c_abstract_http_test_http_types_helpers(int step);
 
-enum c_abstract_http_error c_abstract_http_test_http_types_helpers(void) {
-  size_t written;
+enum c_abstract_http_error c_abstract_http_test_http_types_helpers(int step) {
+  size_t written = 0;
   char buf[32];
-  char *p;
-  char *null_p;
+  char *p = buf;
+  char *null_p = NULL;
 
-  written = 0;
-  p = buf;
-  null_p = NULL;
-
-  /* Test sprintf_s_wrapper invalid parameter branches */
-  if (sprintf_s_wrapper(NULL, buf, 0, sizeof(buf), "test") ==
-      C_ABSTRACT_HTTP_SUCCESS)
+  switch (step) {
+  case 0: {
+    return sprintf_s_wrapper(NULL, buf, 0, sizeof(buf), "test");
+  }
+  case 1: {
+    return sprintf_s_wrapper(&written, NULL, 0, sizeof(buf), "test");
+  }
+  case 2: {
+    return sprintf_s_wrapper(&written, buf, 10, 5, "test");
+  }
+  case 3: {
+    return urlencode_append(NULL, "test");
+  }
+  case 4: {
+    return urlencode_append(&null_p, "test");
+  }
+  case 5: {
+    return urlencode_append(&p, NULL);
+  }
+  default: {
+    c_abstract_http_log_debug(NULL);
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  if (sprintf_s_wrapper(&written, NULL, 0, sizeof(buf), "test") ==
-      C_ABSTRACT_HTTP_SUCCESS)
-    return C_ABSTRACT_HTTP_ERR_INVAL;
-  if (sprintf_s_wrapper(&written, buf, 10, 5, "test") ==
-      C_ABSTRACT_HTTP_SUCCESS)
-    return C_ABSTRACT_HTTP_ERR_INVAL;
-
-  /* Test urlencode_append branches */
-  if (urlencode_append(NULL, "test") == C_ABSTRACT_HTTP_SUCCESS)
-    return C_ABSTRACT_HTTP_ERR_INVAL;
-  if (urlencode_append(&null_p, "test") == C_ABSTRACT_HTTP_SUCCESS)
-    return C_ABSTRACT_HTTP_ERR_INVAL;
-  if (urlencode_append(&p, NULL) != C_ABSTRACT_HTTP_SUCCESS)
-    return C_ABSTRACT_HTTP_ERR_INVAL;
-
-  /* Test c_abstract_http_log_debug with NULL fmt */
-  c_abstract_http_log_debug(NULL);
-
-  return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  }
 }
 #endif

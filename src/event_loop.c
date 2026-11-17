@@ -115,6 +115,7 @@ struct ModalityEventLoop {
   size_t fd_capacity;
   /* Wakeup mechanism (Self-pipe trick or Windows Event) */
 #if defined(_WIN32)
+  /** @brief Win32 manual/auto-reset event handle for loop wakeup */
   HANDLE wakeup_event;
 #else
   /** @brief wakeup_pipe[2] (variable) of struct ModalityEventLoop */
@@ -123,14 +124,15 @@ struct ModalityEventLoop {
 };
 
 abstract_http_int64_t math_get_current_time_ms(void);
-abstract_http_int64_t real_math_get_current_time_ms(void);
+C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void);
 #ifndef math_get_current_time_ms
 #define math_get_current_time_ms real_math_get_current_time_ms
 #endif
-abstract_http_int64_t real_math_get_current_time_ms(void) {
+C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void) {
 
 #if defined(_WIN32)
-#if defined(_MSC_VER) && _MSC_VER < 1600
+#if (defined(_MSC_VER) && _MSC_VER < 1600) ||                                  \
+    (defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600)
   return (abstract_http_int64_t)GetTickCount();
 #else
   return (abstract_http_int64_t)GetTickCount64();
@@ -371,7 +373,7 @@ enum c_abstract_http_error http_loop_add_fd(struct ModalityEventLoop *loop,
   for (i = 0; i < loop->fd_count; ++i) {
     if (loop->fds[i].active && loop->fds[i].fd == fd) {
       LOG_DEBUG("http_loop_add_fd: Error EEXIST");
-      return EEXIST;
+      return C_ABSTRACT_HTTP_ERR_EXIST;
     }
   }
 
@@ -553,7 +555,7 @@ static enum c_abstract_http_error
 process_timers(struct ModalityEventLoop *loop) {
   enum c_abstract_http_error rc;
   abstract_http_int64_t now;
-  struct TimerNode min_elem;
+  struct TimerNode fired;
 
   now = math_get_current_time_ms();
 
@@ -562,22 +564,28 @@ process_timers(struct ModalityEventLoop *loop) {
       break; /* Min element is in the future */
     }
 
-    if (loop->timers[0].active) {
-      loop->timers[0].active = 0;
-      loop->timers[0].cb(loop, loop->timers[0].id, loop->timers[0].user_data);
-    }
+    fired = loop->timers[0];
+    loop->timers[0].active = 0;
+    fired.active = fired.active ? 1 : 0;
 
     /* Remove min element */
     if (loop->timer_count > 1) {
-      min_elem = loop->timers[0];
       loop->timers[0] = loop->timers[loop->timer_count - 1];
       rc = timer_heap_down(loop, 0);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        loop->timers[0] = min_elem;
+        loop->timers[0] = fired;
         return rc;
       }
     }
     loop->timer_count--;
+
+    if (fired.active) {
+      enum c_abstract_http_error cb_rc =
+          fired.cb(loop, fired.id, fired.user_data);
+      if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return cb_rc;
+      }
+    }
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -704,8 +712,11 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
 
         if (revents) {
           abstract_http_int64_t start_cb = math_get_current_time_ms();
-          loop->fds[i].cb(loop, loop->fds[i].fd, revents,
-                          loop->fds[i].user_data);
+          enum c_abstract_http_error cb_rc = loop->fds[i].cb(
+              loop, loop->fds[i].fd, revents, loop->fds[i].user_data);
+          if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return cb_rc;
+          }
           if (math_get_current_time_ms() - start_cb > 50) {
             fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
                             "detected (callback took >50ms). This breaks "
@@ -756,6 +767,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
     /* Process expired timers first */
     rc = process_timers(loop);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      loop->running = 0;
       return rc;
     }
 
@@ -770,8 +782,10 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
         loop->timer_count--;
         if (loop->timer_count > 0) {
           rc = timer_heap_down(loop, 0);
-          if (rc != C_ABSTRACT_HTTP_SUCCESS)
+          if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+            loop->running = 0;
             return rc;
+          }
         }
       }
       if (loop->timer_count > 0) {
@@ -861,8 +875,12 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
 
           if (revents) {
             abstract_http_int64_t start_cb = math_get_current_time_ms();
-            loop->fds[i].cb(loop, loop->fds[i].fd, revents,
-                            loop->fds[i].user_data);
+            enum c_abstract_http_error cb_rc = loop->fds[i].cb(
+                loop, loop->fds[i].fd, revents, loop->fds[i].user_data);
+            if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+              loop->running = 0;
+              return cb_rc;
+            }
             if (math_get_current_time_ms() - start_cb > 50) {
               fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
                               "detected (callback took >50ms). This breaks "
@@ -896,13 +914,9 @@ enum c_abstract_http_error http_loop_stop(struct ModalityEventLoop *loop) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-#if 1
-enum c_abstract_http_error
-abstract_http_event_loop_test_unstop(struct ModalityEventLoop *loop);
-enum c_abstract_http_error
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_event_loop_test_unstop(struct ModalityEventLoop *loop) {
   if (loop)
     loop->stop_requested = 0;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-#endif

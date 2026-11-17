@@ -261,29 +261,53 @@ TEST test_wininet_send_validation(void) {
   req.url = _ast_strdup_0;
   rc = http_wininet_send(ctx, &req, &res);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
+  free(_ast_strdup_0);
+  _ast_strdup_0 = NULL;
+  req.url = NULL;
 
   /* Multipart validation */
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-            c_abstract_http_mock_strdup("http://127.0.0.1:8080/test",
-                                        &_ast_strdup_0));
-  req.url = _ast_strdup_0;
-  req.parts.count = 1;
-  req.body = NULL;
-  rc = http_wininet_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
+  {
+#if defined(_WIN32)
+    MockServerPtr server = NULL;
+    char url_buf[128];
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
+              math_mock_server_get_port(server));
+#else
+    sprintf(url_buf, "http://127.0.0.1:%d/test",
+            math_mock_server_get_port(server));
+#endif
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_mock_strdup(url_buf, &_ast_strdup_0));
+#else
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_mock_strdup("http://127.0.0.1:8080/test",
+                                          &_ast_strdup_0));
+#endif
+    req.url = _ast_strdup_0;
+    req.parts.count = 1;
+    req.body = NULL;
+    rc = http_wininet_send(ctx, &req, &res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
-  req.body = (void *)"x";
-  req.body_len = 1;
-  rc = http_wininet_send(ctx, &req, &res);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-  if (res) {
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
-    free(res);
-    res = NULL;
+    req.body = (void *)"x";
+    req.body_len = 1;
+    rc = http_wininet_send(ctx, &req, &res);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    if (res) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+    }
+    req.parts.count = 0;
+    req.body = NULL;
+    req.body_len = 0;
+#if defined(_WIN32)
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(server));
+#endif
   }
-  req.parts.count = 0;
-  req.body = NULL;
-  req.body_len = 0;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));

@@ -1001,9 +1001,9 @@ TEST test_curl_send_cookies(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             abstract_http_test_multi_timer_cb(NULL, 0, ctx));
   g_mock_curl_check_multi_info_fail = 1;
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
             abstract_http_test_multi_socket_cb(NULL, 0, HTTP_LOOP_ERROR, ctx));
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
             abstract_http_test_multi_timer_cb(NULL, 0, ctx));
   g_mock_curl_check_multi_info_fail = 0;
   g_mock_curl_cookies = NULL;

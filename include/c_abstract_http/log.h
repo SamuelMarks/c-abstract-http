@@ -19,9 +19,9 @@ extern "C" {
  * @brief Write a debug log message.
  * @param[in] fmt Formatting string.
  * @param[in] ... Variadic arguments.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error c_abstract_http_log_debug(const char *fmt, ...);
+C_ABSTRACT_HTTP_API void c_abstract_http_log_debug(const char *fmt, ...);
+/** @brief Debug logging macro alias */
 #define LOG_DEBUG c_abstract_http_log_debug
 #endif /* !LOG_DEBUG */
 
