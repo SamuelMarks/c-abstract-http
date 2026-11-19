@@ -1,4 +1,10 @@
 
+/**
+ * @file http_types.c
+ * @brief Core HTTP request/response types, client dispatchers, cookies,
+ * multipart, and OAuth2 helpers.
+ */
+
 /* clang-format off */
 #include <ctype.h>
 #include <errno.h>
@@ -14,6 +20,7 @@
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
@@ -32,27 +39,45 @@
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for portable case-insensitive string compare */
 extern int g_mock_strcasecmp_fail;
+/** @brief Fault-injection flag for http_headers_init */
 extern int g_mock_headers_init_fail;
+/** @brief Fault-injection flag for http_parts_init */
 extern int g_mock_parts_init_fail;
+/** @brief Fault-injection flag for http_multi_request_init */
 extern int g_mock_multi_init_fail;
 
+/** @brief Fault-injection flag for mutex destruction failure */
 extern int g_mock_mutex_free_fail;
+/** @brief Fault-injection flag for condition variable destruction failure */
 extern int g_mock_cond_free_fail;
+/** @brief Fault-injection flag for http_headers_free */
 extern int g_mock_headers_free_fail;
+/** @brief Fault-injection flag for http_parts_free */
 extern int g_mock_parts_free_fail;
+/** @brief Fault-injection flag for http_multi_request_free */
 extern int g_mock_multi_free_fail;
+/** @brief Fault-injection flag for http_response_free */
 extern int g_mock_response_free_fail;
+/** @brief Fault-injection flag for http_config_free */
 extern int g_mock_config_free_fail;
 
-extern int g_mock_multi_free_fail;
-extern int g_mock_config_free_fail;
-extern int g_mock_parts_free_fail;
+/** @brief Fault-injection countdown for c_abstract_http_strdup */
 extern int g_mock_http_types_strdup_fail;
+/** @brief Fault-injection countdown for sprintf_s_wrapper */
 extern int g_mock_sprintf_s_wrapper_fail;
+/** @brief Fault-injection countdown for urlencode_append */
 extern int g_mock_urlencode_append_fail;
 #endif
 
+/**
+ * @brief Compare two ASCII strings case-insensitively.
+ * @param s1 First NUL-terminated string.
+ * @param s2 Second NUL-terminated string.
+ * @param out_diff Output pointer receiving lexical difference (0 if equal).
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error enum.
+ */
 static enum c_abstract_http_error
 strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -72,6 +97,16 @@ strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Format text into a bounded buffer starting at an offset using Safe CRT
+ * when available.
+ * @param out_written Output pointer receiving number of characters written.
+ * @param buf Destination buffer base.
+ * @param start Offset in buf where writing begins.
+ * @param cap Total byte capacity of buf.
+ * @param fmt Printf-style format string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on invalid bounds/failure.
+ */
 static enum c_abstract_http_error
 sprintf_s_wrapper(size_t *out_written, char *buf, size_t start, size_t cap,
                   const char *fmt, ...)
@@ -80,6 +115,16 @@ sprintf_s_wrapper(size_t *out_written, char *buf, size_t start, size_t cap,
 #endif
     ;
 
+/**
+ * @brief Format text into a bounded buffer starting at an offset using Safe CRT
+ * when available.
+ * @param out_written Output pointer receiving number of characters written.
+ * @param buf Destination buffer base.
+ * @param start Offset in buf where writing begins.
+ * @param cap Total byte capacity of buf.
+ * @param fmt Printf-style format string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on invalid bounds/failure.
+ */
 static enum c_abstract_http_error sprintf_s_wrapper(size_t *out_written,
                                                     char *buf, size_t start,
                                                     size_t cap, const char *fmt,
@@ -177,10 +222,20 @@ c_abstract_http_strdup(const char *s, char **out_s) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/** @brief Test helper for unmocked c_abstract_http_strdup */
+/**
+ * @brief Test helper for unmocked c_abstract_http_strdup.
+ * @param s Source NUL-terminated string.
+ * @param out_s Optional output pointer receiving newly allocated copy.
+ * @return Result from c_abstract_http_strdup.
+ */
 C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_test_real_strdup(const char *s, char **out_s);
-/** @brief Test helper for unmocked c_abstract_http_strdup */
+/**
+ * @brief Test helper for unmocked c_abstract_http_strdup.
+ * @param s Source NUL-terminated string.
+ * @param out_s Optional output pointer receiving newly allocated copy.
+ * @return Result from c_abstract_http_strdup.
+ */
 C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_test_real_strdup(const char *s, char **out_s) {
   return c_abstract_http_strdup(s, out_s);
@@ -1031,6 +1086,13 @@ enum c_abstract_http_error http_request_set_auth_basic(struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Encode binary bytes into a newly allocated Base64 string.
+ * @param src Source byte buffer.
+ * @param len Byte length of src.
+ * @param out Output pointer receiving allocated Base64 string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
 static enum c_abstract_http_error
 http_types_base64_encode(const unsigned char *src, size_t len, char **out) {
   static const char b64[] =
@@ -1109,6 +1171,12 @@ enum c_abstract_http_error http_request_set_auth_basic_userpwd(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Compute encoded byte length for application/x-www-form-urlencoded
+ * text.
+ * @param src NUL-terminated input string.
+ * @return Encoded length excluding NUL terminator.
+ */
 static size_t math_urlencode_len(const char *src) {
   size_t len = 0;
   const char *p;
@@ -1128,6 +1196,12 @@ static size_t math_urlencode_len(const char *src) {
   return len;
 }
 
+/**
+ * @brief Percent-encode a string into a cursor buffer and advance the cursor.
+ * @param dest Pointer to destination cursor pointer.
+ * @param src NUL-terminated input string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on invalid input/failure.
+ */
 static enum c_abstract_http_error urlencode_append(char **dest,
                                                    const char *src) {
   static const char *hex = "0123456789ABCDEF";
@@ -2063,29 +2137,67 @@ enum c_abstract_http_error http_oauth2_build_authorization_url(
 }
 
 #if defined(_WIN32)
+/** @brief Portable socket close function alias on Windows */
 #define ABSTRACT_HTTP_CLOSESOCKET closesocket
+/** @brief Portable socket handle type on Windows */
 typedef SOCKET abstract_http_socket_t;
+/** @brief Invalid socket sentinel value on Windows */
 #define ABSTRACT_HTTP_INVALID_SOCKET_VAL INVALID_SOCKET
+/** @brief Socket error sentinel value on Windows */
 #define ABSTRACT_HTTP_SOCKET_ERROR_VAL SOCKET_ERROR
 #else
+/** @brief Portable socket close function alias on POSIX */
 #define ABSTRACT_HTTP_CLOSESOCKET close
+/** @brief Portable socket descriptor type on POSIX */
 typedef int abstract_http_socket_t;
+/** @brief Invalid socket sentinel value on POSIX */
 #define ABSTRACT_HTTP_INVALID_SOCKET_VAL -1
+/** @brief Socket error sentinel value on POSIX */
 #define ABSTRACT_HTTP_SOCKET_ERROR_VAL -1
 #endif
 
 #if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+/**
+ * @brief URL-decode a bounded substring into a newly allocated NUL-terminated
+ * string.
+ * @param src Input percent-encoded string.
+ * @param src_len Number of bytes in src to decode.
+ * @param out Output pointer receiving decoded string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
 static enum c_abstract_http_error urldecode_alloc(const char *src,
                                                   size_t src_len, char **out);
 
+/**
+ * @brief Test wrapper exposing urldecode_alloc for unit testing.
+ * @param src Input percent-encoded string.
+ * @param src_len Number of bytes in src to decode.
+ * @param out Output pointer receiving decoded string.
+ * @return Result from urldecode_alloc.
+ */
 C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_test_urldecode_alloc(const char *src, size_t src_len, char **out);
+/**
+ * @brief Test wrapper exposing urldecode_alloc for unit testing.
+ * @param src Input percent-encoded string.
+ * @param src_len Number of bytes in src to decode.
+ * @param out Output pointer receiving decoded string.
+ * @return Result from urldecode_alloc.
+ */
 C_ABSTRACT_HTTP_API enum c_abstract_http_error
 abstract_http_test_urldecode_alloc(const char *src, size_t src_len,
                                    char **out) {
   return urldecode_alloc(src, src_len, out);
 }
 
+/**
+ * @brief URL-decode a bounded substring into a newly allocated NUL-terminated
+ * string.
+ * @param src Input percent-encoded string.
+ * @param src_len Number of bytes in src to decode.
+ * @param out Output pointer receiving decoded string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
 static enum c_abstract_http_error urldecode_alloc(const char *src,
                                                   size_t src_len, char **out) {
   char *dst = (char *)malloc(src_len + 1);

@@ -1,3 +1,9 @@
+/**
+ * @file http_libevent.c
+ * @brief libevent2 evhttp transport backend implementation of the Abstract
+ * Network Interface (ANI).
+ */
+
 /* clang-format off */
 #include <errno.h>
 #include <stdio.h>
@@ -19,6 +25,7 @@
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
@@ -31,6 +38,7 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
+/** @brief Reference count of global libevent initializations */
 static int libevent_global_init_count = 0;
 
 /**
@@ -279,6 +287,11 @@ static enum c_abstract_http_error get_method_cmd(enum HttpMethod method,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief No-op chunked callback used in libevent mock tests.
+ * @param req Mock evhttp request.
+ * @param arg User context pointer.
+ */
 static void dummy_libevent_chunk_cb(struct evhttp_request *req, void *arg) {
   (void)req;
   (void)arg;
@@ -452,6 +465,11 @@ struct libevent_state {
   int done;
 };
 
+/**
+ * @brief Initialize allocated HttpResponse inside libevent completion handler.
+ * @param state Active libevent request state.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 static enum c_abstract_http_error
 http_request_done_init_res(struct libevent_state *state) {
   enum c_abstract_http_error rc;
@@ -475,6 +493,10 @@ http_request_done_init_res(struct libevent_state *state) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Execute an enum-returning helper inside a void libevent callback.
+ * @param expr Expression returning enum c_abstract_http_error.
+ */
 #define LIBEVENT_VOID_CB_DISPATCH(expr)                                        \
   do {                                                                         \
     enum c_abstract_http_error _ev_rc = (expr);                                \
@@ -483,6 +505,11 @@ http_request_done_init_res(struct libevent_state *state) {
     }                                                                          \
   } while (0)
 
+/**
+ * @brief libevent completion callback invoked when an HTTP request finishes.
+ * @param req_ev Completed evhttp_request pointer (or NULL on failure).
+ * @param arg Pointer to struct libevent_state.
+ */
 static void http_request_done(struct evhttp_request *req_ev, void *arg) {
   struct libevent_state *state;
   state = (struct libevent_state *)arg;
@@ -546,6 +573,12 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
   }
 }
 
+/**
+ * @brief Drain chunked evbuffer bytes and forward them to req->on_chunk.
+ * @param req_ev Active evhttp_request pointer.
+ * @param state Active libevent request state.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 static enum c_abstract_http_error
 http_chunked_cb_impl(struct evhttp_request *req_ev,
                      struct libevent_state *state) {
@@ -581,6 +614,11 @@ http_chunked_cb_impl(struct evhttp_request *req_ev,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief libevent chunked transfer callback trampoline.
+ * @param req_ev Active evhttp_request pointer.
+ * @param arg Pointer to struct libevent_state.
+ */
 static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
   struct libevent_state *state = (struct libevent_state *)arg;
   LIBEVENT_VOID_CB_DISPATCH(http_chunked_cb_impl(req_ev, state));

@@ -1,4 +1,10 @@
 
+/**
+ * @file coroutine.c
+ * @brief Stackful coroutine / green-thread implementation across Win32 Fibers,
+ * POSIX ucontext, and pthreads.
+ */
+
 /* clang-format off */
 #include <stdio.h>
 #include <errno.h>
@@ -7,9 +13,11 @@
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #ifndef _WIN32_WINNT
+/** @brief Target Windows Vista+ API level */
 #define _WIN32_WINNT 0x0600
 #endif
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
@@ -17,17 +25,21 @@
 #include <dos.h>
 #else
 #if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN__)
+/** @brief Disable ucontext backend when unavailable */
 #define ABSTRACT_HTTP_NO_UCONTEXT 1
 #endif
 #if defined(__APPLE__) && defined(__MACH__)
 /* ucontext is deprecated on macOS but still mostly works for simple cases on x86_64.
    It is broken on arm64 and will cause a Bus Error. */
 #if defined(__aarch64__) || defined(__arm64__) || defined(__arm__) || defined(__aarch64) || defined(EMSCRIPTEN)
+/** @brief Disable ucontext backend on Apple Silicon and Emscripten */
 #define ABSTRACT_HTTP_NO_UCONTEXT 1
 #else
+/** @brief Enable X/Open ucontext declarations on x86_64 macOS */
 #define _XOPEN_SOURCE 600
 #endif
 #elif defined(__linux__) && !defined(__GLIBC__)
+/** @brief Disable ucontext backend on non-glibc Linux (e.g. musl) */
 #define ABSTRACT_HTTP_NO_UCONTEXT 1
 #endif
 #ifndef ABSTRACT_HTTP_NO_UCONTEXT
@@ -42,9 +54,11 @@
 /* clang-format on */
 
 #ifndef ENOTSUP
+/** @brief Fallback ENOTSUP value when unavailable in errno.h */
 #define ENOTSUP EINVAL
 #endif
 
+/** @brief Optional global coroutine lifecycle override hooks */
 static struct AbstractHttpCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL,
                                                               NULL, NULL};
 
@@ -75,9 +89,14 @@ struct AbstractHttpCoroutine {
   int is_done;
 };
 
+/** @brief Win32 TLS slot index storing active fiber coroutine pointer */
 static DWORD dwTlsIndex = TLS_OUT_OF_INDEXES;
 
-static VOID WINAPI fiber_entry(LPVOID lpParameter) {
+/**
+ * @brief Win32 Fiber start trampoline executing the coroutine body.
+ * @param lpParameter Pointer to struct AbstractHttpCoroutine.
+ */
+static void WINAPI fiber_entry(LPVOID lpParameter) {
   struct AbstractHttpCoroutine *co =
       (struct AbstractHttpCoroutine *)lpParameter;
   TlsSetValue(dwTlsIndex, co);
@@ -274,9 +293,15 @@ struct AbstractHttpCoroutine {
 /* We use a simple global thread-local pointer to track the current active
  coroutine for yield. Using our own c_abstract_http_tls.h or native __thread
  depending on compiler. For C89 strictness, we use pthread_key. */
+/** @brief Thread-specific key tracking active ucontext coroutine */
 static pthread_key_t co_tls_key;
+/** @brief Non-zero once co_tls_key has been initialized */
 static int co_tls_initialized = 0;
 
+/**
+ * @brief Lazily initialize the ucontext thread-local key.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_SYSCALL.
+ */
 static enum c_abstract_http_error init_tls_key(void) {
   int rc;
   if (!co_tls_initialized) {
@@ -289,6 +314,8 @@ static enum c_abstract_http_error init_tls_key(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief makecontext entry trampoline executing the active ucontext coroutine
+ */
 static void ucontext_entry(void) {
   struct AbstractHttpCoroutine *co =
       (struct AbstractHttpCoroutine *)pthread_getspecific(co_tls_key);
@@ -492,7 +519,9 @@ struct AbstractHttpCoroutine {
   int is_ready;
 };
 
+/** @brief Thread-specific key tracking active pthread-fallback coroutine */
 static pthread_key_t co_fallback_key;
+/** @brief Non-zero once co_fallback_key has been initialized */
 static int co_fallback_initialized = 0;
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -509,6 +538,10 @@ enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void) {
 }
 #endif
 
+/**
+ * @brief Lazily initialize the pthread-fallback thread-local key.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
 static enum c_abstract_http_error init_fallback_key(void) {
   if (!co_fallback_initialized) {
     if (pthread_key_create(&co_fallback_key, NULL) != 0) {
@@ -519,6 +552,11 @@ static enum c_abstract_http_error init_fallback_key(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Execute coroutine callback and percolate its error enum.
+ * @param co Active coroutine instance.
+ * @return Callback result enum.
+ */
 static enum c_abstract_http_error
 co_thread_run_body(struct AbstractHttpCoroutine *co) {
   enum c_abstract_http_error cb_rc = co->cb(co->arg);
@@ -528,6 +566,11 @@ co_thread_run_body(struct AbstractHttpCoroutine *co) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief POSIX thread entry routine emulating symmetric coroutine resume/yield.
+ * @param arg Pointer to struct AbstractHttpCoroutine.
+ * @return NULL upon completion.
+ */
 static void *co_thread_func(void *arg) {
   struct AbstractHttpCoroutine *co = (struct AbstractHttpCoroutine *)arg;
   pthread_setspecific(co_fallback_key, co);
@@ -633,10 +676,20 @@ abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for pthread_create failure tests */
 extern int g_mock_pthread_fail;
+/**
+ * @brief Fault-injectable wrapper around pthread_create.
+ * @param a Thread handle pointer.
+ * @param b Thread attributes pointer.
+ * @param c Thread start routine.
+ * @param d Thread argument pointer.
+ * @return 0 on success or non-zero on failure.
+ */
 #define PTHREAD_CREATE_MOCK(a, b, c, d)                                        \
   (g_mock_pthread_fail ? 1 : pthread_create(a, b, c, d))
 #else
+/** @brief Direct alias to pthread_create in production builds */
 #define PTHREAD_CREATE_MOCK pthread_create
 #endif
 

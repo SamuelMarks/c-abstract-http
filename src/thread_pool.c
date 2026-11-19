@@ -1,4 +1,10 @@
 
+/**
+ * @file thread_pool.c
+ * @brief Cross-platform mutex, condition variable, and worker thread pool
+ * implementation.
+ */
+
 /* clang-format off */
 #include <stdio.h>
 #include <errno.h>
@@ -7,9 +13,11 @@
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #ifndef _WIN32_WINNT
+/** @brief Target Windows Vista+ API level */
 #define _WIN32_WINNT 0x0600
 #endif
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
@@ -18,6 +26,7 @@
 #else
 #include <pthread.h>
 #endif
+/** @brief Broadcast condition variable alias */
 #define ABSTRACT_HTTP_COND_BROADCAST abstract_http_cond_broadcast
 
 #include <c_abstract_http/thread_pool.h>
@@ -25,13 +34,19 @@
 /* clang-format on */
 
 #ifndef ENOTSUP
+/** @brief Fallback ENOTSUP value when unavailable in errno.h */
 #define ENOTSUP EINVAL
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection mode for mutex init/lock/unlock failure tests */
 extern int g_mock_mutex_fail;
+/** @brief Fault-injection mode for condition variable failure tests */
 extern int g_mock_cond_fail;
+/** @brief Fault-injection flag for mutex destruction failure tests */
 extern int g_mock_mutex_free_fail;
+/** @brief Fault-injection flag for condition variable destruction failure tests
+ */
 extern int g_mock_cond_free_fail;
 #endif
 
@@ -473,10 +488,20 @@ abstract_http_cond_free(struct AbstractHttpCond *cond) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief POSIX thread handle type */
 typedef pthread_t abstract_http_thread_t;
+/** @brief POSIX thread return type */
 #define ABSTRACT_HTTP_THREAD_FUNC void *
+/** @brief POSIX thread argument type */
 typedef void *abstract_http_thread_arg_t;
 
+/**
+ * @brief Spawn a POSIX worker thread.
+ * @param thread Output thread handle.
+ * @param start_routine Thread entry point.
+ * @param arg Thread argument pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
 static enum c_abstract_http_error thread_create(
     abstract_http_thread_t *thread,
     ABSTRACT_HTTP_THREAD_FUNC (*start_routine)(abstract_http_thread_arg_t),
@@ -486,6 +511,11 @@ static enum c_abstract_http_error thread_create(
              : C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/**
+ * @brief Join a POSIX worker thread.
+ * @param thread Thread handle to wait on.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
 static enum c_abstract_http_error thread_join(abstract_http_thread_t thread) {
   if (pthread_join(thread, NULL) != 0) {
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -529,6 +559,11 @@ struct AbstractHttpThreadPool {
   int stop;
 };
 
+/**
+ * @brief Execute a queued worker task callback and log any error enum.
+ * @param cb_fn Task callback function pointer.
+ * @param cb_arg Task user argument pointer.
+ */
 #define THREAD_POOL_RUN_TASK(cb_fn, cb_arg)                                    \
   do {                                                                         \
     enum c_abstract_http_error _t_rc = (cb_fn)((cb_arg));                      \
@@ -537,6 +572,11 @@ struct AbstractHttpThreadPool {
     }                                                                          \
   } while (0)
 
+/**
+ * @brief Main loop dequeuing and running worker tasks until pool shutdown.
+ * @param pool Active thread pool instance.
+ * @return C_ABSTRACT_HTTP_SUCCESS or synchronization error enum.
+ */
 static enum c_abstract_http_error
 worker_thread_loop(struct AbstractHttpThreadPool *pool) {
   for (;;) {
@@ -588,8 +628,18 @@ worker_thread_loop(struct AbstractHttpThreadPool *pool) {
 }
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
+/**
+ * @brief Platform worker thread entry point on Windows.
+ * @param arg Pointer to struct AbstractHttpThreadPool.
+ * @return 0 on clean exit or non-zero error status.
+ */
 static DWORD WINAPI worker_thread(abstract_http_thread_arg_t arg) {
 #else
+/**
+ * @brief Platform worker thread entry point on POSIX.
+ * @param arg Pointer to struct AbstractHttpThreadPool.
+ * @return NULL on clean exit or encoded error status.
+ */
 static void *worker_thread(abstract_http_thread_arg_t arg) {
 #endif
   struct AbstractHttpThreadPool *pool = (struct AbstractHttpThreadPool *)arg;
@@ -600,6 +650,11 @@ static void *worker_thread(abstract_http_thread_arg_t arg) {
   return (ABSTRACT_HTTP_THREAD_FUNC)0;
 }
 
+/**
+ * @brief Join a worker thread and record the first error into acc_err.
+ * @param th Thread handle to join.
+ * @param acc_err Lvalue enum variable accumulating the first join error.
+ */
 #define THREAD_POOL_JOIN_ACCUM(th, acc_err)                                    \
   do {                                                                         \
     enum c_abstract_http_error _j_rc = thread_join((th));                      \
@@ -883,8 +938,14 @@ abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Set the stop flag on a thread pool under lock for testing.
+ * @param pool Target thread pool.
+ * @return C_ABSTRACT_HTTP_SUCCESS or lock error enum.
+ */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool);
+/** @brief Fault-injection mode for pthread/thread pool tests */
 extern int g_mock_pthread_fail;
 
 /**
@@ -900,6 +961,11 @@ pool_lock_for_stop(struct AbstractHttpMutex *lock) {
   return abstract_http_mutex_lock(lock);
 }
 
+/**
+ * @brief Set the stop flag on a thread pool under lock for testing.
+ * @param pool Target thread pool.
+ * @return C_ABSTRACT_HTTP_SUCCESS or lock error enum.
+ */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool) {
   if (pool) {
@@ -916,8 +982,18 @@ abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Clear the stop flag on a thread pool for testing.
+ * @param pool Target thread pool.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_clear_stop(struct AbstractHttpThreadPool *pool);
+/**
+ * @brief Clear the stop flag on a thread pool for testing.
+ * @param pool Target thread pool.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_clear_stop(struct AbstractHttpThreadPool *pool) {
   if (pool) {
@@ -926,21 +1002,41 @@ abstract_http_thread_pool_test_clear_stop(struct AbstractHttpThreadPool *pool) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #if !defined(C_ABSTRACT_HTTP_TEST_OOM)
-/** @brief Dummy thread task callback */
+/**
+ * @brief Dummy thread task callback.
+ * @param arg Unused task argument.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
 enum c_abstract_http_error dummy_cb_thread(void *arg);
-/** @brief Dummy thread task callback */
+/**
+ * @brief Dummy thread task callback.
+ * @param arg Unused task argument.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
 enum c_abstract_http_error dummy_cb_thread(void *arg) {
   (void)arg;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #else
-/** @brief Dummy thread task callback */
+/**
+ * @brief Dummy thread task callback provided by test harness.
+ * @param arg Unused task argument.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
 extern enum c_abstract_http_error dummy_cb_thread(void *arg);
 #endif
-/** @brief Inject a task directly into the thread pool queue for testing */
+/**
+ * @brief Inject a task directly into the thread pool queue for testing.
+ * @param pool Target thread pool.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on NULL/OOM.
+ */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_inject_task(struct AbstractHttpThreadPool *pool);
-/** @brief Inject a task directly into the thread pool queue for testing */
+/**
+ * @brief Inject a task directly into the thread pool queue for testing.
+ * @param pool Target thread pool.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on NULL/OOM.
+ */
 enum c_abstract_http_error abstract_http_thread_pool_test_inject_task(
     struct AbstractHttpThreadPool *pool) {
   if (!pool) {
@@ -959,19 +1055,35 @@ enum c_abstract_http_error abstract_http_thread_pool_test_inject_task(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/** @brief Run worker thread routine once for testing */
+/**
+ * @brief Run worker thread routine once for testing.
+ * @param pool Target thread pool.
+ * @return Result from worker_thread_loop.
+ */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_worker(struct AbstractHttpThreadPool *pool);
-/** @brief Run worker thread routine once for testing */
+/**
+ * @brief Run worker thread routine once for testing.
+ * @param pool Target thread pool.
+ * @return Result from worker_thread_loop.
+ */
 enum c_abstract_http_error
 abstract_http_thread_pool_test_worker(struct AbstractHttpThreadPool *pool) {
   return worker_thread_loop(pool);
 }
 
-/** @brief Create a dummy thread pool structure for testing */
+/**
+ * @brief Create a dummy thread pool structure without spawning worker threads.
+ * @param out Output pointer receiving allocated dummy thread pool.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on NULL/OOM.
+ */
 enum c_abstract_http_error abstract_http_thread_pool_test_create_dummy(
     struct AbstractHttpThreadPool **out);
-/** @brief Create a dummy thread pool structure for testing */
+/**
+ * @brief Create a dummy thread pool structure without spawning worker threads.
+ * @param out Output pointer receiving allocated dummy thread pool.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on NULL/OOM.
+ */
 enum c_abstract_http_error abstract_http_thread_pool_test_create_dummy(
     struct AbstractHttpThreadPool **out) {
   struct AbstractHttpThreadPool *p;

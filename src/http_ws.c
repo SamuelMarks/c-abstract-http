@@ -1,9 +1,17 @@
+/**
+ * @file http_ws.c
+ * @brief RFC 6455 WebSocket handshake, framing, masking, and client session
+ * implementation.
+ */
+
 /* clang-format off */
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #ifndef _WIN32_WINNT
+/** @brief Target Windows Vista+ API level */
 #define _WIN32_WINNT 0x0600
 #endif
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
@@ -15,10 +23,15 @@
 #include "ws_internal.h"
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for condition variable init failure */
 extern int g_mock_cond_init_fail;
+/** @brief Fault-injection flag for mutex destruction failure */
 extern int g_mock_mutex_free_fail;
+/** @brief Fault-injection flag for condition variable destruction failure */
 extern int g_mock_cond_free_fail;
+/** @brief Fault-injection flag for WebSocket send-queue allocation failure */
 extern int g_mock_queue_malloc_fail;
+/** @brief Fault-injection flag for WebSocket parser destruction failure */
 extern int g_mock_parser_destroy_fail;
 #endif
 #include "ws_config.h"
@@ -31,7 +44,9 @@ extern int g_mock_parser_destroy_fail;
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection mode for WebSocket mask key helpers */
 extern int g_mock_mask_key_fail;
+/** @brief Fault-injection mode for WebSocket frame header packers */
 extern int g_mock_pack_header_fail;
 #endif
 
@@ -122,6 +137,14 @@ enum c_abstract_http_error ws_verify_accept(const char *client_key,
   return C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE;
 }
 
+/**
+ * @brief Streaming upload callback draining queued outgoing WebSocket frames.
+ * @param user_data Pointer to struct ws_stream_ctx.
+ * @param buf Destination upload buffer.
+ * @param buf_len Maximum bytes to copy into buf.
+ * @param out_read Output byte count written (0 signals EOF).
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on synchronization failure.
+ */
 static enum c_abstract_http_error
 ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
   enum c_abstract_http_error rc;
@@ -169,6 +192,12 @@ ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+/**
+ * @brief Destroy and free a WebSocket streaming queue context.
+ * @param sctx Streaming context pointer (may be NULL).
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on mutex/cond cleanup failure.
+ */
 static enum c_abstract_http_error
 ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
   if (!sctx)
@@ -940,6 +969,11 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Background worker task running the WebSocket read loop asynchronously.
+ * @param arg Owned pointer to struct c_abstract_http_ws_async_ctx.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 static enum c_abstract_http_error c_abstract_http_ws_async_task(void *arg) {
   enum c_abstract_http_error err;
   struct c_abstract_http_ws_async_ctx *ctx =
@@ -966,9 +1000,17 @@ static enum c_abstract_http_error c_abstract_http_ws_async_task(void *arg) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-/** @brief Test helper for WebSocket async task */
+/**
+ * @brief Test helper for WebSocket async task.
+ * @param arg Owned pointer to struct c_abstract_http_ws_async_ctx.
+ * @return Result from c_abstract_http_ws_async_task.
+ */
 enum c_abstract_http_error abstract_http_test_ws_async_task(void *arg);
-/** @brief Test helper for WebSocket async task */
+/**
+ * @brief Test helper for WebSocket async task.
+ * @param arg Owned pointer to struct c_abstract_http_ws_async_ctx.
+ * @return Result from c_abstract_http_ws_async_task.
+ */
 enum c_abstract_http_error abstract_http_test_ws_async_task(void *arg) {
   return c_abstract_http_ws_async_task(arg);
 }

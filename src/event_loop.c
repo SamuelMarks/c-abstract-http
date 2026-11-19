@@ -1,4 +1,10 @@
 
+/**
+ * @file event_loop.c
+ * @brief Portable select-based event loop, timer min-heap, and external loop
+ * hook adapter.
+ */
+
 /* clang-format off */
 #include <errno.h>
 #include <stdlib.h>
@@ -7,10 +13,12 @@
 
 #if defined(_WIN32)
 #ifndef _WIN32_WINNT
+/** @brief Target Windows Vista+ API level */
 #define _WIN32_WINNT 0x0600
 #endif
 #include <winsock2.h>
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
@@ -30,11 +38,18 @@
 
 #ifdef _WIN32
 #ifdef _MSC_VER
+/** @brief Warning-free do-while(0) terminator under MSVC /W4 */
 #define CAH_FD_SET_WHILE_ZERO while (0, 0)
 #else
+/** @brief Standard do-while(0) terminator */
 #define CAH_FD_SET_WHILE_ZERO while (0)
 #endif
 #undef FD_SET
+/**
+ * @brief Warning-safe Winsock FD_SET implementation avoiding C4127.
+ * @param fd Socket descriptor to add.
+ * @param set Target fd_set pointer.
+ */
 #define FD_SET(fd, set)                                                        \
   do {                                                                         \
     u_int __i;                                                                 \
@@ -51,10 +66,32 @@
     }                                                                          \
   }                                                                            \
   CAH_FD_SET_WHILE_ZERO
+/**
+ * @brief Portable wrapper around FD_SET.
+ * @param d Socket or file descriptor.
+ * @param s Pointer to fd_set.
+ */
 #define ABSTRACT_HTTP_FD_SET(d, s) FD_SET(d, s)
+/**
+ * @brief Portable wrapper around FD_ISSET.
+ * @param d Socket or file descriptor.
+ * @param s Pointer to fd_set.
+ * @return Non-zero if descriptor is set.
+ */
 #define ABSTRACT_HTTP_FD_ISSET(d, s) FD_ISSET(d, s)
 #else
+/**
+ * @brief Portable wrapper around POSIX FD_SET with unsigned cast.
+ * @param d File descriptor.
+ * @param s Pointer to fd_set.
+ */
 #define ABSTRACT_HTTP_FD_SET(d, s) FD_SET((size_t)(d), (s))
+/**
+ * @brief Portable wrapper around POSIX FD_ISSET with unsigned cast.
+ * @param d File descriptor.
+ * @param s Pointer to fd_set.
+ * @return Non-zero if descriptor is set.
+ */
 #define ABSTRACT_HTTP_FD_ISSET(d, s) FD_ISSET((size_t)(d), (s))
 #endif
 
@@ -123,9 +160,11 @@ struct ModalityEventLoop {
 #endif
 };
 
+/** @brief Return current monotonic/wall time in milliseconds */
 abstract_http_int64_t math_get_current_time_ms(void);
 C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void);
 #ifndef math_get_current_time_ms
+/** @brief Default mapping of math_get_current_time_ms to real implementation */
 #define math_get_current_time_ms real_math_get_current_time_ms
 #endif
 C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void) {
@@ -146,9 +185,16 @@ C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection countdown for timer heap swap failure tests */
 extern int g_mock_timer_heap_swap_fail;
 #endif
 
+/**
+ * @brief Swap two timer min-heap nodes.
+ * @param a First timer node.
+ * @param b Second timer node.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error enum.
+ */
 static enum c_abstract_http_error timer_heap_swap(struct TimerNode *a,
                                                   struct TimerNode *b) {
   struct TimerNode temp = *a;
@@ -164,6 +210,12 @@ static enum c_abstract_http_error timer_heap_swap(struct TimerNode *a,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Sift a timer node upward in the expiration min-heap.
+ * @param loop Event loop owning the timer heap.
+ * @param idx Index of inserted node.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 static enum c_abstract_http_error timer_heap_up(struct ModalityEventLoop *loop,
                                                 size_t idx) {
   enum c_abstract_http_error rc;
@@ -180,6 +232,12 @@ static enum c_abstract_http_error timer_heap_up(struct ModalityEventLoop *loop,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Sift a timer node downward in the expiration min-heap.
+ * @param loop Event loop owning the timer heap.
+ * @param idx Index of node to sift down.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 static enum c_abstract_http_error
 timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
   enum c_abstract_http_error rc;
@@ -551,6 +609,11 @@ http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
   return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
+/**
+ * @brief Pop and fire all expired timers in the event loop min-heap.
+ * @param loop Active event loop instance.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum percolated from callbacks.
+ */
 static enum c_abstract_http_error
 process_timers(struct ModalityEventLoop *loop) {
   enum c_abstract_http_error rc;

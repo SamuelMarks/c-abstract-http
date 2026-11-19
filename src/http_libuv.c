@@ -1,9 +1,17 @@
+/**
+ * @file http_libuv.c
+ * @brief libuv TCP transport backend implementation of the Abstract Network
+ * Interface (ANI).
+ */
+
 /* clang-format off */
 #if !defined(_WIN32)
 #ifndef _DEFAULT_SOURCE
+/** @brief Enable POSIX/BSD system extensions */
 #define _DEFAULT_SOURCE 1
 #endif
 #ifndef _POSIX_C_SOURCE
+/** @brief Target POSIX.1-2008 API level */
 #define _POSIX_C_SOURCE 200809L
 #endif
 #endif
@@ -18,12 +26,14 @@
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #if defined(_MSC_VER)
 #include <BaseTsd.h>
+/** @brief Signed size type typedef for MSVC */
 typedef SSIZE_T ssize_t;
 #endif
 #else
@@ -45,6 +55,7 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
+/** @brief Reference count of global libuv initializations */
 static int libuv_global_init_count = 0;
 
 /**
@@ -342,6 +353,10 @@ static void libuv_on_close(uv_handle_t *handle) {
   }
 }
 
+/**
+ * @brief Execute an enum-returning helper inside a void libuv callback.
+ * @param expr Expression returning enum c_abstract_http_error.
+ */
 #define LIBUV_VOID_CB_DISPATCH(expr)                                           \
   do {                                                                         \
     enum c_abstract_http_error _uv_rc = (expr);                                \
@@ -585,13 +600,27 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 static enum c_abstract_http_error parse_url(const char *url, char **host,
                                             int *port, char **path);
+/**
+ * @brief libuv stream read completion callback.
+ * @param stream Active uv_stream_t handle.
+ * @param nread Number of bytes read or negative UV error code.
+ * @param buf Buffer descriptor.
+ */
 static void libuv_on_read(uv_stream_t *stream, ssize_t nread,
                           const uv_buf_t *buf);
+/**
+ * @brief Run mock libuv event loop.
+ * @param loop Mock uv_loop_t pointer.
+ * @param mode Run mode.
+ * @return 0 on completion.
+ */
 static int uv_run(uv_loop_t *loop, int mode);
 
 /**
- * @brief Test libuv helper functions and edge cases.
- *
+ * @brief Dummy streaming chunk callback returning success for libuv tests.
+ * @param[in] user_data User context pointer.
+ * @param[in] chunk Chunk payload bytes.
+ * @param[in] chunk_len Chunk byte length.
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
 static enum c_abstract_http_error
@@ -601,6 +630,13 @@ test_helper_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Dummy streaming chunk callback returning error for libuv tests.
+ * @param[in] user_data User context pointer.
+ * @param[in] chunk Chunk payload bytes.
+ * @param[in] chunk_len Chunk byte length.
+ * @return Error enum simulating cancellation.
+ */
 static enum c_abstract_http_error
 test_helper_chunk_cb_err(void *user_data, const void *chunk, size_t chunk_len) {
   if (user_data || chunk || chunk_len) {
@@ -608,7 +644,10 @@ test_helper_chunk_cb_err(void *user_data, const void *chunk, size_t chunk_len) {
   return (enum c_abstract_http_error)ECANCELED;
 }
 
-/** @brief Test libuv helper functions and edge cases */
+/**
+ * @brief Test libuv helper functions and edge cases.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   enum c_abstract_http_error rc;
   uv_timer_t timer;
@@ -1039,7 +1078,12 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
 }
 #endif
 
-/* Internal read handler returning enum c_abstract_http_error. */
+/**
+ * @brief Internal read handler returning enum c_abstract_http_error.
+ * @param state Active libuv request state.
+ * @param nread Bytes read or negative UV status code.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 static enum c_abstract_http_error libuv_on_read_impl(struct libuv_state *state,
                                                      ssize_t nread) {
   if (nread < 0) {
@@ -1108,6 +1152,12 @@ static enum c_abstract_http_error libuv_on_read_impl(struct libuv_state *state,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief libuv stream read completion callback.
+ * @param stream Active uv_stream_t handle.
+ * @param nread Number of bytes read or negative UV error code.
+ * @param buf Buffer descriptor.
+ */
 static void libuv_on_read(uv_stream_t *stream, ssize_t nread,
                           const uv_buf_t *buf) {
   struct libuv_state *state = (struct libuv_state *)stream->data;

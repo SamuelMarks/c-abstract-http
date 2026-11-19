@@ -1,3 +1,8 @@
+/**
+ * @file crypto_utils.c
+ * @brief Internal SHA-1, Base64, and constant-time comparison utilities.
+ */
+
 /* clang-format off */
 #include "crypto_utils.h"
 #include <stdlib.h>
@@ -6,8 +11,19 @@
 /* clang-format on */
 
 /* SHA-1 implementation based on RFC 3174 */
+/**
+ * @brief Rotate a 32-bit unsigned word left by the specified bit count.
+ * @param bits Number of bits to rotate left.
+ * @param word 32-bit unsigned word to rotate.
+ * @return Rotated 32-bit value.
+ */
 #define SHA1_ROTL(bits, word) (((word) << (bits)) | ((word) >> (32 - (bits))))
 
+/**
+ * @brief Process one 64-byte SHA-1 message block.
+ * @param state Five-word SHA-1 running digest state.
+ * @param buffer 64-byte input message block.
+ */
 static void math_sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
   uint32_t a, b, c, d, e;
   uint32_t w[80];
@@ -62,6 +78,7 @@ static void math_sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection counter for SHA-1 failure testing */
 extern int g_mock_sha1_fail;
 #endif
 
@@ -162,6 +179,7 @@ enum c_abstract_http_error sha1_final(struct sha1_ctx *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Standard RFC 4648 Base64 encoding alphabet */
 static const char base64_chars[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -209,6 +227,8 @@ enum c_abstract_http_error base64_encode(const unsigned char *in, size_t in_len,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Lookup table mapping ASCII bytes to 6-bit Base64 values (64 if
+ * invalid) */
 static const unsigned char base64_decode_table[256] = {
     64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
     64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,

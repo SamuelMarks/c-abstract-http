@@ -1,7 +1,12 @@
-#if !defined(C_ABSTRACT_HTTP_TEST_OOM)
-static int g_mock_waitpid_fail = 0;
-#else
+/**
+ * @file process.c
+ * @brief Cross-platform child process spawning, IPC pipes, and serialization.
+ */
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection mode for waitpid/WaitForSingleObject tests */
 extern int g_mock_waitpid_fail;
+/** @brief Redirect _exit to exit during OOM/unit test instrumentation */
 #define _exit exit
 #endif
 
@@ -20,12 +25,21 @@ extern int g_mock_waitpid_fail;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 #ifndef _WIN32
 extern int g_mock_write_partial;
+/** @brief Flag to simulate partial write() return in OOM/IPC tests */
 int g_mock_write_partial = 0;
 #endif
 #ifdef _MSC_VER
+/** @brief Signed size type fallback for MSVC */
 typedef int ssize_t;
 #endif
 #ifndef _WIN32
+/**
+ * @brief Mock write() wrapper supporting partial-write injection in tests.
+ * @param fd File descriptor.
+ * @param buf Source buffer.
+ * @param count Byte count to write.
+ * @return Number of bytes written or -1 on error.
+ */
 static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count) {
   if (g_mock_write_partial) {
     g_mock_write_partial = 0;
@@ -34,6 +48,7 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 #undef write
   return write(fd, buf, count);
 }
+/** @brief Redirect write to mock wrapper under OOM test builds */
 #define write c_abstract_http_mock_write
 #endif
 #endif
@@ -49,15 +64,13 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 #endif
 #endif
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <dos.h>
 #else
-#if !defined(_MSC_VER)
-#include <unistd.h>
-#endif
 #include <sys/types.h>
 #include <sys/wait.h>
 #endif
@@ -66,6 +79,7 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
+/** @brief Optional global hooks overriding process spawn/wait and IPC I/O */
 static struct AbstractHttpProcessHooks g_process_hooks = {NULL, NULL, NULL,
                                                           NULL};
 
@@ -211,7 +225,7 @@ abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM) || 1
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_waitpid_fail) {
     if (exit_code) {
       *exit_code = (g_mock_waitpid_fail == 2) ? -1 : 0;
@@ -470,9 +484,16 @@ enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
 /* --- Simple Binary Serialization --- */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection countdown for IPC serialization write helpers */
 extern int g_mock_serialize_fail;
 #endif
 
+/**
+ * @brief Serialize an int value into the cursor buffer and advance cursor.
+ * @param p Pointer to output cursor pointer.
+ * @param val Integer value to write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 static enum c_abstract_http_error write_int(char **p, int val) {
   if (!p || !*p)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -485,6 +506,12 @@ static enum c_abstract_http_error write_int(char **p, int val) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Serialize a size_t value into the cursor buffer and advance cursor.
+ * @param p Pointer to output cursor pointer.
+ * @param val Size value to write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 static enum c_abstract_http_error write_size(char **p, size_t val) {
   if (!p || !*p)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -497,6 +524,12 @@ static enum c_abstract_http_error write_size(char **p, size_t val) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Serialize a length-prefixed C string into the cursor buffer.
+ * @param p Pointer to output cursor pointer.
+ * @param str Optional NUL-terminated string (NULL written as length 0).
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 static enum c_abstract_http_error write_str(char **p, const char *str) {
   size_t len;
   enum c_abstract_http_error rc;
@@ -513,6 +546,13 @@ static enum c_abstract_http_error write_str(char **p, const char *str) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Deserialize an int value from a bounded buffer cursor.
+ * @param p Pointer to input cursor pointer.
+ * @param end One-past-end boundary of buffer.
+ * @param val Output pointer receiving parsed int.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL on truncation.
+ */
 static enum c_abstract_http_error parse_int(const char **p, const char *end,
                                             int *val) {
   if (*p + sizeof(int) > end)
@@ -522,6 +562,13 @@ static enum c_abstract_http_error parse_int(const char **p, const char *end,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Deserialize a size_t value from a bounded buffer cursor.
+ * @param p Pointer to input cursor pointer.
+ * @param end One-past-end boundary of buffer.
+ * @param val Output pointer receiving parsed size_t.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL on truncation.
+ */
 static enum c_abstract_http_error parse_size(const char **p, const char *end,
                                              size_t *val) {
   if (*p + sizeof(size_t) > end)
@@ -531,6 +578,13 @@ static enum c_abstract_http_error parse_size(const char **p, const char *end,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Deserialize a length-prefixed NUL-terminated string copy.
+ * @param p Pointer to input cursor pointer.
+ * @param end One-past-end boundary of buffer.
+ * @param str Output pointer receiving newly allocated string or NULL.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on truncation/OOM.
+ */
 static enum c_abstract_http_error parse_str(const char **p, const char *end,
                                             char **str) {
   size_t len;
@@ -808,10 +862,16 @@ abstract_http_ipc_deserialize_response(const char *buf, size_t len,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-#if 1
-/** @brief Test helper for waitpid failure */
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Test helper for waitpid failure.
+ * @return Result from abstract_http_process_wait_and_free.
+ */
 enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void);
-/** @brief Test helper for waitpid failure */
+/**
+ * @brief Test helper for waitpid failure.
+ * @return Result from abstract_http_process_wait_and_free.
+ */
 enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void) {
   struct AbstractHttpProcess *p =
       (struct AbstractHttpProcess *)malloc(sizeof(struct AbstractHttpProcess));
@@ -829,12 +889,16 @@ enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void) {
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-#endif
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-/** @brief Test helper for abnormal waitpid exit status */
+/**
+ * @brief Test helper for abnormal waitpid exit status.
+ * @return Result from abstract_http_process_wait_and_free.
+ */
 enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void);
-/** @brief Test helper for abnormal waitpid exit status */
+/**
+ * @brief Test helper for abnormal waitpid exit status.
+ * @return Result from abstract_http_process_wait_and_free.
+ */
 enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void) {
   /* Test WIFEXITED == false */
   struct AbstractHttpProcess *p =

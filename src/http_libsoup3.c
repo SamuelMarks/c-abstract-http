@@ -1,3 +1,9 @@
+/**
+ * @file http_libsoup3.c
+ * @brief GNOME libsoup-3.0 transport backend implementation of the Abstract
+ * Network Interface (ANI).
+ */
+
 /* clang-format off */
 #include <errno.h>
 #include <stdarg.h>
@@ -25,6 +31,7 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
+/** @brief Reference count of global libsoup3 initializations */
 static int g_libsoup3_init_count = 0;
 
 /**

@@ -215,6 +215,15 @@ cah_urlsession_handle_data(struct AppleURLSessionState *st, id data_task,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Dispatch an enum-returning helper inside a void Apple callback */
+#define APPLE_VOID_CB_DISPATCH(expr)                                           \
+  do {                                                                         \
+    enum c_abstract_http_error _apple_rc = (expr);                             \
+    if (_apple_rc != C_ABSTRACT_HTTP_SUCCESS) {                                \
+      LOG_DEBUG("apple_cb: helper returned %d", (int)_apple_rc);               \
+    }                                                                          \
+  } while (0)
+
 /**
  * @brief Objective-C IMP for URLSession:dataTask:didReceiveData:.
  * @param self Delegate instance.
@@ -228,13 +237,10 @@ static void cah_urlsession_did_receive_data(id self, SEL _cmd, id session,
   struct AppleURLSessionState *st =
       (struct AppleURLSessionState *)(void *)objc_getAssociatedObject(
           self, &g_cah_urlsession_state_key);
-  enum c_abstract_http_error rc;
   (void)_cmd;
   (void)session;
-  rc = cah_urlsession_handle_data(st, data_task, (CFDataRef)data);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("cah_urlsession_did_receive_data: chunk aborted %d", (int)rc);
-  }
+  APPLE_VOID_CB_DISPATCH(
+      cah_urlsession_handle_data(st, data_task, (CFDataRef)data));
 }
 
 /**
@@ -254,6 +260,7 @@ cah_urlsession_handle_complete(struct AppleURLSessionState *st, id session,
       CFIndex code = CFErrorGetCode(error);
       rc = (code == -1001) ? C_ABSTRACT_HTTP_ERR_TIMEOUT
                            : C_ABSTRACT_HTTP_ERR_IO;
+      goto finalize_complete;
     } else {
       id resp =
           ((id(*)(id, SEL))objc_msgSend)(task, sel_registerName("response"));
@@ -263,7 +270,11 @@ cah_urlsession_handle_complete(struct AppleURLSessionState *st, id session,
           resp, sel_registerName("allHeaderFields"));
       st->res->status_code = (int)status;
       rc = cah_copy_nshttp_headers(hdrs, &st->res->headers);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto finalize_complete;
+      }
     }
+  finalize_complete:
     st->error = rc;
   }
   ((void (*)(id, SEL))objc_msgSend)(
@@ -288,12 +299,9 @@ static void cah_urlsession_did_complete(id self, SEL _cmd, id session, id task,
   struct AppleURLSessionState *st =
       (struct AppleURLSessionState *)(void *)objc_getAssociatedObject(
           self, &g_cah_urlsession_state_key);
-  enum c_abstract_http_error rc;
   (void)_cmd;
-  rc = cah_urlsession_handle_complete(st, session, task, (CFErrorRef)error);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("cah_urlsession_did_complete: finished with %d", (int)rc);
-  }
+  APPLE_VOID_CB_DISPATCH(
+      cah_urlsession_handle_complete(st, session, task, (CFErrorRef)error));
 }
 
 /**
@@ -659,11 +667,8 @@ static void apple_stream_cb(CFReadStreamRef stream, CFStreamEventType type,
       state->done = 1;
     } else if (bytesRead > 0) {
       if (state->req->on_chunk) {
-        enum c_abstract_http_error rc =
-            apple_stream_handle_chunk(state, buf, bytesRead);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-          LOG_DEBUG("apple_stream_cb: chunk callback aborted with %d", (int)rc);
-        }
+        APPLE_VOID_CB_DISPATCH(
+            apple_stream_handle_chunk(state, buf, bytesRead));
       } else {
         if (!state->bodyData) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -971,15 +976,16 @@ http_apple_cfstream_send(struct HttpTransportContext *ctx,
     }
 
     ext_rc = apple_extract_response(&state, readStream);
-
-    if (state.bodyData)
-      CFRelease(state.bodyData);
-
     if (ext_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (state.bodyData)
+        CFRelease(state.bodyData);
       CFReadStreamClose(readStream);
       CFRelease(readStream);
       return ext_rc;
     }
+
+    if (state.bodyData)
+      CFRelease(state.bodyData);
   }
 
   CFReadStreamClose(readStream);

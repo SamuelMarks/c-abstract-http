@@ -1,9 +1,17 @@
+/**
+ * @file http_fetch.c
+ * @brief FreeBSD libfetch transport backend implementation of the Abstract
+ * Network Interface (ANI).
+ */
+
 /* clang-format off */
 #if !defined(_WIN32)
 #ifndef _DEFAULT_SOURCE
+/** @brief Enable POSIX/BSD system extensions */
 #define _DEFAULT_SOURCE 1
 #endif
 #ifndef _POSIX_C_SOURCE
+/** @brief Target POSIX.1-2008 API level */
 #define _POSIX_C_SOURCE 200809L
 #endif
 #endif
@@ -24,6 +32,11 @@
 #endif
 /* clang-format on */
 
+/**
+ * @brief Free a parsed libfetch URL structure and return success enum.
+ * @param u Parsed libfetch URL structure to release.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
 static enum c_abstract_http_error fetch_free_url_wrap(struct url *u) {
   fetchFreeURL(u);
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -35,6 +48,7 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
+/** @brief Reference count of global libfetch initializations */
 static int g_fetch_init_count = 0;
 
 /**

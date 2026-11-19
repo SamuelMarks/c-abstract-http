@@ -1,3 +1,9 @@
+/**
+ * @file http_wasm.c
+ * @brief Emscripten Fetch API (WebAssembly) transport backend implementation of
+ * the Abstract Network Interface (ANI).
+ */
+
 /* clang-format off */
 #include <errno.h>
 #include <stdio.h>
@@ -10,19 +16,28 @@
 #include "c_abstract_http/log.h"
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for wasm fetch failure */
 extern int g_mock_wasm_fetch_fail;
+/** @brief Fault-injection mode for wasm fetch timeout/state simulation */
 extern int g_mock_wasm_fetch_timeout;
+/** @brief Fault-injection flag for wasm config init failure */
 extern int g_mock_wasm_config_init_fail;
+/** @brief Fault-injection flag for wasm response init failure */
 extern int g_mock_wasm_response_init_fail;
+/** @brief Fault-injection flag for wasm response header addition failure */
 extern int g_mock_wasm_header_add_fail;
+/** @brief Fault-injection mode for wasm response headers length edge cases */
 extern int g_mock_wasm_headers_len_zero;
+/** @brief Fault-injection flag for mock allocator failure */
 extern int g_mock_alloc_fail;
+/** @brief Counter for mock allocator calls */
 extern int g_mock_alloc_count;
 #endif
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/fetch.h>
 #else
+/** @brief Fallback flag value for synchronous Emscripten fetch */
 #define EMSCRIPTEN_FETCH_SYNCHRONOUS 1
 /** @brief Fallback struct emscripten_fetch_attr_t */
 typedef struct emscripten_fetch_attr_t {
@@ -192,7 +207,10 @@ wasm_fetch_exec(const emscripten_fetch_attr_t *attr, const char *url,
   }
   *out_fetch = NULL;
 #if defined(__EMSCRIPTEN__) && !defined(C_ABSTRACT_HTTP_TEST_OOM)
-  *out_fetch = emscripten_fetch((emscripten_fetch_attr_t *)attr, url);
+  {
+    emscripten_fetch_attr_t local_attr = *attr;
+    *out_fetch = emscripten_fetch(&local_attr, url);
+  }
   return *out_fetch ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_IO;
 #else
   {
@@ -265,6 +283,7 @@ struct HttpTransportContext {
   struct HttpConfig config;
 };
 
+/** @brief Reference count of global wasm transport initializations */
 static int wasm_global_init_count = 0;
 
 /**

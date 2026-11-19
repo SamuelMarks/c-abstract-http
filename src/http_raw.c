@@ -1,3 +1,9 @@
+/**
+ * @file http_raw.c
+ * @brief Raw BSD/Winsock2 HTTP/1.1 transport backend implementation of the
+ * Abstract Network Interface (ANI).
+ */
+
 /* clang-format off */
 #include <c_abstract_http/http_raw.h>
 #include "c_abstract_http/log.h"
@@ -10,13 +16,26 @@
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+/**
+ * @brief Close a raw socket handle on Windows.
+ * @param s Socket handle.
+ * @return 0 on success or SOCKET_ERROR.
+ */
 #define RAW_CLOSESOCKET(s) closesocket(s)
+/** @brief Platform-native raw socket descriptor type */
 typedef SOCKET raw_socket_t;
+/** @brief Invalid raw socket sentinel value */
 #define RAW_INVALID_SOCKET INVALID_SOCKET
+/**
+ * @brief Add raw socket to fd_set on Windows.
+ * @param s Socket handle.
+ * @param set Target fd_set pointer.
+ */
 #define RAW_FD_SET(s, set) FD_SET(s, set)
 #else
 #include <unistd.h>
@@ -26,21 +45,41 @@ typedef SOCKET raw_socket_t;
 #include <netinet/in.h>
 #include <netdb.h>
 #include <fcntl.h>
+/**
+ * @brief Close a raw socket descriptor on POSIX.
+ * @param s Socket file descriptor.
+ * @return 0 on success or -1 on error.
+ */
 #define RAW_CLOSESOCKET(s) close(s)
+/** @brief Platform-native raw socket descriptor type */
 typedef int raw_socket_t;
+/** @brief Invalid raw socket sentinel value */
 #define RAW_INVALID_SOCKET (-1)
+/**
+ * @brief Add raw socket to fd_set on POSIX.
+ * @param s Socket file descriptor.
+ * @param set Target fd_set pointer.
+ */
 #define RAW_FD_SET(s, set) FD_SET((size_t)(s), (set))
 #endif
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for raw socket send failure */
 extern int g_mock_raw_send_fail;
+/** @brief Fault-injection flag for raw socket connect failure */
 extern int g_mock_raw_connect_fail;
+/** @brief Fault-injection flag for raw socket DNS lookup failure */
 extern int g_mock_raw_gethostbyname_fail;
+/** @brief Fault-injection mode for non-blocking socket setup failure */
 extern int g_mock_raw_nonblocking_fail;
+/** @brief Fault-injection mode for blocking socket restore failure */
 extern int g_mock_raw_blocking_fail;
+/** @brief Fault-injection mode for raw socket buffer reallocation failure */
 extern int g_mock_raw_realloc_fail;
+/** @brief Fault-injection flag for raw socket response init failure */
 extern int g_mock_raw_response_init_fail;
+/** @brief Fault-injection flag for raw socket response allocation failure */
 extern int g_mock_raw_res_alloc_fail;
 #endif
 

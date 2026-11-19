@@ -1,4 +1,9 @@
 
+/**
+ * @file cmp_integration.c
+ * @brief C-Multiplatform (CMP) execution modality and progress adapters.
+ */
+
 /* clang-format off */
 #include "../include/c_abstract_http/cmp_integration.h"
 #include "c_abstract_http/log.h"

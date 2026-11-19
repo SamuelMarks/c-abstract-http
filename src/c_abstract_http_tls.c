@@ -1,4 +1,9 @@
 
+/**
+ * @file c_abstract_http_tls.c
+ * @brief Cross-platform Thread-Local Storage (TLS) implementation.
+ */
+
 /* clang-format off */
 #include <errno.h>
 #include <stdlib.h>

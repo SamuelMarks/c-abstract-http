@@ -1,9 +1,16 @@
+/**
+ * @file http_sse.c
+ * @brief Server-Sent Events (SSE) stream parser and client request helpers.
+ */
+
 /* clang-format off */
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #ifndef _WIN32_WINNT
+/** @brief Target Windows Vista+ API level */
 #define _WIN32_WINNT 0x0600
 #endif
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
@@ -69,6 +76,12 @@ c_abstract_http_sse_init(struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Duplicate a NUL-terminated string for SSE parser state.
+ * @param s Source string.
+ * @param out Output pointer receiving allocated string copy.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
 static enum c_abstract_http_error sse_strdup(const char *s, char **out) {
   size_t len;
   char *copy;
@@ -145,6 +158,7 @@ enum c_abstract_http_error sse_parser_init(
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for SSE parser destruction failure tests */
 extern int g_mock_cond_free_fail; /* just repurposing a mock flag for test */
 #endif
 
@@ -165,6 +179,13 @@ enum c_abstract_http_error sse_parser_destroy(struct sse_parser_ctx *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Parse and apply a single SSE line or dispatch an accumulated event.
+ * @param ctx SSE parser context.
+ * @param line Line buffer without trailing CR/LF.
+ * @param len Length of line in bytes.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
+ */
 static enum c_abstract_http_error
 sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
   enum c_abstract_http_error dup_rc;

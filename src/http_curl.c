@@ -1,4 +1,10 @@
 
+/**
+ * @file http_curl.c
+ * @brief libcurl transport backend implementation of the Abstract Network
+ * Interface (ANI).
+ */
+
 /* clang-format off */
 #include <errno.h>
 #include <stdio.h>
@@ -8,6 +14,7 @@
 /* Defines for C89 string functions if missing */
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+/** @brief Alias POSIX strdup to MSVC _strdup */
 #define strdup _strdup
 #endif
 #else
@@ -20,78 +27,165 @@
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
+/** @brief Wrapper macro for curl_global_init */
 #define ABSTRACT_HTTP_CURL_GLOBAL_INIT curl_global_init
+/** @brief Wrapper macro for curl_multi_add_handle */
 #define ABSTRACT_HTTP_CURL_MULTI_ADD_HANDLE curl_multi_add_handle
+/** @brief Wrapper macro for curl_multi_remove_handle */
 #define ABSTRACT_HTTP_CURL_MULTI_REMOVE_HANDLE curl_multi_remove_handle
+/** @brief Wrapper macro for curl_easy_perform */
 #define ABSTRACT_HTTP_CURL_EASY_PERFORM curl_easy_perform
+/** @brief Wrapper macro for curl_multi_socket_action */
 #define ABSTRACT_HTTP_CURL_MULTI_SOCKET_ACTION curl_multi_socket_action
+/** @brief Wrapper macro for map_curl_error */
 #define ABSTRACT_HTTP_MAP_CURL_ERROR map_curl_error
+/** @brief Wrapper macro for http_loop_remove_fd */
 #define ABSTRACT_HTTP_HTTP_LOOP_REMOVE_FD http_loop_remove_fd
+/** @brief Wrapper macro for http_loop_add_fd */
 #define ABSTRACT_HTTP_HTTP_LOOP_ADD_FD http_loop_add_fd
+/** @brief Wrapper macro for http_loop_mod_fd */
 #define ABSTRACT_HTTP_HTTP_LOOP_MOD_FD http_loop_mod_fd
+/** @brief Wrapper macro for curl_multi_cleanup */
 #define ABSTRACT_HTTP_CURL_MULTI_CLEANUP curl_multi_cleanup
+/** @brief Wrapper macro for curl_multi_info_read */
 #define ABSTRACT_HTTP_CURL_MULTI_INFO_READ curl_multi_info_read
+/** @brief Wrapper macro for curl_easy_getinfo */
 #define ABSTRACT_HTTP_CURL_EASY_GETINFO curl_easy_getinfo
+/** @brief Wrapper macro for curl_easy_setopt */
 #define ABSTRACT_HTTP_CURL_EASY_SETOPT curl_easy_setopt
+/** @brief Wrapper macro for curl_multi_setopt */
 #define ABSTRACT_HTTP_CURL_MULTI_SETOPT curl_multi_setopt
+/** @brief Wrapper macro for curl_slist_append */
 #define ABSTRACT_HTTP_CURL_SLIST_APPEND curl_slist_append
+/** @brief Wrapper macro for format_header */
 #define ABSTRACT_HTTP_FORMAT_HEADER format_header
+/** @brief Wrapper macro for setup_curl_request */
 #define ABSTRACT_HTTP_SETUP_CURL_REQUEST setup_curl_request
+/** @brief Wrapper macro for finish_curl_request */
 #define ABSTRACT_HTTP_FINISH_CURL_REQUEST finish_curl_request
+/** @brief Wrapper macro for check_multi_info */
 #define ABSTRACT_HTTP_CHECK_MULTI_INFO check_multi_info
+/** @brief Wrapper macro for curl_multi_assign */
 #define ABSTRACT_HTTP_CURL_MULTI_ASSIGN curl_multi_assign
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Mock result override for curl_easy_perform */
 CURLcode g_mock_curl_perform_res = CURLE_OK;
+/** @brief Fault-injection enable flag for curl setopt calls */
 int g_mock_curl_setopt_fail = 0;
+/** @brief Countdown until simulated curl setopt failure triggers */
 int g_mock_curl_setopt_count = 0;
+/** @brief Fault-injection mode for curl global/easy/multi init calls */
 int g_mock_curl_init_fail = 0;
+/** @brief Fault-injection flag for http_response_init inside http_curl */
 int g_mock_http_response_init_fail = 0;
+/** @brief Fault-injection flag for event loop operations inside http_curl */
 int g_mock_http_loop_fail = 0;
+/** @brief Fault-injection flag for check_multi_info */
 int g_mock_curl_check_multi_info_fail = 0;
 
 #undef http_response_init
+/**
+ * @brief Fault-injectable http_response_init wrapper.
+ * @param res Response struct pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
 #define http_response_init(res)                                                \
   (g_mock_http_response_init_fail ? C_ABSTRACT_HTTP_ERR_INVAL                  \
                                   : (http_response_init)(res))
 
 #undef http_loop_cancel_timer
+/**
+ * @brief Fault-injectable http_loop_cancel_timer wrapper.
+ * @param loop Event loop pointer.
+ * @param id Timer identifier.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
 #define http_loop_cancel_timer(loop, id)                                       \
   (g_mock_http_loop_fail ? C_ABSTRACT_HTTP_ERR_NOMEM                           \
                          : (http_loop_cancel_timer)(loop, id))
 
 #undef http_loop_add_timer
+/**
+ * @brief Fault-injectable http_loop_add_timer wrapper.
+ * @param loop Event loop pointer.
+ * @param ms Timeout in milliseconds.
+ * @param cb Timer callback.
+ * @param u User data pointer.
+ * @param id Output timer identifier pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
 #define http_loop_add_timer(loop, ms, cb, u, id)                               \
   (g_mock_http_loop_fail ? C_ABSTRACT_HTTP_ERR_NOMEM                           \
                          : (http_loop_add_timer)(loop, ms, cb, u, id))
 
 #undef ABSTRACT_HTTP_HTTP_LOOP_REMOVE_FD
+/**
+ * @brief Fault-injectable http_loop_remove_fd wrapper.
+ * @param loop Event loop pointer.
+ * @param fd Socket descriptor.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
 #define ABSTRACT_HTTP_HTTP_LOOP_REMOVE_FD(loop, fd)                            \
   (g_mock_http_loop_fail ? C_ABSTRACT_HTTP_ERR_NOMEM                           \
                          : (http_loop_remove_fd)(loop, fd))
 
 #undef ABSTRACT_HTTP_HTTP_LOOP_ADD_FD
+/**
+ * @brief Fault-injectable http_loop_add_fd wrapper.
+ * @param loop Event loop pointer.
+ * @param fd Socket descriptor.
+ * @param ev Event bitmask.
+ * @param cb Event callback.
+ * @param u User data pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
 #define ABSTRACT_HTTP_HTTP_LOOP_ADD_FD(loop, fd, ev, cb, u)                    \
   (g_mock_http_loop_fail ? C_ABSTRACT_HTTP_ERR_NOMEM                           \
                          : (http_loop_add_fd)(loop, fd, ev, cb, u))
 
 #undef ABSTRACT_HTTP_HTTP_LOOP_MOD_FD
+/**
+ * @brief Fault-injectable http_loop_mod_fd wrapper.
+ * @param loop Event loop pointer.
+ * @param fd Socket descriptor.
+ * @param ev Updated event bitmask.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
 #define ABSTRACT_HTTP_HTTP_LOOP_MOD_FD(loop, fd, ev)                           \
   (g_mock_http_loop_fail ? C_ABSTRACT_HTTP_ERR_NOMEM                           \
                          : (http_loop_mod_fd)(loop, fd, ev))
 
 #undef ABSTRACT_HTTP_CURL_GLOBAL_INIT
+/**
+ * @brief Fault-injectable curl_global_init wrapper.
+ * @param flags Global init bitmask.
+ * @return CURLE_OK or simulated failure.
+ */
 #define ABSTRACT_HTTP_CURL_GLOBAL_INIT(flags)                                  \
   (g_mock_curl_init_fail == 3 ? CURLE_FAILED_INIT : (curl_global_init)(flags))
 
 #undef curl_easy_init
+/**
+ * @brief Fault-injectable curl_easy_init wrapper.
+ * @return CURL handle or NULL on simulated failure.
+ */
 #define curl_easy_init()                                                       \
   (g_mock_curl_init_fail == 1 ? NULL : (curl_easy_init)())
 
 #undef curl_multi_init
+/**
+ * @brief Fault-injectable curl_multi_init wrapper.
+ * @return CURLM handle or NULL on simulated failure.
+ */
 #define curl_multi_init()                                                      \
   (g_mock_curl_init_fail == 2 ? NULL : (curl_multi_init)())
 
 #undef ABSTRACT_HTTP_CURL_EASY_PERFORM
+/**
+ * @brief Fault-injectable curl_easy_perform wrapper.
+ * @param handle Easy handle.
+ * @return CURLcode result.
+ */
 #define ABSTRACT_HTTP_CURL_EASY_PERFORM(handle)                                \
   (g_mock_curl_perform_res != CURLE_OK ? g_mock_curl_perform_res               \
                                        : (curl_easy_perform)(handle))
@@ -99,14 +193,14 @@ int g_mock_curl_check_multi_info_fail = 0;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /**
  * @brief Check if mock setopt should fail on this invocation.
- * @return C_ABSTRACT_HTTP_ERR_NOMEM if failure is triggered,
+ * @return C_ABSTRACT_HTTP_ERR_IO if failure is triggered,
  * C_ABSTRACT_HTTP_SUCCESS otherwise.
  */
 static enum c_abstract_http_error check_mock_setopt_fail(void) {
   if (g_mock_curl_setopt_fail) {
     if (g_mock_curl_setopt_count == 0) {
       g_mock_curl_setopt_count--;
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
+      return C_ABSTRACT_HTTP_ERR_IO;
     }
     g_mock_curl_setopt_count--;
   }
@@ -114,12 +208,26 @@ static enum c_abstract_http_error check_mock_setopt_fail(void) {
 }
 
 #undef ABSTRACT_HTTP_CURL_EASY_SETOPT
+/**
+ * @brief Fault-injectable curl_easy_setopt wrapper.
+ * @param handle Easy handle.
+ * @param option CURLoption selector.
+ * @param param Option argument.
+ * @return CURLcode result.
+ */
 #define ABSTRACT_HTTP_CURL_EASY_SETOPT(handle, option, param)                  \
   (check_mock_setopt_fail() != C_ABSTRACT_HTTP_SUCCESS                         \
        ? CURLE_OUT_OF_MEMORY                                                   \
        : curl_easy_setopt(handle, option, param))
 
 #undef ABSTRACT_HTTP_CURL_MULTI_SETOPT
+/**
+ * @brief Fault-injectable curl_multi_setopt wrapper.
+ * @param handle Multi handle.
+ * @param option CURLMoption selector.
+ * @param param Option argument.
+ * @return CURLMcode result.
+ */
 #define ABSTRACT_HTTP_CURL_MULTI_SETOPT(handle, option, param)                 \
   (check_mock_setopt_fail() != C_ABSTRACT_HTTP_SUCCESS                         \
        ? CURLM_OUT_OF_MEMORY                                                   \
@@ -127,6 +235,7 @@ static enum c_abstract_http_error check_mock_setopt_fail(void) {
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection mode for curl_multi_add_handle */
 int g_mock_curl_multi_add_fail = 0;
 /**
  * @brief Mock wrapper for curl_multi_add_handle to simulate failures.
@@ -149,13 +258,27 @@ static CURLMcode mock_curl_multi_add_handle(CURLM *multi, CURL *handle) {
   return curl_multi_add_handle(multi, handle);
 }
 #undef ABSTRACT_HTTP_CURL_MULTI_ADD_HANDLE
+/**
+ * @brief Redirect curl_multi_add_handle to mock wrapper.
+ * @param multi Curl multi handle.
+ * @param handle Curl easy handle.
+ * @return CURLMcode result.
+ */
 #define ABSTRACT_HTTP_CURL_MULTI_ADD_HANDLE(multi, handle)                     \
   mock_curl_multi_add_handle(multi, handle)
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Mock cookie list injected into CURLINFO_COOKIELIST queries */
 extern struct curl_slist *g_mock_curl_cookies;
 
+/**
+ * @brief Mock wrapper for curl_easy_getinfo intercepting CURLINFO_COOKIELIST.
+ * @param curl Easy handle.
+ * @param info Info selector.
+ * @param param Output pointer receiving info value.
+ * @return CURLcode result.
+ */
 static CURLcode mock_curl_easy_getinfo(CURL *curl, CURLINFO info, void *param) {
   if (info == CURLINFO_COOKIELIST) {
     if (g_mock_curl_cookies) {
@@ -175,20 +298,39 @@ static CURLcode mock_curl_easy_getinfo(CURL *curl, CURLINFO info, void *param) {
 }
 
 #undef ABSTRACT_HTTP_CURL_EASY_GETINFO
+/** @brief Redirect ABSTRACT_HTTP_CURL_EASY_GETINFO to mock wrapper */
 #define ABSTRACT_HTTP_CURL_EASY_GETINFO mock_curl_easy_getinfo
 #else
 #undef ABSTRACT_HTTP_CURL_EASY_GETINFO
+/**
+ * @brief Invoke curl_easy_getinfo directly.
+ * @param curl Easy handle.
+ * @param info Info selector.
+ * @param param Output pointer.
+ * @return CURLcode result.
+ */
 #define ABSTRACT_HTTP_CURL_EASY_GETINFO(curl, info, param)                     \
   curl_easy_getinfo(curl, info, param)
 #endif
 
 #undef ABSTRACT_HTTP_CURL_SLIST_APPEND
+/**
+ * @brief Fault-injectable curl_slist_append wrapper.
+ * @param list Existing slist head.
+ * @param str Header string to append.
+ * @return Updated slist head or NULL on failure.
+ */
 #define ABSTRACT_HTTP_CURL_SLIST_APPEND(list, str)                             \
   (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0                  \
        ? NULL                                                                  \
        : (curl_slist_append)(list, str))
 
 #undef curl_easy_duphandle
+/**
+ * @brief Fault-injectable curl_easy_duphandle wrapper.
+ * @param curl Source easy handle.
+ * @return Duplicated easy handle or NULL on failure.
+ */
 #define curl_easy_duphandle(curl)                                              \
   (g_mock_curl_setopt_fail && g_mock_curl_setopt_count-- == 0                  \
        ? NULL                                                                  \
@@ -225,6 +367,14 @@ struct CurlWriteContext {
   enum c_abstract_http_error user_aborted;
 };
 
+/**
+ * @brief Append or forward received libcurl response body bytes.
+ * @param contents Incoming payload bytes.
+ * @param realsize Number of bytes in contents.
+ * @param ctx Active write context.
+ * @param out_written Output pointer receiving bytes processed.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on OOM/callback abort.
+ */
 static enum c_abstract_http_error
 write_memory_callback_impl(void *contents, size_t realsize,
                            struct CurlWriteContext *ctx, size_t *out_written) {
@@ -258,6 +408,14 @@ write_memory_callback_impl(void *contents, size_t realsize,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief libcurl CURLOPT_WRITEFUNCTION callback trampoline.
+ * @param contents Incoming payload bytes.
+ * @param size Element size in bytes.
+ * @param nmemb Element count.
+ * @param userp Pointer to struct CurlWriteContext.
+ * @return Number of bytes consumed (0 to signal abort).
+ */
 static size_t math_write_memory_callback(void *contents, size_t size,
                                          size_t nmemb, void *userp) {
   size_t realsize = size * nmemb;
@@ -271,6 +429,14 @@ static size_t math_write_memory_callback(void *contents, size_t size,
   return written;
 }
 
+/**
+ * @brief Read upload body bytes from req->read_chunk.
+ * @param buffer Destination libcurl upload buffer.
+ * @param max_bytes Capacity of buffer in bytes.
+ * @param req Active HTTP request.
+ * @param out_read Output pointer receiving bytes read.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on callback failure.
+ */
 static enum c_abstract_http_error
 curl_read_callback_impl(char *buffer, size_t max_bytes,
                         const struct HttpRequest *req, size_t *out_read) {
@@ -282,6 +448,14 @@ curl_read_callback_impl(char *buffer, size_t max_bytes,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief libcurl CURLOPT_READFUNCTION callback trampoline.
+ * @param buffer Destination upload buffer.
+ * @param size Element size in bytes.
+ * @param nitems Element count.
+ * @param userdata Pointer to const struct HttpRequest.
+ * @return Bytes read or CURL_READFUNC_ABORT on error.
+ */
 static size_t math_curl_read_callback(char *buffer, size_t size, size_t nitems,
                                       void *userdata) {
   const struct HttpRequest *req = (const struct HttpRequest *)userdata;
@@ -297,6 +471,13 @@ static size_t math_curl_read_callback(char *buffer, size_t size, size_t nitems,
   return out_read;
 }
 
+/**
+ * @brief Format a "Key: Value" HTTP header line into a newly allocated string.
+ * @param key Header name.
+ * @param value Header value.
+ * @param _out_val Output pointer receiving allocated header string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
 static enum c_abstract_http_error ABSTRACT_HTTP_FORMAT_HEADER(const char *key,
                                                               const char *value,
                                                               char **_out_val) {
@@ -317,6 +498,11 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FORMAT_HEADER(const char *key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Map a libcurl CURLcode to enum c_abstract_http_error.
+ * @param res libcurl error code.
+ * @return Mapped abstract HTTP error enum.
+ */
 static enum c_abstract_http_error ABSTRACT_HTTP_MAP_CURL_ERROR(CURLcode res) {
   switch (res) {
   case CURLE_UNSUPPORTED_PROTOCOL:
@@ -343,6 +529,7 @@ static enum c_abstract_http_error ABSTRACT_HTTP_MAP_CURL_ERROR(CURLcode res) {
   }
 }
 
+/** @brief Reference count of global libcurl initializations */
 static int g_curl_init_count = 0;
 
 /* Initialize global libcurl state */
@@ -444,8 +631,11 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
 #endif
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (check_mock_setopt_fail() != C_ABSTRACT_HTTP_SUCCESS)
-      return C_ABSTRACT_HTTP_ERR_IO;
+    {
+      enum c_abstract_http_error mock_rc = check_mock_setopt_fail();
+      if (mock_rc != C_ABSTRACT_HTTP_SUCCESS)
+        return mock_rc;
+    }
 #else
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
                                        http_version) != CURLE_OK)
@@ -461,8 +651,11 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
   } else if (config->version_mask & HTTP_VERSION_2) {
 #if LIBCURL_VERSION_NUM >= 0x072100 /* 7.33.0 */
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (check_mock_setopt_fail() != C_ABSTRACT_HTTP_SUCCESS)
-      return C_ABSTRACT_HTTP_ERR_IO;
+    {
+      enum c_abstract_http_error mock_rc = check_mock_setopt_fail();
+      if (mock_rc != C_ABSTRACT_HTTP_SUCCESS)
+        return mock_rc;
+    }
 #else
     if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_HTTP_VERSION,
                                        (long)CURL_HTTP_VERSION_2_0) != CURLE_OK)
@@ -586,6 +779,15 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Configure an easy handle with URL, method, headers, body, and
+ * callbacks.
+ * @param curl Easy handle to configure.
+ * @param req Source HTTP request.
+ * @param write_ctx Write callback context to initialize.
+ * @param out_headers Output pointer receiving built curl_slist header list.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on OOM/setopt failure.
+ */
 static enum c_abstract_http_error
 ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
                                  struct CurlWriteContext *write_ctx,
@@ -747,6 +949,17 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Populate HttpResponse, harvest cookies, and release request resources.
+ * @param ctx Transport context.
+ * @param curl Completed easy handle.
+ * @param req Original HTTP request.
+ * @param write_ctx Write callback buffer state.
+ * @param headers Header slist to free (may be NULL).
+ * @param res_code libcurl completion status code.
+ * @param out_res Output pointer receiving allocated HttpResponse.
+ * @return C_ABSTRACT_HTTP_SUCCESS or mapped error enum.
+ */
 static enum c_abstract_http_error ABSTRACT_HTTP_FINISH_CURL_REQUEST(
     struct HttpTransportContext *ctx, CURL *curl, const struct HttpRequest *req,
     struct CurlWriteContext *write_ctx, struct curl_slist *headers,
@@ -907,6 +1120,11 @@ struct CurlMultiTask {
   const struct HttpRequest *req;
 };
 
+/**
+ * @brief Drain completed transfers from the libcurl multi handle into futures.
+ * @param ctx Transport context owning the multi handle.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error enum.
+ */
 static enum c_abstract_http_error
 ABSTRACT_HTTP_CHECK_MULTI_INFO(struct HttpTransportContext *ctx) {
   CURLMsg *msg;
@@ -938,6 +1156,13 @@ ABSTRACT_HTTP_CHECK_MULTI_INFO(struct HttpTransportContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Event-loop timer callback driving libcurl multi timeout actions.
+ * @param loop Active event loop.
+ * @param timer_id Fired timer identifier.
+ * @param user_data Pointer to struct HttpTransportContext.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum from check_multi_info.
+ */
 static enum c_abstract_http_error
 multi_timer_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)user_data;
@@ -955,23 +1180,61 @@ multi_timer_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Event-loop socket readiness callback driving libcurl multi I/O.
+ * @param loop Active event loop.
+ * @param fd Ready socket descriptor.
+ * @param events Readiness event bitmask.
+ * @param user_data Pointer to struct HttpTransportContext.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum from check_multi_info.
+ */
 static enum c_abstract_http_error
 multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
                 void *user_data);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Test wrapper exposing multi_timer_cb.
+ * @param loop Active event loop.
+ * @param timer_id Fired timer identifier.
+ * @param user_data Pointer to struct HttpTransportContext.
+ * @return Result from multi_timer_cb.
+ */
 enum c_abstract_http_error
 abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
                                   void *user_data);
+/**
+ * @brief Test wrapper exposing multi_timer_cb.
+ * @param loop Active event loop.
+ * @param timer_id Fired timer identifier.
+ * @param user_data Pointer to struct HttpTransportContext.
+ * @return Result from multi_timer_cb.
+ */
 enum c_abstract_http_error
 abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
                                   void *user_data) {
   return multi_timer_cb(loop, timer_id, user_data);
 }
 
+/**
+ * @brief Test wrapper exposing multi_socket_cb.
+ * @param loop Active event loop.
+ * @param fd Ready socket descriptor.
+ * @param events Readiness event bitmask.
+ * @param user_data Pointer to struct HttpTransportContext.
+ * @return Result from multi_socket_cb.
+ */
 enum c_abstract_http_error
 abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
                                    int events, void *user_data);
+/**
+ * @brief Test wrapper exposing multi_socket_cb.
+ * @param loop Active event loop.
+ * @param fd Ready socket descriptor.
+ * @param events Readiness event bitmask.
+ * @param user_data Pointer to struct HttpTransportContext.
+ * @return Result from multi_socket_cb.
+ */
 enum c_abstract_http_error
 abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
                                    int events, void *user_data) {
@@ -979,6 +1242,14 @@ abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
 }
 #endif
 
+/**
+ * @brief Event-loop socket readiness callback driving libcurl multi I/O.
+ * @param loop Active event loop.
+ * @param fd Ready socket descriptor.
+ * @param events Readiness event bitmask.
+ * @param user_data Pointer to struct HttpTransportContext.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum from check_multi_info.
+ */
 static enum c_abstract_http_error
 multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
                 void *user_data) {
@@ -1004,6 +1275,12 @@ multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Update event-loop timer registration requested by libcurl multi.
+ * @param ctx Transport context.
+ * @param timeout_ms Requested timeout in milliseconds (-1 cancels timer).
+ * @return C_ABSTRACT_HTTP_SUCCESS or event-loop error enum.
+ */
 static enum c_abstract_http_error
 multi_timer_function_impl(struct HttpTransportContext *ctx, long timeout_ms) {
   enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
@@ -1011,7 +1288,7 @@ multi_timer_function_impl(struct HttpTransportContext *ctx, long timeout_ms) {
   if (ctx->timer_id > 0) {
     rc = http_loop_cancel_timer(ctx->loop, ctx->timer_id);
     if (rc != C_ABSTRACT_HTTP_SUCCESS && rc != C_ABSTRACT_HTTP_ERR_INVAL) {
-      LOG_DEBUG("multi_timer_function: http_loop_cancel_timer failed");
+      LOG_DEBUG("multi_timer_function: http_loop_cancel_timer failed (%d)", rc);
       return rc;
     }
     ctx->timer_id = 0;
@@ -1021,7 +1298,7 @@ multi_timer_function_impl(struct HttpTransportContext *ctx, long timeout_ms) {
     rc = http_loop_add_timer(ctx->loop, timeout_ms, multi_timer_cb, ctx,
                              &ctx->timer_id);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      LOG_DEBUG("multi_timer_function: http_loop_add_timer failed");
+      LOG_DEBUG("multi_timer_function: http_loop_add_timer failed (%d)", rc);
       printf("TIMER ERROR %d\n", rc);
       return rc;
     }
@@ -1029,20 +1306,32 @@ multi_timer_function_impl(struct HttpTransportContext *ctx, long timeout_ms) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief libcurl CURLMOPT_TIMERFUNCTION callback trampoline.
+ * @param multi Multi handle.
+ * @param timeout_ms Requested timeout in milliseconds (-1 cancels timer).
+ * @param userp Pointer to struct HttpTransportContext.
+ * @return 0 on success or -1 on error.
+ */
 static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)userp;
-  enum c_abstract_http_error rc;
   (void)multi;
 
-  rc = multi_timer_function_impl(ctx, timeout_ms);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("multi_timer_function: returning -1 due to internal error %d",
-              rc);
-    return -1;
-  }
-  return 0; /* CURLM_OK */
+  return (multi_timer_function_impl(ctx, timeout_ms) != C_ABSTRACT_HTTP_SUCCESS)
+             ? -1
+             : 0;
 }
 
+/**
+ * @brief libcurl CURLMOPT_SOCKETFUNCTION callback updating event-loop fd
+ * watches.
+ * @param easy Easy handle associated with the socket.
+ * @param s Socket descriptor.
+ * @param what Poll action requested by libcurl.
+ * @param userp Pointer to struct HttpTransportContext.
+ * @param socketp Per-socket private state flag.
+ * @return 0 on success or -1 on error.
+ */
 static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
                                  void *userp, void *socketp) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)userp;
