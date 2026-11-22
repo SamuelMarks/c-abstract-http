@@ -44,38 +44,48 @@
 #endif
 #include "test_actor.h"
 #include "test_transport.h"
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 #include "test_http_raw.h"
+#endif
 #if defined(C_ABSTRACT_HTTP_USE_XQUIC) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
 #include "test_http_xquic.h"
+#endif
+#if defined(C_ABSTRACT_HTTP_USE_LSQUIC) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
+#include "test_http_lsquic.h"
+#endif
+#if defined(C_ABSTRACT_HTTP_USE_NGHTTP3) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
+#include "test_http_nghttp3.h"
 #endif
 #if defined(C_ABSTRACT_HTTP_USE_PICOQUIC) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
 #include "test_http_picoquic.h"
 #endif
-#if defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
+#if defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
 #include "test_http_wasm.h"
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
+#if defined(C_ABSTRACT_HTTP_USE_LIBFETCH) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
 #include "test_http_fetch.h"
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
+#if defined(C_ABSTRACT_HTTP_USE_LIBEVENT) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
 #include "test_http_libevent.h"
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_LIBUV)
-#include "test_http_libuv.h"
-#endif
-#if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
+#if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
 #include "test_http_libsoup3.h"
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_MSH3)
+#if defined(C_ABSTRACT_HTTP_USE_LIBUV) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
+#include "test_http_libuv.h"
+#endif
+#if defined(C_ABSTRACT_HTTP_USE_MSH3) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
 #include "test_http_msh3.h"
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
+#if defined(C_ABSTRACT_HTTP_USE_WINHTTP) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY) && !defined(_WIN32))
 #include "test_http_winhttp.h"
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_WININET)
+#if defined(C_ABSTRACT_HTTP_USE_WININET) || (defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HEADER_ONLY) && !defined(_WIN32))
 #include "test_http_wininet.h"
 #endif
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 #include "test_mock_coverage.h"
+#endif
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) || !defined(C_ABSTRACT_HTTP_NO_MULTIPLATFORM_INTEGRATION)
 #include "test_cmp_integration.h"
 #endif
@@ -159,39 +169,67 @@ int main(int argc, char **argv) {
   RUN_SUITE(actor_suite);
   RUN_SUITE(transport_suite);
 
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
   RUN_SUITE(http_raw_suite);
+#endif
 #if defined(C_ABSTRACT_HTTP_USE_XQUIC) ||                                      \
     (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
      !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
   RUN_SUITE(http_xquic_suite);
+#endif
+#if defined(C_ABSTRACT_HTTP_USE_LSQUIC) ||                                     \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
+  RUN_SUITE(http_lsquic_suite);
+#endif
+#if defined(C_ABSTRACT_HTTP_USE_NGHTTP3) ||                                    \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
+  RUN_SUITE(http_nghttp3_suite);
 #endif
 #if defined(C_ABSTRACT_HTTP_USE_PICOQUIC) ||                                   \
     (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
      !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
   RUN_SUITE(http_picoquic_suite);
 #endif
-#if defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM)
+#if defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_USE_WASM) ||            \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
   RUN_SUITE(http_wasm_suite);
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
+#if defined(C_ABSTRACT_HTTP_USE_LIBFETCH) ||                                   \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
   RUN_SUITE(http_fetch_suite);
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
+#if defined(C_ABSTRACT_HTTP_USE_LIBEVENT) ||                                   \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
   RUN_SUITE(http_libevent_suite);
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_LIBUV)
-  RUN_SUITE(http_libuv_suite);
-#endif
-#if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
+#if defined(C_ABSTRACT_HTTP_USE_LIBSOUP3) ||                                   \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
   RUN_SUITE(http_libsoup3_suite);
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_MSH3)
+#if defined(C_ABSTRACT_HTTP_USE_LIBUV) ||                                      \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
+  RUN_SUITE(http_libuv_suite);
+#endif
+#if defined(C_ABSTRACT_HTTP_USE_MSH3) ||                                       \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY))
   RUN_SUITE(http_msh3_suite);
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_WINHTTP)
+#if defined(C_ABSTRACT_HTTP_USE_WINHTTP) ||                                    \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY) && !defined(_WIN32))
   RUN_SUITE(http_winhttp_suite);
 #endif
-#if defined(C_ABSTRACT_HTTP_USE_WININET)
+#if defined(C_ABSTRACT_HTTP_USE_WININET) ||                                    \
+    (defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+     !defined(C_ABSTRACT_HTTP_HEADER_ONLY) && !defined(_WIN32))
   RUN_SUITE(http_wininet_suite);
 #endif
 #if defined(C_ABSTRACT_HTTP_MULTIPLATFORM_INTEGRATION) ||                      \
@@ -224,7 +262,8 @@ int main(int argc, char **argv) {
 #endif
 #endif
 
-#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED
+#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__MSDOS__) &&        \
+    !defined(__DOS__) && !defined(DOS)
   RUN_SUITE(mock_coverage_suite);
 #endif
 

@@ -22,6 +22,7 @@ extern "C" {
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_xquic.h>
+#include "abstract_http_test_helpers/mock_server.h"
 #include "mock_alloc.h"
 /* clang-format on */
 
@@ -175,6 +176,7 @@ TEST test_http_xquic_h3_loopback_and_branches(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_context_init(&ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  cfg.http3_fallback = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
 
   /* Test NULL cookie_jar and empty cookie_jar first */
@@ -515,6 +517,244 @@ TEST test_http_xquic_h3_loopback_and_branches(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+TEST test_http_xquic_fallback_proxy_and_parts(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  const char *val = NULL;
+  int step;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+
+  cfg.proxy_url = (char *)"invalid-proxy";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_xquic_config_apply(ctx, &cfg));
+  cfg.proxy_url = (char *)"socks5://127.0.0.1:1080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_xquic_config_apply(ctx, &cfg));
+  cfg.proxy_url = (char *)"masque://:443";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_xquic_config_apply(ctx, &cfg));
+  cfg.proxy_url = (char *)"http://127.0.0.1:8080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_config_apply(ctx, &cfg));
+  cfg.proxy_url = (char *)"https://127.0.0.1:8443";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_config_apply(ctx, &cfg));
+  cfg.proxy_url = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("XquicAgent/3.0", &cfg.user_agent));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("masque://127.0.0.1:4433", &cfg.proxy_url));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("bob", &cfg.proxy_username));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("hunter2", &cfg.proxy_password));
+
+  for (step = 0; step <= 20; ++step) {
+    enum c_abstract_http_error apply_rc;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = step;
+    apply_rc = http_xquic_config_apply(ctx, &cfg);
+    g_mock_alloc_fail = 0;
+    if (apply_rc == C_ABSTRACT_HTTP_SUCCESS) {
+      break;
+    }
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("https://origin.example/test", &req.url));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-ua", &val));
+  ASSERT_STR_EQ("XquicAgent/3.0", val);
+  val = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-masque", &val));
+  ASSERT_STR_EQ("origin.example", val);
+  val = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-proxy-auth", &val));
+  ASSERT_STR_EQ("Basic Ym9iOmh1bnRlcjI=", val);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  for (step = 0; step <= 65; ++step) {
+    enum c_abstract_http_error oom_rc;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = step;
+    oom_rc = http_xquic_send(ctx, &req, &res);
+    g_mock_alloc_fail = 0;
+    if (oom_rc == C_ABSTRACT_HTTP_SUCCESS) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+      break;
+    }
+  }
+
+  free(cfg.proxy_password);
+  cfg.proxy_password = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "user-agent", "CustomXQ/1.0"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_send(ctx, &req, &res));
+  val = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-ua", &val));
+  ASSERT_STR_EQ("CustomXQ/1.0", val);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  free(cfg.proxy_url);
+  cfg.proxy_url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("https://example.com/mp", &req.url));
+  req.parts.count = 1;
+  req.parts.parts = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_xquic_send(ctx, &req, &res));
+  req.parts.count = 0;
+
+  req.method = HTTP_POST;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "X-Part-Hdr", "1"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_request_add_part(&req, "doc", "a.txt", "text/plain",
+                                  "xq-part-body", 12));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT(strstr((const char *)res->body, "xq-part-body") != NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  for (step = 0; step <= 25; ++step) {
+    enum c_abstract_http_error oom_rc;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = step;
+    oom_rc = http_xquic_send(ctx, &req, &res);
+    g_mock_alloc_fail = 0;
+    if (oom_rc == C_ABSTRACT_HTTP_SUCCESS) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+      break;
+    }
+  }
+  g_mock_headers_init_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_xquic_send(ctx, &req, &res));
+  g_mock_headers_init_fail = 0;
+
+  g_mock_headers_free_fail = 1;
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  ASSERT(http_xquic_send(ctx, &req, &res) != C_ABSTRACT_HTTP_SUCCESS);
+  g_mock_alloc_count = 3;
+  ASSERT(http_xquic_send(ctx, &req, &res) != C_ABSTRACT_HTTP_SUCCESS);
+  g_mock_alloc_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_xquic_send(ctx, &req, &res));
+  g_mock_headers_free_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+#if !defined(__EMSCRIPTEN__) && !defined(C_ABSTRACT_HTTP_SINGLE_THREADED)
+  {
+    MockServerPtr srv = NULL;
+    struct MockServerRequest srv_req;
+    char fb_url[128];
+    int port;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(srv));
+    port = math_mock_server_get_port(srv);
+    ASSERT(port > 0);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/net-close", port);
+#else
+    sprintf(fb_url, "http://127.0.0.1:%d/net-close", port);
+#endif
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(fb_url, &req.url));
+
+    cfg.http3_fallback = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_config_apply(ctx, &cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_xquic_send(ctx, &req, &res));
+
+    cfg.http3_fallback = 1;
+    free(cfg.proxy_url);
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        c_abstract_http_strdup("masque://127.0.0.1:443/", &cfg.proxy_url));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_config_apply(ctx, &cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_xquic_send(ctx, &req, &res));
+    g_mock_config_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_xquic_send(ctx, &req, &res));
+    g_mock_config_free_fail = 0;
+    free(cfg.proxy_url);
+    cfg.proxy_url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_config_apply(ctx, &cfg));
+    for (step = 0; step <= 80; ++step) {
+      enum c_abstract_http_error frc;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      frc = http_xquic_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      if (frc == C_ABSTRACT_HTTP_SUCCESS) {
+        ASSERT_EQ(200, res->status_code);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+        memset(&srv_req, 0, sizeof(srv_req));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  mock_server_wait_for_request(srv, &srv_req));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  mock_server_request_cleanup(&srv_req));
+        break;
+      }
+    }
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv));
+    srv = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(srv));
+    port = math_mock_server_get_port(srv);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/net-close", port);
+#else
+    sprintf(fb_url, "http://127.0.0.1:%d/net-close", port);
+#endif
+    free(req.url);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(fb_url, &req.url));
+    g_mock_config_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_xquic_send(ctx, &req, &res));
+    g_mock_config_free_fail = 0;
+    memset(&srv_req, 0, sizeof(srv_req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              mock_server_wait_for_request(srv, &srv_req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_request_cleanup(&srv_req));
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv));
+  }
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_global_cleanup());
+  PASS();
+}
+#endif
+
 /**
  * @brief Suite definition for xquic backend.
  */
@@ -522,6 +762,9 @@ SUITE(http_xquic_suite) {
   RUN_TEST(test_http_xquic_lifecycle);
   RUN_TEST(test_http_xquic_config);
   RUN_TEST(test_http_xquic_h3_loopback_and_branches);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  RUN_TEST(test_http_xquic_fallback_proxy_and_parts);
+#endif
 }
 
 #ifdef __cplusplus

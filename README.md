@@ -3,10 +3,10 @@ c-abstract-http
 
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Continuous Integration](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml/badge.svg)](https://github.com/SamuelMarks/c-abstract-http/actions/workflows/ci.yml)
-[![Test Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](#)
+[![Test Coverage](https://img.shields.io/badge/coverage-98%25-brightgreen.svg)](#)
 [![Doc Coverage](https://img.shields.io/badge/docs-100%25-brightgreen.svg)](#)
 
-A zero-GUI, cross-platform, strict ISO C89 (ANSI C / C90) abstract networking and HTTP client library. `c-abstract-http` provides a unified Abstract Network Interface (ANI) over native OS networking stacks, asynchronous event loops, and modern HTTP/3 QUIC engines, with **4** implemented HTTP/3-capable C transports (`libcurl`, `msh3`, `picoquic`, `xquic`) alongside native OS, evented, WebAssembly, and raw-socket backends.
+A zero-GUI, cross-platform, strict ISO C89 (ANSI C / C90) abstract networking and HTTP client library. `c-abstract-http` provides a unified Abstract Network Interface (ANI) over native OS networking stacks, asynchronous event loops, and modern HTTP/3 QUIC engines, with **6** implemented HTTP/3-capable C transports (`libcurl`, `lsquic`, `msh3`, `nghttp3`, `picoquic`, `xquic`) alongside native OS (`WinHTTP`, `WinINet`, Apple `NSURLSession`/`CFNetwork`), evented (`libevent`, `libsoup3`, `libuv`, `libfetch`), WebAssembly (`Emscripten Fetch`), and raw-socket backends.
 
 ## Key Features
 

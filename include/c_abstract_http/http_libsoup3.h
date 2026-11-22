@@ -11,6 +11,7 @@
 #define C_ABSTRACT_HTTP_HTTP_LIBSOUP3_H
 
 /* clang-format off */
+#include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
 
@@ -74,6 +75,24 @@ http_libsoup3_config_apply(struct HttpTransportContext *ctx,
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libsoup3_send(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, struct HttpResponse **res);
+
+/**
+ * @brief Asynchronous multi-request dispatcher for libsoup3.
+ *
+ * Submits concurrent requests via `soup_session_send_and_read_async` and drives
+ * `GMainContext` non-blocking iterations bridged onto `ModalityEventLoop`.
+ *
+ * @param[in] ctx The transport context.
+ * @param[in,out] loop Optional event loop to drive and notify on completion.
+ * @param[in] multi Batch of HTTP requests to execute concurrently.
+ * @param[out] futures Array of futures populated with responses/errors.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+http_libsoup3_send_multi(struct HttpTransportContext *ctx,
+                         struct ModalityEventLoop *loop,
+                         const struct HttpMultiRequest *multi,
+                         struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

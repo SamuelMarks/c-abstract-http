@@ -266,39 +266,48 @@ http_fetch_config_apply(struct HttpTransportContext *ctx,
   }
 
   ctx->config.timeout_ms = config->timeout_ms;
+  ctx->config.connect_timeout_ms = config->connect_timeout_ms;
+  ctx->config.read_timeout_ms = config->read_timeout_ms;
+  ctx->config.write_timeout_ms = config->write_timeout_ms;
   ctx->config.verify_peer = config->verify_peer;
   ctx->config.verify_host = config->verify_host;
   ctx->config.follow_redirects = config->follow_redirects;
 
+  free(ctx->config.user_agent);
+  ctx->config.user_agent = NULL;
   if (config->user_agent) {
-    if (ctx->config.user_agent) {
-      free(ctx->config.user_agent);
-      ctx->config.user_agent = NULL;
-    }
     rc = c_abstract_http_strdup(config->user_agent, &ctx->config.user_agent);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
-  } else {
-    if (ctx->config.user_agent) {
-      free(ctx->config.user_agent);
-      ctx->config.user_agent = NULL;
-    }
   }
 
+  free(ctx->config.proxy_url);
+  ctx->config.proxy_url = NULL;
   if (config->proxy_url) {
-    if (ctx->config.proxy_url) {
-      free(ctx->config.proxy_url);
-      ctx->config.proxy_url = NULL;
-    }
     rc = c_abstract_http_strdup(config->proxy_url, &ctx->config.proxy_url);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
-  } else {
-    if (ctx->config.proxy_url) {
-      free(ctx->config.proxy_url);
-      ctx->config.proxy_url = NULL;
+  }
+
+  free(ctx->config.proxy_username);
+  ctx->config.proxy_username = NULL;
+  if (config->proxy_username) {
+    rc = c_abstract_http_strdup(config->proxy_username,
+                                &ctx->config.proxy_username);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+
+  free(ctx->config.proxy_password);
+  ctx->config.proxy_password = NULL;
+  if (config->proxy_password) {
+    rc = c_abstract_http_strdup(config->proxy_password,
+                                &ctx->config.proxy_password);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
     }
   }
 
@@ -353,7 +362,22 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  /* Environment variables for proxy/user-agent */
+  /* Configure BSD libfetch timeout (in seconds, rounded up) */
+  {
+    long eff_ms = ctx->config.timeout_ms;
+    if (eff_ms <= 0 && ctx->config.connect_timeout_ms > eff_ms) {
+      eff_ms = ctx->config.connect_timeout_ms;
+    }
+    if (eff_ms <= 0 && ctx->config.read_timeout_ms > eff_ms) {
+      eff_ms = ctx->config.read_timeout_ms;
+    }
+    if (eff_ms <= 0 && ctx->config.write_timeout_ms > eff_ms) {
+      eff_ms = ctx->config.write_timeout_ms;
+    }
+    fetchTimeout = eff_ms > 0 ? (int)((eff_ms + 999L) / 1000L) : 0;
+  }
+
+  /* Environment variables for proxy, proxy auth, and user-agent */
   if (ctx->config.user_agent) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     _putenv_s("HTTP_USER_AGENT", ctx->config.user_agent);
@@ -379,6 +403,24 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
       sprintf(env_buf, "HTTP_PROXY=%s", ctx->config.proxy_url);
       putenv(env_buf);
     }
+#endif
+  }
+
+  if (ctx->config.proxy_username) {
+    char auth_buf[512];
+    const char *pw =
+        ctx->config.proxy_password ? ctx->config.proxy_password : "";
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(auth_buf, sizeof(auth_buf), "basic:*:%s:%s",
+              ctx->config.proxy_username, pw);
+    _putenv_s("HTTP_PROXY_AUTH", auth_buf);
+#elif defined(_POSIX_C_SOURCE) || defined(__unix__) || defined(__APPLE__)
+    sprintf(auth_buf, "basic:*:%s:%s", ctx->config.proxy_username, pw);
+    setenv("HTTP_PROXY_AUTH", auth_buf, 1);
+#else
+    sprintf(auth_buf, "HTTP_PROXY_AUTH=basic:*:%s:%s",
+            ctx->config.proxy_username, pw);
+    putenv(auth_buf);
 #endif
   }
 
@@ -542,12 +584,13 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
         if (upload_body) {
           free(upload_body);
         }
-        free_rc = http_response_free(new_res);
-        free(new_res);
         *res = NULL;
+        free_rc = http_response_free(new_res);
         if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(new_res);
           return free_rc;
         }
+        free(new_res);
         return chunk_rc;
       }
     } else {
@@ -581,12 +624,13 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     enum c_abstract_http_error free_rc;
     LOG_DEBUG("http_fetch_send: Error returning %d", (int)rc);
-    free_rc = http_response_free(new_res);
-    free(new_res);
     *res = NULL;
+    free_rc = http_response_free(new_res);
     if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(new_res);
       return free_rc;
     }
+    free(new_res);
     return rc;
   }
 
@@ -595,11 +639,67 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/* Dispatch multiple HTTP requests using libfetch. */
+/** @brief Per-batch state scheduled onto `ModalityEventLoop` */
+struct fetch_multi_task {
+  /** @brief Transport context */
+  struct HttpTransportContext *ctx;
+  /** @brief Multi-request batch */
+  const struct HttpMultiRequest *multi;
+  /** @brief Output futures array */
+  struct HttpFuture **futures;
+  /** @brief Non-zero when caller supplied an external loop */
+  int caller_loop;
+  /** @brief First error observed */
+  enum c_abstract_http_error first_err;
+};
+
+/**
+ * @brief Event-loop callback driving `libfetch` batch execution and wakeup.
+ *
+ * Note: BSD `libfetch` (`fetchReqHTTP`) performs blocking socket/TLS connection
+ * and HTTP header negotiation before returning each `FILE *` stream; scheduling
+ * execution inside `ModalityEventLoop` integrates completion and loop wakeup
+ * cleanly with `MODALITY_ASYNC` callers.
+ *
+ * @param loop Active event loop.
+ * @param timer_id Fired timer identifier.
+ * @param user_data Pointer to `struct fetch_multi_task`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or loop control status.
+ */
+static enum c_abstract_http_error
+fetch_multi_loop_cb(struct ModalityEventLoop *loop, int timer_id,
+                    void *user_data) {
+  struct fetch_multi_task *task = (struct fetch_multi_task *)user_data;
+  size_t i;
+  (void)timer_id;
+
+  for (i = 0; i < task->multi->count; i++) {
+    struct HttpResponse *res = NULL;
+    enum c_abstract_http_error rc =
+        http_fetch_send(task->ctx, task->multi->requests[i], &res);
+    task->futures[i]->response = res;
+    task->futures[i]->error_code = rc;
+    task->futures[i]->is_ready = 1;
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      task->first_err = rc;
+      break;
+    }
+  }
+  if (task->caller_loop) {
+    return http_loop_stop(loop);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/* Dispatch multiple HTTP requests using libfetch integrated with
+ * ModalityEventLoop. */
 enum c_abstract_http_error http_fetch_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
-  size_t i;
+  struct ModalityEventLoop *owned_loop = NULL;
+  struct ModalityEventLoop *active_loop;
+  struct fetch_multi_task task;
+  int timer_id = 0;
   enum c_abstract_http_error rc;
 
   if (!ctx || !multi || !futures) {
@@ -607,19 +707,47 @@ enum c_abstract_http_error http_fetch_send_multi(
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  for (i = 0; i < multi->count; i++) {
-    struct HttpResponse *res;
-    res = NULL;
-    rc = http_fetch_send(ctx, multi->requests[i], &res);
+  if (loop) {
+    active_loop = loop;
+  } else {
+    rc = http_loop_init(&owned_loop);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      futures[i]->response = res;
-      futures[i]->error_code = rc;
-      futures[i]->is_ready = 1;
       return rc;
     }
-    futures[i]->response = res;
-    futures[i]->error_code = rc;
-    futures[i]->is_ready = 1;
+    active_loop = owned_loop;
+  }
+
+  memset(&task, 0, sizeof(task));
+  task.ctx = ctx;
+  task.multi = multi;
+  task.futures = futures;
+  task.caller_loop = (loop != NULL) ? 1 : 0;
+  task.first_err = C_ABSTRACT_HTTP_SUCCESS;
+
+  rc = http_loop_add_timer(active_loop, 0, fetch_multi_loop_cb, &task,
+                           &timer_id);
+  (void)timer_id;
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+    rc = http_loop_run(active_loop);
+  }
+
+  if (owned_loop) {
+    enum c_abstract_http_error frc = http_loop_free(owned_loop);
+    if (frc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = frc;
+    }
+  } else if (loop) {
+    enum c_abstract_http_error urc = abstract_http_event_loop_test_unstop(loop);
+    if (urc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = urc;
+    }
+  }
+
+  if (task.first_err != C_ABSTRACT_HTTP_SUCCESS) {
+    return task.first_err;
+  }
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
   }
 
   if (loop) {

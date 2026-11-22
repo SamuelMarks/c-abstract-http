@@ -19,12 +19,17 @@ extern "C" {
 
 TEST test_ipc_pipe_init_free(void) {
   struct AbstractHttpIpcPipe pipe = {0};
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, abstract_http_ipc_pipe_init(&pipe));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_free(&pipe));
+#else
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_init(&pipe));
   ASSERT(pipe.read_handle != NULL);
   ASSERT(pipe.write_handle != NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_free(&pipe));
   ASSERT(pipe.read_handle == NULL);
   ASSERT(pipe.write_handle == NULL);
+#endif
   PASS();
 }
 
@@ -112,7 +117,8 @@ TEST test_serialize_deserialize_response(void) {
   PASS();
 }
 
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__MSDOS__) && !defined(__DOS__) &&    \
+    !defined(DOS)
 TEST test_process_spawn_wait(void) {
   struct AbstractHttpIpcPipe parent_to_child, child_to_parent;
   struct AbstractHttpProcess *proc = NULL;
@@ -149,9 +155,9 @@ TEST test_abstract_http_serialize_errors(void) {
   size_t len = 0;
   struct HttpRequest req;
   struct HttpResponse res;
-  (void)res;
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
+  (void)res;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             abstract_http_ipc_serialize_request(NULL, &buf, &len));
@@ -200,6 +206,7 @@ TEST test_abstract_http_process_hooks(void) {
   PASS();
 }
 
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 TEST test_abstract_http_ipc_short_rw(void) {
   struct AbstractHttpIpcPipe pipe = {0};
   char buf[4] = {0};
@@ -249,6 +256,7 @@ TEST test_abstract_http_ipc_rw(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_free(&pipe));
   PASS();
 }
+#endif
 
 TEST test_abstract_http_process_spawn_errors(void) {
   struct AbstractHttpIpcPipe rw = {0};
@@ -567,10 +575,10 @@ TEST test_process_more_edge_cases(void) {
   struct HttpRequest req;
   struct HttpResponse res;
   char buf[100] = {0};
-  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
+  (void)res;
 
   /* 429: read_size > end */
   /* Try to read size from an empty buffer (0 bytes) */
@@ -805,7 +813,8 @@ TEST test_process_waitpid_fail_2(void) {
 }
 #endif
 
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__MSDOS__) && !defined(__DOS__) &&    \
+    !defined(DOS)
 TEST test_process_wait_signal(void) {
 #if !defined(_WIN32)
   struct AbstractHttpProcess *proc = NULL;
@@ -1088,7 +1097,8 @@ SUITE(process_suite) {
 #endif
   RUN_TEST(test_process_null_header_keys);
 
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__MSDOS__) && !defined(__DOS__) &&    \
+    !defined(DOS)
   RUN_TEST(test_process_wait_signal);
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -1096,14 +1106,17 @@ SUITE(process_suite) {
 #endif
   RUN_TEST(test_process_misc_coverage);
   RUN_TEST(test_abstract_http_process_hooks);
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
   RUN_TEST(test_abstract_http_ipc_short_rw);
   RUN_TEST(test_abstract_http_ipc_rw);
+#endif
   RUN_TEST(test_abstract_http_process_spawn_errors);
   RUN_TEST(test_abstract_http_serialize_errors);
   RUN_TEST(test_ipc_pipe_init_free);
   RUN_TEST(test_serialize_deserialize_request);
   RUN_TEST(test_serialize_deserialize_response);
-#ifndef __EMSCRIPTEN__
+#if !defined(__EMSCRIPTEN__) && !defined(__MSDOS__) && !defined(__DOS__) &&    \
+    !defined(DOS)
   RUN_TEST(test_process_spawn_wait);
 #endif
   RUN_TEST(test_process_hooks_coverage);

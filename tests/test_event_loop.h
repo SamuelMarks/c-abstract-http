@@ -12,6 +12,9 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+#include <dos.h>
+#endif
 #include <c_abstract_http/event_loop.h>
 
 #include "mock_alloc.h"
@@ -19,6 +22,10 @@ extern "C" {
 
 #if defined(_WIN32)
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
+#endif
+#if !defined(_WIN32) && !defined(__MSDOS__) && !defined(__DOS__) &&            \
+    !defined(DOS)
+#define CAH_TEST_POSIX_PIPE 1
 #endif
 
 static enum c_abstract_http_error timer_cb_1(struct ModalityEventLoop *loop,
@@ -419,6 +426,8 @@ TEST test_event_loop_heap_down(void) {
      200 ms. So we just need to sleep for 200ms and call tick! */
 #if defined(_WIN32)
   Sleep(250);
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  delay(250);
 #else
   {
     struct timespec ts;
@@ -514,9 +523,9 @@ TEST test_event_loop_alloc_errors(void) {
 }
 #endif
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(_WIN32)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && defined(CAH_TEST_POSIX_PIPE)
 TEST test_event_loop_pipe_fail(void) {
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
   struct ModalityEventLoop *loop = NULL;
 
   g_mock_pipe_fail = 1;
@@ -573,7 +582,7 @@ TEST test_event_loop_wakeup_full(void) {
   PASS();
 }
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 TEST test_event_loop_fd_edges(void) {
   struct ModalityEventLoop *loop = NULL;
   int i;
@@ -655,7 +664,7 @@ TEST test_event_loop_lazy_timer_cancel(void) {
   PASS();
 }
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 TEST test_event_loop_tick_fd_and_timer(void) {
   struct ModalityEventLoop *loop = NULL;
   int timer_id;
@@ -717,7 +726,7 @@ TEST test_event_loop_tick_fd_and_timer(void) {
 }
 #endif
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 static enum c_abstract_http_error
 blocking_mock_fd_cb(struct ModalityEventLoop *loop, int fd, int revents,
                     void *user_data) {
@@ -739,7 +748,7 @@ blocking_mock_fd_cb(struct ModalityEventLoop *loop, int fd, int revents,
 }
 #endif
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 TEST test_event_loop_blocking_cb(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
@@ -768,7 +777,7 @@ TEST test_event_loop_blocking_cb(void) {
 }
 #endif
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 TEST test_event_loop_run_full(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
@@ -842,7 +851,7 @@ TEST test_event_loop_run_full(void) {
 }
 #endif
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 TEST test_event_loop_mock_error_fd(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
@@ -898,7 +907,7 @@ TEST test_event_loop_mock_error_fd(void) {
 }
 #endif
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 TEST test_event_loop_run_blocking(void) {
   struct ModalityEventLoop *loop = NULL;
   int pipefd[2];
@@ -968,7 +977,7 @@ TEST test_event_loop_timeout_underflow(void) {
   PASS();
 }
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 static enum c_abstract_http_error dummy_write_cb(struct ModalityEventLoop *loop,
                                                  int fd, int revents,
                                                  void *user_data) {
@@ -989,14 +998,14 @@ static enum c_abstract_http_error dummy_write_cb(struct ModalityEventLoop *loop,
 TEST test_event_loop_write_error_coverage(void) {
   struct ModalityEventLoop *loop;
   int triggered = 0;
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
   int pipes[2];
 #endif
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #else
   ASSERT_EQ(0, pipe(pipes));
 
@@ -1052,7 +1061,7 @@ TEST test_event_loop_timer_past_coverage(void) {
   PASS();
 }
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 static enum c_abstract_http_error dummy_error_cb(struct ModalityEventLoop *loop,
                                                  int fd, int revents,
                                                  void *user_data) {
@@ -1067,14 +1076,14 @@ static enum c_abstract_http_error dummy_error_cb(struct ModalityEventLoop *loop,
 TEST test_event_loop_write_error_coverage2(void) {
   struct ModalityEventLoop *loop;
   int triggered = 0;
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
   int pipes[2];
 #endif
   (void)triggered;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #else
   ASSERT_EQ(0, pipe(pipes));
 
@@ -1092,7 +1101,7 @@ TEST test_event_loop_write_error_coverage2(void) {
   PASS();
 }
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 static enum c_abstract_http_error
 dummy_fd_simple_cb(struct ModalityEventLoop *l, int fd, int events,
                    void *user_data) {
@@ -1115,7 +1124,7 @@ static enum c_abstract_http_error timer_stop_cb(struct ModalityEventLoop *loop,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 static enum c_abstract_http_error
 fd_stop_cb(struct ModalityEventLoop *l, int fd, int events, void *user_data) {
   enum c_abstract_http_error rc;
@@ -1133,7 +1142,7 @@ fd_stop_cb(struct ModalityEventLoop *l, int fd, int events, void *user_data) {
 TEST test_event_loop_additional_coverage(void) {
   struct ModalityEventLoop *loop = NULL;
   int timer_id = 0;
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
   int pipes[2];
 #endif
 
@@ -1161,7 +1170,7 @@ TEST test_event_loop_additional_coverage(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_cancel_timer(loop, timer_id));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_cancel_timer(loop, timer_id));
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
   if (pipe(pipes) == 0) {
     char byte = 'x';
     /* Register fd 0 (stdin, <= max_fd) so fd > max_fd is false */
@@ -1228,7 +1237,7 @@ TEST test_event_loop_additional_coverage(void) {
   }
 
   /* Test inactive fd when ret > 0 in http_loop_tick */
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
   {
     struct ModalityEventLoop *tick_loop = NULL;
     int tpipes1[2], tpipes2[2];
@@ -1261,7 +1270,7 @@ TEST test_event_loop_additional_coverage(void) {
   {
     struct ModalityEventLoop *single_loop = NULL;
     int cancel_id = 0;
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
     int dummy_pipes1[2], dummy_pipes2[2], dummy_pipes3[2];
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&single_loop));
@@ -1270,7 +1279,7 @@ TEST test_event_loop_additional_coverage(void) {
                                   &cancel_id));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_loop_cancel_timer(single_loop, cancel_id));
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
     if (pipe(dummy_pipes1) == 0 && pipe(dummy_pipes2) == 0 &&
         pipe(dummy_pipes3) == 0) {
       char b = 'x';
@@ -1350,7 +1359,7 @@ TEST test_event_loop_additional_coverage(void) {
 
   {
     int trig = 0;
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, dummy_write_cb(NULL, 0, 0, &trig));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, fd_stop_cb(NULL, 0, 0, NULL));
 #endif
@@ -1369,7 +1378,7 @@ static enum c_abstract_http_error timer_fail_cb(struct ModalityEventLoop *loop,
   return C_ABSTRACT_HTTP_ERR_CANCELED;
 }
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
 static enum c_abstract_http_error
 fd_fail_cb(struct ModalityEventLoop *l, int fd, int events, void *user_data) {
   if (l || fd || events || user_data) {
@@ -1393,7 +1402,7 @@ TEST test_event_loop_callback_error_percolation(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED, http_loop_run(loop));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
 
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
   /* 2. FD callback failure percolated through tick and run */
   {
     int pipes[2];
@@ -1416,7 +1425,150 @@ TEST test_event_loop_callback_error_percolation(void) {
   PASS();
 }
 
+TEST test_event_loop_scalable_backends(void) {
+  struct ModalityEventLoop *loop = NULL;
+  enum HttpLoopBackend backend = HTTP_LOOP_BACKEND_AUTO;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_loop_init_with_backend(NULL, HTTP_LOOP_BACKEND_AUTO));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_loop_init_with_backend(&loop, (enum HttpLoopBackend)99));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_get_backend(NULL, &backend));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_loop_init_with_backend(&loop, HTTP_LOOP_BACKEND_SELECT));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_loop_get_backend(loop, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_get_backend(loop, &backend));
+  ASSERT_EQ(HTTP_LOOP_BACKEND_SELECT, backend);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+  loop = NULL;
+
+  /* Verify platform-unsupported explicit backend variants return ERR_NOTSUP */
+#if !defined(__linux__)
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            http_loop_init_with_backend(&loop, HTTP_LOOP_BACKEND_EPOLL));
+#else
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_loop_init_with_backend(&loop, HTTP_LOOP_BACKEND_EPOLL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+  loop = NULL;
+#endif
+
+#if !((defined(__APPLE__) && defined(__MACH__)) || defined(__FreeBSD__) ||     \
+      defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__))
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            http_loop_init_with_backend(&loop, HTTP_LOOP_BACKEND_KQUEUE));
+#else
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_loop_init_with_backend(&loop, HTTP_LOOP_BACKEND_KQUEUE));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_get_backend(loop, &backend));
+  ASSERT_EQ(HTTP_LOOP_BACKEND_KQUEUE, backend);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+  loop = NULL;
+#endif
+
+#if !defined(_WIN32)
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            http_loop_init_with_backend(&loop, HTTP_LOOP_BACKEND_IOCP));
+#else
+#if (!defined(_MSC_VER) || _MSC_VER >= 1500)
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_loop_init_with_backend(&loop, HTTP_LOOP_BACKEND_IOCP));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_get_backend(loop, &backend));
+  ASSERT_EQ(HTTP_LOOP_BACKEND_IOCP, backend);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_wakeup(loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+  loop = NULL;
+#endif
+#endif
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__MSDOS__) &&                \
+    !defined(__DOS__) && !defined(DOS)
+  {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_native_mux_fail(1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_loop_init_with_backend(&loop, HTTP_LOOP_BACKEND_AUTO));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_native_mux_fail(0));
+  }
+#endif
+
+#if defined(CAH_TEST_POSIX_PIPE)
+  {
+    int p1[2];
+    int seen = 0;
+    char ch = 'z';
+
+    ASSERT_EQ(0, pipe(p1));
+
+    /* Test explicit SELECT backend read/write/high-fd guard */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_init_with_backend(&loop, HTTP_LOOP_BACKEND_SELECT));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_fd(loop, p1[0], HTTP_LOOP_READ, mock_fd_cb, &seen));
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_loop_add_fd(loop, p1[1], HTTP_LOOP_WRITE, mock_fd_cb, &seen));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_fd(loop, (int)FD_SETSIZE + 5, HTTP_LOOP_READ,
+                               mock_fd_cb, &seen));
+    ASSERT_EQ(1, write(p1[1], &ch, 1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_wakeup(loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+    ASSERT_EQ(1, read(p1[0], &ch, 1));
+    ASSERT_EQ(1, seen);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+    loop = NULL;
+
+    /* Test native AUTO backend (kqueue/epoll) mod_fd transitions + EOF error */
+    seen = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_loop_add_fd(loop, p1[1], HTTP_LOOP_WRITE, mock_fd_cb, &seen));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+    ASSERT_EQ(1, seen);
+
+    /* Modify WRITE -> READ -> WRITE -> 0 -> remove */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_mod_fd(loop, p1[1], HTTP_LOOP_READ));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_mod_fd(loop, p1[1], HTTP_LOOP_WRITE));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_mod_fd(loop, p1[1], 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_remove_fd(loop, p1[1]));
+
+    /* Watch p1[0] for READ | ERROR, close p1[1] to trigger EOF/HUP */
+    seen = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_fd(loop, p1[0], HTTP_LOOP_READ | HTTP_LOOP_ERROR,
+                               mock_fd_cb, &seen));
+    ASSERT_EQ(1, write(p1[1], &ch, 1));
+    close(p1[1]);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+    ASSERT_EQ(1, read(p1[0], &ch, 1));
+    seen = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
+    ASSERT_EQ(1, seen);
+
+    /* Non-pollable invalid fd triggers fallback_to_select cleanly */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_add_fd(loop, 9999, HTTP_LOOP_READ, mock_fd_cb, &seen));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_get_backend(loop, &backend));
+    ASSERT_EQ(HTTP_LOOP_BACKEND_SELECT, backend);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_remove_fd(loop, 9999));
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+    close(p1[0]);
+  }
+#endif
+
+  PASS();
+}
+
 SUITE(event_loop_suite) {
+  RUN_TEST(test_event_loop_scalable_backends);
   RUN_TEST(test_event_loop_callback_error_percolation);
   RUN_TEST(test_event_loop_additional_coverage);
   RUN_TEST(test_event_loop_write_error_coverage2);
@@ -1434,11 +1586,11 @@ SUITE(event_loop_suite) {
   RUN_TEST(test_event_loop_external);
   RUN_TEST(test_event_loop_missing_hooks);
   RUN_TEST(test_event_loop_wakeup_full);
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
   RUN_TEST(test_event_loop_fd_edges);
 #endif
   RUN_TEST(test_event_loop_lazy_timer_cancel);
-#if !defined(_WIN32)
+#if defined(CAH_TEST_POSIX_PIPE)
   RUN_TEST(test_event_loop_tick_fd_and_timer);
   RUN_TEST(test_event_loop_blocking_cb);
   RUN_TEST(test_event_loop_run_full);
@@ -1453,7 +1605,7 @@ SUITE(event_loop_suite) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_event_loop_alloc_errors);
 #endif
-#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(_WIN32)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && defined(CAH_TEST_POSIX_PIPE)
   RUN_TEST(test_event_loop_pipe_fail);
 #endif
 }

@@ -18,6 +18,7 @@
 #define C_ABSTRACT_HTTP_HTTP_LIBUV_H
 
 /* clang-format off */
+#include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
 
@@ -106,6 +107,22 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_libuv_config_apply(
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libuv_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
                 struct HttpResponse **res);
+
+/**
+ * @brief Asynchronous multi-request dispatcher for libuv.
+ *
+ * Multiplexes concurrent TCP/TLS-BIO requests on a shared `uv_loop_t` bridged
+ * with `ModalityEventLoop` via `uv_run(UV_RUN_NOWAIT)`.
+ *
+ * @param[in] ctx The transport context.
+ * @param[in,out] loop Optional event loop to drive and wake on completion.
+ * @param[in] multi Batch of HTTP requests to execute concurrently.
+ * @param[out] futures Array of futures populated with responses/errors.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error http_libuv_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

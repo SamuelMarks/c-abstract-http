@@ -620,12 +620,185 @@ TEST test_libsoup3_methods(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, setup_libsoup3_request(&req_test, 80));
     g_mock_headers_init_fail = 0;
 
-    g_mock_alloc_count = 1;
+    g_mock_alloc_count = 0;
     g_mock_alloc_fail = 1;
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, setup_libsoup3_request(&req_test, 80));
-    g_mock_alloc_fail = 0;
+    {
+      enum c_abstract_http_error s_rc = setup_libsoup3_request(&req_test, 80);
+      g_mock_alloc_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, s_rc);
+    }
   }
 #endif
+  PASS();
+}
+
+TEST test_libsoup3_send_multi_and_proxy_tls(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest r1, r2;
+  struct HttpResponse *res = NULL;
+  struct HttpMultiRequest multi;
+  struct HttpFuture f1, f2;
+  struct HttpFuture *futs[2];
+  struct ModalityEventLoop *loop = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+
+  cfg.tls_version_mask = 0xFF00U;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_libsoup3_config_apply(ctx, &cfg));
+  cfg.tls_version_mask = HTTP_TLS_VERSION_1_2 | HTTP_TLS_VERSION_1_3;
+  cfg.timeout_ms = 0;
+  cfg.connect_timeout_ms = 1200;
+  cfg.read_timeout_ms = 2400;
+  cfg.write_timeout_ms = 3600;
+  cfg.verify_host = 1;
+  cfg.follow_redirects = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:8080", &cfg.proxy_url));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("soup_user", &cfg.proxy_username));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("soup_pass", &cfg.proxy_password));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r2));
+  r1.url = (char *)"http://127.0.0.1:8080/one";
+  r2.url = (char *)"http://127.0.0.1:8080/two";
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_send(ctx, &r1, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_libsoup3_send_multi(NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  futs[0] = &f1;
+  futs[1] = &f2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+
+  /* Empty batch */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_libsoup3_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_libsoup3_send_multi(ctx, loop, &multi, futs));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &r2));
+  memset(&f1, 0, sizeof(f1));
+  memset(&f2, 0, sizeof(f2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_libsoup3_send_multi(ctx, loop, &multi, futs));
+  ASSERT_EQ(1, f1.is_ready);
+  ASSERT_EQ(1, f2.is_ready);
+  ASSERT_EQ(200, f1.response->status_code);
+  ASSERT_EQ(200, f2.response->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+  free(f1.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+  free(f2.response);
+
+  memset(&f1, 0, sizeof(f1));
+  memset(&f2, 0, sizeof(f2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_libsoup3_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+  free(f1.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+  free(f2.response);
+
+  /* Error in one request of multi */
+  r2.method = (enum HttpMethod)999;
+  memset(&f1, 0, sizeof(f1));
+  memset(&f2, 0, sizeof(f2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_libsoup3_send_multi(ctx, NULL, &multi, futs));
+  if (f1.response) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+  }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  r2.method = HTTP_GET;
+  {
+    int k;
+    for (k = 0; k < 25; ++k) {
+      enum c_abstract_http_error orc;
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_libsoup3_config_apply(ctx, &cfg);
+      g_mock_alloc_fail = 0;
+      (void)orc;
+
+      res = NULL;
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_libsoup3_send(ctx, &r1, &res);
+      g_mock_alloc_fail = 0;
+      if (res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_libsoup3_send_multi(ctx, NULL, &multi, futs);
+      g_mock_alloc_fail = 0;
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+      (void)orc;
+    }
+    g_mock_alloc_count = 0;
+    {
+      struct HttpTransportContext *c2 = NULL;
+      cfg.connect_timeout_ms = 0;
+      cfg.read_timeout_ms = 2400;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_config_apply(ctx, &cfg));
+      cfg.read_timeout_ms = 0;
+      cfg.write_timeout_ms = 3600;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_config_apply(ctx, &cfg));
+
+      g_mock_alloc_count = 1;
+      g_mock_alloc_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libsoup3_context_init(&c2));
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+
+      g_mock_headers_init_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libsoup3_send(ctx, &r1, &res));
+      g_mock_headers_init_fail = 0;
+
+      g_mock_libsoup3_session_new_fail = 1;
+      g_mock_config_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libsoup3_context_init(&c2));
+      g_mock_libsoup3_session_new_fail = 0;
+      g_mock_config_free_fail = 0;
+    }
+  }
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  r1.url = NULL;
+  r2.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_cleanup());
   PASS();
 }
 
@@ -640,6 +813,7 @@ SUITE(http_libsoup3_suite) {
   RUN_TEST(test_libsoup3_send_chunked_and_upload);
   RUN_TEST(test_libsoup3_send_faults);
   RUN_TEST(test_libsoup3_methods);
+  RUN_TEST(test_libsoup3_send_multi_and_proxy_tls);
 }
 
 #ifdef __cplusplus

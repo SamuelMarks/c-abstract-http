@@ -463,6 +463,11 @@ abstract_http_cond_signal(struct AbstractHttpCond *cond) {
                                                : C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/**
+ * @brief Wake all threads waiting on a condition variable.
+ * @param cond Condition variable handle.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
 enum c_abstract_http_error
 ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   if (!cond)
@@ -702,8 +707,11 @@ abstract_http_thread_pool_init(struct AbstractHttpThreadPool **pool,
     if (err != C_ABSTRACT_HTTP_SUCCESS) {
       {
         enum c_abstract_http_error rc = abstract_http_mutex_free(p->lock);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS)
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(p->threads);
+          free(p);
           return rc;
+        }
       }
       free(p->threads);
       free(p);

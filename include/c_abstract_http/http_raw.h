@@ -55,6 +55,46 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_raw_config_apply(
     struct HttpTransportContext *ctx, const struct HttpConfig *config);
 
 /**
+ * @brief Pluggable TLS session hooks for the raw socket HTTP backend.
+ *
+ * Allows callers to override or supply a TLS engine on any platform.
+ * For non-blocking integration, `handshake`, `read`, and `write` set
+ * `*out_want` to `0` on progress/completion, `1` when waiting for socket
+ * readability, or `2` when waiting for socket writability.
+ */
+struct HttpRawTlsHooks {
+  /** @brief Opaque provider context passed to `open` */
+  void *provider_data;
+  /** @brief Allocate and attach a TLS session to connected `sock_fd` */
+  enum c_abstract_http_error (*open)(void *provider_data, int sock_fd,
+                                     const char *host,
+                                     const struct HttpConfig *config,
+                                     void **out_session);
+  /** @brief Drive TLS client handshake (`*out_want`: 0=done, 1=read, 2=write)
+   */
+  enum c_abstract_http_error (*handshake)(void *session, int *out_want);
+  /** @brief Read decrypted bytes (`*out_want`: 0=ok/eof, 1=read, 2=write) */
+  enum c_abstract_http_error (*read)(void *session, void *buf, size_t cap,
+                                     size_t *out_n, int *out_want);
+  /** @brief Write plaintext bytes (`*out_want`: 0=ok, 1=read, 2=write) */
+  enum c_abstract_http_error (*write)(void *session, const void *buf,
+                                      size_t len, size_t *out_n, int *out_want);
+  /** @brief Shut down and free a TLS session */
+  enum c_abstract_http_error (*close)(void *session);
+};
+
+/**
+ * @brief Register or clear custom TLS hooks on a raw socket transport context.
+ * @param ctx Transport context.
+ * @param hooks Optional custom TLS hooks to copy, or NULL to use native
+ * OS/crypto TLS.
+ * @return 0 on success, or C_ABSTRACT_HTTP_ERR_INVAL if @p ctx or required hook
+ * pointers are invalid.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_raw_set_tls_hooks(
+    struct HttpTransportContext *ctx, const struct HttpRawTlsHooks *hooks);
+
+/**
  * @brief Send an HTTP request synchronously using raw sockets.
  * @param ctx Transport context.
  * @param req Request to send.

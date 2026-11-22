@@ -725,8 +725,22 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
     return C_ABSTRACT_HTTP_ERR_IO;
 
   if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_CONNECTTIMEOUT_MS,
-                                     config->timeout_ms) != CURLE_OK)
+                                     config->connect_timeout_ms > 0
+                                         ? config->connect_timeout_ms
+                                         : config->timeout_ms) != CURLE_OK)
     return C_ABSTRACT_HTTP_ERR_IO;
+
+  if (config->read_timeout_ms > 0 || config->write_timeout_ms > 0) {
+    long rw_ms = config->read_timeout_ms > 0 ? config->read_timeout_ms
+                                             : config->write_timeout_ms;
+    long low_speed_sec = (rw_ms + 999L) / 1000L;
+    if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_LOW_SPEED_LIMIT,
+                                       1L) != CURLE_OK)
+      return C_ABSTRACT_HTTP_ERR_IO;
+    if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_LOW_SPEED_TIME,
+                                       low_speed_sec) != CURLE_OK)
+      return C_ABSTRACT_HTTP_ERR_IO;
+  }
 
   if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_SSL_VERIFYPEER,
                                      config->verify_peer ? 1L : 0L) != CURLE_OK)
@@ -799,7 +813,7 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
   struct curl_slist *new_list;
 
   LOG_DEBUG("ABSTRACT_HTTP_SETUP_CURL_REQUEST: Entering");
-  if (req->parts.count > 0 && !payload) {
+  if (req->parts.count > 0 && (!payload || !req->parts.parts)) {
     LOG_DEBUG("ABSTRACT_HTTP_SETUP_CURL_REQUEST: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -1362,7 +1376,7 @@ static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
             "multi_socket_function: ABSTRACT_HTTP_HTTP_LOOP_ADD_FD failed");
         goto socket_error;
       }
-      ABSTRACT_HTTP_CURL_MULTI_ASSIGN(ctx->multi, s, (void *)1);
+      ABSTRACT_HTTP_CURL_MULTI_ASSIGN(ctx->multi, s, (void *)ctx);
     } else {
       rc = ABSTRACT_HTTP_HTTP_LOOP_MOD_FD(ctx->loop, (int)s, events);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {

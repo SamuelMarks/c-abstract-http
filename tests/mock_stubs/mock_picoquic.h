@@ -228,12 +228,15 @@ static int mock_pq_read_varint(const uint8_t *src, size_t len, size_t *off,
 
 static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
   char path[128];
+  char ua[128];
+  char masque[128];
+  char pauth[128];
   const uint8_t *req_body = NULL;
   size_t req_body_len = 0;
   size_t off = 0;
   static uint8_t resp[20480];
   size_t rpos = 0;
-  uint8_t hblock[512];
+  uint8_t hblock[1024];
   size_t hpos = 0;
   const char *default_body = "PICOQUIC-H3-OK";
   const uint8_t *out_body;
@@ -245,6 +248,9 @@ static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
 
   path[0] = '/';
   path[1] = '\0';
+  ua[0] = '\0';
+  masque[0] = '\0';
+  pauth[0] = '\0';
 
   /* Parse sent HTTP/3 HEADERS and DATA frames */
   while (off < cnx->tx_len) {
@@ -281,6 +287,20 @@ static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
         if (kl == 5 && memcmp(kp, ":path", 5) == 0 && vl < sizeof(path)) {
           memcpy(path, vp, vl);
           path[vl] = '\0';
+        } else if (kl == 10 &&
+                   (memcmp(kp, "user-agent", 10) == 0 ||
+                    memcmp(kp, "User-Agent", 10) == 0) &&
+                   vl < sizeof(ua)) {
+          memcpy(ua, vp, vl);
+          ua[vl] = '\0';
+        } else if (kl == 15 && memcmp(kp, "x-masque-target", 15) == 0 &&
+                   vl < sizeof(masque)) {
+          memcpy(masque, vp, vl);
+          masque[vl] = '\0';
+        } else if (kl == 19 && memcmp(kp, "proxy-authorization", 19) == 0 &&
+                   vl < sizeof(pauth)) {
+          memcpy(pauth, vp, vl);
+          pauth[vl] = '\0';
         }
       }
     } else if (ftype == 0x00) {
@@ -404,6 +424,15 @@ static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
   mock_pq_write_hdr(hblock, &hpos, "Set-Cookie", "pq_plain=xyz");
   mock_pq_write_hdr(hblock, &hpos, "set-cookie", "=empty_name");
   mock_pq_write_hdr(hblock, &hpos, "set-cookie", "no_equals_cookie");
+  if (ua[0] != '\0') {
+    mock_pq_write_hdr(hblock, &hpos, "x-echo-ua", ua);
+  }
+  if (masque[0] != '\0') {
+    mock_pq_write_hdr(hblock, &hpos, "x-echo-masque", masque);
+  }
+  if (pauth[0] != '\0') {
+    mock_pq_write_hdr(hblock, &hpos, "x-echo-proxy-auth", pauth);
+  }
 
   /* HEADERS frame (0x01) */
   mock_pq_write_varint(resp, &rpos, 0x01);

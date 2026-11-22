@@ -220,12 +220,15 @@ static int mock_xqc_read_varint(const uint8_t *src, size_t len, size_t *off,
 
 static void mock_xqc_build_response(xqc_stream_t *stream) {
   char path[128];
+  char ua[128];
+  char masque[128];
+  char pauth[128];
   const uint8_t *req_body = NULL;
   size_t req_body_len = 0;
   size_t off = 0;
   static uint8_t resp[20480];
   size_t rpos = 0;
-  uint8_t hblock[512];
+  uint8_t hblock[1024];
   size_t hpos = 0;
   const char *default_body = "XQUIC-H3-OK";
   const uint8_t *out_body;
@@ -233,6 +236,9 @@ static void mock_xqc_build_response(xqc_stream_t *stream) {
 
   path[0] = '/';
   path[1] = '\0';
+  ua[0] = '\0';
+  masque[0] = '\0';
+  pauth[0] = '\0';
 
   while (off < stream->tx_len) {
     size_t ftype = 0;
@@ -270,6 +276,20 @@ static void mock_xqc_build_response(xqc_stream_t *stream) {
         if (kl == 5 && memcmp(kp, ":path", 5) == 0 && vl < sizeof(path)) {
           memcpy(path, vp, vl);
           path[vl] = '\0';
+        } else if (kl == 10 &&
+                   (memcmp(kp, "user-agent", 10) == 0 ||
+                    memcmp(kp, "User-Agent", 10) == 0) &&
+                   vl < sizeof(ua)) {
+          memcpy(ua, vp, vl);
+          ua[vl] = '\0';
+        } else if (kl == 15 && memcmp(kp, "x-masque-target", 15) == 0 &&
+                   vl < sizeof(masque)) {
+          memcpy(masque, vp, vl);
+          masque[vl] = '\0';
+        } else if (kl == 19 && memcmp(kp, "proxy-authorization", 19) == 0 &&
+                   vl < sizeof(pauth)) {
+          memcpy(pauth, vp, vl);
+          pauth[vl] = '\0';
         }
       }
     } else if (ftype == 0x00) {
@@ -279,6 +299,10 @@ static void mock_xqc_build_response(xqc_stream_t *stream) {
     off += flen;
   }
 
+  if (strcmp(path, "/net-close") == 0) {
+    stream->rx_built = -1;
+    return;
+  }
   if (strcmp(path, "/trunc-flen") == 0) {
     resp[rpos++] = 0x01;
   } else if (strcmp(path, "/trunc-kl") == 0) {
@@ -349,6 +373,15 @@ static void mock_xqc_build_response(xqc_stream_t *stream) {
     mock_xqc_write_hdr(hblock, &hpos, "Set-Cookie", "xqc_plain=456");
     mock_xqc_write_hdr(hblock, &hpos, "set-cookie", "=empty");
     mock_xqc_write_hdr(hblock, &hpos, "set-cookie", "no_equals_cookie");
+    if (ua[0] != '\0') {
+      mock_xqc_write_hdr(hblock, &hpos, "x-echo-ua", ua);
+    }
+    if (masque[0] != '\0') {
+      mock_xqc_write_hdr(hblock, &hpos, "x-echo-masque", masque);
+    }
+    if (pauth[0] != '\0') {
+      mock_xqc_write_hdr(hblock, &hpos, "x-echo-proxy-auth", pauth);
+    }
 
     mock_xqc_write_varint(resp, &rpos, 0x01);
     mock_xqc_write_varint(resp, &rpos, hpos);
@@ -392,6 +425,9 @@ static xqc_ssize_t xqc_stream_recv(xqc_stream_t *stream,
   }
   if (!stream->rx_built) {
     mock_xqc_build_response(stream);
+  }
+  if (stream->rx_built < 0) {
+    return -1;
   }
   avail = stream->rx_len - stream->rx_off;
   if (avail == 0) {

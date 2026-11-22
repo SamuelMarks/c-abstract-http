@@ -45,6 +45,7 @@ extern int g_mock_winhttp_cookie_set_fail;
 #if !defined(_WIN32) || (defined(_MSC_VER) && _MSC_VER < 1600)
 typedef void *HINTERNET;
 typedef unsigned long DWORD;
+typedef size_t DWORD_PTR;
 typedef void *LPVOID;
 typedef const void *LPCVOID;
 typedef DWORD *LPDWORD;
@@ -57,8 +58,14 @@ typedef unsigned short INTERNET_PORT;
 #ifndef WINAPI
 #define WINAPI
 #endif
+#ifndef CALLBACK
+#define CALLBACK
+#endif
 
 typedef DWORD(WINAPI *LPTHREAD_START_ROUTINE)(LPVOID);
+typedef void(CALLBACK *WINHTTP_STATUS_CALLBACK)(
+    HINTERNET hInternet, DWORD_PTR dwContext, DWORD dwInternetStatus,
+    LPVOID lpvStatusInformation, DWORD dwStatusInformationLength);
 
 #ifndef WT_EXECUTEDEFAULT
 #define WT_EXECUTEDEFAULT 0x00000000
@@ -72,8 +79,13 @@ typedef DWORD(WINAPI *LPTHREAD_START_ROUTINE)(LPVOID);
 #define WINHTTP_NO_REFERER NULL
 #define WINHTTP_DEFAULT_ACCEPT_TYPES NULL
 #define WINHTTP_FLAG_SECURE 0x00800000
+#define WINHTTP_FLAG_ASYNC 0x10000000
+#define WINHTTP_OPTION_USER_AGENT 11
 #define WINHTTP_OPTION_SECURITY_FLAGS 31
 #define WINHTTP_OPTION_DISABLE_FEATURE 63
+#define WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL 133
+#define WINHTTP_PROTOCOL_FLAG_HTTP2 0x1
+#define WINHTTP_PROTOCOL_FLAG_HTTP3 0x2
 #define WINHTTP_DISABLE_REDIRECTS 0x00000002
 #define SECURITY_FLAG_IGNORE_UNKNOWN_CA 0x00000100
 #define SECURITY_FLAG_IGNORE_CERT_DATE_INVALID 0x00002000
@@ -93,6 +105,26 @@ typedef DWORD(WINAPI *LPTHREAD_START_ROUTINE)(LPVOID);
 #define ERROR_INSUFFICIENT_BUFFER 122
 #define INTERNET_SCHEME_HTTP 1
 #define INTERNET_SCHEME_HTTPS 2
+
+#define WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE 0x00020000
+#define WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE 0x00040000
+#define WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE 0x00080000
+#define WINHTTP_CALLBACK_STATUS_READ_COMPLETE 0x00100000
+#define WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE 0x00000020
+#define WINHTTP_CALLBACK_STATUS_REQUEST_ERROR 0x00200000
+#define WINHTTP_CALLBACK_FLAG_ALL_COMPLETIONS                                  \
+  (WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE |                              \
+   WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE |                                 \
+   WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE |                                    \
+   WINHTTP_CALLBACK_STATUS_READ_COMPLETE |                                     \
+   WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE |                                    \
+   WINHTTP_CALLBACK_STATUS_REQUEST_ERROR)
+#define WINHTTP_INVALID_STATUS_CALLBACK ((WINHTTP_STATUS_CALLBACK)(-1L))
+
+typedef struct {
+  DWORD_PTR dwResult;
+  DWORD dwError;
+} WINHTTP_ASYNC_RESULT;
 
 typedef struct {
   DWORD dwAccessType;
@@ -119,6 +151,8 @@ typedef struct {
 } URL_COMPONENTS;
 
 static DWORD s_mock_winhttp_last_error = 0;
+static WINHTTP_STATUS_CALLBACK s_mock_winhttp_status_cb = NULL;
+static DWORD_PTR s_mock_winhttp_async_ctx = 0;
 
 static DWORD GetLastError(void) { return s_mock_winhttp_last_error; }
 
@@ -133,15 +167,35 @@ static HINTERNET WinHttpOpen(const wchar_t *pszAgentW, DWORD dwAccessType,
   (void)dwAccessType;
   (void)pszProxyW;
   (void)pszProxyBypassW;
-  (void)dwFlags;
   if (g_mock_winhttp_open_fail) {
     return NULL;
+  }
+  if (dwFlags & WINHTTP_FLAG_ASYNC) {
+    return (HINTERNET)(size_t)201;
   }
   return (HINTERNET)(size_t)101;
 }
 
-static BOOL WinHttpCloseHandle(HINTERNET hInternet) {
+static WINHTTP_STATUS_CALLBACK
+WinHttpSetStatusCallback(HINTERNET hInternet,
+                         WINHTTP_STATUS_CALLBACK lpfnInternetCallback,
+                         DWORD dwNotificationFlags, DWORD_PTR dwReserved) {
+  WINHTTP_STATUS_CALLBACK prev = s_mock_winhttp_status_cb;
   (void)hInternet;
+  (void)dwNotificationFlags;
+  (void)dwReserved;
+  if (g_mock_winhttp_queue_work_item_fail && lpfnInternetCallback != NULL) {
+    return WINHTTP_INVALID_STATUS_CALLBACK;
+  }
+  s_mock_winhttp_status_cb = lpfnInternetCallback;
+  return prev;
+}
+
+static BOOL WinHttpCloseHandle(HINTERNET hInternet) {
+  if (hInternet == (HINTERNET)(size_t)201) {
+    s_mock_winhttp_status_cb = NULL;
+    s_mock_winhttp_async_ctx = 0;
+  }
   if (g_mock_winhttp_close_fail > 0) {
     if (--g_mock_winhttp_close_fail == 0) {
       return 0;
@@ -247,12 +301,14 @@ static BOOL WinHttpCrackUrl(const wchar_t *pwszUrl, DWORD dwUrlLength,
 static HINTERNET WinHttpConnect(HINTERNET hSession,
                                 const wchar_t *pswzServerName,
                                 INTERNET_PORT nServerPort, DWORD dwReserved) {
-  (void)hSession;
   (void)pswzServerName;
   (void)nServerPort;
   (void)dwReserved;
   if (g_mock_winhttp_connect_fail) {
     return NULL;
+  }
+  if (hSession == (HINTERNET)(size_t)201) {
+    return (HINTERNET)(size_t)202;
   }
   return (HINTERNET)(size_t)102;
 }
@@ -263,7 +319,6 @@ static HINTERNET WinHttpOpenRequest(HINTERNET hConnect, const wchar_t *pwszVerb,
                                     const wchar_t *pwszReferrer,
                                     const wchar_t **ppwszAcceptTypes,
                                     DWORD dwFlags) {
-  (void)hConnect;
   (void)pwszVerb;
   (void)pwszObjectName;
   (void)pwszVersion;
@@ -272,6 +327,9 @@ static HINTERNET WinHttpOpenRequest(HINTERNET hConnect, const wchar_t *pwszVerb,
   (void)dwFlags;
   if (g_mock_winhttp_open_request_fail) {
     return NULL;
+  }
+  if (hConnect == (HINTERNET)(size_t)202) {
+    return (HINTERNET)(size_t)203;
   }
   return (HINTERNET)(size_t)103;
 }
@@ -292,16 +350,32 @@ static BOOL WinHttpAddRequestHeaders(HINTERNET hRequest,
 static BOOL WinHttpSendRequest(HINTERNET hRequest, const wchar_t *lpszHeaders,
                                DWORD dwHeadersLength, LPVOID lpOptional,
                                DWORD dwOptionalLength, DWORD dwTotalLength,
-                               DWORD dwContext) {
-  (void)hRequest;
+                               DWORD_PTR dwContext) {
   (void)lpszHeaders;
   (void)dwHeadersLength;
   (void)lpOptional;
   (void)dwOptionalLength;
   (void)dwTotalLength;
-  (void)dwContext;
   if (g_mock_winhttp_send_request_fail) {
+    if (hRequest == (HINTERNET)(size_t)203 && s_mock_winhttp_status_cb &&
+        dwContext != 0) {
+      WINHTTP_ASYNC_RESULT ar;
+      ar.dwResult = 5;
+      ar.dwError = 12002;
+      s_mock_winhttp_async_ctx = dwContext;
+      s_mock_winhttp_status_cb(hRequest, dwContext,
+                               WINHTTP_CALLBACK_STATUS_REQUEST_ERROR, &ar,
+                               sizeof(ar));
+      return 1;
+    }
     return 0;
+  }
+  if (hRequest == (HINTERNET)(size_t)203 && s_mock_winhttp_status_cb &&
+      dwContext != 0) {
+    s_mock_winhttp_async_ctx = dwContext;
+    s_mock_winhttp_status_cb(hRequest, dwContext,
+                             WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE, NULL,
+                             0);
   }
   return 1;
 }
@@ -309,20 +383,32 @@ static BOOL WinHttpSendRequest(HINTERNET hRequest, const wchar_t *lpszHeaders,
 static BOOL WinHttpWriteData(HINTERNET hRequest, LPCVOID lpBuffer,
                              DWORD dwNumberOfBytesToWrite,
                              LPDWORD lpdwNumberOfBytesWritten) {
-  (void)hRequest;
   (void)lpBuffer;
   if (g_mock_winhttp_write_data_fail) {
     return 0;
   }
-  *lpdwNumberOfBytesWritten = dwNumberOfBytesToWrite;
+  if (lpdwNumberOfBytesWritten) {
+    *lpdwNumberOfBytesWritten = dwNumberOfBytesToWrite;
+  }
+  if (hRequest == (HINTERNET)(size_t)203 && s_mock_winhttp_status_cb &&
+      !lpdwNumberOfBytesWritten) {
+    DWORD written = dwNumberOfBytesToWrite;
+    s_mock_winhttp_status_cb(hRequest, s_mock_winhttp_async_ctx,
+                             WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE, &written,
+                             sizeof(written));
+  }
   return 1;
 }
 
 static BOOL WinHttpReceiveResponse(HINTERNET hRequest, LPVOID lpReserved) {
-  (void)hRequest;
   (void)lpReserved;
   if (g_mock_winhttp_receive_response_fail) {
     return 0;
+  }
+  if (hRequest == (HINTERNET)(size_t)203 && s_mock_winhttp_status_cb) {
+    s_mock_winhttp_status_cb(hRequest, s_mock_winhttp_async_ctx,
+                             WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE, NULL,
+                             0);
   }
   return 1;
 }
@@ -366,39 +452,38 @@ static BOOL WinHttpQueryHeaders(HINTERNET hRequest, DWORD dwInfoLevel,
 
 static BOOL WinHttpQueryDataAvailable(HINTERNET hRequest,
                                       LPDWORD lpdwNumberOfBytesAvailable) {
-  (void)hRequest;
+  DWORD avail = 0;
   if (g_mock_winhttp_query_data_available_fail) {
     return 0;
   }
   if (g_mock_winhttp_read_chunks > 0) {
-    DWORD avail = (g_mock_winhttp_read_chunks == 3) ? 9000 : 10;
+    avail = (g_mock_winhttp_read_chunks == 3) ? 9000 : 10;
     g_mock_winhttp_read_chunks--;
-    *lpdwNumberOfBytesAvailable = avail;
-    return 1;
   }
-  *lpdwNumberOfBytesAvailable = 0;
+  if (lpdwNumberOfBytesAvailable) {
+    *lpdwNumberOfBytesAvailable = avail;
+  } else if (hRequest == (HINTERNET)(size_t)203 && s_mock_winhttp_status_cb) {
+    s_mock_winhttp_status_cb(hRequest, s_mock_winhttp_async_ctx,
+                             WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE, &avail,
+                             sizeof(avail));
+  }
   return 1;
 }
 
 static BOOL WinHttpReadData(HINTERNET hRequest, LPVOID lpBuffer,
                             DWORD dwNumberOfBytesToRead,
                             LPDWORD lpdwNumberOfBytesRead) {
-  (void)hRequest;
   if (g_mock_winhttp_read_data_fail) {
     return 0;
   }
   memset(lpBuffer, 'W', dwNumberOfBytesToRead);
-  *lpdwNumberOfBytesRead = dwNumberOfBytesToRead;
-  return 1;
-}
-
-static BOOL QueueUserWorkItem(LPTHREAD_START_ROUTINE Function, PVOID Context,
-                              ULONG Flags) {
-  (void)Flags;
-  if (g_mock_winhttp_queue_work_item_fail) {
-    return 0;
+  if (lpdwNumberOfBytesRead) {
+    *lpdwNumberOfBytesRead = dwNumberOfBytesToRead;
+  } else if (hRequest == (HINTERNET)(size_t)203 && s_mock_winhttp_status_cb) {
+    s_mock_winhttp_status_cb(hRequest, s_mock_winhttp_async_ctx,
+                             WINHTTP_CALLBACK_STATUS_READ_COMPLETE, lpBuffer,
+                             dwNumberOfBytesToRead);
   }
-  Function(Context);
   return 1;
 }
 #endif /* !defined(_WIN32) || (defined(_MSC_VER) && _MSC_VER < 1600) */

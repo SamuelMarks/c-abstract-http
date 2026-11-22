@@ -41,6 +41,10 @@
 #include "http_msh3.h"
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
 #include "http_xquic.h"
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+#include "http_lsquic.h"
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+#include "http_nghttp3.h"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include "http_libsoup3.h"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
@@ -87,10 +91,10 @@
 #include "../../src/actor.c"
 #include "../../src/process.c"
 #include "../../src/transport.c"
+#include "../../src/crypto_utils.c"
 #include "../../src/http_raw.c"
 
 #ifdef C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS
-#include "../../src/crypto_utils.c"
 #include "../../src/http_ws.c"
 #endif
 #ifdef C_ABSTRACT_HTTP_ENABLE_SSE
@@ -104,6 +108,10 @@
 #include "../../src/http_msh3.c"
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
 #include "../../src/http_xquic.c"
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+#include "../../src/http_lsquic.c"
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+#include "../../src/http_nghttp3.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include "../../src/http_libsoup3.c"
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)

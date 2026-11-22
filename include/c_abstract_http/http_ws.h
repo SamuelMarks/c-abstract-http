@@ -123,8 +123,28 @@ c_abstract_http_ws_sync_read_loop(struct HttpClient *client,
                                   void *user_data, volatile int *exit_flag);
 
 /**
+ * @brief Perform an HTTP/1.1 `101 Switching Protocols` WebSocket handshake,
+ * detach persistent ownership of the upgraded non-blocking socket, and
+ * register full-duplex frame read/write handlers on `client->loop`.
+ * @param client The HTTP client with an initialized `ModalityEventLoop`.
+ * @param req The WebSocket request (`ws://` or `http://` URL).
+ * @param on_msg Callback invoked on incoming WebSocket messages/control frames.
+ * @param on_err Callback invoked on framing or socket errors.
+ * @param on_close Callback invoked when the WebSocket connection closes.
+ * @param user_data Opaque pointer passed to callbacks.
+ * @return C_ABSTRACT_HTTP_SUCCESS on upgrade and registration, or error enum.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_ws_async_connect(struct HttpClient *client,
+                                 struct HttpRequest *req,
+                                 c_abstract_http_ws_on_message on_msg,
+                                 c_abstract_http_ws_on_error on_err,
+                                 c_abstract_http_ws_on_close on_close,
+                                 void *user_data);
+
+/**
  * @brief Register a WebSocket connection with the underlying transport's
- * asynchronous event loop.
+ * asynchronous event loop (or thread pool fallback).
  * @param client The HTTP client.
  * @param req The connected request.
  * @param on_msg The callback to trigger on messages.

@@ -95,15 +95,20 @@ http_fetch_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
                 struct HttpResponse **res);
 
 /**
- * @brief Dispatch multiple HTTP requests using libfetch asynchronous modes.
+ * @brief Dispatch multiple HTTP requests using libfetch with ModalityEventLoop.
  *
- * Provides multiplexed execution over a single transport context.
+ * Opens concurrent `FILE *` streams and schedules body consumption across
+ * `ModalityEventLoop`.
+ *
+ * @note BSD `libfetch` (`fetchReqHTTP`) performs blocking DNS/TCP/TLS
+ * connection and HTTP header negotiation before returning each `FILE *` stream;
+ * subsequent body reads and completion notifications are multiplexed through
+ * @p loop.
  *
  * @param[in] ctx Pointer to an initialized HttpTransportContext.
- * @param[in,out] loop Event loop to drive the execution.
+ * @param[in,out] loop Optional event loop to drive stream completion.
  * @param[in] multi Multi-request specification.
- * @param[out] futures Array of returned HttpFuture handles, allocated upon
- * success.
+ * @param[out] futures Array of returned HttpFuture handles.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_fetch_send_multi(

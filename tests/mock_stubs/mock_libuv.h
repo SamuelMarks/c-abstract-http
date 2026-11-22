@@ -45,6 +45,7 @@ extern int g_mock_libuv_alloc_fail;
 #if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV)
 
 #define UV_RUN_DEFAULT 0
+#define UV_RUN_NOWAIT 1
 #define UV_EOF (-4095)
 #define UV_ENOBUFS (-4060)
 
@@ -102,6 +103,7 @@ typedef struct uv_tcp_s {
   uv_connect_cb connect_cb;
   struct uv_connect_s *connect_req;
   struct uv_write_s *write_req;
+  char tx_preview[256];
 } uv_tcp_t;
 
 typedef struct uv_connect_s {
@@ -112,6 +114,7 @@ typedef struct uv_getaddrinfo_s {
   void *data;
   uv_getaddrinfo_cb cb;
   char port_str[16];
+  int resolved;
 } uv_getaddrinfo_t;
 
 typedef struct uv_timer_s {
@@ -132,6 +135,10 @@ struct uv_loop_s {
   int stop;
   uv_tcp_t *tcp;
   uv_getaddrinfo_t *resolver;
+  uv_tcp_t *tcps[32];
+  size_t tcp_count;
+  uv_getaddrinfo_t *resolvers[32];
+  size_t resolver_count;
 };
 
 static uv_buf_t uv_buf_init(char *base, unsigned int len) {
@@ -162,6 +169,9 @@ static int uv_tcp_init(uv_loop_t *loop, uv_tcp_t *tcp) {
   tcp->loop = loop;
   if (loop) {
     loop->tcp = tcp;
+    if (loop->tcp_count < 32) {
+      loop->tcps[loop->tcp_count++] = tcp;
+    }
   }
   return 0;
 }
@@ -207,8 +217,12 @@ static int uv_getaddrinfo(uv_loop_t *loop, uv_getaddrinfo_t *resolver,
     return -1;
   }
   resolver->cb = cb;
+  resolver->resolved = 0;
   if (loop) {
     loop->resolver = resolver;
+    if (loop->resolver_count < 32) {
+      loop->resolvers[loop->resolver_count++] = resolver;
+    }
   }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   strncpy_s(resolver->port_str, sizeof(resolver->port_str), service,
@@ -234,10 +248,15 @@ static int uv_tcp_connect(uv_connect_t *req, uv_tcp_t *handle,
 static int uv_write(uv_write_t *req, uv_stream_t *handle, const uv_buf_t bufs[],
                     unsigned int nbufs, uv_write_cb cb) {
   uv_tcp_t *tcp = (uv_tcp_t *)handle;
-  (void)bufs;
-  (void)nbufs;
   if (g_mock_libuv_write_fail == 2) {
     return -1;
+  }
+  if (nbufs > 0 && bufs && bufs[0].base && bufs[0].len > 0) {
+    size_t clen = bufs[0].len < sizeof(tcp->tx_preview) - 1
+                      ? bufs[0].len
+                      : sizeof(tcp->tx_preview) - 1;
+    memcpy(tcp->tx_preview, bufs[0].base, clen);
+    tcp->tx_preview[clen] = '\0';
   }
   req->write_cb = cb;
   tcp->write_req = req;
@@ -257,81 +276,134 @@ static int uv_read_start(uv_stream_t *stream, uv_alloc_cb alloc_cb,
   return 0;
 }
 
+static void mock_uv_drive_tcp(uv_loop_t *loop, uv_tcp_t *tcp,
+                              uv_getaddrinfo_t *resolver) {
+  if (!tcp) {
+    return;
+  }
+  if (tcp->connect_cb && tcp->connect_req) {
+    uv_connect_cb ccb = tcp->connect_cb;
+    uv_connect_t *creq = tcp->connect_req;
+    int port = resolver ? atoi(resolver->port_str) : 80;
+    tcp->connect_cb = NULL;
+    if (g_mock_libuv_connect_fail || port == 59999) {
+      ccb(creq, -1);
+      return;
+    }
+    ccb(creq, 0);
+  }
+
+  if (tcp->write_req && tcp->write_req->write_cb) {
+    uv_write_t *wreq = tcp->write_req;
+    uv_write_cb wcb = wreq->write_cb;
+    tcp->write_req = NULL;
+    if (g_mock_libuv_write_fail) {
+      wcb(wreq, -1);
+      return;
+    }
+    wcb(wreq, 0);
+  }
+
+  if (tcp->read_cb && !tcp->is_closing && !loop->stop) {
+    uv_buf_t buf;
+    const char *hdr_str = "HTTP/1.1 200 OK\r\nHeader: Value\r\n\r\n";
+    const char *body_str = "OK";
+    size_t hlen;
+    size_t blen;
+
+    if (strstr(tcp->tx_preview, "/chunked-bad1") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+      body_str = "ZZ\r\n";
+    } else if (strstr(tcp->tx_preview, "/chunked-bad2") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+      body_str = "\r\n";
+    } else if (strstr(tcp->tx_preview, "/chunked-bad3") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+      body_str = "a\r\nshort";
+    } else if (strstr(tcp->tx_preview, "/chunked-hex") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+      body_str = "a\r\n0123456789\r\nA\r\nabcdefghij\r\n0\r\n\r\n";
+    } else if (strstr(tcp->tx_preview, "/chunked") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+      body_str = "5;ext\r\nHello\r\n7\r\n, libuv\r\n0\r\n\r\n";
+    } else if (strstr(tcp->tx_preview, "/redir-once") != NULL) {
+      hdr_str =
+          "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:80/landed\r\n\r\n";
+      body_str = "";
+    } else if (strstr(tcp->tx_preview, "/redir-loop") != NULL) {
+      hdr_str = "HTTP/1.1 302 Found\r\nLocation: /redir-loop\r\n\r\n";
+      body_str = "";
+    }
+    hlen = strlen(hdr_str);
+    blen = strlen(body_str);
+
+    memset(&buf, 0, sizeof(buf));
+    if (g_mock_libuv_read_fail) {
+      tcp->read_cb((uv_stream_t *)tcp, -1, &buf);
+      return;
+    }
+    tcp->alloc_cb((uv_handle_t *)tcp, hlen, &buf);
+    if (buf.base) {
+      memcpy(buf.base, hdr_str, hlen);
+      tcp->read_cb((uv_stream_t *)tcp, (ssize_t)hlen, &buf);
+    } else {
+      tcp->read_cb((uv_stream_t *)tcp, UV_ENOBUFS, &buf);
+      return;
+    }
+    if (!tcp->is_closing && !loop->stop && blen > 0) {
+      tcp->alloc_cb((uv_handle_t *)tcp, blen, &buf);
+      if (buf.base) {
+        memcpy(buf.base, body_str, blen);
+        tcp->read_cb((uv_stream_t *)tcp, (ssize_t)blen, &buf);
+      } else {
+        tcp->read_cb((uv_stream_t *)tcp, UV_ENOBUFS, &buf);
+        return;
+      }
+    }
+    if (!tcp->is_closing && !loop->stop) {
+      tcp->read_cb((uv_stream_t *)tcp, UV_EOF, &buf);
+    }
+  }
+}
+
 static int uv_run(uv_loop_t *loop, int mode) {
-  struct addrinfo *ai;
-  uv_tcp_t *tcp;
-  uv_getaddrinfo_t *resolver;
+  size_t i;
   (void)mode;
 
   if (!loop || !loop->data) {
     return 0;
   }
-  tcp = loop->tcp;
-  resolver = loop->resolver;
 
-  if (resolver && resolver->cb) {
-    ai = (struct addrinfo *)calloc(1, sizeof(struct addrinfo));
-    ai->ai_addr = (struct sockaddr *)calloc(1, sizeof(struct sockaddr));
-    if (g_mock_libuv_addrinfo_fail) {
-      uv_freeaddrinfo(ai);
-      resolver->cb(resolver, -1, NULL);
-      return 0;
-    }
-    resolver->cb(resolver, 0, ai);
-  }
-
-  if (tcp && tcp->connect_cb && tcp->connect_req) {
-    int port = resolver ? atoi(resolver->port_str) : 80;
-    if (g_mock_libuv_connect_fail || port == 59999) {
-      tcp->connect_cb(tcp->connect_req, -1);
-      return 0;
-    }
-    tcp->connect_cb(tcp->connect_req, 0);
-  }
-
-  if (tcp && tcp->write_req && tcp->write_req->write_cb) {
-    if (g_mock_libuv_write_fail) {
-      tcp->write_req->write_cb(tcp->write_req, -1);
-      return 0;
-    }
-    tcp->write_req->write_cb(tcp->write_req, 0);
-  }
-
-  if (tcp && tcp->read_cb && !loop->stop) {
-    uv_buf_t buf;
-    static const char resp_headers[] = {
-        'H', 'T', 'T', 'P', '/', '1', '.', '1', ' ', '2', '0', '0',
-        ' ', 'O', 'K', 13,  10,  'H', 'e', 'a', 'd', 'e', 'r', ':',
-        ' ', 'V', 'a', 'l', 'u', 'e', 13,  10,  13,  10,  0};
-    const char body_chunk[] = "OK";
-    memset(&buf, 0, sizeof(buf));
-    if (g_mock_libuv_read_fail) {
-      tcp->read_cb((uv_stream_t *)tcp, -1, &buf);
-      return 0;
-    }
-    tcp->alloc_cb((uv_handle_t *)tcp, sizeof(resp_headers) - 1, &buf);
-    if (buf.base) {
-      memcpy(buf.base, resp_headers, sizeof(resp_headers) - 1);
-      tcp->read_cb((uv_stream_t *)tcp, (ssize_t)(sizeof(resp_headers) - 1),
-                   &buf);
-    } else {
-      tcp->read_cb((uv_stream_t *)tcp, UV_ENOBUFS, &buf);
-      return 0;
-    }
-    if (!loop->stop) {
-      tcp->alloc_cb((uv_handle_t *)tcp, sizeof(body_chunk) - 1, &buf);
-      if (buf.base) {
-        memcpy(buf.base, body_chunk, sizeof(body_chunk) - 1);
-        tcp->read_cb((uv_stream_t *)tcp, (ssize_t)(sizeof(body_chunk) - 1),
-                     &buf);
-      } else {
-        tcp->read_cb((uv_stream_t *)tcp, UV_ENOBUFS, &buf);
-        return 0;
+  for (i = 0; i < loop->resolver_count; ++i) {
+    uv_getaddrinfo_t *r = loop->resolvers[i];
+    if (r && r->cb && !r->resolved) {
+      struct addrinfo *ai =
+          (struct addrinfo *)calloc(1, sizeof(struct addrinfo));
+      r->resolved = 1;
+      if (!ai || g_mock_libuv_addrinfo_fail) {
+        uv_freeaddrinfo(ai);
+        r->cb(r, -1, NULL);
+        continue;
       }
+      ai->ai_addr = (struct sockaddr *)calloc(1, sizeof(struct sockaddr));
+      if (!ai->ai_addr) {
+        uv_freeaddrinfo(ai);
+        r->cb(r, -1, NULL);
+        continue;
+      }
+      r->cb(r, 0, ai);
     }
-    if (!loop->stop) {
-      tcp->read_cb((uv_stream_t *)tcp, UV_EOF, &buf);
+  }
+
+  if (loop->tcp_count > 0) {
+    for (i = 0; i < loop->tcp_count; ++i) {
+      uv_getaddrinfo_t *r =
+          i < loop->resolver_count ? loop->resolvers[i] : loop->resolver;
+      loop->stop = 0;
+      mock_uv_drive_tcp(loop, loop->tcps[i], r);
     }
+  } else if (loop->tcp) {
+    mock_uv_drive_tcp(loop, loop->tcp, loop->resolver);
   }
 
   return 0;

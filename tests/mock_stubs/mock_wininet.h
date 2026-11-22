@@ -43,6 +43,7 @@ extern int g_mock_wininet_cookie_set_fail;
 #if !defined(_WIN32)
 typedef void *HINTERNET;
 typedef unsigned long DWORD;
+typedef size_t DWORD_PTR;
 typedef void *LPVOID;
 typedef const void *LPCVOID;
 typedef DWORD *LPDWORD;
@@ -50,19 +51,41 @@ typedef int BOOL;
 typedef wchar_t WCHAR;
 typedef unsigned short INTERNET_PORT;
 
+#ifndef CALLBACK
+#define CALLBACK
+#endif
+
+typedef void(CALLBACK *INTERNET_STATUS_CALLBACK)(
+    HINTERNET hInternet, DWORD_PTR dwContext, DWORD dwInternetStatus,
+    LPVOID lpvStatusInformation, DWORD dwStatusInformationLength);
+
+typedef struct {
+  DWORD_PTR dwResult;
+  DWORD dwError;
+} INTERNET_ASYNC_RESULT;
+
 #define INTERNET_OPEN_TYPE_PRECONFIG 0
 #define INTERNET_SERVICE_HTTP 3
+#define INTERNET_FLAG_ASYNC 0x10000000
 #define INTERNET_FLAG_RELOAD 0x80000000
 #define INTERNET_FLAG_NO_CACHE_WRITE 0x04000000
 #define INTERNET_FLAG_SECURE 0x00800000
 #define INTERNET_FLAG_IGNORE_CERT_CN_INVALID 0x00001000
 #define INTERNET_FLAG_IGNORE_CERT_DATE_INVALID 0x00002000
 #define INTERNET_FLAG_NO_AUTO_REDIRECT 0x00200000
+#define SECURITY_FLAG_IGNORE_UNKNOWN_CA 0x00000100
 #define INTERNET_OPTION_CONNECT_TIMEOUT 2
 #define INTERNET_OPTION_SEND_TIMEOUT 5
 #define INTERNET_OPTION_RECEIVE_TIMEOUT 6
+#define INTERNET_OPTION_SECURITY_FLAGS 31
+#define INTERNET_OPTION_USER_AGENT 41
 #define INTERNET_OPTION_PROXY_USERNAME 43
 #define INTERNET_OPTION_PROXY_PASSWORD 44
+#define INTERNET_OPTION_ENABLE_HTTP_PROTOCOL 148
+#define HTTP_PROTOCOL_FLAG_HTTP2 0x2
+#define INTERNET_STATUS_REQUEST_COMPLETE 100
+#define INTERNET_INVALID_STATUS_CALLBACK ((INTERNET_STATUS_CALLBACK)(-1L))
+#define ERROR_IO_PENDING 997
 #define HTTP_ADDREQ_FLAG_ADD 0x20000000
 #define HTTP_ADDREQ_FLAG_REPLACE 0x80000000
 #define HTTP_QUERY_STATUS_CODE 19
@@ -104,6 +127,8 @@ typedef struct {
 } INTERNET_BUFFERSW;
 
 static DWORD s_mock_wininet_last_error = 0;
+static INTERNET_STATUS_CALLBACK s_mock_wininet_status_cb = NULL;
+static DWORD_PTR s_mock_wininet_async_ctx = 0;
 
 static DWORD GetLastError(void) { return s_mock_wininet_last_error; }
 
@@ -118,15 +143,29 @@ static HINTERNET InternetOpenW(const wchar_t *lpszAgent, DWORD dwAccessType,
   (void)dwAccessType;
   (void)lpszProxy;
   (void)lpszProxyBypass;
-  (void)dwFlags;
   if (g_mock_wininet_open_fail) {
     return NULL;
+  }
+  if (dwFlags & INTERNET_FLAG_ASYNC) {
+    return (HINTERNET)(size_t)301;
   }
   return (HINTERNET)(size_t)201;
 }
 
-static BOOL InternetCloseHandle(HINTERNET hInternet) {
+static INTERNET_STATUS_CALLBACK
+InternetSetStatusCallbackW(HINTERNET hInternet,
+                           INTERNET_STATUS_CALLBACK lpfnInternetCallback) {
+  INTERNET_STATUS_CALLBACK prev = s_mock_wininet_status_cb;
   (void)hInternet;
+  s_mock_wininet_status_cb = lpfnInternetCallback;
+  return prev;
+}
+
+static BOOL InternetCloseHandle(HINTERNET hInternet) {
+  if (hInternet == (HINTERNET)(size_t)301) {
+    s_mock_wininet_status_cb = NULL;
+    s_mock_wininet_async_ctx = 0;
+  }
   if (g_mock_wininet_close_fail > 0) {
     if (--g_mock_wininet_close_fail == 0) {
       return 0;
@@ -237,8 +276,7 @@ static HINTERNET InternetConnectW(HINTERNET hInternet,
                                   INTERNET_PORT nServerPort,
                                   const wchar_t *lpszUsername,
                                   const wchar_t *lpszPassword, DWORD dwService,
-                                  DWORD dwFlags, DWORD dwContext) {
-  (void)hInternet;
+                                  DWORD dwFlags, DWORD_PTR dwContext) {
   (void)lpszServerName;
   (void)nServerPort;
   (void)lpszUsername;
@@ -249,6 +287,9 @@ static HINTERNET InternetConnectW(HINTERNET hInternet,
   if (g_mock_wininet_connect_fail) {
     return NULL;
   }
+  if (hInternet == (HINTERNET)(size_t)301) {
+    return (HINTERNET)(size_t)302;
+  }
   return (HINTERNET)(size_t)202;
 }
 
@@ -257,17 +298,19 @@ static HINTERNET HttpOpenRequestW(HINTERNET hConnect, const wchar_t *lpszVerb,
                                   const wchar_t *lpszVersion,
                                   const wchar_t *lpszReferrer,
                                   const wchar_t **lplpszAcceptTypes,
-                                  DWORD dwFlags, DWORD dwContext) {
-  (void)hConnect;
+                                  DWORD dwFlags, DWORD_PTR dwContext) {
   (void)lpszVerb;
   (void)lpszObjectName;
   (void)lpszVersion;
   (void)lpszReferrer;
   (void)lplpszAcceptTypes;
   (void)dwFlags;
-  (void)dwContext;
   if (g_mock_wininet_open_request_fail) {
     return NULL;
+  }
+  if (hConnect == (HINTERNET)(size_t)302) {
+    s_mock_wininet_async_ctx = dwContext;
+    return (HINTERNET)(size_t)303;
   }
   return (HINTERNET)(size_t)203;
 }
@@ -327,11 +370,21 @@ static BOOL HttpEndRequestW(HINTERNET hRequest, INTERNET_BUFFERSW *lpBuffersOut,
 static BOOL HttpSendRequestW(HINTERNET hRequest, const wchar_t *lpszHeaders,
                              DWORD dwHeadersLength, LPVOID lpOptional,
                              DWORD dwOptionalLength) {
-  (void)hRequest;
   (void)lpszHeaders;
   (void)dwHeadersLength;
   (void)lpOptional;
   (void)dwOptionalLength;
+  if (hRequest == (HINTERNET)(size_t)303 && s_mock_wininet_status_cb &&
+      s_mock_wininet_async_ctx != 0) {
+    INTERNET_ASYNC_RESULT ar;
+    ar.dwResult = g_mock_wininet_send_request_fail ? 0 : 1;
+    ar.dwError = g_mock_wininet_send_request_fail ? 12002 : 0;
+    SetLastError(ERROR_IO_PENDING);
+    s_mock_wininet_status_cb(hRequest, s_mock_wininet_async_ctx,
+                             INTERNET_STATUS_REQUEST_COMPLETE, &ar, sizeof(ar));
+    SetLastError(ERROR_IO_PENDING);
+    return 0;
+  }
   if (g_mock_wininet_send_request_fail) {
     return 0;
   }

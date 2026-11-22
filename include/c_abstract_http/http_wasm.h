@@ -56,9 +56,23 @@ http_wasm_context_free(struct HttpTransportContext *ctx);
 /**
  * @brief Apply configuration settings to the context.
  *
+ * Maps `timeout_ms`, `connect_timeout_ms`, `read_timeout_ms`,
+ * `write_timeout_ms`, and `user_agent` onto Emscripten Fetch attributes.
+ *
+ * @note Browser Fetch API Limitations: TLS peer/host verification
+ * (`verify_peer`, `verify_host`), protocol negotiation (`tls_version_mask`),
+ * and redirect handling (`follow_redirects`) are governed by the host browser's
+ * CORS and TLS stack and cannot be weakened from sandboxed WebAssembly.
+ * Explicit custom proxies (`proxy_url`), custom CA bundles (`ca_path`,
+ * `ca_buffer`), mTLS client certificates (`client_cert_path`,
+ * `client_key_path`), or SPKI certificate pinning (`cert_pin_sha256`) are not
+ * supported by browser Fetch and return `C_ABSTRACT_HTTP_ERR_NOTSUP`.
+ *
  * @param[in] ctx The transport context.
  * @param[in] config The configuration structure to apply.
- * @return 0 on success, EINVAL if inputs invalid.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, C_ABSTRACT_HTTP_ERR_NOTSUP if
+ * unsupported proxy/pinning options are requested, or C_ABSTRACT_HTTP_ERR_INVAL
+ * if inputs are invalid.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_wasm_config_apply(
     struct HttpTransportContext *ctx, const struct HttpConfig *config);

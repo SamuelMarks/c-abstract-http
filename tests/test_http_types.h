@@ -34,7 +34,11 @@
 #endif
 #include <errno.h>
 #include <greatest.h>
+#include <c_abstract_http/actor.h>
+#include <c_abstract_http/coroutine.h>
+#include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
+#include <c_abstract_http/process.h>
 #include <c_abstract_http/thread_pool.h>
 /* clang-format on */
 
@@ -990,6 +994,104 @@ TEST test_c_abstract_http_log_debug(void) {
   PASS();
 }
 
+static enum c_abstract_http_error
+test_multi_progress_ok(size_t current, size_t total, void *user_data) {
+  size_t *counter = (size_t *)user_data;
+  if (counter) {
+    *counter = current + total;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+test_multi_progress_abort(size_t current, size_t total, void *user_data) {
+  (void)current;
+  (void)total;
+  (void)user_data;
+  return C_ABSTRACT_HTTP_ERR_TIMEOUT;
+}
+
+static enum c_abstract_http_error test_async_send_multi_ready_ok(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
+  size_t i;
+  (void)ctx;
+  (void)loop;
+  for (i = 0; i < multi->count; ++i) {
+    futures[i]->is_ready = 1;
+    futures[i]->error_code = (int)C_ABSTRACT_HTTP_SUCCESS;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error test_async_send_multi_ready_err(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
+  size_t i;
+  (void)ctx;
+  (void)loop;
+  for (i = 0; i < multi->count; ++i) {
+    futures[i]->is_ready = 1;
+    futures[i]->error_code = (int)C_ABSTRACT_HTTP_ERR_IO;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_http_send_multi_progress(void) {
+  struct HttpClient client;
+  struct HttpRequest req1, req2;
+  struct HttpRequest *reqs[2];
+  struct HttpFuture f1, f2;
+  struct HttpFuture *futures[2];
+  size_t seen = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
+  memset(&f1, 0, sizeof(f1));
+  memset(&f2, 0, sizeof(f2));
+  reqs[0] = &req1;
+  reqs[1] = &req2;
+  futures[0] = &f1;
+  futures[1] = &f2;
+
+  /* Sync progress_cb success and abort */
+  client.config.modality = MODALITY_SYNC;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_client_send_multi(&client, reqs, 2, futures,
+                                   test_multi_progress_ok, &seen, 0));
+  ASSERT_EQ(4u, (unsigned int)seen);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT,
+            http_client_send_multi(&client, reqs, 2, futures,
+                                   test_multi_progress_abort, NULL, 0));
+
+  /* Async progress_cb success, abort, and fail_fast */
+  client.config.modality = MODALITY_ASYNC;
+  client.loop = (struct ModalityEventLoop *)(size_t)1;
+  client.send_multi = test_async_send_multi_ready_ok;
+  seen = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_client_send_multi(&client, reqs, 2, futures,
+                                   test_multi_progress_ok, &seen, 1));
+  ASSERT_EQ(4u, (unsigned int)seen);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT,
+            http_client_send_multi(&client, reqs, 2, futures,
+                                   test_multi_progress_abort, NULL, 0));
+
+  client.send_multi = test_async_send_multi_ready_err;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_client_send_multi(&client, reqs, 2, futures,
+                                   test_multi_progress_ok, &seen, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_client_send_multi(&client, reqs, 2, futures,
+                                   test_multi_progress_ok, &seen, 0));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&client));
+  PASS();
+}
+
 TEST test_http_send_multi(void) {
   struct HttpClient client;
   struct HttpRequest reqs[2];
@@ -1891,6 +1993,68 @@ TEST test_http_types_oom_bruteforce_all(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_oauth2_localhost_intercept(12345, "p", &c, &s, NULL, NULL));
     g_mock_accept_fail = 0;
+
+    /* Manual / headless CAH_OAUTH2_REDIRECT fallback tests */
+    {
+      char *err_s = NULL;
+      char *desc_s = NULL;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_oauth2_redirect_env(""));
+      g_mock_socket_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_oauth2_localhost_intercept(
+                                            12345, "p", &c, &s, NULL, NULL));
+      g_mock_socket_fail = 0;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_oauth2_redirect_env(
+                    "http://127.0.0.1:8080/cb?code=abc%201&state=st2#frag"));
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+                http_oauth2_localhost_intercept(12345, NULL, &c, &s, &err_s,
+                                                &desc_s));
+      g_mock_alloc_fail = 0;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_oauth2_localhost_intercept(12345, NULL, &c, &s, &err_s,
+                                                &desc_s));
+      ASSERT_STR_EQ("abc 1", c);
+      ASSERT_STR_EQ("st2", s);
+      free(c);
+      free(s);
+      c = NULL;
+      s = NULL;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_oauth2_redirect_env(
+                    "error=access_denied&error_description=User+cancelled"));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_oauth2_localhost_intercept(12345, NULL, &c, &s, &err_s,
+                                                &desc_s));
+      ASSERT_STR_EQ("access_denied", err_s);
+      ASSERT_STR_EQ("User cancelled", desc_s);
+      free(err_s);
+      free(desc_s);
+      err_s = NULL;
+      desc_s = NULL;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_oauth2_redirect_env(
+                    "GET /callback HTTP/1.1\r\n"));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_oauth2_localhost_intercept(
+                                             12345, NULL, &c, &s, NULL, NULL));
+      ASSERT(c == NULL);
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_oauth2_redirect_env("not_a_redirect"));
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_INVAL,
+          http_oauth2_localhost_intercept(12345, NULL, &c, &s, NULL, NULL));
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_oauth2_redirect_env(NULL));
+    }
 
     /* recv fails */
     /* To not block on accept, we would need to mock accept to return a dummy
@@ -2981,7 +3145,1320 @@ TEST test_http_types_init_err(void) {
 }
 #endif
 
+static int g_pipeline_call_count = 0;
+static int g_pipeline_mode = 0;
+static char g_pipeline_last_url[256];
+static char g_pipeline_last_cookie[256];
+
+static enum c_abstract_http_error
+pipeline_mock_send(struct HttpTransportContext *ctx,
+                   const struct HttpRequest *req, struct HttpResponse **res) {
+  struct HttpResponse *r;
+  const char *ck = NULL;
+  enum c_abstract_http_error rc;
+  (void)ctx;
+  g_pipeline_call_count++;
+  g_pipeline_last_url[0] = '\0';
+  g_pipeline_last_cookie[0] = '\0';
+  if (req && req->url && strlen(req->url) < sizeof(g_pipeline_last_url)) {
+    memcpy(g_pipeline_last_url, req->url, strlen(req->url) + 1);
+  }
+  if (req &&
+      http_headers_get(&req->headers, "Cookie", &ck) ==
+          C_ABSTRACT_HTTP_SUCCESS &&
+      ck && strlen(ck) < sizeof(g_pipeline_last_cookie)) {
+    memcpy(g_pipeline_last_cookie, ck, strlen(ck) + 1);
+  }
+
+  if (g_pipeline_mode == 1 && g_pipeline_call_count == 1) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (g_pipeline_mode == 2 && g_pipeline_call_count == 1) {
+    return C_ABSTRACT_HTTP_ERR_TIMEOUT;
+  }
+
+  r = (struct HttpResponse *)calloc(1, sizeof(*r));
+  if (!r) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  rc = http_response_init(r);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(r);
+    return rc;
+  }
+  r->status_code = 200;
+
+  if (g_pipeline_mode == 3 && g_pipeline_call_count <= 4) {
+    static const int codes[4] = {429, 502, 503, 504};
+    r->status_code = codes[g_pipeline_call_count - 1];
+    if (g_pipeline_call_count == 1) {
+      rc = http_headers_add(&r->headers, "Retry-After", "1");
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        enum c_abstract_http_error fr = http_response_free(r);
+        free(r);
+        return fr != C_ABSTRACT_HTTP_SUCCESS ? fr : rc;
+      }
+    } else if (g_pipeline_call_count == 2) {
+      rc = http_headers_add(&r->headers, "Retry-After", "0");
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        enum c_abstract_http_error fr = http_response_free(r);
+        free(r);
+        return fr != C_ABSTRACT_HTTP_SUCCESS ? fr : rc;
+      }
+    }
+  } else if (g_pipeline_mode == 4) {
+    rc = http_headers_add(
+        &r->headers, "Set-Cookie",
+        "sid=tok99; Domain=.example.com; Path=/v1; Max-Age=3600; Secure; "
+        "HttpOnly; SameSite=Lax");
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error fr = http_response_free(r);
+      free(r);
+      return fr != C_ABSTRACT_HTTP_SUCCESS ? fr : rc;
+    }
+  } else if (g_pipeline_mode == 5) {
+    r->status_code = 503;
+  } else if (g_pipeline_mode == 6) {
+    rc = http_headers_add(&r->headers, "Set-Cookie", "malformed_cookie_no_eq");
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error fr = http_response_free(r);
+      free(r);
+      return fr != C_ABSTRACT_HTTP_SUCCESS ? fr : rc;
+    }
+  }
+
+  *res = r;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_rfc6265_cookie_jar_and_pipeline(void) {
+  struct HttpCookieJar jar;
+  char *hdr = NULL;
+  const char *val = NULL;
+  struct HttpClient client;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  char rel_items[] = "/v1/items";
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  char rel_oom[] = "/v1/oom";
+#endif
+  int k = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_cookie_jar_parse_set_cookie(NULL, "a=b"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_cookie_jar_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_cookie_jar_parse_set_cookie(&jar, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_cookie_jar_parse_set_cookie(&jar, "no_equals"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_cookie_jar_parse_set_cookie(&jar, "   =empty_name"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_cookie_jar_build_header(NULL, "https://example.com/", &hdr));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_cookie_jar_build_header(&jar, "https://example.com/", NULL));
+
+  /* Empty jar build_header */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_build_header(&jar, "https://example.com/", &hdr));
+  ASSERT(hdr == NULL);
+
+  /* Parse comprehensive Set-Cookie attributes */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_parse_set_cookie(
+                &jar,
+                "  c1 = v1 ; Domain = old.example.com ; Domain = .Example.COM "
+                "; Path = /api ; Expires = 1999999999 ; Secure ; HttpOnly ; "
+                "SameSite = Strict ; UnknownFlag "));
+  /* Update existing matching (c1, example.com, /api) with Max-Age overriding
+   * Expires */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_parse_set_cookie(
+                &jar, "c1=v1_updated; Domain=example.com; Path=/api; "
+                      "Max-Age=7200; Expires=1999999999; SameSite=Lax"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_get(&jar, "c1", &val));
+  ASSERT_STR_EQ("v1_updated", val);
+
+  /* Distinct cookies to exercise capacity doubling (>4) and filtering */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_parse_set_cookie(&jar, "c2=v2"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_parse_set_cookie(
+                &jar, "c3=expired; Max-Age=0; Expires=0"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_parse_set_cookie(
+                &jar, "c4=sub; Domain=api.example.com; Path=/api"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_parse_set_cookie(
+                                         &jar, "c5=other; Domain=other.io"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_parse_set_cookie(
+                                         &jar, "c1=otherdom; Domain=other.io"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_parse_set_cookie(&jar, "c6=emptydom; Domain="));
+  /* Re-update domainless/pathless cookie */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_parse_set_cookie(&jar, "c2=v2b"));
+
+  /* Matching HTTPS subdomain + port + path */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_build_header(
+                &jar, "https://api.example.com:8443/api/users", &hdr));
+  ASSERT(hdr != NULL);
+  ASSERT_STR_EQ("c1=v1_updated; c2=v2b; c4=sub", hdr);
+  free(hdr);
+  hdr = NULL;
+
+  /* HTTP excludes Secure c1, non-matching suffix 'badexample.com' & short host
+   * 'a.co' */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      http_cookie_jar_build_header(&jar, "http://badexample.com/other", &hdr));
+  ASSERT(hdr != NULL);
+  ASSERT_STR_EQ("c2=v2b", hdr);
+  free(hdr);
+  hdr = NULL;
+
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      http_cookie_jar_build_header(&jar, "https://sub.axample.com/api", &hdr));
+  ASSERT(hdr != NULL);
+  ASSERT_STR_EQ("c2=v2b", hdr);
+  free(hdr);
+  hdr = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_build_header(&jar, "https://a.co", &hdr));
+  ASSERT(hdr != NULL);
+  ASSERT_STR_EQ("c2=v2b", hdr);
+  free(hdr);
+  hdr = NULL;
+
+  /* Relative path and NULL URL */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_build_header(&jar, "/local", &hdr));
+  free(hdr);
+  hdr = NULL;
+
+  /* When only secure/domain cookies exist, HTTP returns NULL with SUCCESS */
+  {
+    struct HttpCookieJar jar2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_cookie_jar_parse_set_cookie(&jar2, "s=1; Secure"));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_cookie_jar_build_header(&jar2, "http://example.com/", &hdr));
+    ASSERT(hdr == NULL);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar2));
+  }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  for (k = 0; k < 18; ++k) {
+    struct HttpCookieJar oom_jar;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&oom_jar));
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = k;
+    {
+      enum c_abstract_http_error orc = http_cookie_jar_parse_set_cookie(
+          &oom_jar,
+          "k=v; HttpOnly; Domain=.example.com; Path=/p; SameSite=Lax; "
+          "Expires=1999999999");
+      if (orc == C_ABSTRACT_HTTP_SUCCESS) {
+        char *oh = NULL;
+        enum c_abstract_http_error brc = http_cookie_jar_build_header(
+            &oom_jar, "https://example.com/p", &oh);
+        if (brc == C_ABSTRACT_HTTP_SUCCESS) {
+          free(oh);
+        }
+      }
+    }
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&oom_jar));
+  }
+  /* Direct realloc failure on initial cookie array growth (alloc_count = 2) */
+  {
+    struct HttpCookieJar rjar;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&rjar));
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+              http_cookie_jar_parse_set_cookie(&rjar, "a=b"));
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&rjar));
+  }
+  for (k = 1; k <= 25; ++k) {
+    g_mock_strcasecmp_fail = -k;
+    {
+      enum c_abstract_http_error src = http_cookie_jar_parse_set_cookie(
+          &jar, "c1=v; Domain=example.com; Path=/api; Custom=1");
+      ASSERT(src == C_ABSTRACT_HTTP_SUCCESS || src == C_ABSTRACT_HTTP_ERR_IO);
+    }
+    g_mock_strcasecmp_fail = 0;
+  }
+#else
+  (void)k;
+#endif
+
+  /* Unified http_client_send pipeline tests */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_client_send(NULL, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_client_send(&client, NULL, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_client_send(&client, &req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_client_send(&client, &req, &res));
+  req.url = rel_items;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_client_send(&client, &req, &res));
+
+  client.send = pipeline_mock_send;
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_strdup("https://api.example.com/", &client.base_url));
+  client.config.cookie_jar = &jar;
+
+  /* 1. Base URL join + Set-Cookie extraction + multipart auto-flatten */
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      http_request_add_part(&req, "field", NULL, "text/plain", "hello", 5));
+  g_pipeline_mode = 4;
+  g_pipeline_call_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_send(&client, &req, &res));
+  ASSERT(res != NULL);
+  ASSERT_STR_EQ("https://api.example.com/v1/items", g_pipeline_last_url);
+  ASSERT_STR_EQ("/v1/items", req.url);
+  ASSERT(req.body != NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_get(&jar, "sid", &val));
+  ASSERT_STR_EQ("tok99", val);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* 2. Next request automatically sends newly learned Set-Cookie `sid=tok99` */
+  g_pipeline_mode = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_send(&client, &req, &res));
+  ASSERT(strstr(g_pipeline_last_cookie, "sid=tok99") != NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Explicit Cookie header on req is preserved */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Cookie", "manual=1"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_send(&client, &req, &res));
+  ASSERT_STR_EQ("manual=1", g_pipeline_last_cookie);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* 3. Retry policies: LINEAR (ERR_IO, ERR_TIMEOUT) & EXPONENTIAL (429..504) */
+  client.config.retry_policy = HTTP_RETRY_LINEAR;
+  client.config.retry_count = 2;
+  g_pipeline_mode = 1;
+  g_pipeline_call_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_send(&client, &req, &res));
+  ASSERT_EQ(2, g_pipeline_call_count);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  g_pipeline_mode = 2;
+  g_pipeline_call_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_send(&client, &req, &res));
+  ASSERT_EQ(2, g_pipeline_call_count);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  client.config.retry_policy = HTTP_RETRY_EXPONENTIAL;
+  client.config.retry_count = 5;
+  g_pipeline_mode = 3;
+  g_pipeline_call_count = 0;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_time_jump = 5000;
+  g_mock_time_jump_count = 1;
+#endif
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_send(&client, &req, &res));
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_time_jump = 0;
+  g_mock_time_jump_count = 0;
+#endif
+  ASSERT_EQ(5, g_pipeline_call_count);
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Exhausted 503 retries returns final 503 response */
+  client.config.retry_policy = HTTP_RETRY_LINEAR;
+  client.config.retry_count = 1;
+  g_pipeline_mode = 5;
+  g_pipeline_call_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_send(&client, &req, &res));
+  ASSERT_EQ(2, g_pipeline_call_count);
+  ASSERT_EQ(503, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* OOM & fault injection across http_client_send */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_remove(&req.headers, "Cookie"));
+  for (k = 0; k < 10; ++k) {
+    struct HttpRequest oreq;
+    struct HttpResponse *ores = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&oreq));
+    oreq.url = rel_oom;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_request_add_part(&oreq, "p", NULL, NULL, "x", 1));
+    g_pipeline_mode = 4;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = k;
+    if (http_client_send(&client, &oreq, &ores) == C_ABSTRACT_HTTP_SUCCESS &&
+        ores) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(ores));
+      free(ores);
+    }
+    g_mock_alloc_fail = 0;
+    oreq.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&oreq));
+  }
+  g_pipeline_mode = 5;
+  g_mock_response_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_client_send(&client, &req, &res));
+  g_mock_response_free_fail = 0;
+
+  for (k = 1; k <= 6; ++k) {
+    g_pipeline_mode = 4;
+    g_mock_strcasecmp_fail = -k;
+    if (http_client_send(&client, &req, &res) == C_ABSTRACT_HTTP_SUCCESS &&
+        res) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+    }
+    g_mock_strcasecmp_fail = 0;
+  }
+  g_pipeline_mode = 6;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_client_send(&client, &req, &res));
+  g_mock_response_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_client_send(&client, &req, &res));
+  g_mock_response_free_fail = 0;
+#endif
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  client.config.cookie_jar = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
+  PASS();
+}
+
+static int g_ipc_fail_step = 0;
+
+static enum c_abstract_http_error
+mock_ipc_wait_ok(struct AbstractHttpProcess *proc, int *exit_code) {
+  free(proc);
+  if (exit_code)
+    *exit_code = 0;
+  if (g_ipc_fail_step == 6)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+static char *g_ipc_mock_resp_bytes = NULL;
+static size_t g_ipc_mock_resp_len = 0;
+static size_t g_ipc_mock_read_stage = 0;
+
+static enum c_abstract_http_error
+mock_ipc_spawn_ok(struct AbstractHttpProcess **proc,
+                  struct AbstractHttpIpcPipe *p2c,
+                  struct AbstractHttpIpcPipe *c2p) {
+  (void)p2c;
+  (void)c2p;
+  if (g_ipc_fail_step == 1)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  *proc = (struct AbstractHttpProcess *)calloc(1, sizeof(void *));
+  return *proc ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_NOMEM;
+}
+
+static enum c_abstract_http_error
+mock_ipc_write_ok(void *handle, const void *data, size_t len) {
+  (void)handle;
+  (void)data;
+  if (g_ipc_fail_step == 2 && len == sizeof(size_t))
+    return C_ABSTRACT_HTTP_ERR_IO;
+  if (g_ipc_fail_step == 3 && len != sizeof(size_t))
+    return C_ABSTRACT_HTTP_ERR_IO;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error mock_ipc_read_ok(void *handle, void *data,
+                                                   size_t len) {
+  (void)handle;
+  if (g_ipc_mock_read_stage == 0) {
+    g_ipc_mock_read_stage = 1;
+    if (g_ipc_fail_step == 4)
+      return C_ABSTRACT_HTTP_ERR_IO;
+    memcpy(data, &g_ipc_mock_resp_len, sizeof(size_t));
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  g_ipc_mock_read_stage = 0;
+  if (g_ipc_fail_step == 5)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  if (len <= g_ipc_mock_resp_len && g_ipc_mock_resp_bytes) {
+    memcpy(data, g_ipc_mock_resp_bytes, len);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
+static enum c_abstract_http_error dummy_coro_noop(void *arg) {
+  (void)arg;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+fail_push_hook(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
+  (void)ctx;
+  (void)cb;
+  (void)arg;
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+static enum c_abstract_http_error
+sync_exec_push_hook(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
+  enum c_abstract_http_error trc;
+  (void)ctx;
+  trc = cb(arg);
+  if (trc != C_ABSTRACT_HTTP_SUCCESS) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+noop_push_hook(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
+  (void)ctx;
+  (void)cb;
+  (void)arg;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static int g_coro_hook_mode = 0;
+static int g_coro_is_done_calls = 0;
+
+static enum c_abstract_http_error
+mock_co_init_hook(struct AbstractHttpCoroutine **co, size_t stack_size,
+                  abstract_http_coroutine_cb cb, void *arg) {
+  (void)stack_size;
+  *co = (struct AbstractHttpCoroutine *)calloc(2, sizeof(void *));
+  if (!*co)
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  ((void **)*co)[0] = (void *)(size_t)cb;
+  ((void **)*co)[1] = arg;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+mock_co_free_hook(struct AbstractHttpCoroutine *co) {
+  free(co);
+  return g_coro_hook_mode == 5 ? C_ABSTRACT_HTTP_ERR_IO
+                               : C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+mock_co_resume_hook(struct AbstractHttpCoroutine *co) {
+  abstract_http_coroutine_cb cb =
+      (abstract_http_coroutine_cb)(size_t)((void **)co)[0];
+  void *arg = ((void **)co)[1];
+  if (g_coro_hook_mode == 3)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  return cb(arg);
+}
+
+static enum c_abstract_http_error mock_co_yield_hook(void) {
+  return g_coro_hook_mode == 1 ? C_ABSTRACT_HTTP_ERR_IO
+                               : C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+mock_co_is_done_hook(const struct AbstractHttpCoroutine *co, int *out_done) {
+  (void)co;
+  g_coro_is_done_calls++;
+  if (g_coro_hook_mode == 2 && g_coro_is_done_calls == 1)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  if (g_coro_hook_mode == 4 && g_coro_is_done_calls == 2)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  if (g_coro_hook_mode == 6) {
+    /* Return done=1 on 3rd call so loop sees already-done coroutine on pass 2
+     */
+    *out_done = (g_coro_is_done_calls >= 3) ? 1 : 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  *out_done = (g_coro_is_done_calls >= 2) ? 1 : 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static int g_actor_hook_mode = 0;
+
+static enum c_abstract_http_error
+mock_bus_init_hook(struct AbstractHttpMessageBus **bus) {
+  *bus = (struct AbstractHttpMessageBus *)calloc(1, sizeof(int));
+  return *bus ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_NOMEM;
+}
+
+static enum c_abstract_http_error
+mock_bus_free_hook(struct AbstractHttpMessageBus *bus) {
+  free(bus);
+  return g_actor_hook_mode == 2 ? C_ABSTRACT_HTTP_ERR_IO
+                                : C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+mock_bus_process_hook(struct AbstractHttpMessageBus *bus, int *out_proc) {
+  (void)bus;
+  if (out_proc)
+    *out_proc = 0;
+  return g_actor_hook_mode == 1 ? C_ABSTRACT_HTTP_ERR_IO
+                                : C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+mock_actor_spawn_hook(struct AbstractHttpMessageBus *bus, const char *name,
+                      abstract_http_actor_handler_cb handler, void *state,
+                      struct AbstractHttpActor **actor) {
+  (void)bus;
+  (void)name;
+  (void)handler;
+  (void)state;
+  *actor = (struct AbstractHttpActor *)(size_t)1;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+mock_actor_send_hook(struct AbstractHttpMessageBus *bus,
+                     const struct AbstractHttpMessage *msg) {
+  (void)bus;
+  (void)msg;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
+#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__) &&   \
+    !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+static enum c_abstract_http_error future_cancel_worker_cb(void *arg) {
+  struct HttpFuture *f = (struct HttpFuture *)arg;
+#if defined(_WIN32)
+  Sleep(15);
+#else
+  usleep(15000);
+#endif
+  return http_future_cancel(f);
+}
+#endif
+
+TEST test_modalities_future_and_context_lifecycle(void) {
+  struct ModalityContext mctx;
+  struct HttpFuture f1, f2;
+  struct HttpFuture *futures[2];
+  struct HttpRequest r1, r2;
+  struct HttpRequest *reqs[2];
+  struct HttpClient client;
+  char m1_url[] = "/m1";
+  char m2_url[] = "/m2";
+  int k = 0;
+
+  /* 1. ModalityContext cleanup across all 6 modalities */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_modality_context_free(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_modality_context_init(&mctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_modality_context_free(&mctx));
+
+  mctx.modality = MODALITY_SYNC;
+  mctx.internal_ctx = malloc(8);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_modality_context_free(&mctx));
+
+  mctx.modality = MODALITY_ASYNC;
+  {
+    struct ModalityEventLoop *lp = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&lp));
+    mctx.internal_ctx = lp;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_modality_context_free(&mctx));
+  }
+  mctx.modality = MODALITY_THREAD_POOL;
+  {
+    struct AbstractHttpThreadPool *tp = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&tp, 1));
+    mctx.internal_ctx = tp;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_modality_context_free(&mctx));
+  }
+  mctx.modality = MODALITY_GREENTHREAD;
+  {
+    struct AbstractHttpCoroutine *co = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_coroutine_init(&co, 0, dummy_coro_noop, NULL));
+    mctx.internal_ctx = co;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_modality_context_free(&mctx));
+  }
+  mctx.modality = MODALITY_MESSAGE_PASSING;
+  {
+    struct AbstractHttpMessageBus *bus = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_init(&bus));
+    mctx.internal_ctx = bus;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_modality_context_free(&mctx));
+  }
+  mctx.modality = MODALITY_MULTIPROCESS;
+  {
+    struct AbstractHttpProcessHooks ph;
+    struct AbstractHttpProcessHooks empty_ph;
+    memset(&ph, 0, sizeof(ph));
+    memset(&empty_ph, 0, sizeof(empty_ph));
+    ph.wait_and_free = mock_ipc_wait_ok;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_process_set_hooks(&ph));
+    mctx.internal_ctx = calloc(1, sizeof(void *));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_modality_context_free(&mctx));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_process_set_hooks(&empty_ph));
+  }
+
+  /* 2. HttpFuture await & cancel lifecycle */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_future_await(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_future_cancel(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_future_await(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
+  /* Second cancel reuses existing internal_state */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT, http_future_await(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+
+#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__) &&   \
+    !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+  {
+    struct AbstractHttpThreadPool *wp = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    /* Pre-create internal_state while leaving is_ready = 0 so await blocks */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
+    f1.is_ready = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&wp, 1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(wp, future_cancel_worker_cb, &f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT, http_future_await(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(wp));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+  }
+#endif
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  for (k = 0; k < 4; ++k) {
+    struct HttpFuture of;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&of));
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = k;
+    if (http_future_cancel(&of) == C_ABSTRACT_HTTP_SUCCESS) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&of));
+    }
+    g_mock_alloc_fail = 0;
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
+  g_mock_cond_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_free(&f1));
+  g_mock_cond_free_fail = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
+  g_mock_cond_free_fail = 1;
+  g_mock_mutex_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_free(&f1));
+  g_mock_cond_free_fail = 0;
+  g_mock_mutex_free_fail = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
+  g_mock_mutex_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_free(&f1));
+  g_mock_mutex_free_fail = 0;
+#endif
+
+  /* 3. Multi-modality http_client_send_multi execution */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r2));
+  r1.url = m1_url;
+  r2.url = m2_url;
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_strdup("https://api.example.com", &client.base_url));
+  client.send = pipeline_mock_send;
+  g_pipeline_mode = 0;
+  reqs[0] = &r1;
+  reqs[1] = &r2;
+  futures[0] = &f1;
+  futures[1] = &f2;
+
+  /* 3a. MODALITY_THREAD_POOL */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_init(&client.thread_pool, 2));
+  client.config.modality = MODALITY_THREAD_POOL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_client_send_multi(&client, reqs, 2, futures, NULL, NULL, 0));
+  ASSERT_EQ(1, f1.is_ready);
+  ASSERT(f1.response != NULL);
+  ASSERT_EQ((int)C_ABSTRACT_HTTP_ERR_TIMEOUT, f2.error_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+  free(f1.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_free(client.thread_pool));
+  client.thread_pool = NULL;
+
+  /* Thread pool external push failure path */
+  {
+    struct AbstractHttpThreadPoolHooks tph;
+    tph.external_context = NULL;
+    tph.push = fail_push_hook;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init_external(
+                                           &client.thread_pool, &tph));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_client_send_multi(&client, reqs, 2, futures, NULL, NULL, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_free(client.thread_pool));
+    client.thread_pool = NULL;
+  }
+
+  /* MODALITY_THREAD_POOL fallback when thread_pool == NULL + retry-only slot */
+  {
+    char full_url[] = "https://api.example.com/m1";
+    free(client.base_url);
+    client.base_url = NULL;
+    client.config.retry_policy = HTTP_RETRY_LINEAR;
+    client.config.retry_count = 1;
+    r1.url = full_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+    if (f1.response) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+      free(f1.response);
+    }
+    client.config.retry_policy = HTTP_RETRY_NONE;
+    client.config.retry_count = 0;
+    r1.url = m1_url;
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        c_abstract_http_strdup("https://api.example.com", &client.base_url));
+  }
+
+  /* 3b. MODALITY_GREENTHREAD */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f2));
+  client.config.modality = MODALITY_GREENTHREAD;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_client_send_multi(&client, reqs, 2, futures, NULL, NULL, 1));
+  ASSERT(f1.response != NULL && f2.response != NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+  free(f1.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+  free(f2.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
+
+  /* 3c. MODALITY_MESSAGE_PASSING (owned bus & attached bus) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f2));
+  client.config.modality = MODALITY_MESSAGE_PASSING;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_client_send_multi(&client, reqs, 2, futures, NULL, NULL, 1));
+  ASSERT(f1.response != NULL && f2.response != NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+  free(f1.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+  free(f2.response);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_message_bus_init(&client.message_bus));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_client_send_multi(&client, reqs, 2, futures, NULL, NULL, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+  free(f1.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+  free(f2.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_message_bus_free(client.message_bus));
+  client.message_bus = NULL;
+
+  /* 3d. MODALITY_MULTIPROCESS with IPC roundtrip hooks */
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+  {
+    struct AbstractHttpProcessHooks ph;
+    struct AbstractHttpProcessHooks empty_ph;
+    struct HttpResponse sample_res;
+    size_t progress_seen = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(&sample_res));
+    sample_res.status_code = 201;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_ipc_serialize_response(
+                  &sample_res, &g_ipc_mock_resp_bytes, &g_ipc_mock_resp_len));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(&sample_res));
+
+    memset(&ph, 0, sizeof(ph));
+    memset(&empty_ph, 0, sizeof(empty_ph));
+    ph.spawn = mock_ipc_spawn_ok;
+    ph.wait_and_free = mock_ipc_wait_ok;
+    ph.ipc_write = mock_ipc_write_ok;
+    ph.ipc_read = mock_ipc_read_ok;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_process_set_hooks(&ph));
+
+    client.config.modality = MODALITY_MULTIPROCESS;
+    client.use_multiprocess_ipc = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f2));
+    g_ipc_mock_read_stage = 0;
+    g_ipc_fail_step = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_client_send_multi(&client, reqs, 2, futures,
+                                     test_multi_progress_ok, &progress_seen,
+                                     0));
+    ASSERT(f1.response != NULL);
+    ASSERT_EQ(201, f1.response->status_code);
+    ASSERT_EQ((int)C_ABSTRACT_HTTP_ERR_TIMEOUT, f2.error_code);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
+
+    /* Fail-fast & progress abort & IPC error steps */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT,
+              http_client_send_multi(&client, reqs, 2, futures,
+                                     test_multi_progress_abort, NULL, 0));
+    if (f1.response) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+      free(f1.response);
+    }
+
+    for (k = 1; k <= 6; ++k) {
+      g_ipc_fail_step = k;
+      g_ipc_mock_read_stage = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 1));
+    }
+    g_ipc_fail_step = 0;
+
+    /* Invalid response bytes trigger deserialize failure */
+    {
+      size_t saved_len = g_ipc_mock_resp_len;
+      g_ipc_mock_resp_len = 1;
+      g_ipc_mock_read_stage = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_INVAL,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 1));
+      g_ipc_mock_resp_len = saved_len;
+    }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    g_mock_pipe_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 1));
+    g_mock_pipe_fail = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 1));
+    g_mock_pipe_fail = -1;
+    g_ipc_mock_read_stage = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 1));
+    g_mock_pipe_fail = -2;
+    g_ipc_mock_read_stage = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 1));
+    g_mock_pipe_fail = -2;
+    g_ipc_mock_read_stage = 0;
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 1));
+    g_mock_response_free_fail = 0;
+    g_mock_pipe_fail = 0;
+
+    for (k = 0; k < 12; ++k) {
+      g_ipc_mock_read_stage = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = k;
+      if (http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0) ==
+              C_ABSTRACT_HTTP_SUCCESS &&
+          f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      g_mock_alloc_fail = 0;
+    }
+#endif
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_process_set_hooks(&empty_ph));
+    free(g_ipc_mock_resp_bytes);
+    g_ipc_mock_resp_bytes = NULL;
+    client.use_multiprocess_ipc = 0;
+  }
+#endif
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* OOM brute-force on thread_pool, greenthread, and message_passing */
+  for (k = 0; k < 10; ++k) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    client.config.modality = MODALITY_GREENTHREAD;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = k;
+    if (http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0) ==
+            C_ABSTRACT_HTTP_SUCCESS &&
+        f1.response) {
+      g_mock_alloc_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+      free(f1.response);
+    }
+    g_mock_alloc_fail = 0;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    client.config.modality = MODALITY_MESSAGE_PASSING;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = k;
+    if (http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0) ==
+            C_ABSTRACT_HTTP_SUCCESS &&
+        f1.response) {
+      g_mock_alloc_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+      free(f1.response);
+    }
+    g_mock_alloc_fail = 0;
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_init(&client.thread_pool, 1));
+  for (k = 0; k < 6; ++k) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    client.config.modality = MODALITY_THREAD_POOL;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = k;
+    if (http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0) ==
+            C_ABSTRACT_HTTP_SUCCESS &&
+        f1.response) {
+      g_mock_alloc_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+      free(f1.response);
+    }
+    g_mock_alloc_fail = 0;
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_free(client.thread_pool));
+  client.thread_pool = NULL;
+
+  /* Synchronization, coroutine, actor, and cleanup error branches */
+  {
+    struct HttpFuture fa, fb;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&fa));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&fb));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&fa));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&fb));
+    /* Freeing fa first traverses fb->next (`pp = &(*pp)->next`) */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fa));
+
+    /* sync_pair_init cond_init fail + mutex_free_fail */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&fa));
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = 2;
+    g_mock_mutex_free_fail = 1;
+    ASSERT(http_future_cancel(&fa) != C_ABSTRACT_HTTP_SUCCESS);
+    g_mock_alloc_fail = 0;
+    g_mock_mutex_free_fail = 0;
+
+    /* sync_broadcast_and_unlock & http_future_await mutex/cond failures */
+    g_mock_mutex_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_cancel(&fb));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_await(&fb));
+    g_mock_mutex_fail = 0;
+
+    g_mock_cond_fail = 3;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_cancel(&fb));
+    g_mock_cond_fail = 3;
+    g_mock_mutex_fail = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_cancel(&fb));
+    g_mock_cond_fail = 0;
+    g_mock_mutex_fail = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_cancel(&fb));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_await(&fb));
+    g_mock_mutex_fail = 0;
+
+    fb.is_ready = 0;
+    g_mock_cond_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_await(&fb));
+    g_mock_cond_fail = 1;
+    g_mock_mutex_fail = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_future_await(&fb));
+    g_mock_cond_fail = 0;
+    g_mock_mutex_fail = 0;
+    fb.is_ready = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fb));
+
+    /* http_future_complete_slot mutex lock failure across sync, ipc, & pool */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
+    client.config.modality = MODALITY_SYNC;
+    g_mock_mutex_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+    g_mock_mutex_fail = 0;
+
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+    client.config.modality = MODALITY_MULTIPROCESS;
+    client.use_multiprocess_ipc = 1;
+    g_mock_mutex_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+    g_mock_mutex_fail = 0;
+    client.use_multiprocess_ipc = 0;
+
+    /* Multiprocess fail_fast on non-SUCCESS future error_code */
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT,
+              http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 1));
+    client.use_multiprocess_ipc = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT,
+              http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 1));
+    client.use_multiprocess_ipc = 0;
+#endif
+
+    /* Thread-pool barrier & worker mutex/cond fault injection */
+    {
+      struct AbstractHttpThreadPoolHooks sync_tph;
+      struct AbstractHttpThreadPoolHooks fail_tph;
+      struct AbstractHttpThreadPoolHooks noop_tph;
+      sync_tph.external_context = NULL;
+      sync_tph.push = sync_exec_push_hook;
+      fail_tph.external_context = NULL;
+      fail_tph.push = fail_push_hook;
+      noop_tph.external_context = NULL;
+      noop_tph.push = noop_push_hook;
+
+      client.config.modality = MODALITY_THREAD_POOL;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_thread_pool_init_external(&client.thread_pool,
+                                                        &sync_tph));
+
+      /* Worker l_rc != SUCCESS (both worker lock and main wait lock fail) */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+      g_mock_mutex_fail = 1;
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+        f1.response = NULL;
+      }
+      g_mock_mutex_fail = 0;
+
+      g_mock_mutex_fail = 2;
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+        f1.response = NULL;
+      }
+      g_mock_mutex_fail = 4;
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+        f1.response = NULL;
+      }
+      g_mock_mutex_fail = 0;
+
+      g_mock_cond_free_fail = 1;
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+        f1.response = NULL;
+      }
+      g_mock_cond_free_fail = 0;
+
+      /* Worker slot_rc error recorded into barrier.worker_err (both 1-item and
+       * 2-item so b_rc == SUCCESS on item 0) */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
+      g_mock_cond_fail = 3;
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 2, futures, NULL, NULL, 0));
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+        f2.response = NULL;
+      }
+      g_mock_cond_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_thread_pool_free(client.thread_pool));
+
+      /* Push fail + barrier lock/unlock/wait_barrier failures */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_thread_pool_init_external(&client.thread_pool,
+                                                        &fail_tph));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+      g_mock_mutex_fail = 1;
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      g_mock_mutex_fail = 2;
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      g_mock_mutex_fail = 3;
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      g_mock_mutex_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_thread_pool_free(client.thread_pool));
+
+      /* Cond wait failure when remaining > 0 (clean and failed unlock) */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_thread_pool_init_external(&client.thread_pool,
+                                                        &noop_tph));
+      g_mock_cond_fail = 1;
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      g_mock_cond_fail = 1;
+      g_mock_mutex_fail = 2;
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      g_mock_mutex_fail = 0;
+      g_mock_cond_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_thread_pool_free(client.thread_pool));
+      client.thread_pool = NULL;
+
+      /* Sequential fail_fast with non-NULL progress_cb */
+      client.config.modality = MODALITY_SYNC;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT,
+                http_client_send_multi(&client, reqs, 2, futures,
+                                       test_multi_progress_ok, &k, 1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    }
+
+    /* Coroutine hook error paths (yield, is_done 1/2, resume, free, 2-coro
+     * done) */
+    {
+      struct AbstractHttpCoroutineHooks ch;
+      struct AbstractHttpCoroutineHooks empty_ch;
+      memset(&ch, 0, sizeof(ch));
+      memset(&empty_ch, 0, sizeof(empty_ch));
+      ch.init = mock_co_init_hook;
+      ch.free = mock_co_free_hook;
+      ch.resume = mock_co_resume_hook;
+      ch.yield = mock_co_yield_hook;
+      ch.is_done = mock_co_is_done_hook;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_coroutine_set_hooks(&ch));
+      client.config.modality = MODALITY_GREENTHREAD;
+      for (k = 1; k <= 6; ++k) {
+        g_coro_hook_mode = k;
+        g_coro_is_done_calls = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f2));
+        if (http_client_send_multi(&client, reqs, k == 6 ? 2 : 1, futures, NULL,
+                                   NULL, 0) == C_ABSTRACT_HTTP_SUCCESS) {
+          if (f1.response) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+            free(f1.response);
+          }
+          if (f2.response) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+            free(f2.response);
+          }
+        } else {
+          if (f1.response) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+            free(f1.response);
+          }
+        }
+      }
+      g_coro_hook_mode = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_coroutine_set_hooks(&empty_ch));
+    }
+
+    /* Actor hook error paths (bus_process & bus_free) */
+    {
+      struct AbstractHttpActorHooks ah;
+      struct AbstractHttpActorHooks empty_ah;
+      memset(&ah, 0, sizeof(ah));
+      memset(&empty_ah, 0, sizeof(empty_ah));
+      ah.bus_init = mock_bus_init_hook;
+      ah.bus_free = mock_bus_free_hook;
+      ah.bus_process = mock_bus_process_hook;
+      ah.actor_spawn = mock_actor_spawn_hook;
+      ah.actor_send = mock_actor_send_hook;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_set_hooks(&ah));
+      client.config.modality = MODALITY_MESSAGE_PASSING;
+      for (k = 1; k <= 2; ++k) {
+        g_actor_hook_mode = k;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+        ASSERT_EQ(
+            C_ABSTRACT_HTTP_ERR_IO,
+            http_client_send_multi(&client, reqs, 1, futures, NULL, NULL, 0));
+      }
+      g_actor_hook_mode = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_actor_set_hooks(&empty_ah));
+    }
+  }
+#else
+  (void)k;
+#endif
+
+  r1.url = NULL;
+  r2.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&client));
+  PASS();
+}
+
 SUITE(http_types_suite) {
+  RUN_TEST(test_rfc6265_cookie_jar_and_pipeline);
+  RUN_TEST(test_modalities_future_and_context_lifecycle);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_http_types_oauth_and_multipart_failures);
 #endif
@@ -3024,6 +4501,7 @@ SUITE(http_types_suite) {
   RUN_TEST(test_http_modality_errs);
   RUN_TEST(test_http_response_save_to_file);
   RUN_TEST(test_http_send_multi);
+  RUN_TEST(test_http_send_multi_progress);
   RUN_TEST(test_http_client_init_free);
   RUN_TEST(test_http_request_set_auth_bearer);
   RUN_TEST(test_c_abstract_http_log_debug);

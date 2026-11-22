@@ -15,8 +15,19 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
+#include <ws2tcpip.h>
+#elif !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
 #endif
 
+#include <stdio.h>
 #include "c_abstract_http/http_ws.h"
 #include "c_abstract_http/thread_pool.h"
 #include "c_abstract_http/log.h"
@@ -194,6 +205,69 @@ ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
 }
 
 /**
+ * @brief Close a raw socket descriptor and return `orig_rc`.
+ * @param fd Socket descriptor to close.
+ * @param orig_rc Status enum to return.
+ * @return `orig_rc`.
+ */
+static enum c_abstract_http_error
+ws_close_fd_and_return(int fd, enum c_abstract_http_error orig_rc) {
+#if defined(_WIN32)
+  closesocket((SOCKET)fd);
+#elif !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+  close(fd);
+#else
+  (void)fd;
+#endif
+  return orig_rc;
+}
+
+/**
+ * @brief Detach from event loop and close the owned upgraded socket if open.
+ * @param sctx WebSocket stream context.
+ * @return C_ABSTRACT_HTTP_SUCCESS or event-loop removal error enum.
+ */
+static enum c_abstract_http_error
+ws_close_upgraded_socket(struct ws_stream_ctx *sctx) {
+  if (sctx->loop_registered && sctx->loop && sctx->has_upgraded_fd) {
+    int fd = sctx->upgraded_fd;
+    enum c_abstract_http_error rm_rc;
+    sctx->loop_registered = 0;
+    sctx->has_upgraded_fd = 0;
+    sctx->upgraded_fd = -1;
+    rm_rc = http_loop_remove_fd(sctx->loop, fd);
+    if (rm_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return ws_close_fd_and_return(fd, rm_rc);
+    }
+    return ws_close_fd_and_return(fd, C_ABSTRACT_HTTP_SUCCESS);
+  }
+  if (sctx->has_upgraded_fd) {
+    int fd = sctx->upgraded_fd;
+    sctx->has_upgraded_fd = 0;
+    sctx->upgraded_fd = -1;
+    return ws_close_fd_and_return(fd, C_ABSTRACT_HTTP_SUCCESS);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Close upgraded socket and propagate cleanup or primary error enum.
+ * @param sctx WebSocket stream context.
+ * @param orig_rc Primary error enum.
+ * @return Cleanup error if socket removal fails, otherwise `orig_rc`.
+ */
+static enum c_abstract_http_error
+ws_fail_upgraded_socket(struct ws_stream_ctx *sctx,
+                        enum c_abstract_http_error orig_rc) {
+  enum c_abstract_http_error cl_rc;
+  cl_rc = ws_close_upgraded_socket(sctx);
+  if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return cl_rc;
+  }
+  return orig_rc;
+}
+
+/**
  * @brief Destroy and free a WebSocket streaming queue context.
  * @param sctx Streaming context pointer (may be NULL).
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on mutex/cond cleanup failure.
@@ -202,23 +276,32 @@ static enum c_abstract_http_error
 ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
   if (!sctx)
     return C_ABSTRACT_HTTP_SUCCESS;
+  {
+    enum c_abstract_http_error sc_rc;
+    sc_rc = ws_close_upgraded_socket(sctx);
+    if (sc_rc != C_ABSTRACT_HTTP_SUCCESS)
+      return sc_rc;
+  }
+  if (sctx->has_async_parser) {
+    enum c_abstract_http_error pr_rc;
+    sctx->has_async_parser = 0;
+    pr_rc = ws_parser_destroy(&sctx->async_parser);
+    if (pr_rc != C_ABSTRACT_HTTP_SUCCESS)
+      return pr_rc;
+  }
   if (sctx->mutex) {
-    enum c_abstract_http_error rc = abstract_http_mutex_free(sctx->mutex);
+    struct AbstractHttpMutex *m = sctx->mutex;
+    enum c_abstract_http_error rc;
     sctx->mutex = NULL;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_mutex_free_fail)
-      rc = C_ABSTRACT_HTTP_ERR_IO;
-#endif
+    rc = abstract_http_mutex_free(m);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
   if (sctx->cond) {
-    enum c_abstract_http_error rc = abstract_http_cond_free(sctx->cond);
+    struct AbstractHttpCond *c = sctx->cond;
+    enum c_abstract_http_error rc;
     sctx->cond = NULL;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_cond_free_fail)
-      rc = C_ABSTRACT_HTTP_ERR_IO;
-#endif
+    rc = abstract_http_cond_free(c);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
@@ -267,8 +350,10 @@ c_abstract_http_ws_init(struct HttpRequest *req,
       {
         enum c_abstract_http_error rc_tmp =
             abstract_http_mutex_free(sctx->mutex);
-        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
+          free(sctx);
           return rc_tmp;
+        }
       }
       free(sctx);
       return (enum c_abstract_http_error)res;
@@ -284,22 +369,24 @@ c_abstract_http_ws_init(struct HttpRequest *req,
     if (!sctx->queue) {
       {
         enum c_abstract_http_error rc_tmp = abstract_http_cond_free(sctx->cond);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-        if (g_mock_cond_free_fail)
-          rc_tmp = C_ABSTRACT_HTTP_ERR_IO;
-#endif
-        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
+          enum c_abstract_http_error rc_mtx;
+          rc_mtx = abstract_http_mutex_free(sctx->mutex);
+          if (rc_mtx != C_ABSTRACT_HTTP_SUCCESS) {
+            free(sctx);
+            return rc_mtx;
+          }
+          free(sctx);
           return rc_tmp;
+        }
       }
       {
         enum c_abstract_http_error rc_tmp =
             abstract_http_mutex_free(sctx->mutex);
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-        if (g_mock_mutex_free_fail)
-          rc_tmp = C_ABSTRACT_HTTP_ERR_IO;
-#endif
-        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
+          free(sctx);
           return rc_tmp;
+        }
       }
       free(sctx);
       return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -901,16 +988,19 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
       if (on_err) {
         enum c_abstract_http_error err_rc = on_err(rc, user_data);
         if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          enum c_abstract_http_error rch = ws_parser_destroy(&parser);
+          enum c_abstract_http_error rch;
           enum c_abstract_http_error rc_tmp;
+          rch = ws_parser_destroy(&parser);
           if (rch != C_ABSTRACT_HTTP_SUCCESS) {
             free(res);
             return rch;
           }
           rc_tmp = http_response_free(res);
-          free(res);
-          if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
+          if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
+            free(res);
             return rc_tmp;
+          }
+          free(res);
           return err_rc;
         }
       }
@@ -1016,6 +1106,567 @@ enum c_abstract_http_error abstract_http_test_ws_async_task(void *arg) {
 }
 #endif
 
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection mode for upgraded WebSocket `send()` (1=EAGAIN, 2=IO)
+ */
+static int g_mock_ws_send_mode = 0;
+
+/**
+ * @brief Configure test-only upgraded WebSocket `send()` fault mode.
+ * @param mode `0` normal, `1` `EWOULDBLOCK`, `2` fatal error.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+c_abstract_http_test_set_ws_send_mode(int mode);
+
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+c_abstract_http_test_set_ws_send_mode(int mode) {
+  g_mock_ws_send_mode = mode;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
+/**
+ * @brief Wrapper around socket `send()` supporting OOM/EAGAIN fault injection.
+ * @param fd Socket descriptor.
+ * @param buf Bytes to transmit.
+ * @param len Byte length to transmit.
+ * @return Bytes sent, or `-1` on error / `EWOULDBLOCK`.
+ */
+static int math_ws_sock_send(int fd, const void *buf, size_t len) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_ws_send_mode == 1) {
+#if defined(_WIN32)
+    WSASetLastError(WSAEWOULDBLOCK);
+#else
+    errno = EAGAIN;
+#endif
+    return -1;
+  }
+  if (g_mock_ws_send_mode == 2) {
+#if defined(_WIN32)
+    WSASetLastError(WSAECONNRESET);
+#else
+    errno = EPIPE;
+#endif
+    return -1;
+  }
+#endif
+#if defined(_WIN32)
+  return send((SOCKET)fd, (const char *)buf, (int)len, 0);
+#elif defined(MSG_NOSIGNAL)
+  return (int)send(fd, buf, len, MSG_NOSIGNAL);
+#else
+  return (int)send(fd, buf, len, 0);
+#endif
+}
+
+/**
+ * @brief Parse a `ws://` or `http://` URL into host, port, and path.
+ * @param url Input URL string.
+ * @param out_host Allocated hostname string.
+ * @param out_port Parsed TCP port number.
+ * @param out_path Allocated request path string.
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_INVAL,
+ * C_ABSTRACT_HTTP_ERR_NOTSUP, or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+static enum c_abstract_http_error ws_parse_connect_url(const char *url,
+                                                       char **out_host,
+                                                       int *out_port,
+                                                       char **out_path) {
+  const char *p;
+  const char *slash;
+  const char *colon;
+  size_t host_len;
+  enum c_abstract_http_error rc;
+
+  if (strncmp(url, "ws://", 5) == 0) {
+    p = url + 5;
+  } else if (strncmp(url, "http://", 7) == 0) {
+    p = url + 7;
+  } else if (strncmp(url, "wss://", 6) == 0 ||
+             strncmp(url, "https://", 8) == 0) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  } else {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  slash = strchr(p, '/');
+  colon = strchr(p, ':');
+  if (colon && (!slash || colon < slash)) {
+    host_len = (size_t)(colon - p);
+    *out_port = atoi(colon + 1);
+  } else {
+    host_len = slash ? (size_t)(slash - p) : strlen(p);
+    *out_port = 80;
+  }
+  if (host_len == 0 || *out_port <= 0 || *out_port > 65535) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  *out_host = (char *)malloc(host_len + 1);
+  if (!*out_host) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  memcpy(*out_host, p, host_len);
+  (*out_host)[host_len] = '\0';
+
+  rc = c_abstract_http_strdup(slash ? slash : "/", out_path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(*out_host);
+    *out_host = NULL;
+    return rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Pure predicate checking whether the last socket call hit EWOULDBLOCK.
+ * @return 1 if transient non-blocking retry condition, 0 otherwise.
+ */
+static int math_ws_sock_would_block(void) {
+#if defined(_WIN32)
+  return WSAGetLastError() == WSAEWOULDBLOCK ? 1 : 0;
+#else
+  return (errno == EAGAIN || errno == EWOULDBLOCK) ? 1 : 0;
+#endif
+}
+
+/**
+ * @brief Flush queued outbound WebSocket bytes onto `sctx->upgraded_fd` while
+ * holding `sctx->mutex`, and update `ModalityEventLoop` write interest.
+ * @param sctx Active upgraded WebSocket stream context.
+ * @return C_ABSTRACT_HTTP_SUCCESS or I/O / loop error enum.
+ */
+static enum c_abstract_http_error
+ws_flush_upgraded_queue_locked(struct ws_stream_ctx *sctx) {
+  while (sctx->queue_len > 0 && sctx->has_upgraded_fd) {
+    int n = math_ws_sock_send(sctx->upgraded_fd, sctx->queue, sctx->queue_len);
+    if (n > 0) {
+      size_t un = (size_t)n;
+      memmove(sctx->queue, sctx->queue + un, sctx->queue_len - un);
+      sctx->queue_len -= un;
+    } else if (n < 0 && math_ws_sock_would_block()) {
+      break;
+    } else {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+  }
+  if (sctx->loop_registered && sctx->loop && sctx->has_upgraded_fd) {
+    int want = HTTP_LOOP_READ | HTTP_LOOP_ERROR;
+    if (sctx->queue_len > 0) {
+      want |= HTTP_LOOP_WRITE;
+    }
+    return http_loop_mod_fd(sctx->loop, sctx->upgraded_fd, want);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Internal parser message interceptor handling RFC 6455 PING->PONG
+ * auto-reply on upgraded sockets and forwarding to `user_on_msg`.
+ * @param ev Parsed WebSocket event.
+ * @param user_data Pointer to `struct ws_stream_ctx`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or callback/send error enum.
+ */
+static enum c_abstract_http_error
+ws_upgraded_on_msg_cb(const struct c_abstract_http_ws_event *ev,
+                      void *user_data) {
+  struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)user_data;
+  if (ev->opcode == C_ABSTRACT_HTTP_WS_OPCODE_PING && sctx->owner_req) {
+    enum c_abstract_http_error prc;
+    prc =
+        c_abstract_http_ws_send(sctx->owner_req, C_ABSTRACT_HTTP_WS_OPCODE_PONG,
+                                ev->payload, ev->payload_len);
+    if (prc != C_ABSTRACT_HTTP_SUCCESS) {
+      return prc;
+    }
+  }
+  if (sctx->user_on_msg) {
+    return sctx->user_on_msg(ev, sctx->user_cb_data);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Internal parser error interceptor forwarding to `user_on_err`.
+ * @param error_code Framing error code.
+ * @param user_data Pointer to `struct ws_stream_ctx`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or user callback error enum.
+ */
+static enum c_abstract_http_error ws_upgraded_on_err_cb(int error_code,
+                                                        void *user_data) {
+  struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)user_data;
+  if (sctx->user_on_err) {
+    return sctx->user_on_err(error_code, sctx->user_cb_data);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Internal parser close interceptor marking peer closure and forwarding
+ * to `user_on_close`.
+ * @param status_code RFC 6455 close status code.
+ * @param user_data Pointer to `struct ws_stream_ctx`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or user callback error enum.
+ */
+static enum c_abstract_http_error ws_upgraded_on_close_cb(int status_code,
+                                                          void *user_data) {
+  struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)user_data;
+  sctx->peer_closed = 1;
+  if (sctx->user_on_close) {
+    return sctx->user_on_close(status_code, sctx->user_cb_data);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Full-duplex `ModalityEventLoop` I/O callback driving an upgraded
+ * WebSocket socket.
+ * @param loop Active event loop.
+ * @param fd Upgraded socket descriptor.
+ * @param revents Triggered `HttpLoopEvent` bitmask.
+ * @param user_data Pointer to owning `struct HttpRequest`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or callback/protocol error enum.
+ */
+static enum c_abstract_http_error
+ws_upgraded_loop_cb(struct ModalityEventLoop *loop, int fd, int revents,
+                    void *user_data) {
+  struct HttpRequest *req = (struct HttpRequest *)user_data;
+  struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)req->ws_ctx;
+  enum c_abstract_http_error rc;
+
+  (void)loop;
+  if (revents & HTTP_LOOP_WRITE) {
+    int should_close = 0;
+    rc = abstract_http_mutex_lock(sctx->mutex);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    rc = ws_flush_upgraded_queue_locked(sctx);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
+      if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return u_rc;
+      }
+      return rc;
+    }
+    should_close = (sctx->close_requested && sctx->queue_len == 0) ? 1 : 0;
+    rc = abstract_http_mutex_unlock(sctx->mutex);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    if (should_close) {
+      return ws_close_upgraded_socket(sctx);
+    }
+  }
+
+  if ((revents & (HTTP_LOOP_READ | HTTP_LOOP_ERROR)) && sctx->has_upgraded_fd) {
+    unsigned char rbuf[4096];
+#if defined(_WIN32)
+    int n = recv((SOCKET)fd, (char *)rbuf, (int)sizeof(rbuf), 0);
+#else
+    int n = (int)recv(fd, rbuf, sizeof(rbuf), 0);
+#endif
+    if (n > 0) {
+      rc = ws_parser_feed(&sctx->async_parser, rbuf, (size_t)n);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return ws_fail_upgraded_socket(sctx, rc);
+      }
+      if (sctx->peer_closed) {
+        return ws_close_upgraded_socket(sctx);
+      }
+    } else if (n == 0 || !math_ws_sock_would_block()) {
+      rc = ws_close_upgraded_socket(sctx);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+      if (!sctx->peer_closed && sctx->user_on_close) {
+        sctx->peer_closed = 1;
+        return sctx->user_on_close(1006, sctx->user_cb_data);
+      }
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Connect TCP socket and perform RFC 6455 HTTP/1.1 101 handshake,
+ * returning the upgraded socket and any pipelined frame bytes.
+ * @param req Initialized WebSocket request containing `Sec-WebSocket-Key`.
+ * @param host Target hostname/IP.
+ * @param port Target TCP port.
+ * @param path Request path.
+ * @param out_fd Output upgraded socket descriptor.
+ * @param rem_buf Buffer receiving trailing bytes after header terminator.
+ * @param out_rem_len Number of trailing bytes written into `rem_buf`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or handshake/I/O error enum.
+ */
+static enum c_abstract_http_error
+ws_perform_101_handshake(const struct HttpRequest *req, const char *host,
+                         int port, const char *path, int *out_fd,
+                         unsigned char rem_buf[4096], size_t *out_rem_len) {
+  struct sockaddr_in addr;
+  char req_buf[2048];
+  char rx_buf[4096];
+  size_t rx_len = 0;
+  char *hdr_end = NULL;
+  const char *client_key = NULL;
+  const char *accept_hdr = NULL;
+  size_t i;
+  int off = 0;
+  int sock_fd = -1;
+  enum c_abstract_http_error rc;
+
+#if defined(_WIN32)
+  {
+    WSADATA wsa;
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+  }
+#endif
+
+  rc = http_headers_get(&req->headers, "Sec-WebSocket-Key", &client_key);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  addr.sin_port = math_ws_htons((uint16_t)port);
+  if (strcmp(host, "127.0.0.1") == 0) {
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  } else {
+    struct hostent *he = gethostbyname(host);
+    if (!he || !he->h_addr_list[0]) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    memcpy(&addr.sin_addr, he->h_addr_list[0], (size_t)he->h_length);
+  }
+
+  sock_fd = (int)socket(AF_INET, SOCK_STREAM, 0);
+  if (sock_fd < 0) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#if defined(SO_NOSIGPIPE)
+  {
+    int nosig = 1;
+    setsockopt(sock_fd, SOL_SOCKET, SO_NOSIGPIPE, (const char *)&nosig,
+               sizeof(nosig));
+  }
+#endif
+  if (connect(sock_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    return ws_close_fd_and_return(sock_fd, C_ABSTRACT_HTTP_ERR_CONNREFUSED);
+  }
+
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  off = sprintf_s(req_buf, sizeof(req_buf),
+                  "GET %s HTTP/1.1\r\nHost: %s:%d\r\n", path, host, port);
+#else
+  off =
+      sprintf(req_buf, "GET %s HTTP/1.1\r\nHost: %s:%d\r\n", path, host, port);
+#endif
+  for (i = 0; i < req->headers.count; ++i) {
+    size_t klen = strlen(req->headers.headers[i].key);
+    size_t vlen = strlen(req->headers.headers[i].value);
+    if ((size_t)off + klen + vlen + 6U < sizeof(req_buf)) {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      off +=
+          sprintf_s(req_buf + off, sizeof(req_buf) - (size_t)off, "%s: %s\r\n",
+                    req->headers.headers[i].key, req->headers.headers[i].value);
+#else
+      off += sprintf(req_buf + off, "%s: %s\r\n", req->headers.headers[i].key,
+                     req->headers.headers[i].value);
+#endif
+    }
+  }
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  strcat_s(req_buf, sizeof(req_buf), "\r\n");
+#else
+  strcat(req_buf, "\r\n");
+#endif
+  off += 2;
+
+  if (math_ws_sock_send(sock_fd, req_buf, (size_t)off) <= 0) {
+    return ws_close_fd_and_return(sock_fd, C_ABSTRACT_HTTP_ERR_IO);
+  }
+
+  while (rx_len + 1U < sizeof(rx_buf)) {
+    int n = (int)recv(sock_fd, rx_buf + rx_len,
+#if defined(_WIN32)
+                      (int)(sizeof(rx_buf) - 1U - rx_len),
+#else
+                      sizeof(rx_buf) - 1U - rx_len,
+#endif
+                      0);
+    if (n <= 0) {
+      break;
+    }
+    rx_len += (size_t)n;
+    rx_buf[rx_len] = '\0';
+    hdr_end = strstr(rx_buf, "\r\n\r\n");
+    if (hdr_end) {
+      break;
+    }
+  }
+
+  if (!hdr_end || strncmp(rx_buf, "HTTP/1.1 101", 12) != 0) {
+    return ws_close_fd_and_return(sock_fd, C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE);
+  }
+
+  {
+    size_t hdr_bytes = (size_t)((hdr_end + 4) - rx_buf);
+    char *line = rx_buf;
+    *out_rem_len = rx_len - hdr_bytes;
+    if (*out_rem_len > 0) {
+      memcpy(rem_buf, rx_buf + hdr_bytes, *out_rem_len);
+    }
+    *hdr_end = '\0';
+    while (line && *line) {
+      char *next = strstr(line, "\r\n");
+      char *colon;
+      if (next) {
+        *next = '\0';
+      }
+      colon = strchr(line, ':');
+      if (colon) {
+        *colon = '\0';
+        if (c89stringutils_strcasecmp(line, "Sec-WebSocket-Accept") == 0) {
+          accept_hdr = colon + 1;
+          while (*accept_hdr == ' ' || *accept_hdr == '\t') {
+            accept_hdr++;
+          }
+        }
+      }
+      line = next ? (next + 2) : NULL;
+    }
+  }
+
+  if (!accept_hdr) {
+    return ws_close_fd_and_return(sock_fd, C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE);
+  }
+
+  rc = ws_verify_accept(client_key, accept_hdr);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return ws_close_fd_and_return(sock_fd, rc);
+  }
+
+#if defined(_WIN32)
+  {
+    u_long mode = 1;
+    ioctlsocket((SOCKET)sock_fd, (long)FIONBIO, &mode);
+  }
+#else
+  {
+    int fl = fcntl(sock_fd, F_GETFL, 0);
+    if (fl >= 0) {
+      fcntl(sock_fd, F_SETFL, fl | O_NONBLOCK);
+    }
+  }
+#endif
+
+  *out_fd = sock_fd;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
+/** @brief Connect, upgrade, detach raw socket, and register on event loop */
+enum c_abstract_http_error c_abstract_http_ws_async_connect(
+    struct HttpClient *client, struct HttpRequest *req,
+    c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
+    c_abstract_http_ws_on_close on_close, void *user_data) {
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  (void)client;
+  (void)req;
+  (void)on_msg;
+  (void)on_err;
+  (void)on_close;
+  (void)user_data;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+#else
+  char *host = NULL;
+  char *path = NULL;
+  int port = 80;
+  int sock_fd = -1;
+  unsigned char rem_buf[4096];
+  size_t rem_len = 0;
+  struct ws_stream_ctx *sctx;
+  int init_ev;
+  enum c_abstract_http_error rc;
+
+  if (!client || !req || !req->url || !client->loop) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  if (!req->ws_ctx) {
+    rc = c_abstract_http_ws_init(req, NULL);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+  sctx = (struct ws_stream_ctx *)req->ws_ctx;
+  sctx->owner_req = req;
+  sctx->user_on_msg = on_msg;
+  sctx->user_on_err = on_err;
+  sctx->user_on_close = on_close;
+  sctx->user_cb_data = user_data;
+  sctx->peer_closed = 0;
+
+  if (!sctx->has_async_parser) {
+    rc = ws_parser_init(&sctx->async_parser, ws_upgraded_on_msg_cb,
+                        ws_upgraded_on_err_cb, ws_upgraded_on_close_cb, sctx);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    sctx->has_async_parser = 1;
+  }
+
+  rc = ws_parse_connect_url(req->url, &host, &port, &path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  rc = ws_perform_101_handshake(req, host, port, path, &sock_fd, rem_buf,
+                                &rem_len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(host);
+    free(path);
+    return rc;
+  }
+  free(host);
+  free(path);
+
+  sctx->loop = client->loop;
+  sctx->upgraded_fd = sock_fd;
+  sctx->has_upgraded_fd = 1;
+
+  if (rem_len > 0) {
+    rc = ws_parser_feed(&sctx->async_parser, rem_buf, rem_len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return ws_fail_upgraded_socket(sctx, rc);
+    }
+  }
+
+  if (sctx->peer_closed) {
+    return ws_close_upgraded_socket(sctx);
+  }
+
+  init_ev = HTTP_LOOP_READ | HTTP_LOOP_ERROR;
+  if (sctx->queue_len > 0) {
+    init_ev |= HTTP_LOOP_WRITE;
+  }
+  rc = http_loop_add_fd(client->loop, sock_fd, init_ev, ws_upgraded_loop_cb,
+                        req);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return ws_fail_upgraded_socket(sctx, rc);
+  }
+  sctx->loop_registered = 1;
+  return C_ABSTRACT_HTTP_SUCCESS;
+#endif
+}
+
 /** @brief Register an asynchronous WebSocket reader */
 enum c_abstract_http_error c_abstract_http_ws_async_register(
     struct HttpClient *client, struct HttpRequest *req,
@@ -1027,6 +1678,11 @@ enum c_abstract_http_error c_abstract_http_ws_async_register(
   if (!client || !req) {
     LOG_DEBUG("c_abstract_http_ws_async_register: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  if (client->loop) {
+    return c_abstract_http_ws_async_connect(client, req, on_msg, on_err,
+                                            on_close, user_data);
   }
 
   if (client->thread_pool) {
@@ -1169,6 +1825,33 @@ c_abstract_http_ws_send(struct HttpRequest *req,
     sctx->queue_len += len;
   }
 
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+  if (sctx->has_upgraded_fd) {
+    int need_wakeup = 0;
+    rc = ws_flush_upgraded_queue_locked(sctx);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
+      if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(masked_payload);
+        return u_rc;
+      }
+      free(masked_payload);
+      return rc;
+    }
+    need_wakeup = (sctx->queue_len > 0 && sctx->loop != NULL) ? 1 : 0;
+    rc = abstract_http_mutex_unlock(sctx->mutex);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(masked_payload);
+      return rc;
+    }
+    free(masked_payload);
+    if (need_wakeup) {
+      return http_loop_wakeup(sctx->loop);
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#endif
+
   rc = abstract_http_cond_signal(sctx->cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
@@ -1225,6 +1908,10 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
   rc = abstract_http_mutex_unlock(sctx->mutex);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
+  }
+
+  if (sctx->has_upgraded_fd && sctx->queue_len == 0) {
+    return ws_close_upgraded_socket(sctx);
   }
 
   return C_ABSTRACT_HTTP_SUCCESS;

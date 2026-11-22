@@ -392,6 +392,73 @@ enum c_abstract_http_error sse_parser_feed(struct sse_parser_ctx *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+#ifndef CAH_MATH_TIME_DECLARED
+/** @brief Guard macro for math_get_current_time_ms declaration */
+#define CAH_MATH_TIME_DECLARED 1
+/** @brief Return current monotonic/wall time in milliseconds */
+abstract_http_int64_t math_get_current_time_ms(void);
+/** @brief Real monotonic/wall time implementation */
+C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void);
+#ifndef math_get_current_time_ms
+/** @brief Default mapping of math_get_current_time_ms to real implementation */
+#define math_get_current_time_ms real_math_get_current_time_ms
+#endif
+#endif
+
+/**
+ * @brief Insert or update `Last-Event-ID` on `req->headers` before SSE
+ * reconnection.
+ * @param req Request whose headers are updated.
+ * @param last_id Non-empty Last-Event-ID string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on allocation failure.
+ */
+static enum c_abstract_http_error
+sse_update_last_event_id(struct HttpRequest *req, const char *last_id) {
+  size_t i;
+  for (i = 0; i < req->headers.count; ++i) {
+    if (req->headers.headers[i].key &&
+        strcmp(req->headers.headers[i].key, "Last-Event-ID") == 0) {
+      char *dup_val = NULL;
+      enum c_abstract_http_error rc = sse_strdup(last_id, &dup_val);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+      free(req->headers.headers[i].value);
+      req->headers.headers[i].value = dup_val;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+  }
+  return http_headers_add(&req->headers, "Last-Event-ID", last_id);
+}
+
+/**
+ * @brief Tear down SSE parser and invoke optional error callback on sync-loop
+ * termination.
+ * @param parser Active SSE parser context to destroy.
+ * @param on_err Optional error callback.
+ * @param user_data Callback context.
+ * @param status Status code to report and return.
+ * @return Cleanup/callback error if non-zero, otherwise @p status.
+ */
+static enum c_abstract_http_error
+sse_fail_sync_loop(struct sse_parser_ctx *parser,
+                   c_abstract_http_sse_on_error on_err, void *user_data,
+                   enum c_abstract_http_error status) {
+  enum c_abstract_http_error rch;
+  rch = sse_parser_destroy(parser);
+  if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+    return rch;
+  }
+  if (on_err) {
+    enum c_abstract_http_error err_rc;
+    err_rc = on_err(status, user_data);
+    if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return err_rc;
+    }
+  }
+  return status;
+}
+
 /** @brief Execute a synchronous SSE read loop */
 enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
     struct HttpClient *client, struct HttpRequest *req,
@@ -401,6 +468,8 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
   enum c_abstract_http_error rc;
   struct HttpResponse *res = NULL;
   struct sse_parser_ctx parser;
+  size_t max_reconnects;
+  size_t attempt;
   cah_cppcheck_mut_ptr(exit_flag);
 
   if (!client || !req) {
@@ -438,76 +507,116 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
     return rc;
   }
 
-  rc = client->send(client->transport, req, &res);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS || !res) {
-    {
-      enum c_abstract_http_error rch = sse_parser_destroy(&parser);
-      if (rch != C_ABSTRACT_HTTP_SUCCESS)
-        return rch;
-    }
-    if (on_err) {
-      enum c_abstract_http_error err_rc = on_err(rc, user_data);
-      if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        return err_rc;
+  max_reconnects =
+      (client->config.retry_count > 0) ? (size_t)client->config.retry_count : 0;
+
+  for (attempt = 0; attempt <= max_reconnects; ++attempt) {
+    int status_code = 200;
+    if (attempt > 0) {
+      int wait_ms;
+      abstract_http_int64_t t0;
+      if (exit_flag && *exit_flag) {
+        break;
+      }
+      if (parser.last_event_id && parser.last_event_id[0] != '\0') {
+        rc = sse_update_last_event_id(req, parser.last_event_id);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return sse_fail_sync_loop(&parser, on_err, user_data, rc);
+        }
+      }
+      wait_ms = (parser.retry_ms > 0) ? parser.retry_ms : 1;
+      t0 = math_get_current_time_ms();
+      while (math_get_current_time_ms() - t0 < (abstract_http_int64_t)wait_ms) {
       }
     }
-    return rc;
-  }
 
-  if (res->body && res->body_len > 0) {
-    rc = sse_parser_feed(&parser, (const char *)res->body, res->body_len);
+    res = NULL;
+    rc = client->send(client->transport, req, &res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error cb_err = C_ABSTRACT_HTTP_SUCCESS;
-      if (on_err) {
-        cb_err = on_err(rc, user_data);
-        if (cb_err != C_ABSTRACT_HTTP_SUCCESS) {
-          enum c_abstract_http_error rch = sse_parser_destroy(&parser);
-          enum c_abstract_http_error rc_tmp;
+      if ((rc == C_ABSTRACT_HTTP_ERR_IO || rc == C_ABSTRACT_HTTP_ERR_TIMEOUT) &&
+          attempt < max_reconnects) {
+        continue;
+      }
+      return sse_fail_sync_loop(&parser, on_err, user_data, rc);
+    }
+    if (!res) {
+      return sse_fail_sync_loop(&parser, on_err, user_data,
+                                C_ABSTRACT_HTTP_SUCCESS);
+    }
+
+    status_code = res->status_code;
+    if (res->body && res->body_len > 0) {
+      rc = sse_parser_feed(&parser, (const char *)res->body, res->body_len);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        enum c_abstract_http_error cb_err = C_ABSTRACT_HTTP_SUCCESS;
+        if (on_err) {
+          cb_err = on_err(rc, user_data);
+          if (cb_err != C_ABSTRACT_HTTP_SUCCESS) {
+            enum c_abstract_http_error rch;
+            enum c_abstract_http_error rc_tmp;
+            rch = sse_parser_destroy(&parser);
+            if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+              free(res);
+              return rch;
+            }
+            rc_tmp = http_response_free(res);
+            if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
+              free(res);
+              return rc_tmp;
+            }
+            free(res);
+            return cb_err;
+          }
+        }
+        {
+          enum c_abstract_http_error rch;
+          rch = sse_parser_destroy(&parser);
           if (rch != C_ABSTRACT_HTTP_SUCCESS) {
             free(res);
             return rch;
           }
-          rc_tmp = http_response_free(res);
-          free(res);
-          if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS)
-            return rc_tmp;
-          return cb_err;
         }
+        {
+          enum c_abstract_http_error rc_tmp;
+          rc_tmp = http_response_free(res);
+          if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
+            free(res);
+            return rc_tmp;
+          }
+        }
+        free(res);
+        return rc;
       }
-      {
-        enum c_abstract_http_error rch = sse_parser_destroy(&parser);
+    }
+
+    {
+      enum c_abstract_http_error rc_tmp;
+      rc_tmp = http_response_free(res);
+      if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
+        enum c_abstract_http_error rch;
+        rch = sse_parser_destroy(&parser);
         if (rch != C_ABSTRACT_HTTP_SUCCESS) {
           free(res);
           return rch;
         }
+        free(res);
+        return rc_tmp;
       }
-      {
-        enum c_abstract_http_error rc_tmp = http_response_free(res);
-        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
-          free(res);
-          return rc_tmp;
-        }
-      }
-      free(res);
-      return rc;
+    }
+    free(res);
+    res = NULL;
+
+    if (status_code == 204) {
+      break;
     }
   }
 
   {
     enum c_abstract_http_error rch = sse_parser_destroy(&parser);
     if (rch != C_ABSTRACT_HTTP_SUCCESS) {
-      free(res);
       return rch;
     }
   }
-  {
-    enum c_abstract_http_error rc_tmp = http_response_free(res);
-    if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
-      free(res);
-      return rc_tmp;
-    }
-  }
-  free(res);
 
   if (on_close) {
     enum c_abstract_http_error cls_rc = on_close(user_data);

@@ -110,6 +110,9 @@ option(C_ABSTRACT_HTTP_USE_LIBUV "Use libuv instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_LIBEVENT "Use libevent instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_LIBFETCH "Use libfetch instead of libcurl" OFF)
 option(C_ABSTRACT_HTTP_USE_RAW_SOCKETS "Use raw BSD/Winsock sockets HTTP/1.1 fallback" OFF)
+option(C_ABSTRACT_HTTP_DOS_WATT32 "Enable Watt-32 BSD socket TCP/IP stack on MS-DOS / FreeDOS" OFF)
+set(WATT32_INCLUDE_DIR "" CACHE PATH "Optional Watt-32 include directory")
+set(WATT32_LIBRARY "" CACHE FILEPATH "Optional Watt-32 library path")
 option(C_ABSTRACT_HTTP_USE_MBEDTLS "Use mbedtls for cryptography" OFF)
 option(C_ABSTRACT_HTTP_USE_OPENSSL "Use OpenSSL for cryptography" OFF)
 option(C_ABSTRACT_HTTP_USE_LIBRESSL "Use LibreSSL for cryptography" OFF)
@@ -129,6 +132,8 @@ option(C_ABSTRACT_HTTP_USE_ASAN "Enable AddressSanitizer" OFF)
 option(C_ABSTRACT_HTTP_USE_TSAN "Enable ThreadSanitizer" OFF)
 option(C_ABSTRACT_HTTP_ENABLE_COVERAGE "Enable code coverage (gcov)" OFF)
 option(C_ABSTRACT_HTTP_USE_XQUIC "Use Alibaba xquic HTTP/3 Backend" OFF)
+option(C_ABSTRACT_HTTP_USE_LSQUIC "Use LiteSpeed QUIC (lsquic) HTTP/3 Backend" OFF)
+option(C_ABSTRACT_HTTP_USE_NGHTTP3 "Use nghttp3 + ngtcp2 HTTP/3 Backend" OFF)
 option(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS "Enable WebSocket support" ON)
 option(C_ABSTRACT_HTTP_ENABLE_SSE "Enable Server-Sent Events support" ON)
 option(C_ABSTRACT_HTTP_APPLE_USE_NSURLSESSION "Default Apple transport to modern NSURLSession C-bridge" OFF)
@@ -298,6 +303,8 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
                         set_target_properties(${PkgName} PROPERTIES COMPILE_OPTIONS "${_pkg_opts}")
                     endif()
                     target_compile_options(${PkgName} PRIVATE /W0)
+                elseif(WATCOM)
+                    target_compile_options(${PkgName} PRIVATE -w0)
                 else()
                     target_compile_options(${PkgName} PRIVATE -w)
                 endif()
@@ -307,6 +314,8 @@ macro(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
             set_target_properties(libcurl PROPERTIES C_STANDARD 99 C_EXTENSIONS ON)
             if(MSVC)
                 target_compile_options(libcurl PRIVATE /W0)
+            elseif(WATCOM)
+                target_compile_options(libcurl PRIVATE -w0)
             else()
                 target_compile_options(libcurl PRIVATE -w)
                 target_compile_definitions(libcurl PRIVATE "inline=__inline__")
@@ -334,8 +343,12 @@ endif()
 set(BUILD_TESTING OFF)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ml")
+    if(CMAKE_C_COMPILER MATCHES "wcl(\\.exe)?$")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ml")
+    endif()
     set(CFS_MULTITHREADED OFF CACHE BOOL "" FORCE)
+    set(C89STRINGUTILS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
 else()
     if(C_ABSTRACT_HTTP_THREADING STREQUAL "Single-threaded" OR C_ABSTRACT_HTTP_THREADING STREQUAL "OFF" OR NOT C_ABSTRACT_HTTP_THREADING)
         set(CFS_MULTITHREADED OFF CACHE BOOL "" FORCE)
@@ -533,6 +546,21 @@ if(C_ABSTRACT_HTTP_HEADER_ONLY)
         endif()
         target_link_libraries(c-abstract-http INTERFACE xquic c89stringutils cfs)
         target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_XQUIC)
+    elseif(C_ABSTRACT_HTTP_USE_LSQUIC)
+        c_abstract_http_resolve_dependency(lsquic https://github.com/litespeedtech/lsquic.git master)
+        if(NOT lsquic_RESOLVED)
+            message(FATAL_ERROR "lsquic library is required when C_ABSTRACT_HTTP_USE_LSQUIC is ON")
+        endif()
+        target_link_libraries(c-abstract-http INTERFACE lsquic c89stringutils cfs)
+        target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_LSQUIC C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC)
+    elseif(C_ABSTRACT_HTTP_USE_NGHTTP3)
+        c_abstract_http_resolve_dependency(ngtcp2 https://github.com/ngtcp2/ngtcp2.git main)
+        c_abstract_http_resolve_dependency(nghttp3 https://github.com/ngtcp2/nghttp3.git main)
+        if(NOT nghttp3_RESOLVED OR NOT ngtcp2_RESOLVED)
+            message(FATAL_ERROR "nghttp3 and ngtcp2 libraries are required when C_ABSTRACT_HTTP_USE_NGHTTP3 is ON")
+        endif()
+        target_link_libraries(c-abstract-http INTERFACE nghttp3 ngtcp2 c89stringutils cfs)
+        target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_NGHTTP3 C_ABSTRACT_HTTP_HAVE_REAL_NGHTTP3)
     elseif(C_ABSTRACT_HTTP_USE_LIBSOUP3)
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(LIBSOUP3 REQUIRED libsoup-3.0)
@@ -571,6 +599,17 @@ if(C_ABSTRACT_HTTP_HEADER_ONLY)
     elseif(CMAKE_SYSTEM_NAME STREQUAL "DOS")
         target_link_libraries(c-abstract-http INTERFACE c89stringutils)
         target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+        if(C_ABSTRACT_HTTP_DOS_WATT32)
+            target_compile_definitions(c-abstract-http INTERFACE C_ABSTRACT_HTTP_DOS_WATT32=1)
+            if(WATT32_INCLUDE_DIR)
+                target_include_directories(c-abstract-http INTERFACE "${WATT32_INCLUDE_DIR}")
+            endif()
+            if(WATT32_LIBRARY)
+                target_link_libraries(c-abstract-http INTERFACE "${WATT32_LIBRARY}")
+            else()
+                target_link_libraries(c-abstract-http INTERFACE wattcpwf)
+            endif()
+        endif()
     else()
         c_abstract_http_configure_curl()
         c_abstract_http_resolve_dependency(CURL https://github.com/curl/curl.git curl-8_0_1)
@@ -591,6 +630,13 @@ if(C_ABSTRACT_HTTP_HEADER_ONLY)
     endif()
 
     c_abstract_http_apply_crypto(c-abstract-http INTERFACE)
+    if(WIN32)
+        target_link_libraries(c-abstract-http INTERFACE ws2_32 secur32 crypt32)
+    elseif(APPLE AND CMAKE_C_COMPILER_ID MATCHES "Clang|AppleClang")
+        find_library(SECURITY_FRAMEWORK Security)
+        find_library(COREFOUNDATION_FRAMEWORK CoreFoundation)
+        target_link_libraries(c-abstract-http INTERFACE ${SECURITY_FRAMEWORK} ${COREFOUNDATION_FRAMEWORK})
+    endif()
 else()
     if(BUILD_SHARED_LIBS)
         add_library(c-abstract-http SHARED
@@ -604,6 +650,7 @@ else()
             src/actor.c
             src/process.c
             src/transport.c
+            src/crypto_utils.c
 
             src/http_raw.c
         )
@@ -626,6 +673,7 @@ else()
             src/actor.c
             src/process.c
             src/transport.c
+            src/crypto_utils.c
 
             src/http_raw.c
         )
@@ -638,7 +686,10 @@ else()
 
     if(MSVC)
         target_compile_options(c-abstract-http PRIVATE "/W4" "/WX")
+    elseif(WATCOM)
+        target_compile_options(c-abstract-http PRIVATE "-wx" "-we")
     else()
+        include(CheckCCompilerFlag)
         target_compile_options(c-abstract-http PRIVATE
             "-Wall" "-Wextra" "-Werror" "-pedantic"
             "-Wconversion" "-Wsign-conversion" "-Wshadow" "-Wcast-align"
@@ -646,27 +697,32 @@ else()
             "-Wstrict-prototypes" "-Wmissing-prototypes" "-Wmissing-declarations"
             "-Wpointer-arith" "-Wwrite-strings" "-Wold-style-definition"
             "-Wdeclaration-after-statement" "-Wformat=2" "-Wformat-security"
-            "-Wundef" "-Wdouble-promotion" "-Winit-self" "-Wnull-dereference"
+            "-Wundef" "-Wdouble-promotion" "-Winit-self"
         )
-        if (CMAKE_C_COMPILER_ID MATCHES "AppleClang|Clang")
-            target_compile_options(c-abstract-http PRIVATE
-                "-Wshorten-64-to-32"
-                "-Wdocumentation"
-                "-Wdocumentation-unknown-command"
-                "-Wimplicit-int-enum-cast"
-                "-Wassign-enum"
-                "-Wcomma"
-                "-Wcovered-switch-default"
-                "-Wunreachable-code"
-            )
-        elseif (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-            target_compile_options(c-abstract-http PRIVATE
-                "-Wlogical-op"
-                "-Wduplicated-cond"
-                "-Wduplicated-branches"
-                "-Wjump-misses-init"
-            )
-        endif()
+        foreach(_cah_flag
+            "-Wnull-dereference"
+            "-Wshorten-64-to-32"
+            "-Wdocumentation"
+            "-Wdocumentation-unknown-command"
+            "-Wimplicit-int-enum-cast"
+            "-Wassign-enum"
+            "-Wcomma"
+            "-Wcovered-switch-default"
+            "-Wunreachable-code"
+            "-Wlogical-op"
+            "-Wduplicated-cond"
+            "-Wduplicated-branches"
+            "-Wjump-misses-init"
+        )
+            string(MAKE_C_IDENTIFIER "CAH_HAS_${_cah_flag}" _cah_flag_var)
+            set(_cah_saved_req "${CMAKE_REQUIRED_FLAGS}")
+            set(CMAKE_REQUIRED_FLAGS "-Werror")
+            check_c_compiler_flag("${_cah_flag}" ${_cah_flag_var})
+            set(CMAKE_REQUIRED_FLAGS "${_cah_saved_req}")
+            if(${_cah_flag_var})
+                target_compile_options(c-abstract-http PRIVATE "${_cah_flag}")
+            endif()
+        endforeach()
         if (CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
             target_compile_definitions(c-abstract-http PRIVATE "inline=__inline__" "_Bool=int" "__forceinline=__inline__")
         endif()
@@ -688,7 +744,6 @@ else()
     if(C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
         target_sources(c-abstract-http PRIVATE
             src/http_ws.c
-            src/crypto_utils.c
         )
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_ENABLE_WEBSOCKETS)
     endif()
@@ -747,7 +802,7 @@ else()
             message(FATAL_ERROR "msh3 library is required when C_ABSTRACT_HTTP_USE_MSH3 is ON")
         endif()
         target_link_libraries(c-abstract-http PUBLIC msh3)
-        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_MSH3)
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_MSH3 C_ABSTRACT_HTTP_HAVE_REAL_MSH3)
     elseif(C_ABSTRACT_HTTP_USE_XQUIC)
         c_abstract_http_resolve_dependency(xquic https://github.com/alibaba/xquic.git master)
         if(NOT xquic_RESOLVED)
@@ -756,6 +811,23 @@ else()
         target_link_libraries(c-abstract-http PUBLIC xquic)
         target_sources(c-abstract-http PRIVATE src/http_xquic.c)
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_XQUIC)
+    elseif(C_ABSTRACT_HTTP_USE_LSQUIC)
+        c_abstract_http_resolve_dependency(lsquic https://github.com/litespeedtech/lsquic.git master)
+        if(NOT lsquic_RESOLVED)
+            message(FATAL_ERROR "lsquic library is required when C_ABSTRACT_HTTP_USE_LSQUIC is ON")
+        endif()
+        target_link_libraries(c-abstract-http PUBLIC lsquic)
+        target_sources(c-abstract-http PRIVATE src/http_lsquic.c)
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_LSQUIC C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC)
+    elseif(C_ABSTRACT_HTTP_USE_NGHTTP3)
+        c_abstract_http_resolve_dependency(ngtcp2 https://github.com/ngtcp2/ngtcp2.git main)
+        c_abstract_http_resolve_dependency(nghttp3 https://github.com/ngtcp2/nghttp3.git main)
+        if(NOT nghttp3_RESOLVED OR NOT ngtcp2_RESOLVED)
+            message(FATAL_ERROR "nghttp3 and ngtcp2 libraries are required when C_ABSTRACT_HTTP_USE_NGHTTP3 is ON")
+        endif()
+        target_link_libraries(c-abstract-http PUBLIC nghttp3 ngtcp2)
+        target_sources(c-abstract-http PRIVATE src/http_nghttp3.c)
+        target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_NGHTTP3 C_ABSTRACT_HTTP_HAVE_REAL_NGHTTP3)
     elseif(C_ABSTRACT_HTTP_USE_LIBSOUP3)
         target_sources(c-abstract-http PRIVATE
             src/http_libsoup3.c
@@ -807,6 +879,17 @@ else()
         endif()
     elseif(CMAKE_SYSTEM_NAME STREQUAL "DOS")
         target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
+        if(C_ABSTRACT_HTTP_DOS_WATT32)
+            target_compile_definitions(c-abstract-http PUBLIC C_ABSTRACT_HTTP_DOS_WATT32=1)
+            if(WATT32_INCLUDE_DIR)
+                target_include_directories(c-abstract-http PUBLIC "${WATT32_INCLUDE_DIR}")
+            endif()
+            if(WATT32_LIBRARY)
+                target_link_libraries(c-abstract-http PUBLIC "${WATT32_LIBRARY}")
+            else()
+                target_link_libraries(c-abstract-http PUBLIC wattcpwf)
+            endif()
+        endif()
     else()
         target_sources(c-abstract-http PRIVATE
             src/http_curl.c
@@ -823,6 +906,13 @@ else()
     endif()
 
     c_abstract_http_apply_crypto(c-abstract-http PUBLIC)
+    if(WIN32)
+        target_link_libraries(c-abstract-http PUBLIC ws2_32 secur32 crypt32)
+    elseif(APPLE AND CMAKE_C_COMPILER_ID MATCHES "Clang|AppleClang")
+        find_library(SECURITY_FRAMEWORK Security)
+        find_library(COREFOUNDATION_FRAMEWORK CoreFoundation)
+        target_link_libraries(c-abstract-http PUBLIC ${SECURITY_FRAMEWORK} ${COREFOUNDATION_FRAMEWORK})
+    endif()
 endif()
 
 if(BUILD_TESTING_${PROJECT_NAME})
@@ -862,7 +952,7 @@ if(BUILD_TESTING_${PROJECT_NAME})
             list(APPEND C_ABSTRACT_HTTP_MOCK_DEFS execv=c_abstract_http_mock_execv)
         endif()
 
-        if(NOT C_ABSTRACT_HTTP_HEADER_ONLY AND NOT (WIN32 AND BUILD_SHARED_LIBS))
+        if(NOT C_ABSTRACT_HTTP_HEADER_ONLY AND NOT (WIN32 AND BUILD_SHARED_LIBS) AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             get_target_property(_inst_sources c-abstract-http SOURCES)
             get_target_property(_inst_inc c-abstract-http INCLUDE_DIRECTORIES)
             get_target_property(_inst_pub_inc c-abstract-http INTERFACE_INCLUDE_DIRECTORIES)
@@ -872,11 +962,41 @@ if(BUILD_TESTING_${PROJECT_NAME})
             get_target_property(_inst_links c-abstract-http LINK_LIBRARIES)
 
             add_library(c-abstract-http-instrumented STATIC ${_inst_sources} tests/mock_alloc.c)
-            if(NOT C_ABSTRACT_HTTP_USE_PICOQUIC)
+            if(NOT C_ABSTRACT_HTTP_USE_PICOQUIC AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 target_sources(c-abstract-http-instrumented PRIVATE src/http_picoquic.c)
             endif()
-            if(NOT C_ABSTRACT_HTTP_USE_XQUIC)
+            if(NOT C_ABSTRACT_HTTP_USE_MSH3 AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http-instrumented PRIVATE src/http_msh3.c)
+            endif()
+            if(NOT C_ABSTRACT_HTTP_USE_XQUIC AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 target_sources(c-abstract-http-instrumented PRIVATE src/http_xquic.c)
+            endif()
+            if(NOT C_ABSTRACT_HTTP_USE_LSQUIC AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http-instrumented PRIVATE src/http_lsquic.c)
+            endif()
+            if(NOT C_ABSTRACT_HTTP_USE_NGHTTP3 AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http-instrumented PRIVATE src/http_nghttp3.c)
+            endif()
+            if(NOT C_ABSTRACT_HTTP_USE_WASM AND NOT EMSCRIPTEN AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http-instrumented PRIVATE src/http_wasm.c)
+            endif()
+            if(NOT C_ABSTRACT_HTTP_USE_LIBFETCH AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http-instrumented PRIVATE src/http_fetch.c)
+            endif()
+            if(NOT C_ABSTRACT_HTTP_USE_LIBSOUP3 AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http-instrumented PRIVATE src/http_libsoup3.c)
+            endif()
+            if(NOT C_ABSTRACT_HTTP_USE_LIBEVENT AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http-instrumented PRIVATE src/http_libevent.c)
+            endif()
+            if(NOT C_ABSTRACT_HTTP_USE_LIBUV AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http-instrumented PRIVATE src/http_libuv.c)
+            endif()
+            if(NOT C_ABSTRACT_HTTP_USE_WINHTTP AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http-instrumented PRIVATE src/http_winhttp.c)
+            endif()
+            if(NOT C_ABSTRACT_HTTP_USE_WININET AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+                target_sources(c-abstract-http-instrumented PRIVATE src/http_wininet.c)
             endif()
             if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 target_sources(c-abstract-http-instrumented PRIVATE tests/abstract_http_test_helpers/mock_server.c)

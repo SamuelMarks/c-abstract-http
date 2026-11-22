@@ -62,6 +62,7 @@ struct url {
 #define FETCH_MEMORY 5
 
 static int fetchLastErrCode = 0;
+static int fetchTimeout = 0;
 
 static struct url *fetchParseURL(const char *url_str) {
   struct url *u;

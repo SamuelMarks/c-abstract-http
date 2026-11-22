@@ -14,8 +14,13 @@
 #include <string.h>
 #include <time.h>
 
+#include <c_abstract_http/actor.h>
+#include <c_abstract_http/coroutine.h>
+#include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/log.h>
+#include <c_abstract_http/process.h>
+#include <c_abstract_http/thread_pool.h>
 #include <c89stringutils_string_extras.h>
 
 #if defined(_WIN32)
@@ -25,15 +30,18 @@
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+#include <dos.h>
+#if defined(C_ABSTRACT_HTTP_DOS_WATT32)
+#include <tcp.h>
+#endif
 #else
-#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #if !defined(_MSC_VER)
 #include <unistd.h>
-#endif
 #endif
 #endif
 /* clang-format on */
@@ -81,7 +89,9 @@ extern int g_mock_urlencode_append_fail;
 static enum c_abstract_http_error
 strcasecmp_portable(const char *s1, const char *s2, int *out_diff) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_strcasecmp_fail)
+  if (g_mock_strcasecmp_fail > 0)
+    return C_ABSTRACT_HTTP_ERR_IO;
+  if (g_mock_strcasecmp_fail < 0 && ++g_mock_strcasecmp_fail == 0)
     return C_ABSTRACT_HTTP_ERR_IO;
 #endif
   while (*s1 && *s2) {
@@ -700,6 +710,7 @@ enum c_abstract_http_error http_cookie_jar_free(struct HttpCookieJar *jar) {
       free(jar->cookies[i].value);
       free(jar->cookies[i].domain);
       free(jar->cookies[i].path);
+      free(jar->cookies[i].same_site);
     }
     free(jar->cookies);
     jar->cookies = NULL;
@@ -776,6 +787,409 @@ enum c_abstract_http_error http_cookie_jar_get(const struct HttpCookieJar *jar,
   return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
+/**
+ * @brief Duplicate a trimmed ASCII substring `[start, end)`.
+ * @param start Inclusive start pointer.
+ * @param end Exclusive end pointer.
+ * @param out Output pointer receiving NUL-terminated heap string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+static enum c_abstract_http_error
+cookie_slice_dup(const char *start, const char *end, char **out) {
+  size_t len;
+  char *buf;
+  while (start < end && (*start == ' ' || *start == '\t')) {
+    start++;
+  }
+  while (end > start && (end[-1] == ' ' || end[-1] == '\t')) {
+    end--;
+  }
+  len = (size_t)(end - start);
+  buf = (char *)malloc(len + 1);
+  if (!buf) {
+    *out = NULL;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  if (len > 0) {
+    memcpy(buf, start, len);
+  }
+  buf[len] = '\0';
+  *out = buf;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Pure predicate checking RFC 6265 domain suffix match between request
+ * host and cookie domain.
+ * @param host Request host slice start.
+ * @param host_len Request host byte length.
+ * @param cookie_dom Stored normalized cookie domain (without leading dot).
+ * @return 1 on match, 0 otherwise.
+ */
+static int math_cookie_domain_matches(const char *host, size_t host_len,
+                                      const char *cookie_dom) {
+  size_t dom_len = strlen(cookie_dom);
+  size_t i;
+  const char *suffix;
+  if (dom_len == 0 || host_len < dom_len) {
+    return 0;
+  }
+  if (host_len > dom_len && host[host_len - dom_len - 1] != '.') {
+    return 0;
+  }
+  suffix = host + (host_len - dom_len);
+  for (i = 0; i < dom_len; ++i) {
+    if (tolower((unsigned char)suffix[i]) !=
+        tolower((unsigned char)cookie_dom[i])) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+/** @brief Parse an RFC 6265 Set-Cookie header into the cookie jar */
+enum c_abstract_http_error
+http_cookie_jar_parse_set_cookie(struct HttpCookieJar *jar,
+                                 const char *set_cookie_header) {
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  const char *semi;
+  const char *eq;
+  const char *cursor;
+  char *name = NULL;
+  char *value = NULL;
+  char *domain = NULL;
+  char *path = NULL;
+  char *same_site = NULL;
+  long expires = 0;
+  int has_max_age = 0;
+  int secure = 0;
+  int http_only = 0;
+  size_t i;
+  size_t target_idx = 0;
+  int found = 0;
+
+  if (!jar || !set_cookie_header) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  semi = strchr(set_cookie_header, ';');
+  if (!semi) {
+    semi = set_cookie_header + strlen(set_cookie_header);
+  }
+  eq = (const char *)memchr(set_cookie_header, '=',
+                            (size_t)(semi - set_cookie_header));
+  if (!eq) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  rc = cookie_slice_dup(set_cookie_header, eq, &name);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    goto cleanup;
+  }
+  if (name[0] == '\0') {
+    rc = C_ABSTRACT_HTTP_ERR_INVAL;
+    goto cleanup;
+  }
+  rc = cookie_slice_dup(eq + 1, semi, &value);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    goto cleanup;
+  }
+
+  cursor = (*semi == ';') ? (semi + 1) : semi;
+  while (*cursor != '\0') {
+    static const char *const k_attrs[7] = {"Domain",  "Path",    "SameSite",
+                                           "Max-Age", "Expires", "Secure",
+                                           "HttpOnly"};
+    const char *next_semi = strchr(cursor, ';');
+    const char *seg_end = next_semi ? next_semi : (cursor + strlen(cursor));
+    const char *attr_eq =
+        (const char *)memchr(cursor, '=', (size_t)(seg_end - cursor));
+    char *attr_key = NULL;
+    char *attr_val = NULL;
+    int matched = -1;
+    size_t ai;
+
+    if (attr_eq) {
+      rc = cookie_slice_dup(cursor, attr_eq, &attr_key);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto cleanup;
+      }
+      rc = cookie_slice_dup(attr_eq + 1, seg_end, &attr_val);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(attr_key);
+        goto cleanup;
+      }
+    } else {
+      rc = cookie_slice_dup(cursor, seg_end, &attr_key);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto cleanup;
+      }
+    }
+
+    for (ai = 0; ai < 7; ++ai) {
+      int diff = 0;
+      rc = strcasecmp_portable(attr_key, k_attrs[ai], &diff);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(attr_key);
+        free(attr_val);
+        goto cleanup;
+      }
+      if (diff == 0) {
+        matched = (int)ai;
+        break;
+      }
+    }
+    free(attr_key);
+
+    if (matched == 0 && attr_val) {
+      const char *dom_src = (attr_val[0] == '.') ? (attr_val + 1) : attr_val;
+      free(domain);
+      domain = NULL;
+      rc = c_abstract_http_strdup(dom_src, &domain);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(attr_val);
+        goto cleanup;
+      }
+      free(attr_val);
+    } else if (matched == 1 && attr_val) {
+      free(path);
+      path = attr_val;
+    } else if (matched == 2 && attr_val) {
+      free(same_site);
+      same_site = attr_val;
+    } else if (matched == 3 && attr_val) {
+      long sec = atol(attr_val);
+      has_max_age = 1;
+      expires = (sec <= 0) ? 1L : ((long)time(NULL) + sec);
+      free(attr_val);
+    } else if (matched == 4 && attr_val) {
+      if (!has_max_age) {
+        long ep = atol(attr_val);
+        if (ep > 0) {
+          expires = ep;
+        }
+      }
+      free(attr_val);
+    } else {
+      if (matched == 5) {
+        secure = 1;
+      } else if (matched == 6) {
+        http_only = 1;
+      }
+      free(attr_val);
+    }
+
+    cursor = next_semi ? (next_semi + 1) : seg_end;
+  }
+
+  for (i = 0; i < jar->count; ++i) {
+    int dom_eq = 0;
+    int path_eq = 0;
+    if (strcmp(jar->cookies[i].name, name) != 0) {
+      continue;
+    }
+    if (!domain && !jar->cookies[i].domain) {
+      dom_eq = 1;
+    } else if (domain && jar->cookies[i].domain) {
+      int d = 0;
+      rc = strcasecmp_portable(domain, jar->cookies[i].domain, &d);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto cleanup;
+      }
+      dom_eq = (d == 0);
+    }
+    if (!path && !jar->cookies[i].path) {
+      path_eq = 1;
+    } else if (path && jar->cookies[i].path &&
+               strcmp(path, jar->cookies[i].path) == 0) {
+      path_eq = 1;
+    }
+    if (dom_eq && path_eq) {
+      target_idx = i;
+      found = 1;
+      break;
+    }
+  }
+
+  if (!found) {
+    if (jar->count >= jar->capacity) {
+      size_t new_cap = (jar->capacity == 0) ? 4 : jar->capacity * 2;
+      struct HttpCookie *new_arr = (struct HttpCookie *)realloc(
+          jar->cookies, new_cap * sizeof(struct HttpCookie));
+      if (!new_arr) {
+        rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+        goto cleanup;
+      }
+      jar->cookies = new_arr;
+      jar->capacity = new_cap;
+    }
+    target_idx = jar->count++;
+    memset(&jar->cookies[target_idx], 0, sizeof(struct HttpCookie));
+    jar->cookies[target_idx].name = name;
+    name = NULL;
+  } else {
+    free(jar->cookies[target_idx].value);
+    free(jar->cookies[target_idx].domain);
+    free(jar->cookies[target_idx].path);
+    free(jar->cookies[target_idx].same_site);
+  }
+
+  jar->cookies[target_idx].value = value;
+  jar->cookies[target_idx].domain = domain;
+  jar->cookies[target_idx].path = path;
+  jar->cookies[target_idx].same_site = same_site;
+  jar->cookies[target_idx].expires = expires;
+  jar->cookies[target_idx].secure = secure;
+  jar->cookies[target_idx].http_only = http_only;
+  value = NULL;
+  domain = NULL;
+  path = NULL;
+  same_site = NULL;
+
+cleanup:
+  free(name);
+  free(value);
+  free(domain);
+  free(path);
+  free(same_site);
+  return rc;
+}
+
+/**
+ * @brief Pure predicate checking if a stored cookie applies to a parsed
+ * request target.
+ * @param c Candidate cookie.
+ * @param now_ts Current epoch timestamp.
+ * @param is_https Non-zero if target scheme is HTTPS.
+ * @param has_url Non-zero if target has host authority.
+ * @param host_start Pointer to request host slice.
+ * @param host_len Length of request host slice.
+ * @param req_path Request path starting with '/'.
+ * @return 1 if cookie should be sent, 0 otherwise.
+ */
+static int math_cookie_matches_request(const struct HttpCookie *c, long now_ts,
+                                       int is_https, int has_url,
+                                       const char *host_start, size_t host_len,
+                                       const char *req_path) {
+  if (c->expires > 0 && c->expires <= now_ts) {
+    return 0;
+  }
+  if (c->secure && !is_https) {
+    return 0;
+  }
+  if (c->domain && (!has_url || !math_cookie_domain_matches(
+                                    host_start, host_len, c->domain))) {
+    return 0;
+  }
+  if (c->path && strncmp(req_path, c->path, strlen(c->path)) != 0) {
+    return 0;
+  }
+  return 1;
+}
+
+/** @brief Build an RFC 6265 Cookie header string matching a request URL */
+enum c_abstract_http_error
+http_cookie_jar_build_header(const struct HttpCookieJar *jar,
+                             const char *request_url,
+                             char **out_cookie_header) {
+  size_t i;
+  size_t total_len = 0;
+  size_t match_count = 0;
+  int is_https = 0;
+  int has_url = 0;
+  const char *host_start = NULL;
+  size_t host_len = 0;
+  const char *req_path = "/";
+  long now_ts;
+  char *buf;
+  size_t pos = 0;
+
+  if (!jar || !out_cookie_header) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *out_cookie_header = NULL;
+  if (jar->count == 0) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  if (request_url) {
+    const char *scheme_sep = strstr(request_url, "://");
+    if (scheme_sep) {
+      const char *slash;
+      const char *colon;
+      size_t scheme_len = (size_t)(scheme_sep - request_url);
+      has_url = 1;
+      if (scheme_len == 5 && tolower((unsigned char)request_url[0]) == 'h' &&
+          tolower((unsigned char)request_url[4]) == 's') {
+        is_https = 1;
+      }
+      host_start = scheme_sep + 3;
+      slash = strchr(host_start, '/');
+      if (slash) {
+        req_path = slash;
+        host_len = (size_t)(slash - host_start);
+      } else {
+        host_len = strlen(host_start);
+      }
+      colon = (const char *)memchr(host_start, ':', host_len);
+      if (colon) {
+        host_len = (size_t)(colon - host_start);
+      }
+    } else if (request_url[0] == '/') {
+      req_path = request_url;
+    }
+  }
+
+  now_ts = (long)time(NULL);
+  for (i = 0; i < jar->count; ++i) {
+    const struct HttpCookie *c = &jar->cookies[i];
+    if (!math_cookie_matches_request(c, now_ts, is_https, has_url, host_start,
+                                     host_len, req_path)) {
+      continue;
+    }
+    if (match_count > 0) {
+      total_len += 2;
+    }
+    total_len += strlen(c->name) + 1 + strlen(c->value);
+    match_count++;
+  }
+
+  if (match_count == 0) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  buf = (char *)malloc(total_len + 1);
+  if (!buf) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+
+  match_count = 0;
+  for (i = 0; i < jar->count; ++i) {
+    const struct HttpCookie *c = &jar->cookies[i];
+    size_t nlen;
+    size_t vlen;
+    if (!math_cookie_matches_request(c, now_ts, is_https, has_url, host_start,
+                                     host_len, req_path)) {
+      continue;
+    }
+    if (match_count > 0) {
+      buf[pos++] = ';';
+      buf[pos++] = ' ';
+    }
+    nlen = strlen(c->name);
+    vlen = strlen(c->value);
+    memcpy(buf + pos, c->name, nlen);
+    pos += nlen;
+    buf[pos++] = '=';
+    memcpy(buf + pos, c->value, vlen);
+    pos += vlen;
+    match_count++;
+  }
+  buf[pos] = '\0';
+  *out_cookie_header = buf;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 /** @brief Initialize an HTTP configuration structure */
 enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   enum c_abstract_http_error rc;
@@ -805,6 +1219,12 @@ enum c_abstract_http_error http_config_init(struct HttpConfig *config) {
   config->version_mask = HTTP_VERSION_DEFAULT;
   config->tls_version_mask = HTTP_TLS_VERSION_DEFAULT;
   config->http3_fallback = 1;
+  config->ca_path = NULL;
+  config->ca_buffer = NULL;
+  config->ca_buffer_len = 0;
+  config->client_cert_path = NULL;
+  config->client_key_path = NULL;
+  config->cert_pin_sha256 = NULL;
 
   rc = c_abstract_http_strdup("c_abstract_http/0.1.0", &config->user_agent);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
@@ -837,6 +1257,17 @@ enum c_abstract_http_error http_config_free(struct HttpConfig *config) {
     free(config->proxy_password);
     config->proxy_password = NULL;
   }
+  free(config->ca_path);
+  config->ca_path = NULL;
+  free(config->ca_buffer);
+  config->ca_buffer = NULL;
+  config->ca_buffer_len = 0;
+  free(config->client_cert_path);
+  config->client_cert_path = NULL;
+  free(config->client_key_path);
+  config->client_key_path = NULL;
+  free(config->cert_pin_sha256);
+  config->cert_pin_sha256 = NULL;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -936,10 +1367,189 @@ http_modality_context_init(struct ModalityContext *ctx) {
 /** @brief Free a modality execution context */
 enum c_abstract_http_error
 http_modality_context_free(struct ModalityContext *ctx) {
+  void *raw;
   if (!ctx)
     return C_ABSTRACT_HTTP_SUCCESS;
-  /* Modality specific cleanup would happen here later */
+  raw = ctx->internal_ctx;
   ctx->internal_ctx = NULL;
+  if (!raw)
+    return C_ABSTRACT_HTTP_SUCCESS;
+
+  switch ((int)ctx->modality) {
+  case MODALITY_ASYNC: {
+    return http_loop_free((struct ModalityEventLoop *)raw);
+  }
+  case MODALITY_THREAD_POOL: {
+    return abstract_http_thread_pool_free((struct AbstractHttpThreadPool *)raw);
+  }
+  case MODALITY_GREENTHREAD: {
+    return abstract_http_coroutine_free((struct AbstractHttpCoroutine *)raw);
+  }
+  case MODALITY_MESSAGE_PASSING: {
+    return abstract_http_message_bus_free((struct AbstractHttpMessageBus *)raw);
+  }
+  case MODALITY_MULTIPROCESS: {
+    return abstract_http_process_wait_and_free(
+        (struct AbstractHttpProcess *)raw, NULL);
+  }
+  case MODALITY_SYNC:
+  default:
+    free(raw);
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+}
+
+/** @brief Internal synchronization and cancellation state for HttpFuture */
+struct HttpFutureState {
+  /** @brief Non-zero once cancellation was requested */
+  int is_cancelled;
+  /** @brief Mutex protecting state transitions */
+  struct AbstractHttpMutex *mutex;
+  /** @brief Condition variable woken on completion or cancellation */
+  struct AbstractHttpCond *cond;
+  /** @brief Intrusive singly-linked list pointer of active future states */
+  struct HttpFutureState *next;
+};
+
+/** @brief Head of active library-owned HttpFutureState instances */
+static struct HttpFutureState *g_active_future_states = NULL;
+
+/**
+ * @brief Pure predicate looking up a library-allocated `HttpFutureState`
+ * without dereferencing unknown pointers.
+ * @param ptr Candidate `future->internal_state` pointer.
+ * @param out_state Output pointer receiving matching `struct HttpFutureState
+ * *`.
+ * @return 1 if found, 0 otherwise.
+ */
+static int math_find_future_state(const void *ptr,
+                                  struct HttpFutureState **out_state) {
+  struct HttpFutureState *cur;
+  *out_state = NULL;
+  if (!ptr) {
+    return 0;
+  }
+  for (cur = g_active_future_states; cur != NULL; cur = cur->next) {
+    if ((const void *)cur == ptr) {
+      *out_state = cur;
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/**
+ * @brief Initialize a paired mutex and condition variable.
+ * @param out_mutex Output mutex pointer.
+ * @param out_cond Output condition variable pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+static enum c_abstract_http_error
+sync_pair_init(struct AbstractHttpMutex **out_mutex,
+               struct AbstractHttpCond **out_cond) {
+  enum c_abstract_http_error rc;
+  rc = abstract_http_mutex_init(out_mutex);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = abstract_http_cond_init(out_cond);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    struct AbstractHttpMutex *m = *out_mutex;
+    enum c_abstract_http_error m_rc;
+    *out_mutex = NULL;
+    m_rc = abstract_http_mutex_free(m);
+    if (m_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return m_rc;
+    }
+    return rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Free a paired condition variable and mutex, percolating errors.
+ * @param cond Condition variable to free.
+ * @param mutex Mutex to free.
+ * @return C_ABSTRACT_HTTP_SUCCESS or first failure enum.
+ */
+static enum c_abstract_http_error
+sync_pair_free(struct AbstractHttpCond *cond, struct AbstractHttpMutex *mutex) {
+  enum c_abstract_http_error c_rc;
+  enum c_abstract_http_error m_rc;
+  c_rc = abstract_http_cond_free(cond);
+  if (c_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    m_rc = abstract_http_mutex_free(mutex);
+    if (m_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return m_rc;
+    }
+    return c_rc;
+  }
+  m_rc = abstract_http_mutex_free(mutex);
+  if (m_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return m_rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Broadcast a condition variable (if `do_broadcast` is non-zero) and
+ * unlock its associated mutex.
+ * @param mutex Locked mutex to unlock.
+ * @param cond Condition variable to broadcast.
+ * @param do_broadcast Non-zero to broadcast before unlocking.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+static enum c_abstract_http_error
+sync_broadcast_and_unlock(struct AbstractHttpMutex *mutex,
+                          struct AbstractHttpCond *cond, int do_broadcast) {
+  enum c_abstract_http_error u_rc;
+  if (do_broadcast) {
+    enum c_abstract_http_error b_rc;
+    b_rc = abstract_http_cond_broadcast(cond);
+    if (b_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      u_rc = abstract_http_mutex_unlock(mutex);
+      if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return u_rc;
+      }
+      return b_rc;
+    }
+  }
+  u_rc = abstract_http_mutex_unlock(mutex);
+  if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return u_rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Ensure `future->internal_state` is allocated and initialized.
+ * @param future Target future.
+ * @param out_state Output pointer receiving internal state struct.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on allocation/sync init
+ * failure.
+ */
+static enum c_abstract_http_error
+http_future_ensure_state(struct HttpFuture *future,
+                         struct HttpFutureState **out_state) {
+  struct HttpFutureState *st = NULL;
+  enum c_abstract_http_error rc;
+  if (math_find_future_state(future->internal_state, &st)) {
+    *out_state = st;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  st = (struct HttpFutureState *)calloc(1, sizeof(*st));
+  if (!st) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  rc = sync_pair_init(&st->mutex, &st->cond);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(st);
+    return rc;
+  }
+  st->next = g_active_future_states;
+  g_active_future_states = st;
+  future->internal_state = st;
+  *out_state = st;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -956,13 +1566,81 @@ enum c_abstract_http_error http_future_init(struct HttpFuture *future) {
 
 /** @brief Free an asynchronous HTTP future */
 enum c_abstract_http_error http_future_free(struct HttpFuture *future) {
+  struct HttpFutureState *st = NULL;
   if (!future)
     return C_ABSTRACT_HTTP_SUCCESS;
-  /* if we owned future->response, we might free it, but usually user takes
-   * ownership */
-  future->response = NULL;
+  if (math_find_future_state(future->internal_state, &st)) {
+    struct HttpFutureState **pp = &g_active_future_states;
+    enum c_abstract_http_error rc;
+    while (*pp) {
+      if (*pp == st) {
+        *pp = st->next;
+        break;
+      }
+      pp = &(*pp)->next;
+    }
+    future->internal_state = NULL;
+    future->response = NULL;
+    rc = sync_pair_free(st->cond, st->mutex);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(st);
+      return rc;
+    }
+    free(st);
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
   future->internal_state = NULL;
+  future->response = NULL;
   return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/** @brief Wait for a deferred HttpFuture to complete */
+enum c_abstract_http_error http_future_await(struct HttpFuture *future) {
+  struct HttpFutureState *st = NULL;
+  if (!future)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  if (math_find_future_state(future->internal_state, &st)) {
+    enum c_abstract_http_error rc;
+    enum c_abstract_http_error u_rc;
+    rc = abstract_http_mutex_lock(st->mutex);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+    while (!future->is_ready) {
+      rc = abstract_http_cond_wait(st->cond, st->mutex);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        u_rc = abstract_http_mutex_unlock(st->mutex);
+        if (u_rc != C_ABSTRACT_HTTP_SUCCESS)
+          return u_rc;
+        return rc;
+      }
+    }
+    u_rc = abstract_http_mutex_unlock(st->mutex);
+    if (u_rc != C_ABSTRACT_HTTP_SUCCESS)
+      return u_rc;
+  } else if (!future->is_ready) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  return (enum c_abstract_http_error)future->error_code;
+}
+
+/** @brief Mark an HttpFuture as cancelled and wake waiting callers */
+enum c_abstract_http_error http_future_cancel(struct HttpFuture *future) {
+  struct HttpFutureState *st = NULL;
+  enum c_abstract_http_error rc;
+  if (!future)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  rc = http_future_ensure_state(future, &st);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
+  rc = abstract_http_mutex_lock(st->mutex);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    return rc;
+  st->is_cancelled = 1;
+  if (!future->is_ready) {
+    future->error_code = (int)C_ABSTRACT_HTTP_ERR_TIMEOUT;
+    future->is_ready = 1;
+  }
+  return sync_broadcast_and_unlock(st->mutex, st->cond, 1);
 }
 
 /** @brief Initialize a multi-request batch */
@@ -2156,7 +2834,6 @@ typedef int abstract_http_socket_t;
 #define ABSTRACT_HTTP_SOCKET_ERROR_VAL -1
 #endif
 
-#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 /**
  * @brief URL-decode a bounded substring into a newly allocated NUL-terminated
  * string.
@@ -2230,33 +2907,184 @@ static enum c_abstract_http_error urldecode_alloc(const char *src,
   *out = dst;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+/**
+ * @brief Parse an OAuth2 redirect HTTP request line, URL, or query string.
+ * @param input Raw HTTP request (`GET /cb?... HTTP/1.1`), redirect URL, or
+ * query string.
+ * @param require_http_get Non-zero to require `"GET "` prefix (socket mode).
+ * @param out_code Optional output pointer for `code`.
+ * @param out_state Optional output pointer for `state`.
+ * @param out_error Optional output pointer for `error`.
+ * @param out_error_desc Optional output pointer for `error_description`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+static enum c_abstract_http_error
+parse_oauth2_redirect_payload(const char *input, int require_http_get,
+                              char **out_code, char **out_state,
+                              char **out_error, char **out_error_desc) {
+  const char *p;
+  enum c_abstract_http_error rc;
+
+  if (require_http_get || strncmp(input, "GET ", 4) == 0) {
+    if (strncmp(input, "GET ", 4) != 0) {
+      return C_ABSTRACT_HTTP_ERR_INVAL;
+    }
+    p = input + 4;
+    while (*p && *p != '?' && *p != ' ' && *p != '\r' && *p != '\n') {
+      p++;
+    }
+    if (*p != '?') {
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    p++;
+  } else {
+    const char *q = strchr(input, '?');
+    if (q) {
+      p = q + 1;
+    } else if (strchr(input, '=')) {
+      p = input;
+    } else {
+      return C_ABSTRACT_HTTP_ERR_INVAL;
+    }
+  }
+
+  while (*p && *p != ' ' && *p != '\r' && *p != '\n' && *p != '#') {
+    const char *key = p;
+    const char *val = NULL;
+    size_t key_len = 0;
+    size_t val_len = 0;
+
+    while (*p && *p != '=' && *p != '&' && *p != ' ' && *p != '\r' &&
+           *p != '\n' && *p != '#') {
+      p++;
+    }
+    key_len = (size_t)(p - key);
+
+    if (*p == '=') {
+      p++;
+      val = p;
+      while (*p && *p != '&' && *p != ' ' && *p != '\r' && *p != '\n' &&
+             *p != '#') {
+        p++;
+      }
+      val_len = (size_t)(p - val);
+    }
+
+    if (key_len == 4 && strncmp(key, "code", 4) == 0 && out_code && val) {
+      free(*out_code);
+      *out_code = NULL;
+      rc = urldecode_alloc(val, val_len, out_code);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+    } else if (key_len == 5 && strncmp(key, "state", 5) == 0 && out_state &&
+               val) {
+      free(*out_state);
+      *out_state = NULL;
+      rc = urldecode_alloc(val, val_len, out_state);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+    } else if (key_len == 5 && strncmp(key, "error", 5) == 0 && out_error &&
+               val) {
+      free(*out_error);
+      *out_error = NULL;
+      rc = urldecode_alloc(val, val_len, out_error);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+    } else if (key_len == 17 && strncmp(key, "error_description", 17) == 0 &&
+               out_error_desc && val) {
+      free(*out_error_desc);
+      *out_error_desc = NULL;
+      rc = urldecode_alloc(val, val_len, out_error_desc);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+    }
+
+    if (*p == '&') {
+      p++;
+    }
+  }
+
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Optional test-only override for `CAH_OAUTH2_REDIRECT` */
+static const char *g_test_oauth2_redirect_override = NULL;
+
+/**
+ * @brief Configure test-only override value for `CAH_OAUTH2_REDIRECT`.
+ * @param val Override string, or NULL to clear.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+c_abstract_http_test_set_oauth2_redirect_env(const char *val);
+
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+c_abstract_http_test_set_oauth2_redirect_env(const char *val) {
+  g_test_oauth2_redirect_override = val;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 #endif
+
+/**
+ * @brief Read an environment variable into a heap-duplicated string safely.
+ * @param name Environment variable name.
+ * @param out_val Output pointer receiving heap string, or NULL if unset/empty.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+static enum c_abstract_http_error dup_env_var(const char *name,
+                                              char **out_val) {
+  *out_val = NULL;
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_test_oauth2_redirect_override &&
+      strcmp(name, "CAH_OAUTH2_REDIRECT") == 0) {
+    if (g_test_oauth2_redirect_override[0] == '\0') {
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    return c_abstract_http_strdup(g_test_oauth2_redirect_override, out_val);
+  }
+#endif
+  {
+    char *buf = NULL;
+    size_t len = 0;
+    if (_dupenv_s(&buf, &len, name) == 0 && buf != NULL) {
+      if (buf[0] == '\0') {
+        free(buf);
+        return C_ABSTRACT_HTTP_SUCCESS;
+      }
+      *out_val = buf;
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#else
+  {
+    const char *v = getenv(name);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_test_oauth2_redirect_override &&
+        strcmp(name, "CAH_OAUTH2_REDIRECT") == 0) {
+      v = g_test_oauth2_redirect_override;
+    }
+#endif
+    if (!v || v[0] == '\0') {
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    return c_abstract_http_strdup(v, out_val);
+  }
+#endif
+}
 
 enum c_abstract_http_error
 http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
                                 char **out_code, char **out_state,
                                 char **out_error, char **out_error_desc) {
-#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-  (void)port;
-  (void)html_response;
-  if (out_code)
-    *out_code = NULL;
-  if (out_state)
-    *out_state = NULL;
-  if (out_error)
-    *out_error = NULL;
-  if (out_error_desc)
-    *out_error_desc = NULL;
-  return C_ABSTRACT_HTTP_ERR_NOTSUP;
-#else
-  abstract_http_socket_t srv_sock = ABSTRACT_HTTP_INVALID_SOCKET_VAL,
-                         cli_sock = ABSTRACT_HTTP_INVALID_SOCKET_VAL;
-  struct sockaddr_in saddr;
-  char buf[4096];
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  int n;
-  char *p;
-  int opt = 1;
+  char *env_redir = NULL;
+  enum c_abstract_http_error env_rc;
 
   if (out_code)
     *out_code = NULL;
@@ -2267,124 +3095,159 @@ http_oauth2_localhost_intercept(unsigned short port, const char *html_response,
   if (out_error_desc)
     *out_error_desc = NULL;
 
-#if defined(_WIN32)
-  {
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-      return C_ABSTRACT_HTTP_ERR_IO;
+  env_rc = dup_env_var("CAH_OAUTH2_REDIRECT", &env_redir);
+  if (env_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return env_rc;
   }
-#endif
-
-  srv_sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (srv_sock == ABSTRACT_HTTP_INVALID_SOCKET_VAL) {
-    rc = C_ABSTRACT_HTTP_ERR_IO;
-    goto cleanup;
-  }
-
-  setsockopt(srv_sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt,
-             sizeof(opt));
-
-  memset(&saddr, 0, sizeof(saddr));
-  saddr.sin_family = AF_INET;
-  saddr.sin_port = (unsigned short)((((unsigned short)(port) >> 8) & 0xff) |
-                                    (((unsigned short)(port) & 0xff) << 8));
-  saddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-
-  if (bind(srv_sock, (struct sockaddr *)&saddr, sizeof(saddr)) ==
-      ABSTRACT_HTTP_SOCKET_ERROR_VAL) {
-    rc = C_ABSTRACT_HTTP_ERR_IO;
-    goto cleanup;
-  }
-
-  if (listen(srv_sock, 1) == ABSTRACT_HTTP_SOCKET_ERROR_VAL) {
-    rc = C_ABSTRACT_HTTP_ERR_IO;
-    goto cleanup;
-  }
-
-  cli_sock = accept(srv_sock, NULL, NULL);
-  if (cli_sock == ABSTRACT_HTTP_INVALID_SOCKET_VAL) {
-    rc = C_ABSTRACT_HTTP_ERR_IO;
-    goto cleanup;
-  }
-
-  n = (int)recv(cli_sock, buf, sizeof(buf) - 1, 0);
-  if (n <= 0) {
-    rc = C_ABSTRACT_HTTP_ERR_IO;
-    goto cleanup;
-  }
-  buf[n] = '\0';
-
-  if (html_response) {
-#if defined(_WIN32)
-    send(cli_sock, html_response, (int)strlen(html_response), 0);
-#else
-    send(cli_sock, html_response, (size_t)strlen(html_response), 0);
-#endif
-  }
-
-  if (strncmp(buf, "GET ", 4) != 0) {
-    rc = C_ABSTRACT_HTTP_ERR_INVAL;
-    goto cleanup;
-  }
-
-  p = buf + 4;
-  while (*p && *p != '?' && *p != ' ' && *p != '\r' && *p != '\n')
-    p++;
-  if (*p == '?') {
-    p++;
-    while (*p && *p != ' ') {
-      const char *key = p;
-      const char *val = NULL;
-      size_t key_len = 0;
-      size_t val_len = 0;
-
-      while (*p && *p != '=' && *p != '&' && *p != ' ')
-        p++;
-      key_len = (size_t)(p - key);
-
-      if (*p == '=') {
-        p++;
-        val = p;
-        while (*p && *p != '&' && *p != ' ')
-          p++;
-        val_len = (size_t)(p - val);
-      }
-
-      if (key_len == 4 && strncmp(key, "code", 4) == 0 && out_code && val) {
-        rc = urldecode_alloc(val, val_len, out_code);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS)
-          goto cleanup;
-      } else if (key_len == 5 && strncmp(key, "state", 5) == 0 && out_state &&
-                 val) {
-        rc = urldecode_alloc(val, val_len, out_state);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS)
-          goto cleanup;
-      } else if (key_len == 5 && strncmp(key, "error", 5) == 0 && out_error &&
-                 val) {
-        rc = urldecode_alloc(val, val_len, out_error);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS)
-          goto cleanup;
-      } else if (key_len == 17 && strncmp(key, "error_description", 17) == 0 &&
-                 out_error_desc && val) {
-        rc = urldecode_alloc(val, val_len, out_error_desc);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS)
-          goto cleanup;
-      }
-
-      if (*p == '&')
-        p++;
+  if (env_redir) {
+    enum c_abstract_http_error prc;
+    prc = parse_oauth2_redirect_payload(env_redir, 0, out_code, out_state,
+                                        out_error, out_error_desc);
+    if (prc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(env_redir);
+      return prc;
     }
+    free(env_redir);
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
-cleanup:
-  if (cli_sock != ABSTRACT_HTTP_INVALID_SOCKET_VAL)
-    ABSTRACT_HTTP_CLOSESOCKET(cli_sock);
-  if (srv_sock != ABSTRACT_HTTP_INVALID_SOCKET_VAL)
-    ABSTRACT_HTTP_CLOSESOCKET(srv_sock);
-#if defined(_WIN32)
-  WSACleanup();
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+#if defined(C_ABSTRACT_HTTP_DOS_WATT32)
+  {
+    tcp_Socket sock;
+    char buf[2048];
+    int status = 0;
+    int n = 0;
+    enum c_abstract_http_error rc;
+
+    if (sock_init() != 0) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    if (!tcp_listen(&sock, port, 0, 0, NULL, 0)) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    sock_wait_established(&sock, sock_delay, NULL, &status);
+    sock_tick(&sock, &status);
+    while (!sock_dataready(&sock)) {
+      sock_tick(&sock, &status);
+    }
+    n = sock_fastread(&sock, (unsigned char *)buf, (int)sizeof(buf) - 1);
+    if (n <= 0) {
+      sock_close(&sock);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    buf[n] = '\0';
+    if (html_response) {
+      sock_puts(&sock, (const unsigned char *)html_response);
+    }
+    sock_close(&sock);
+    rc = parse_oauth2_redirect_payload(buf, 1, out_code, out_state, out_error,
+                                       out_error_desc);
+    return rc;
+  }
+#else
+  {
+    char *stdio_mode = NULL;
+    enum c_abstract_http_error src;
+    (void)port;
+    (void)html_response;
+    src = dup_env_var("CAH_OAUTH2_STDIO", &stdio_mode);
+    if (src != C_ABSTRACT_HTTP_SUCCESS) {
+      return src;
+    }
+    if (stdio_mode) {
+      char line[1024];
+      free(stdio_mode);
+      if (!fgets(line, (int)sizeof(line), stdin)) {
+        return C_ABSTRACT_HTTP_ERR_IO;
+      }
+      return parse_oauth2_redirect_payload(line, 0, out_code, out_state,
+                                           out_error, out_error_desc);
+    }
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
 #endif
-  return rc;
+#else
+  {
+    abstract_http_socket_t srv_sock = ABSTRACT_HTTP_INVALID_SOCKET_VAL,
+                           cli_sock = ABSTRACT_HTTP_INVALID_SOCKET_VAL;
+    struct sockaddr_in saddr;
+    char buf[4096];
+    enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+    int n;
+    int opt = 1;
+
+#if defined(_WIN32)
+    {
+      WSADATA wsa;
+      if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+        return C_ABSTRACT_HTTP_ERR_IO;
+    }
+#endif
+
+    srv_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (srv_sock == ABSTRACT_HTTP_INVALID_SOCKET_VAL) {
+      rc = C_ABSTRACT_HTTP_ERR_IO;
+      goto cleanup;
+    }
+
+    setsockopt(srv_sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt,
+               sizeof(opt));
+
+    memset(&saddr, 0, sizeof(saddr));
+    saddr.sin_family = AF_INET;
+    saddr.sin_port = (unsigned short)((((unsigned short)(port) >> 8) & 0xff) |
+                                      (((unsigned short)(port) & 0xff) << 8));
+    saddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+    if (bind(srv_sock, (struct sockaddr *)&saddr, sizeof(saddr)) ==
+        ABSTRACT_HTTP_SOCKET_ERROR_VAL) {
+      rc = C_ABSTRACT_HTTP_ERR_IO;
+      goto cleanup;
+    }
+
+    if (listen(srv_sock, 1) == ABSTRACT_HTTP_SOCKET_ERROR_VAL) {
+      rc = C_ABSTRACT_HTTP_ERR_IO;
+      goto cleanup;
+    }
+
+    cli_sock = accept(srv_sock, NULL, NULL);
+    if (cli_sock == ABSTRACT_HTTP_INVALID_SOCKET_VAL) {
+      rc = C_ABSTRACT_HTTP_ERR_IO;
+      goto cleanup;
+    }
+
+    n = (int)recv(cli_sock, buf, sizeof(buf) - 1, 0);
+    if (n <= 0) {
+      rc = C_ABSTRACT_HTTP_ERR_IO;
+      goto cleanup;
+    }
+    buf[n] = '\0';
+
+    if (html_response) {
+#if defined(_WIN32)
+      send(cli_sock, html_response, (int)strlen(html_response), 0);
+#else
+      send(cli_sock, html_response, (size_t)strlen(html_response), 0);
+#endif
+    }
+
+    rc = parse_oauth2_redirect_payload(buf, 1, out_code, out_state, out_error,
+                                       out_error_desc);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto cleanup;
+    }
+
+  cleanup:
+    if (cli_sock != ABSTRACT_HTTP_INVALID_SOCKET_VAL)
+      ABSTRACT_HTTP_CLOSESOCKET(cli_sock);
+    if (srv_sock != ABSTRACT_HTTP_INVALID_SOCKET_VAL)
+      ABSTRACT_HTTP_CLOSESOCKET(srv_sock);
+#if defined(_WIN32)
+    WSACleanup();
+#endif
+    return rc;
+  }
 #endif
 }
 
@@ -2454,6 +3317,982 @@ http_response_save_to_file(const struct HttpResponse *res, const char *path) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+#ifndef CAH_MATH_TIME_DECLARED
+/** @brief Guard macro for math_get_current_time_ms declaration */
+#define CAH_MATH_TIME_DECLARED 1
+/** @brief Return current monotonic/wall time in milliseconds */
+abstract_http_int64_t math_get_current_time_ms(void);
+/** @brief Real monotonic/wall time implementation */
+C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void);
+#ifndef math_get_current_time_ms
+/** @brief Default mapping of math_get_current_time_ms to real implementation */
+#define math_get_current_time_ms real_math_get_current_time_ms
+#endif
+#endif
+
+/**
+ * @brief Build a normalized joined URL from `base_url` and relative `rel_url`.
+ * @param base_url Base URL prefix.
+ * @param rel_url Relative path suffix.
+ * @param out_url Output pointer receiving newly allocated joined URL.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+static enum c_abstract_http_error client_join_base_url(const char *base_url,
+                                                       const char *rel_url,
+                                                       char **out_url) {
+  size_t blen = strlen(base_url);
+  size_t rlen;
+  char *buf;
+  while (blen > 0 && base_url[blen - 1] == '/') {
+    blen--;
+  }
+  while (*rel_url == '/') {
+    rel_url++;
+  }
+  rlen = strlen(rel_url);
+  buf = (char *)malloc(blen + 1 + rlen + 1);
+  if (!buf) {
+    *out_url = NULL;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  memcpy(buf, base_url, blen);
+  buf[blen] = '/';
+  memcpy(buf + blen + 1, rel_url, rlen);
+  buf[blen + 1 + rlen] = '\0';
+  *out_url = buf;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Pure helper computing retry delay in milliseconds from policy and
+ * response headers.
+ * @param policy Configured retry policy.
+ * @param attempt Zero-based retry attempt index.
+ * @param res Optional HTTP response inspected for `Retry-After` seconds.
+ * @return Non-negative delay in milliseconds.
+ */
+static long math_compute_retry_delay_ms(enum HttpRetryPolicy policy,
+                                        size_t attempt,
+                                        const struct HttpResponse *res) {
+  if (res) {
+    size_t i;
+    for (i = 0; i < res->headers.count; ++i) {
+      const char *k = res->headers.headers[i].key;
+      const char *v = res->headers.headers[i].value;
+      if (k && v && strlen(k) == 11 && tolower((unsigned char)k[0]) == 'r' &&
+          tolower((unsigned char)k[6]) == 'a') {
+        long sec = atol(v);
+        if (sec > 0) {
+          return sec * 1000L;
+        }
+      }
+    }
+  }
+  if (policy == HTTP_RETRY_EXPONENTIAL) {
+    size_t shift = attempt < 6 ? attempt : 6;
+    return (long)(1u << shift);
+  }
+  return (long)(attempt + 1);
+}
+
+/** @brief Send a single HTTP request through the unified client pipeline */
+enum c_abstract_http_error http_client_send(struct HttpClient *client,
+                                            struct HttpRequest *req,
+                                            struct HttpResponse **res) {
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  char *orig_url = NULL;
+  char *resolved_url = NULL;
+  char *cookie_hdr = NULL;
+  int added_cookie = 0;
+  size_t max_retries = 0;
+  size_t attempt = 0;
+  struct HttpResponse *attempt_res = NULL;
+
+  if (!client || !req || !res || !req->url) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *res = NULL;
+  if (!client->send) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
+
+  orig_url = req->url;
+  if (client->base_url && !strstr(req->url, "://")) {
+    rc = client_join_base_url(client->base_url, req->url, &resolved_url);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto cleanup;
+    }
+    req->url = resolved_url;
+  }
+
+  if (req->parts.count > 0 && !req->body) {
+    rc = http_request_flatten_parts(req);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto cleanup;
+    }
+  }
+
+  if (client->config.cookie_jar) {
+    rc = http_cookie_jar_build_header(client->config.cookie_jar, req->url,
+                                      &cookie_hdr);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto cleanup;
+    }
+    if (cookie_hdr) {
+      size_t hi;
+      int has_cookie_hdr = 0;
+      for (hi = 0; hi < req->headers.count; ++hi) {
+        int diff = 0;
+        rc = strcasecmp_portable(req->headers.headers[hi].key, "Cookie", &diff);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          goto cleanup;
+        }
+        if (diff == 0) {
+          has_cookie_hdr = 1;
+          break;
+        }
+      }
+      if (!has_cookie_hdr) {
+        rc = http_headers_add(&req->headers, "Cookie", cookie_hdr);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          goto cleanup;
+        }
+        added_cookie = 1;
+      }
+    }
+  }
+
+  if (client->config.retry_policy != HTTP_RETRY_NONE &&
+      client->config.retry_count > 0) {
+    max_retries = (size_t)client->config.retry_count;
+  }
+
+  for (attempt = 0; attempt <= max_retries; ++attempt) {
+    int should_retry = 0;
+    attempt_res = NULL;
+    rc = client->send(client->transport, req, &attempt_res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (attempt < max_retries &&
+          (rc == C_ABSTRACT_HTTP_ERR_IO || rc == C_ABSTRACT_HTTP_ERR_TIMEOUT)) {
+        should_retry = 1;
+      } else {
+        goto cleanup;
+      }
+    } else if (attempt < max_retries && attempt_res &&
+               (attempt_res->status_code == 429 ||
+                attempt_res->status_code == 502 ||
+                attempt_res->status_code == 503 ||
+                attempt_res->status_code == 504)) {
+      should_retry = 1;
+    }
+    if (should_retry) {
+      long delay_ms = math_compute_retry_delay_ms(client->config.retry_policy,
+                                                  attempt, attempt_res);
+      abstract_http_int64_t t0 = math_get_current_time_ms();
+      if (attempt_res) {
+        rc = http_response_free(attempt_res);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(attempt_res);
+          attempt_res = NULL;
+          goto cleanup;
+        }
+        free(attempt_res);
+        attempt_res = NULL;
+      }
+      while (math_get_current_time_ms() - t0 <
+             (abstract_http_int64_t)delay_ms) {
+      }
+      continue;
+    }
+    break;
+  }
+
+  if (rc == C_ABSTRACT_HTTP_SUCCESS && attempt_res &&
+      client->config.cookie_jar) {
+    size_t hi;
+    for (hi = 0; hi < attempt_res->headers.count; ++hi) {
+      int diff = 0;
+      rc = strcasecmp_portable(attempt_res->headers.headers[hi].key,
+                               "Set-Cookie", &diff);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto cleanup;
+      }
+      if (diff == 0 && attempt_res->headers.headers[hi].value) {
+        rc = http_cookie_jar_parse_set_cookie(
+            client->config.cookie_jar, attempt_res->headers.headers[hi].value);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          goto cleanup;
+        }
+      }
+    }
+  }
+
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+    *res = attempt_res;
+    attempt_res = NULL;
+  }
+
+cleanup:
+  if (added_cookie && req->headers.count > 0) {
+    size_t ci = req->headers.count - 1;
+    free(req->headers.headers[ci].key);
+    free(req->headers.headers[ci].value);
+    req->headers.count--;
+  }
+  req->url = orig_url;
+  free(resolved_url);
+  free(cookie_hdr);
+  if (attempt_res) {
+    enum c_abstract_http_error rf_rc;
+    rf_rc = http_response_free(attempt_res);
+    if (rf_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(attempt_res);
+      return rf_rc;
+    }
+    free(attempt_res);
+  }
+  return rc;
+}
+
+/**
+ * @brief Pure predicate checking whether an HttpFuture was pre-cancelled.
+ * @param future Future slot to inspect.
+ * @return 1 if cancelled, 0 otherwise.
+ */
+static int math_is_future_cancelled(const struct HttpFuture *future) {
+  if (future) {
+    struct HttpFutureState *st = NULL;
+    if (math_find_future_state(future->internal_state, &st)) {
+      return st->is_cancelled;
+    }
+  }
+  return 0;
+}
+
+/**
+ * @brief Record completion on an HttpFuture slot, signaling any awaiters.
+ * @param future Target future slot.
+ * @param res Resulting response pointer (NULL on error).
+ * @param req_rc Resulting request status enum.
+ * @return C_ABSTRACT_HTTP_SUCCESS or synchronization error enum.
+ */
+static enum c_abstract_http_error
+http_future_complete_slot(struct HttpFuture *future, struct HttpResponse *res,
+                          enum c_abstract_http_error req_rc) {
+  struct HttpFutureState *st = NULL;
+  if (math_find_future_state(future->internal_state, &st)) {
+    enum c_abstract_http_error rc;
+    rc = abstract_http_mutex_lock(st->mutex);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+    future->response = res;
+    future->error_code = (int)req_rc;
+    future->is_ready = 1;
+    return sync_broadcast_and_unlock(st->mutex, st->cond, 1);
+  }
+  future->response = res;
+  future->error_code = (int)req_rc;
+  future->is_ready = 1;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Dispatch a single batch request through middleware or raw transport.
+ * @param client HTTP client instance.
+ * @param req Request to send.
+ * @param res Output response pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or transport error enum.
+ */
+static enum c_abstract_http_error
+multi_dispatch_slot_send(struct HttpClient *client, struct HttpRequest *req,
+                         struct HttpResponse **res) {
+  if (req && req->url &&
+      (client->base_url || client->config.cookie_jar || req->parts.count > 0 ||
+       (client->config.retry_policy != HTTP_RETRY_NONE &&
+        client->config.retry_count > 0))) {
+    return http_client_send(client, req, res);
+  }
+  if (!client->send) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
+  return client->send(client->transport, req, res);
+}
+
+/**
+ * @brief Complete an `HttpFuture` slot and optionally propagate request
+ * failure.
+ * @param future Target future slot.
+ * @param res Resulting response pointer (NULL on error).
+ * @param req_rc Request execution status enum.
+ * @param fail_fast Non-zero to return `req_rc` when `req_rc != SUCCESS`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or synchronization/request error enum.
+ */
+static enum c_abstract_http_error
+multi_complete_slot_checked(struct HttpFuture *future, struct HttpResponse *res,
+                            enum c_abstract_http_error req_rc, int fail_fast) {
+  enum c_abstract_http_error slot_rc;
+  slot_rc = http_future_complete_slot(future, res, req_rc);
+  if (slot_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return slot_rc;
+  }
+  if (fail_fast && req_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return req_rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Execute a single request slot for batch modalities, honoring
+ * cancellation and client middleware.
+ * @param client HTTP client instance.
+ * @param req Request to execute.
+ * @param future Target future slot.
+ * @param fail_fast Non-zero to return request failure enum immediately.
+ * @return C_ABSTRACT_HTTP_SUCCESS or synchronization/request error enum.
+ */
+static enum c_abstract_http_error
+multi_execute_single_slot(struct HttpClient *client, struct HttpRequest *req,
+                          struct HttpFuture *future, int fail_fast) {
+  struct HttpResponse *res = NULL;
+  enum c_abstract_http_error req_rc;
+  if (math_is_future_cancelled(future)) {
+    return multi_complete_slot_checked(future, NULL,
+                                       C_ABSTRACT_HTTP_ERR_TIMEOUT, fail_fast);
+  }
+  req_rc = multi_dispatch_slot_send(client, req, &res);
+  if (req_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_complete_slot_checked(future, res, req_rc, fail_fast);
+  }
+  return multi_complete_slot_checked(future, res, C_ABSTRACT_HTTP_SUCCESS, 0);
+}
+
+/** @brief Shared completion barrier for thread-pool batch execution */
+struct MultiPoolBarrier {
+  /** @brief Mutex protecting remaining counter and worker_err */
+  struct AbstractHttpMutex *mutex;
+  /** @brief Condition variable signaled when remaining reaches 0 */
+  struct AbstractHttpCond *cond;
+  /** @brief Number of outstanding tasks */
+  size_t remaining;
+  /** @brief First synchronization error observed on workers */
+  enum c_abstract_http_error worker_err;
+};
+
+/** @brief Per-request work item for thread-pool, coroutine, and actor batches
+ */
+struct MultiBatchItem {
+  /** @brief Client executing the request */
+  struct HttpClient *client;
+  /** @brief Request pointer */
+  struct HttpRequest *req;
+  /** @brief Future receiving result */
+  struct HttpFuture *future;
+  /** @brief Optional thread-pool barrier */
+  struct MultiPoolBarrier *barrier;
+};
+
+/**
+ * @brief Decrement thread-pool batch barrier and broadcast on final completion.
+ * @param barrier Shared completion barrier.
+ * @param slot_rc Synchronization status from worker slot execution.
+ * @return C_ABSTRACT_HTTP_SUCCESS or synchronization error enum.
+ */
+static enum c_abstract_http_error
+multi_pool_finish_barrier(struct MultiPoolBarrier *barrier,
+                          enum c_abstract_http_error slot_rc) {
+  enum c_abstract_http_error l_rc;
+  int notify_done;
+  l_rc = abstract_http_mutex_lock(barrier->mutex);
+  if (l_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return l_rc;
+  }
+  if (slot_rc != C_ABSTRACT_HTTP_SUCCESS &&
+      barrier->worker_err == C_ABSTRACT_HTTP_SUCCESS) {
+    barrier->worker_err = slot_rc;
+  }
+  barrier->remaining--;
+  notify_done = (barrier->remaining == 0);
+  return sync_broadcast_and_unlock(barrier->mutex, barrier->cond, notify_done);
+}
+
+/**
+ * @brief Worker task callback for `MODALITY_THREAD_POOL` batch execution.
+ * @param arg Pointer to `struct MultiBatchItem`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+static enum c_abstract_http_error multi_pool_task_cb(void *arg) {
+  struct MultiBatchItem *item = (struct MultiBatchItem *)arg;
+  enum c_abstract_http_error slot_rc;
+  enum c_abstract_http_error b_rc;
+  slot_rc = multi_execute_single_slot(item->client, item->req, item->future, 0);
+  if (slot_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    b_rc = multi_pool_finish_barrier(item->barrier, slot_rc);
+    if (b_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return b_rc;
+    }
+    return slot_rc;
+  }
+  return multi_pool_finish_barrier(item->barrier, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Subtract unpushed task count from barrier when `thread_pool_push`
+ * fails.
+ * @param barrier Shared completion barrier.
+ * @param unpushed Number of tasks that were never enqueued.
+ * @return C_ABSTRACT_HTTP_SUCCESS or mutex error enum.
+ */
+static enum c_abstract_http_error
+multi_pool_abort_unpushed(struct MultiPoolBarrier *barrier, size_t unpushed) {
+  enum c_abstract_http_error rc;
+  rc = abstract_http_mutex_lock(barrier->mutex);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  barrier->remaining =
+      (barrier->remaining > unpushed) ? (barrier->remaining - unpushed) : 0;
+  return abstract_http_mutex_unlock(barrier->mutex);
+}
+
+/**
+ * @brief Wait until all enqueued tasks on `barrier` complete.
+ * @param barrier Shared completion barrier.
+ * @return C_ABSTRACT_HTTP_SUCCESS or synchronization/worker error enum.
+ */
+static enum c_abstract_http_error
+multi_pool_wait_barrier(struct MultiPoolBarrier *barrier) {
+  enum c_abstract_http_error rc;
+  enum c_abstract_http_error u_rc;
+  enum c_abstract_http_error w_err;
+  rc = abstract_http_mutex_lock(barrier->mutex);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  while (barrier->remaining > 0) {
+    rc = abstract_http_cond_wait(barrier->cond, barrier->mutex);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      u_rc = abstract_http_mutex_unlock(barrier->mutex);
+      if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return u_rc;
+      }
+      return rc;
+    }
+  }
+  w_err = barrier->worker_err;
+  u_rc = abstract_http_mutex_unlock(barrier->mutex);
+  if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return u_rc;
+  }
+  return w_err;
+}
+
+/**
+ * @brief Release thread-pool batch items and barrier sync primitives.
+ * @param barrier Barrier to destroy.
+ * @param items Work-item array to free.
+ * @param orig_rc Primary status to return if cleanup succeeds.
+ * @return Cleanup error enum if cleanup fails, otherwise `orig_rc`.
+ */
+static enum c_abstract_http_error
+multi_pool_cleanup(struct MultiPoolBarrier *barrier,
+                   struct MultiBatchItem *items,
+                   enum c_abstract_http_error orig_rc) {
+  enum c_abstract_http_error f_rc;
+  free(items);
+  f_rc = sync_pair_free(barrier->cond, barrier->mutex);
+  if (f_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return f_rc;
+  }
+  return orig_rc;
+}
+
+/**
+ * @brief Dispatch a multi-request batch concurrently on `client->thread_pool`.
+ * @param client HTTP client with active `thread_pool`.
+ * @param requests Array of request pointers.
+ * @param num_requests Number of requests.
+ * @param futures Output futures array.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+static enum c_abstract_http_error
+multi_run_thread_pool(struct HttpClient *client,
+                      struct HttpRequest *const *requests, size_t num_requests,
+                      struct HttpFuture **futures) {
+  struct MultiPoolBarrier barrier;
+  struct MultiBatchItem *items = NULL;
+  enum c_abstract_http_error rc;
+  size_t i;
+  size_t pushed = 0;
+
+  memset(&barrier, 0, sizeof(barrier));
+  items = (struct MultiBatchItem *)calloc(num_requests, sizeof(*items));
+  if (!items) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  rc = sync_pair_init(&barrier.mutex, &barrier.cond);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(items);
+    return rc;
+  }
+
+  barrier.remaining = num_requests;
+  barrier.worker_err = C_ABSTRACT_HTTP_SUCCESS;
+  for (i = 0; i < num_requests; ++i) {
+    items[i].client = client;
+    items[i].req = requests[i];
+    items[i].future = futures[i];
+    items[i].barrier = &barrier;
+    rc = abstract_http_thread_pool_push(client->thread_pool, multi_pool_task_cb,
+                                        &items[i]);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      enum c_abstract_http_error a_rc;
+      enum c_abstract_http_error w_rc;
+      a_rc = multi_pool_abort_unpushed(&barrier, num_requests - pushed);
+      if (a_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return multi_pool_cleanup(&barrier, items, a_rc);
+      }
+      w_rc = multi_pool_wait_barrier(&barrier);
+      if (w_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return multi_pool_cleanup(&barrier, items, w_rc);
+      }
+      return multi_pool_cleanup(&barrier, items, rc);
+    }
+    pushed++;
+  }
+
+  rc = multi_pool_wait_barrier(&barrier);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_pool_cleanup(&barrier, items, rc);
+  }
+  return multi_pool_cleanup(&barrier, items, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Coroutine entry point for `MODALITY_GREENTHREAD` batch execution.
+ * @param arg Pointer to `struct MultiBatchItem`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+static enum c_abstract_http_error multi_coroutine_task_cb(void *arg) {
+  struct MultiBatchItem *item = (struct MultiBatchItem *)arg;
+  enum c_abstract_http_error rc;
+  rc = abstract_http_coroutine_yield();
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  return multi_execute_single_slot(item->client, item->req, item->future, 0);
+}
+
+/**
+ * @brief Recursively free coroutines in `cos[idx..created)` and release scratch
+ * arrays.
+ * @param cos Array of coroutine pointers.
+ * @param idx Current coroutine index.
+ * @param created Number of initialized coroutines.
+ * @param items Scratch batch items array (freed at base case).
+ * @param orig_rc Primary status enum to return if all frees succeed.
+ * @return Cleanup error if any `coroutine_free` fails, otherwise `orig_rc`.
+ */
+static enum c_abstract_http_error
+multi_free_coroutines_from(struct AbstractHttpCoroutine **cos, size_t idx,
+                           size_t created, struct MultiBatchItem *items,
+                           enum c_abstract_http_error orig_rc) {
+  enum c_abstract_http_error f_rc;
+  if (idx >= created) {
+    free(items);
+    free(cos);
+    return orig_rc;
+  }
+  f_rc = abstract_http_coroutine_free(cos[idx]);
+  if (f_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_free_coroutines_from(cos, idx + 1, created, items, f_rc);
+  }
+  return multi_free_coroutines_from(cos, idx + 1, created, items, orig_rc);
+}
+
+/**
+ * @brief Schedule and drive cooperative coroutines for `MODALITY_GREENTHREAD`.
+ * @param client HTTP client instance.
+ * @param requests Array of request pointers.
+ * @param num_requests Number of requests.
+ * @param futures Output futures array.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+static enum c_abstract_http_error
+multi_run_greenthreads(struct HttpClient *client,
+                       struct HttpRequest *const *requests, size_t num_requests,
+                       struct HttpFuture **futures) {
+  struct AbstractHttpCoroutine **cos = NULL;
+  struct MultiBatchItem *items = NULL;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  size_t i;
+  size_t created = 0;
+
+  cos = (struct AbstractHttpCoroutine **)calloc(num_requests, sizeof(*cos));
+  if (!cos) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  items = (struct MultiBatchItem *)calloc(num_requests, sizeof(*items));
+  if (!items) {
+    free(cos);
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+
+  for (i = 0; i < num_requests; ++i) {
+    items[i].client = client;
+    items[i].req = requests[i];
+    items[i].future = futures[i];
+    rc = abstract_http_coroutine_init(&cos[i], 0, multi_coroutine_task_cb,
+                                      &items[i]);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return multi_free_coroutines_from(cos, 0, created, items, rc);
+    }
+    created++;
+  }
+
+  for (;;) {
+    size_t done_count = 0;
+    for (i = 0; i < created; ++i) {
+      int is_done = 0;
+      rc = abstract_http_coroutine_is_done(cos[i], &is_done);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return multi_free_coroutines_from(cos, 0, created, items, rc);
+      }
+      if (is_done) {
+        done_count++;
+        continue;
+      }
+      rc = abstract_http_coroutine_resume(cos[i]);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return multi_free_coroutines_from(cos, 0, created, items, rc);
+      }
+      rc = abstract_http_coroutine_is_done(cos[i], &is_done);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return multi_free_coroutines_from(cos, 0, created, items, rc);
+      }
+      if (is_done) {
+        done_count++;
+      }
+    }
+    if (done_count == created) {
+      break;
+    }
+  }
+
+  return multi_free_coroutines_from(cos, 0, created, items,
+                                    C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Actor handler callback for `MODALITY_MESSAGE_PASSING` batch execution.
+ * @param actor Receiving actor handle.
+ * @param msg Message carrying `struct MultiBatchItem *` payload.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+static enum c_abstract_http_error
+multi_actor_handler_cb(struct AbstractHttpActor *actor,
+                       struct AbstractHttpMessage *msg) {
+  struct MultiBatchItem *item;
+  (void)actor;
+  item = (struct MultiBatchItem *)msg->payload;
+  return multi_execute_single_slot(item->client, item->req, item->future, 0);
+}
+
+/**
+ * @brief Dispatch requests via Actor Message Bus for
+ * `MODALITY_MESSAGE_PASSING`.
+ * @param client HTTP client instance.
+ * @param requests Array of request pointers.
+ * @param num_requests Number of requests.
+ * @param futures Output futures array.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+static enum c_abstract_http_error
+multi_run_message_passing(struct HttpClient *client,
+                          struct HttpRequest *const *requests,
+                          size_t num_requests, struct HttpFuture **futures) {
+  struct AbstractHttpMessageBus *bus = client->message_bus;
+  struct AbstractHttpMessageBus *owned_bus = NULL;
+  struct AbstractHttpActor *worker = NULL;
+  struct MultiBatchItem *items = NULL;
+  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  int processed = 0;
+  size_t i;
+
+  items = (struct MultiBatchItem *)calloc(num_requests, sizeof(*items));
+  if (!items) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+
+  if (!bus) {
+    rc = abstract_http_message_bus_init(&owned_bus);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(items);
+      return rc;
+    }
+    bus = owned_bus;
+  }
+
+  rc = abstract_http_actor_spawn(bus, "cah_multi_worker",
+                                 multi_actor_handler_cb, NULL, &worker);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    goto cleanup;
+  }
+
+  for (i = 0; i < num_requests; ++i) {
+    struct AbstractHttpMessage msg;
+    items[i].client = client;
+    items[i].req = requests[i];
+    items[i].future = futures[i];
+    memset(&msg, 0, sizeof(msg));
+    msg.type = ABSTRACT_HTTP_MSG_HTTP_SEND;
+    msg.payload = &items[i];
+    msg.sender = worker;
+    msg.receiver = worker;
+    rc = abstract_http_actor_send(bus, &msg);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto cleanup;
+    }
+  }
+
+  rc = abstract_http_message_bus_process(bus, &processed);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    goto cleanup;
+  }
+
+cleanup:
+  free(items);
+  if (owned_bus) {
+    enum c_abstract_http_error b_rc;
+    b_rc = abstract_http_message_bus_free(owned_bus);
+    if (b_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return b_rc;
+    }
+  }
+  return rc;
+}
+
+/**
+ * @brief Free response on IPC error (if non-NULL) and complete future slot.
+ * @param res Response object (freed if `status != C_ABSTRACT_HTTP_SUCCESS`).
+ * @param future Target future slot.
+ * @param status Final IPC status.
+ * @return C_ABSTRACT_HTTP_SUCCESS or synchronization error enum.
+ */
+static enum c_abstract_http_error
+multi_ipc_finish_slot(struct HttpResponse *res, struct HttpFuture *future,
+                      enum c_abstract_http_error status) {
+  if (status != C_ABSTRACT_HTTP_SUCCESS && res) {
+    enum c_abstract_http_error r_rc;
+    r_rc = http_response_free(res);
+    if (r_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(res);
+      return http_future_complete_slot(future, NULL, r_rc);
+    }
+    free(res);
+    res = NULL;
+  }
+  return http_future_complete_slot(future, res, status);
+}
+
+/**
+ * @brief Close child-to-parent IPC pipe, free response if failed, and complete
+ * future.
+ * @param c2p Child-to-parent pipe.
+ * @param res Response object (freed if status != SUCCESS).
+ * @param future Target future slot.
+ * @param status Accumulated IPC status.
+ * @return C_ABSTRACT_HTTP_SUCCESS or synchronization error enum.
+ */
+static enum c_abstract_http_error
+multi_ipc_close_c2p(struct AbstractHttpIpcPipe *c2p, struct HttpResponse *res,
+                    struct HttpFuture *future,
+                    enum c_abstract_http_error status) {
+  enum c_abstract_http_error p_rc;
+  p_rc = abstract_http_ipc_pipe_free(c2p);
+  if (p_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_ipc_finish_slot(res, future, p_rc);
+  }
+  return multi_ipc_finish_slot(res, future, status);
+}
+
+/**
+ * @brief Close both IPC pipes and complete future slot.
+ * @param p2c Parent-to-child pipe.
+ * @param c2p Child-to-parent pipe.
+ * @param res Response object.
+ * @param future Target future slot.
+ * @param status Accumulated IPC status.
+ * @return C_ABSTRACT_HTTP_SUCCESS or synchronization error enum.
+ */
+static enum c_abstract_http_error
+multi_ipc_close_pipes(struct AbstractHttpIpcPipe *p2c,
+                      struct AbstractHttpIpcPipe *c2p, struct HttpResponse *res,
+                      struct HttpFuture *future,
+                      enum c_abstract_http_error status) {
+  enum c_abstract_http_error p_rc;
+  p_rc = abstract_http_ipc_pipe_free(p2c);
+  if (p_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_ipc_close_c2p(c2p, res, future, p_rc);
+  }
+  return multi_ipc_close_c2p(c2p, res, future, status);
+}
+
+/**
+ * @brief Clean up IPC child-process and pipes, completing the future slot.
+ * @param proc Child process handle (may be NULL).
+ * @param p2c Parent-to-child pipe.
+ * @param c2p Child-to-parent pipe.
+ * @param req_buf Serialized request buffer to free.
+ * @param res_buf Serialized response buffer to free.
+ * @param res Response object (owned by future on success, freed on error).
+ * @param future Target future slot.
+ * @param orig_rc Primary IPC execution status.
+ * @return C_ABSTRACT_HTTP_SUCCESS or synchronization/cleanup error enum.
+ */
+static enum c_abstract_http_error multi_ipc_cleanup_and_complete(
+    struct AbstractHttpProcess *proc, struct AbstractHttpIpcPipe *p2c,
+    struct AbstractHttpIpcPipe *c2p, char *req_buf, char *res_buf,
+    struct HttpResponse *res, struct HttpFuture *future,
+    enum c_abstract_http_error orig_rc) {
+  free(req_buf);
+  free(res_buf);
+  if (proc) {
+    enum c_abstract_http_error p_rc;
+    int exit_code = 0;
+    p_rc = abstract_http_process_wait_and_free(proc, &exit_code);
+    if (p_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return multi_ipc_close_pipes(p2c, c2p, res, future,
+                                   orig_rc != C_ABSTRACT_HTTP_SUCCESS ? orig_rc
+                                                                      : p_rc);
+    }
+  }
+  return multi_ipc_close_pipes(p2c, c2p, res, future, orig_rc);
+}
+
+/**
+ * @brief Execute a single request over IPC child-process serialization for
+ * `MODALITY_MULTIPROCESS`.
+ * @param req Request to serialize and send.
+ * @param future Future slot receiving deserialized response.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+static enum c_abstract_http_error
+multi_ipc_execute_one(const struct HttpRequest *req,
+                      struct HttpFuture *future) {
+  struct AbstractHttpIpcPipe p2c;
+  struct AbstractHttpIpcPipe c2p;
+  struct AbstractHttpProcess *proc = NULL;
+  char *req_buf = NULL;
+  size_t req_len = 0;
+  char *res_buf = NULL;
+  size_t res_len = 0;
+  struct HttpResponse *res = NULL;
+  enum c_abstract_http_error rc;
+
+  if (math_is_future_cancelled(future)) {
+    return http_future_complete_slot(future, NULL, C_ABSTRACT_HTTP_ERR_TIMEOUT);
+  }
+
+  memset(&p2c, 0, sizeof(p2c));
+  memset(&c2p, 0, sizeof(c2p));
+  rc = abstract_http_ipc_pipe_init(&p2c);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return http_future_complete_slot(future, NULL, rc);
+  }
+  rc = abstract_http_ipc_pipe_init(&c2p);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_ipc_cleanup_and_complete(NULL, &p2c, &c2p, NULL, NULL, NULL,
+                                          future, rc);
+  }
+  rc = abstract_http_process_spawn(&proc, &p2c, &c2p);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_ipc_cleanup_and_complete(NULL, &p2c, &c2p, NULL, NULL, NULL,
+                                          future, rc);
+  }
+  rc = abstract_http_ipc_serialize_request(req, &req_buf, &req_len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_ipc_cleanup_and_complete(proc, &p2c, &c2p, req_buf, res_buf,
+                                          NULL, future, rc);
+  }
+  rc = abstract_http_ipc_write(p2c.write_handle, &req_len, sizeof(req_len));
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_ipc_cleanup_and_complete(proc, &p2c, &c2p, req_buf, res_buf,
+                                          NULL, future, rc);
+  }
+  rc = abstract_http_ipc_write(p2c.write_handle, req_buf, req_len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_ipc_cleanup_and_complete(proc, &p2c, &c2p, req_buf, res_buf,
+                                          NULL, future, rc);
+  }
+  rc = abstract_http_ipc_read(c2p.read_handle, &res_len, sizeof(res_len));
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_ipc_cleanup_and_complete(proc, &p2c, &c2p, req_buf, res_buf,
+                                          NULL, future, rc);
+  }
+  res_buf = (char *)malloc(res_len > 0 ? res_len : 1);
+  if (!res_buf) {
+    return multi_ipc_cleanup_and_complete(proc, &p2c, &c2p, req_buf, NULL, NULL,
+                                          future, C_ABSTRACT_HTTP_ERR_NOMEM);
+  }
+  rc = abstract_http_ipc_read(c2p.read_handle, res_buf, res_len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return multi_ipc_cleanup_and_complete(proc, &p2c, &c2p, req_buf, res_buf,
+                                          NULL, future, rc);
+  }
+  res = (struct HttpResponse *)calloc(1, sizeof(*res));
+  if (!res) {
+    return multi_ipc_cleanup_and_complete(proc, &p2c, &c2p, req_buf, res_buf,
+                                          NULL, future,
+                                          C_ABSTRACT_HTTP_ERR_NOMEM);
+  }
+  rc = abstract_http_ipc_deserialize_response(res_buf, res_len, res);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(res);
+    return multi_ipc_cleanup_and_complete(proc, &p2c, &c2p, req_buf, res_buf,
+                                          NULL, future, rc);
+  }
+  return multi_ipc_cleanup_and_complete(proc, &p2c, &c2p, req_buf, res_buf, res,
+                                        future, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Evaluate `progress_cb` and `fail_fast` across completed batch futures.
+ * @param futures Array of futures.
+ * @param num_requests Number of requests in batch.
+ * @param progress_cb Optional progress callback.
+ * @param user_data User context for progress callback.
+ * @param fail_fast Non-zero to return first future error.
+ * @return C_ABSTRACT_HTTP_SUCCESS or first failure/abort enum.
+ */
+static enum c_abstract_http_error
+multi_finalize_batch(struct HttpFuture **futures, size_t num_requests,
+                     http_multi_progress_cb progress_cb, void *user_data,
+                     int fail_fast) {
+  size_t i;
+  size_t completed = 0;
+  enum c_abstract_http_error first_err = C_ABSTRACT_HTTP_SUCCESS;
+  for (i = 0; i < num_requests; ++i) {
+    if (futures[i] && futures[i]->is_ready) {
+      completed++;
+      if (first_err == C_ABSTRACT_HTTP_SUCCESS &&
+          futures[i]->error_code != (int)C_ABSTRACT_HTTP_SUCCESS) {
+        first_err = (enum c_abstract_http_error)futures[i]->error_code;
+      }
+    }
+  }
+  if (progress_cb) {
+    enum c_abstract_http_error cb_rc;
+    cb_rc = progress_cb(completed, num_requests, user_data);
+    if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return cb_rc;
+    }
+  }
+  if (fail_fast && first_err != C_ABSTRACT_HTTP_SUCCESS) {
+    return first_err;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 /** @brief Send multiple HTTP requests using the client's configured modality */
 enum c_abstract_http_error http_client_send_multi(
     struct HttpClient *client, struct HttpRequest *const *requests,
@@ -2467,10 +4306,6 @@ enum c_abstract_http_error http_client_send_multi(
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  (void)progress_cb;
-  (void)user_data;
-  (void)fail_fast;
-
   rc = http_multi_request_init(&multi);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
@@ -2479,72 +4314,124 @@ enum c_abstract_http_error http_client_send_multi(
   for (i = 0; i < num_requests; ++i) {
     rc = http_multi_request_add(&multi, requests[i]);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error rch = http_multi_request_free(&multi);
-      if (rch != C_ABSTRACT_HTTP_SUCCESS)
-        return rch;
-      return rc;
+      goto cleanup_multi;
     }
   }
 
   /* Dispatch based on modality */
   switch ((int)client->config.modality) {
-  case MODALITY_ASYNC:
+  case MODALITY_ASYNC: {
     if (client->send_multi && client->loop) {
+      for (i = 0; i < num_requests; ++i) {
+        if (futures[i] && !math_is_future_cancelled(futures[i])) {
+          futures[i]->is_ready = 0;
+          futures[i]->error_code = 0;
+          futures[i]->response = NULL;
+        }
+      }
       rc = client->send_multi(client->transport, client->loop, &multi, futures);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        enum c_abstract_http_error rch = http_multi_request_free(&multi);
-        if (rch != C_ABSTRACT_HTTP_SUCCESS)
-          return rch;
-        return rc;
+        goto cleanup_multi;
       }
-    } else {
-      enum c_abstract_http_error rch = http_multi_request_free(&multi);
-      if (rch != C_ABSTRACT_HTTP_SUCCESS)
-        return rch;
-      return C_ABSTRACT_HTTP_ERR_NOTSUP;
+      goto finalize_multi;
     }
-    break;
+    rc = C_ABSTRACT_HTTP_ERR_NOTSUP;
+    goto cleanup_multi;
+  }
 
-  case MODALITY_THREAD_POOL:
-  case MODALITY_MULTIPROCESS:
-  case MODALITY_GREENTHREAD:
-  case MODALITY_MESSAGE_PASSING:
+  case MODALITY_THREAD_POOL: {
+    if (client->thread_pool) {
+      rc = multi_run_thread_pool(client, requests, num_requests, futures);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto cleanup_multi;
+      }
+      goto finalize_multi;
+    }
+    goto sequential_exec;
+  }
+
+  case MODALITY_GREENTHREAD: {
+    rc = multi_run_greenthreads(client, requests, num_requests, futures);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto cleanup_multi;
+    }
+    goto finalize_multi;
+  }
+
+  case MODALITY_MESSAGE_PASSING: {
+    rc = multi_run_message_passing(client, requests, num_requests, futures);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      goto cleanup_multi;
+    }
+    goto finalize_multi;
+  }
+
+  case MODALITY_MULTIPROCESS: {
+    if (client->use_multiprocess_ipc) {
+      rc = C_ABSTRACT_HTTP_SUCCESS;
+      for (i = 0; i < num_requests; ++i) {
+        rc = multi_ipc_execute_one(requests[i], futures[i]);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          goto cleanup_multi;
+        }
+        if (progress_cb) {
+          rc = progress_cb(i + 1, num_requests, user_data);
+          if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+            goto cleanup_multi;
+          }
+        }
+        if (fail_fast &&
+            futures[i]->error_code != (int)C_ABSTRACT_HTTP_SUCCESS) {
+          rc = (enum c_abstract_http_error)futures[i]->error_code;
+          goto cleanup_multi;
+        }
+      }
+      goto cleanup_multi;
+    }
+    goto sequential_exec;
+  }
+
   case MODALITY_SYNC:
   default:
-    /* Fallback to simple sequential execution if backend doesn't support multi
-     * natively or is sync */
+  sequential_exec: {
+    int direct_ff = (fail_fast && !progress_cb) ? 1 : 0;
     rc = C_ABSTRACT_HTTP_SUCCESS;
     for (i = 0; i < num_requests; ++i) {
-      struct HttpResponse *res = NULL;
-      enum c_abstract_http_error req_rc;
+      rc =
+          multi_execute_single_slot(client, requests[i], futures[i], direct_ff);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto cleanup_multi;
+      }
 
-      req_rc = client->send ? client->send(client->transport, requests[i], &res)
-                            : C_ABSTRACT_HTTP_ERR_NOTSUP;
-
-      if (req_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        futures[i]->response = res;
-        futures[i]->error_code = req_rc;
-        futures[i]->is_ready = 1;
-        if (fail_fast) {
-          enum c_abstract_http_error rch = http_multi_request_free(&multi);
-          if (rch != C_ABSTRACT_HTTP_SUCCESS)
-            return rch;
-          return req_rc;
+      if (progress_cb) {
+        rc = progress_cb(i + 1, num_requests, user_data);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          goto cleanup_multi;
         }
-      } else {
-        futures[i]->response = res;
-        futures[i]->error_code = req_rc;
-        futures[i]->is_ready = 1;
+      }
+
+      if (futures[i]->error_code != (int)C_ABSTRACT_HTTP_SUCCESS && fail_fast) {
+        rc = (enum c_abstract_http_error)futures[i]->error_code;
+        goto cleanup_multi;
       }
     }
-    break;
+    goto cleanup_multi;
+  }
   }
 
-  {
-    enum c_abstract_http_error rch = http_multi_request_free(&multi);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS)
-      return rch;
+finalize_multi:;
+  rc = multi_finalize_batch(futures, num_requests, progress_cb, user_data,
+                            fail_fast);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    goto cleanup_multi;
   }
+
+cleanup_multi: {
+  enum c_abstract_http_error rch;
+  rch = http_multi_request_free(&multi);
+  if (rch != C_ABSTRACT_HTTP_SUCCESS)
+    return rch;
+}
   return rc;
 }
 

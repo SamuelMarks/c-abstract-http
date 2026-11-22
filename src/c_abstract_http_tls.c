@@ -100,6 +100,59 @@ abstract_http_tls_key_delete(struct AbstractHttpTlsKey *key) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+
+/** @brief Internal struct AbstractHttpTlsKey for single-threaded DOS */
+struct AbstractHttpTlsKey {
+  /** @brief Stored slot pointer */
+  void *value;
+  /** @brief Optional destructor function pointer */
+  void (*destructor)(void *);
+};
+
+enum c_abstract_http_error
+abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
+                             void (*destructor)(void *)) {
+  if (!key) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *key = (struct AbstractHttpTlsKey *)malloc(sizeof(struct AbstractHttpTlsKey));
+  if (!*key) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  (*key)->value = NULL;
+  (*key)->destructor = destructor;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/** @brief Set TLS value for the current thread on DOS */
+enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
+                                                 void *value) {
+  if (!key) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  key->value = value;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/** @brief Get TLS value for the current thread on DOS */
+enum c_abstract_http_error abstract_http_tls_get(struct AbstractHttpTlsKey *key,
+                                                 void **out_value) {
+  if (!key || !out_value) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *out_value = key->value;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+enum c_abstract_http_error
+abstract_http_tls_key_delete(struct AbstractHttpTlsKey *key) {
+  if (key) {
+    free(key);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 #else
 
 /** @brief Internal struct AbstractHttpTlsKey */

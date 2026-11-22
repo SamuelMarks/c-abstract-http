@@ -41,7 +41,7 @@
 #ifdef _WIN32
 #include <basetsd.h>
 #include <winsock2.h>
-#else
+#elif !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 #include <pthread.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -380,7 +380,8 @@ ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr) {
   free(ptr);
 }
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__MSDOS__) && !defined(__DOS__) &&            \
+    !defined(DOS)
 int c_abstract_http_mock_pthread_key_create(pthread_key_t *key,
                                             void (*destructor)(void *)) {
   if (g_mock_pthread_fail == 1)
@@ -458,9 +459,11 @@ int c_abstract_http_mock_pthread_join(pthread_t thread, void **value_ptr) {
 }
 
 int c_abstract_http_mock_pipe(int fildes[2]) {
-  if (g_mock_pipe_fail) {
-    errno = EMFILE;
-    return -1;
+  if (g_mock_pipe_fail > 0) {
+    if (--g_mock_pipe_fail == 0) {
+      errno = EMFILE;
+      return -1;
+    }
   }
   return pipe(fildes);
 }
@@ -500,6 +503,7 @@ pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options) {
 }
 #endif
 
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 #ifdef _WIN32
 int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
                                        fd_set *writefds, fd_set *errorfds,
@@ -553,6 +557,7 @@ int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
   }
   return select(nfds, readfds, writefds, errorfds, timeout);
 }
+#endif
 
 abstract_http_int64_t c_abstract_http_mock_math_get_current_time_ms(void) {
   abstract_http_int64_t now = real_math_get_current_time_ms();
@@ -675,7 +680,7 @@ int WSAAPI c_abstract_http_mock_getsockname(SOCKET socket_fd,
     return SOCKET_ERROR;
   return getsockname(socket_fd, address, address_len);
 }
-#else
+#elif !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 int c_abstract_http_mock_socket(int domain, int type, int protocol) {
   if (g_mock_socket_fail)
     return -1;

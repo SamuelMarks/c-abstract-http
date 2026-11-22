@@ -52,6 +52,225 @@ TEST test_sha1_fox_string(void) {
   PASS();
 }
 
+TEST test_sha256_vectors_and_spki_pinning(void) {
+  struct sha256_ctx ctx;
+  unsigned char hash[32];
+  unsigned char oneshot[32];
+  unsigned char big[140];
+  const char *prov = NULL;
+  const struct HttpRawTlsHooks *hooks = NULL;
+  struct HttpConfig cfg;
+  const unsigned char expected_empty[32] = {
+      0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14, 0x9a, 0xfb, 0xf4,
+      0xc8, 0x99, 0x6f, 0xb9, 0x24, 0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b,
+      0x93, 0x4c, 0xa4, 0x95, 0x99, 0x1b, 0x78, 0x52, 0xb8, 0x55};
+  const unsigned char expected_abc[32] = {
+      0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40,
+      0xde, 0x5d, 0xae, 0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17,
+      0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad};
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, sha256_init(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            sha256_update(NULL, (const unsigned char *)"a", 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, sha256_update(&ctx, NULL, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_update(&ctx, NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, sha256_final(NULL, hash));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, sha256_final(&ctx, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_final(&ctx, hash));
+  ASSERT_MEM_EQ(expected_empty, hash, 32);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_sha256_oneshot(NULL, 1, oneshot));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      c_abstract_http_sha256_oneshot((const unsigned char *)"a", 1, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sha256_oneshot(NULL, 0, oneshot));
+  ASSERT_MEM_EQ(expected_empty, oneshot, 32);
+
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_sha256_oneshot((const unsigned char *)"abc", 3, oneshot));
+  ASSERT_MEM_EQ(expected_abc, oneshot, 32);
+
+  /* Multi-block + bitcount rollover */
+  memset(big, 'Z', sizeof(big));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_update(&ctx, big, sizeof(big)));
+  ctx.count[0] = 0xFFFFFFF8U;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sha256_update(&ctx, (const unsigned char *)"a", 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_final(&ctx, hash));
+
+  /* Provider name & default TLS hooks */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_crypto_provider_name(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_crypto_provider_name(&prov));
+  ASSERT(prov != NULL && prov[0] != '\0');
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_get_default_tls_hooks(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_get_default_tls_hooks(&hooks));
+
+  /* SPKI SHA-256 pinning (sha256//base64, sha256/base64, raw base64, hex) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_verify_spki_pin_sha256(NULL, 3, "pin"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_verify_spki_pin_sha256((const unsigned char *)"abc",
+                                                   0, "pin"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_verify_spki_pin_sha256((const unsigned char *)"abc",
+                                                   3, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_verify_spki_pin_sha256((const unsigned char *)"abc",
+                                                   3, ""));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_verify_spki_pin_sha256(
+                (const unsigned char *)"abc", 3,
+                "sha256//ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0="));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_verify_spki_pin_sha256(
+                (const unsigned char *)"abc", 3,
+                "sha256/ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0="));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_verify_spki_pin_sha256(
+                (const unsigned char *)"abc", 3,
+                "ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0="));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_verify_spki_pin_sha256(
+          (const unsigned char *)"abc", 3,
+          "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD"));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_ACCES,
+      c_abstract_http_verify_spki_pin_sha256(
+          (const unsigned char *)"abc", 3,
+          "0000000000000000000000000000000000000000000000000000000000000000"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_verify_spki_pin_sha256((const unsigned char *)"abc",
+                                                   3, "sha256//wrongpin="));
+
+  /* Handshake & X.509 config verification */
+  memset(&cfg, 0, sizeof(cfg));
+  cfg.verify_peer = 1;
+  cfg.verify_host = 1;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_tls_verify_handshake_config(NULL, "a.com", "a.com",
+                                                        NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_tls_verify_handshake_config(&cfg, NULL, "a.com",
+                                                        NULL, 0));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      c_abstract_http_tls_verify_handshake_config(&cfg, "", "a.com", NULL, 0));
+
+  cfg.tls_version_mask = 0xFF00U;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            c_abstract_http_tls_verify_handshake_config(&cfg, "a.com", "a.com",
+                                                        NULL, 0));
+  cfg.tls_version_mask = HTTP_TLS_VERSION_1_2 | HTTP_TLS_VERSION_1_3;
+
+  cfg.client_cert_path = (char *)"client.pem";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_tls_verify_handshake_config(&cfg, "a.com", "a.com",
+                                                        NULL, 0));
+  cfg.client_cert_path = NULL;
+  cfg.client_key_path = (char *)"client.key";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_tls_verify_handshake_config(&cfg, "a.com", "a.com",
+                                                        NULL, 0));
+  cfg.client_cert_path = (char *)"client.pem";
+
+  cfg.ca_buffer_len = 10;
+  cfg.ca_buffer = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_tls_verify_handshake_config(&cfg, "a.com", "a.com",
+                                                        NULL, 0));
+  cfg.ca_buffer_len = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_tls_verify_handshake_config(&cfg, "a.com", NULL,
+                                                        NULL, 0));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_ACCES,
+      c_abstract_http_tls_verify_handshake_config(&cfg, "a.com", "", NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_tls_verify_handshake_config(&cfg, "a.com", "b.com",
+                                                        NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_tls_verify_handshake_config(&cfg, "a.com",
+                                                        "other.com", NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_tls_verify_handshake_config(
+                &cfg, "localhost", "*.example.com", NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_tls_verify_handshake_config(
+                &cfg, ".example.com", "*.example.com", NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_tls_verify_handshake_config(
+                &cfg, "api.other.com", "*.example.com", NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_tls_verify_handshake_config(&cfg, "api.bad.org",
+                                                        "*.bad.com", NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_tls_verify_handshake_config(
+                &cfg, "API.Example.COM", "*.example.com", NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_tls_verify_handshake_config(
+                &cfg, "API.Example.COM", "api.example.com", NULL, 0));
+
+  cfg.verify_peer = 0;
+  cfg.verify_host = 1;
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_ACCES,
+      c_abstract_http_tls_verify_handshake_config(&cfg, "a.com", "", NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_tls_verify_handshake_config(&cfg, "a.com", NULL,
+                                                        NULL, 0));
+
+  cfg.cert_pin_sha256 =
+      (char *)"sha256//ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_tls_verify_handshake_config(&cfg, "a.com", "a.com",
+                                                        NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_tls_verify_handshake_config(
+                &cfg, "a.com", "a.com", (const unsigned char *)"abc", 3));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+            c_abstract_http_verify_spki_pin_sha256(
+                (const unsigned char *)"abc", 3,
+                "sha256//ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0="));
+  g_mock_alloc_fail = 0;
+
+  g_mock_sha1_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_verify_spki_pin_sha256(
+                (const unsigned char *)"abc", 3,
+                "sha256//ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0="));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_init(&ctx));
+  g_mock_sha1_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, sha256_final(&ctx, hash));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_init(&ctx));
+  g_mock_sha1_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, sha256_final(&ctx, hash));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_init(&ctx));
+  g_mock_sha1_fail = 57;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, sha256_final(&ctx, hash));
+  g_mock_sha1_fail = 0;
+#endif
+
+  PASS();
+}
+
 TEST test_base64_encode_basic(void) {
   const char *input = "hello world";
   char *output = NULL;
@@ -241,7 +460,7 @@ TEST test_sha1_rollover(void) {
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_init(&ctx));
   /* Simulate that we have hashed almost 2^32 bits */
-  ctx.count[0] = 0xFFFFFFF8; /* 2^32 - 8 bits */
+  ctx.count[0] = 0xFFFFFFF8U; /* 2^32 - 8 bits */
   ctx.count[1] = 0;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -254,6 +473,7 @@ TEST test_sha1_rollover(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sha1_mock_failures(void) {
   struct sha1_ctx ctx;
+  struct sha256_ctx s256;
   unsigned char out[20];
 
   /* Fail 1st sha1_update inside sha1_final */
@@ -272,6 +492,40 @@ TEST test_sha1_mock_failures(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, sha1_final(&ctx, out));
   g_mock_sha1_fail = 0;
 
+  /* Fail 1st and 2nd math_sha1_transform calls inside sha1_update */
+  {
+    unsigned char big_block[140];
+    memset(big_block, 'A', sizeof(big_block));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_init(&ctx));
+    g_mock_sha1_fail = -1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              sha1_update(&ctx, big_block, sizeof(big_block)));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha1_init(&ctx));
+    g_mock_sha1_fail = -2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              sha1_update(&ctx, big_block, sizeof(big_block)));
+    g_mock_sha1_fail = 0;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_init(&s256));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              sha256_update(&s256, big_block, sizeof(big_block)));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_init(&s256));
+    g_mock_sha1_fail = -1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              sha256_update(&s256, big_block, sizeof(big_block)));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sha256_init(&s256));
+    g_mock_sha1_fail = -2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              sha256_update(&s256, big_block, sizeof(big_block)));
+    g_mock_sha1_fail = -99;
+    {
+      unsigned char h32[32];
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                c_abstract_http_sha256_oneshot(big_block, 4, h32));
+    }
+    g_mock_sha1_fail = 0;
+  }
+
   PASS();
 }
 #endif
@@ -286,6 +540,7 @@ SUITE(crypto_suite) {
   RUN_TEST(test_sha1_rollover);
   RUN_TEST(test_sha1_empty_string);
   RUN_TEST(test_sha1_fox_string);
+  RUN_TEST(test_sha256_vectors_and_spki_pinning);
   RUN_TEST(test_base64_encode_basic);
   RUN_TEST(test_base64_encode_padded);
   RUN_TEST(test_base64_decode_basic);

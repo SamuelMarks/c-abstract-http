@@ -15,6 +15,10 @@
 #include <c_abstract_http/http_msh3.h>
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
 #include <c_abstract_http/http_xquic.h>
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+#include <c_abstract_http/http_lsquic.h>
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+#include <c_abstract_http/http_nghttp3.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
 #include <c_abstract_http/http_libsoup3.h>
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
@@ -60,6 +64,10 @@ enum c_abstract_http_error transport_global_init(void) {
   return http_msh3_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   return http_xquic_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+  return http_lsquic_global_init();
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+  return http_nghttp3_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   return http_libsoup3_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
@@ -102,6 +110,10 @@ enum c_abstract_http_error transport_global_cleanup(void) {
   return http_msh3_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   return http_xquic_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+  return http_lsquic_global_cleanup();
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+  return http_nghttp3_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   return http_libsoup3_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
@@ -166,24 +178,41 @@ transport_factory_init_client(struct HttpClient *client) {
   }
   client->send = http_xquic_send;
   client->send_multi = http_xquic_send_multi;
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+  err = http_lsquic_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_lsquic_send;
+  client->send_multi = http_lsquic_send_multi;
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+  err = http_nghttp3_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_nghttp3_send;
+  client->send_multi = http_nghttp3_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   err = http_libsoup3_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
     return err;
   }
   client->send = http_libsoup3_send;
+  client->send_multi = http_libsoup3_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
   err = http_libuv_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
     return err;
   }
   client->send = http_libuv_send;
+  client->send_multi = http_libuv_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
   err = http_libevent_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
     return err;
   }
   client->send = http_libevent_send;
+  client->send_multi = http_libevent_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   err = http_fetch_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
@@ -204,6 +233,7 @@ transport_factory_init_client(struct HttpClient *client) {
     return err;
   }
   client->send = http_wininet_send;
+  client->send_multi = http_wininet_send_multi;
 #elif defined(C_ABSTRACT_HTTP_USE_WINHTTP)
   err = http_winhttp_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
@@ -224,6 +254,7 @@ transport_factory_init_client(struct HttpClient *client) {
     return err;
   }
   client->send = http_wasm_send;
+  client->send_multi = http_wasm_send_multi;
 #elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #if defined(_MSC_VER) && _MSC_VER < 1600
   err = http_wininet_context_init(&client->transport);
@@ -280,6 +311,19 @@ transport_factory_cleanup_client(struct HttpClient *client) {
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   {
     enum c_abstract_http_error rc = http_xquic_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
+  {
+    enum c_abstract_http_error rc = http_lsquic_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
+#elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
+  {
+    enum c_abstract_http_error rc =
+        http_nghttp3_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }

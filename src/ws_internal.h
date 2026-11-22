@@ -7,6 +7,7 @@
  */
 
 /* clang-format off */
+#include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/thread_pool.h>
 #include "c_abstract_http/http_ws.h"
@@ -17,18 +18,6 @@ extern "C" {
 #endif /* __cplusplus */
 
 /**
- * @brief Internal WebSocket stream queue and synchronization state.
- */
-struct ws_stream_ctx {
-  struct AbstractHttpMutex *mutex; /**< Queue mutex */
-  struct AbstractHttpCond *cond;   /**< Queue condition variable */
-  unsigned char *queue;            /**< Outbound frame queue buffer */
-  size_t queue_len;                /**< Current queued byte length */
-  size_t queue_cap;                /**< Allocated queue capacity */
-  int close_requested;             /**< Flag indicating close requested */
-};
-
-/**
  * @brief Internal structure representing a parsed WebSocket frame header.
  */
 struct ws_frame_header {
@@ -37,6 +26,66 @@ struct ws_frame_header {
   int mask;                              /**< Mask bit flag */
   uint64_t payload_len;                  /**< Parsed payload length */
   unsigned char masking_key[4];          /**< Masking key if present */
+};
+
+/**
+ * @brief State machine enum for the WebSocket parser.
+ */
+enum ws_parser_state {
+  WS_PARSER_READ_OPCODE,
+  WS_PARSER_READ_LEN,
+  WS_PARSER_READ_EXT_LEN_16,
+  WS_PARSER_READ_EXT_LEN_64,
+  WS_PARSER_READ_MASK,
+  WS_PARSER_READ_PAYLOAD
+};
+
+/**
+ * @brief Context structure for parsing incoming WebSocket frames.
+ */
+struct ws_parser_ctx {
+  enum ws_parser_state state;           /**< Current parser state */
+  struct ws_frame_header current_frame; /**< In-progress frame header */
+  unsigned char *payload_buffer;        /**< Dynamic buffer for the payload */
+  size_t payload_capacity;              /**< Capacity of the payload buffer */
+  size_t payload_offset; /**< Current write offset in payload buffer */
+  size_t ext_len_offset; /**< Offset for reading extended lengths */
+  unsigned char ext_len_buffer[8]; /**< Buffer for reading extended lengths */
+  unsigned char mask_offset;       /**< Offset for reading the masking key */
+
+  unsigned char *reassembly_buffer; /**< Buffer for fragmented messages */
+  size_t reassembly_capacity;       /**< Capacity of the reassembly buffer */
+  size_t reassembly_offset;         /**< Current offset in reassembly buffer */
+
+  c_abstract_http_ws_on_message on_message; /**< User callback for messages */
+  c_abstract_http_ws_on_error on_error;     /**< User callback for errors */
+  c_abstract_http_ws_on_close on_close;     /**< User callback for closures */
+  void *user_data;                          /**< Opaque user data */
+};
+
+/**
+ * @brief Internal WebSocket stream queue, upgraded socket, and event-loop
+ * state.
+ */
+struct ws_stream_ctx {
+  struct AbstractHttpMutex *mutex; /**< Queue mutex */
+  struct AbstractHttpCond *cond;   /**< Queue condition variable */
+  unsigned char *queue;            /**< Outbound frame queue buffer */
+  size_t queue_len;                /**< Current queued byte length */
+  size_t queue_cap;                /**< Allocated queue capacity */
+  int close_requested;             /**< Flag indicating close requested */
+  int upgraded_fd;                 /**< Persistent upgraded socket descriptor */
+  int has_upgraded_fd;             /**< Non-zero when `upgraded_fd` is owned */
+  int loop_registered;  /**< Non-zero while `upgraded_fd` is on `loop` */
+  int has_async_parser; /**< Non-zero when `async_parser` is active */
+  int peer_closed;      /**< Non-zero once CLOSE frame received from peer */
+  struct ModalityEventLoop *loop;            /**< Attached async event loop */
+  struct HttpRequest *owner_req;             /**< Owning HTTP request handle */
+  struct ws_parser_ctx async_parser;         /**< Stateful RFC 6455 parser */
+  c_abstract_http_ws_on_message user_on_msg; /**< User message callback */
+  c_abstract_http_ws_on_error user_on_err;   /**< User error callback */
+  c_abstract_http_ws_on_close user_on_close; /**< User close callback */
+  void *user_cb_data;                        /**< User callback context */
 };
 
 /**
@@ -130,41 +179,6 @@ NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
 ws_pack_header_large(unsigned char *buf, int fin,
                      enum c_abstract_http_ws_opcode opcode, int mask,
                      size_t len, size_t *out_len);
-
-/**
- * @brief State machine enum for the WebSocket parser.
- */
-enum ws_parser_state {
-  WS_PARSER_READ_OPCODE,
-  WS_PARSER_READ_LEN,
-  WS_PARSER_READ_EXT_LEN_16,
-  WS_PARSER_READ_EXT_LEN_64,
-  WS_PARSER_READ_MASK,
-  WS_PARSER_READ_PAYLOAD
-};
-
-/**
- * @brief Context structure for parsing incoming WebSocket frames.
- */
-struct ws_parser_ctx {
-  enum ws_parser_state state;           /**< Current parser state */
-  struct ws_frame_header current_frame; /**< In-progress frame header */
-  unsigned char *payload_buffer;        /**< Dynamic buffer for the payload */
-  size_t payload_capacity;              /**< Capacity of the payload buffer */
-  size_t payload_offset; /**< Current write offset in payload buffer */
-  size_t ext_len_offset; /**< Offset for reading extended lengths */
-  unsigned char ext_len_buffer[8]; /**< Buffer for reading extended lengths */
-  unsigned char mask_offset;       /**< Offset for reading the masking key */
-
-  unsigned char *reassembly_buffer; /**< Buffer for fragmented messages */
-  size_t reassembly_capacity;       /**< Capacity of the reassembly buffer */
-  size_t reassembly_offset;         /**< Current offset in reassembly buffer */
-
-  c_abstract_http_ws_on_message on_message; /**< User callback for messages */
-  c_abstract_http_ws_on_error on_error;     /**< User callback for errors */
-  c_abstract_http_ws_on_close on_close;     /**< User callback for closures */
-  void *user_data;                          /**< Opaque user data */
-};
 
 /**
  * @brief Internal async task context for WebSocket reading.

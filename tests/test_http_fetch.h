@@ -880,6 +880,133 @@ TEST test_fetch_mock_coverage(void) {
   PASS();
 }
 
+TEST test_fetch_proxy_auth_timeouts_and_loop(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  int step;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+
+  cfg.timeout_ms = 0;
+  cfg.connect_timeout_ms = 1200;
+  cfg.read_timeout_ms = 2500;
+  cfg.write_timeout_ms = 3500;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:8080", &cfg.proxy_url));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("puser", &cfg.proxy_username));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("ppass", &cfg.proxy_password));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  for (step = 0; step < 6; ++step) {
+    enum c_abstract_http_error arc;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = step;
+    arc = http_fetch_config_apply(ctx, &cfg);
+    g_mock_alloc_fail = 0;
+    if (arc == C_ABSTRACT_HTTP_SUCCESS) {
+      break;
+    }
+  }
+#else
+  (void)step;
+#endif
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)"http://127.0.0.1:8080/auth";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Also test proxy_username with NULL proxy_password & read/write timeouts */
+  free(cfg.proxy_password);
+  cfg.proxy_password = NULL;
+  cfg.connect_timeout_ms = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  cfg.read_timeout_ms = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  {
+    int k;
+    struct HttpMultiRequest m2;
+    struct HttpFuture mf;
+    struct HttpFuture *mfs[1];
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&m2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&m2, &req));
+    mfs[0] = &mf;
+    for (k = 0; k < 20; ++k) {
+      enum c_abstract_http_error orc;
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_fetch_config_apply(ctx, &cfg);
+      g_mock_alloc_fail = 0;
+      (void)orc;
+
+      res = NULL;
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_fetch_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+
+      memset(&mf, 0, sizeof(mf));
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_fetch_send_multi(ctx, NULL, &m2, mfs);
+      g_mock_alloc_fail = 0;
+      if (mf.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf.response));
+        free(mf.response);
+      }
+      (void)orc;
+    }
+    g_mock_alloc_count = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&m2));
+    {
+      struct HttpTransportContext *c2 = NULL;
+      g_mock_alloc_count = 1;
+      g_mock_alloc_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_fetch_context_init(&c2));
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+
+      g_mock_headers_init_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_fetch_send(ctx, &req, &res));
+      g_mock_headers_init_fail = 0;
+    }
+  }
+#endif
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_global_cleanup());
+  PASS();
+}
+
 /** @brief Documented suite for libfetch backend */
 SUITE(http_fetch_suite) {
   RUN_TEST(test_fetch_global_lifecycle);
@@ -892,6 +1019,7 @@ SUITE(http_fetch_suite) {
   RUN_TEST(test_fetch_send_upload_chunked);
   RUN_TEST(test_fetch_send_multi);
   RUN_TEST(test_fetch_mock_coverage);
+  RUN_TEST(test_fetch_proxy_auth_timeouts_and_loop);
 }
 
 #ifdef __cplusplus

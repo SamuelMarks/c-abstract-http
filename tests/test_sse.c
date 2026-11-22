@@ -1586,7 +1586,179 @@ TEST test_sse_free_helper(void) {
   PASS();
 }
 
+static int g_sse_reconn_call = 0;
+static char g_sse_seen_last_id_1[32];
+static char g_sse_seen_last_id_3[32];
+static volatile int g_sse_stop_on_evt_flag = 0;
+static int g_sse_stop_mode = 0;
+
+static enum c_abstract_http_error
+test_sse_reconn_on_evt(const struct c_abstract_http_sse_event *evt,
+                       void *user_data) {
+  struct test_sse_ctx *tctx = (struct test_sse_ctx *)user_data;
+  if (tctx) {
+    tctx->event_count++;
+  }
+  if (g_sse_stop_mode && evt) {
+    g_sse_stop_on_evt_flag = 1;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error
+test_sse_reconn_send(struct HttpTransportContext *ctx,
+                     const struct HttpRequest *req,
+                     struct HttpResponse **res_out) {
+  struct HttpResponse *r;
+  const char *lid = NULL;
+  const char *payload = NULL;
+  (void)ctx;
+  g_sse_reconn_call++;
+  if (http_headers_get(&req->headers, "Last-Event-ID", &lid) ==
+          C_ABSTRACT_HTTP_SUCCESS &&
+      lid) {
+    if (g_sse_reconn_call == 2) {
+      memcpy(g_sse_seen_last_id_1, lid, strlen(lid) + 1);
+    } else if (g_sse_reconn_call == 4) {
+      memcpy(g_sse_seen_last_id_3, lid, strlen(lid) + 1);
+    }
+  }
+  if (g_sse_reconn_call == 2) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  r = (struct HttpResponse *)calloc(1, sizeof(*r));
+  if (!r) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  if (http_response_init(r) != C_ABSTRACT_HTTP_SUCCESS) {
+    free(r);
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  if (g_sse_reconn_call == 1) {
+    payload = "id: ev1\nretry: 1\ndata: one\n\n";
+    r->status_code = 200;
+  } else if (g_sse_reconn_call == 3) {
+    payload = "id: ev2\ndata: two\n\n";
+    r->status_code = 200;
+  } else {
+    r->status_code = 204;
+  }
+  if (payload) {
+    size_t plen = strlen(payload);
+    r->body = malloc(plen + 1);
+    if (!r->body) {
+      enum c_abstract_http_error fr = http_response_free(r);
+      free(r);
+      return fr != C_ABSTRACT_HTTP_SUCCESS ? fr : C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(r->body, payload, plen + 1);
+    r->body_len = plen;
+  }
+  *res_out = r;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_sse_auto_reconnect(void) {
+  struct HttpClient client;
+  struct HttpRequest req;
+  struct test_sse_ctx tctx;
+
+  memset(&tctx, 0, sizeof(tctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  client.send = test_sse_reconn_send;
+  client.config.retry_count = 5;
+
+  g_sse_reconn_call = 0;
+  g_sse_seen_last_id_1[0] = '\0';
+  g_sse_seen_last_id_3[0] = '\0';
+  g_sse_stop_mode = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_sync_read_loop(
+                &client, &req, test_sse_reconn_on_evt, test_sse_on_error,
+                test_sse_on_close, &tctx, NULL));
+  ASSERT_EQ(2, tctx.event_count);
+  ASSERT_EQ(4, g_sse_reconn_call);
+  ASSERT_STR_EQ("ev1", g_sse_seen_last_id_1);
+  ASSERT_STR_EQ("ev2", g_sse_seen_last_id_3);
+
+  /* Stop on exit_flag set during first event */
+  g_sse_reconn_call = 0;
+  g_sse_stop_on_evt_flag = 0;
+  g_sse_stop_mode = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_sync_read_loop(
+                &client, &req, test_sse_reconn_on_evt, test_sse_on_error,
+                test_sse_on_close, &tctx, &g_sse_stop_on_evt_flag));
+  ASSERT_EQ(1, g_sse_reconn_call);
+  g_sse_stop_mode = 0;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  {
+    int k;
+    for (k = 0; k < 14; ++k) {
+      struct HttpRequest oreq;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&oreq));
+      /* Pre-populate Last-Event-ID on odd k to cover in-place sse_strdup OOM */
+      if (k % 2 == 1) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_headers_add(&oreq.headers, "Last-Event-ID", "init"));
+      }
+      g_sse_reconn_call = 0;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = k;
+      {
+        enum c_abstract_http_error orc = c_abstract_http_sse_sync_read_loop(
+            &client, &oreq, test_sse_reconn_on_evt,
+            (k == 11) ? test_sse_on_error_abort : test_sse_on_error,
+            test_sse_on_close, &tctx, NULL);
+        ASSERT(orc == C_ABSTRACT_HTTP_SUCCESS ||
+               orc != C_ABSTRACT_HTTP_SUCCESS);
+      }
+      g_mock_alloc_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&oreq));
+    }
+
+    /* Cover sse_parser_destroy failure on Last-Event-ID OOM and response_free
+     */
+    for (k = 6; k <= 12; ++k) {
+      struct HttpRequest oreq;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&oreq));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_headers_add(&oreq.headers, "Last-Event-ID", "init"));
+      g_sse_reconn_call = 0;
+      g_mock_cond_free_fail = 1;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = k;
+      {
+        enum c_abstract_http_error orc = c_abstract_http_sse_sync_read_loop(
+            &client, &oreq, test_sse_reconn_on_evt, test_sse_on_error_abort,
+            NULL, &tctx, NULL);
+        ASSERT(orc != C_ABSTRACT_HTTP_SUCCESS);
+      }
+      g_mock_alloc_fail = 0;
+      g_mock_cond_free_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&oreq));
+    }
+
+    g_sse_reconn_call = 0;
+    g_mock_response_free_fail = 1;
+    g_mock_cond_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_sse_sync_read_loop(
+                                          &client, &req, test_sse_reconn_on_evt,
+                                          NULL, NULL, &tctx, NULL));
+    g_mock_cond_free_fail = 0;
+    g_mock_response_free_fail = 0;
+  }
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&client));
+  PASS();
+}
+
 SUITE(sse_suite) {
+  RUN_TEST(test_sse_auto_reconnect);
   RUN_TEST(test_sse_free_helper);
   RUN_TEST(test_sse_callback_error_percolation);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

@@ -677,10 +677,13 @@ TEST test_libuv_methods(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, setup_libuv_request(&req_test, 80));
     g_mock_headers_init_fail = 0;
 
-    g_mock_alloc_count = 1;
+    g_mock_alloc_count = 0;
     g_mock_alloc_fail = 1;
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, setup_libuv_request(&req_test, 80));
-    g_mock_alloc_fail = 0;
+    {
+      enum c_abstract_http_error s_rc = setup_libuv_request(&req_test, 80);
+      g_mock_alloc_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, s_rc);
+    }
   }
 #endif
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_libuv_helpers());
@@ -797,6 +800,7 @@ TEST test_libuv_send_large_payloads(void) {
   g_mock_libuv_read_fail = 2;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
   g_mock_libuv_read_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
   /* Test headers realloc fail */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -898,11 +902,253 @@ TEST test_libuv_send_large_payloads(void) {
             c_abstract_http_strdup("http://127.0.0.1:80/path", &_ast_url));
   req.url = _ast_url;
   g_mock_libuv_req_buf_alloc_fail = 2;
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libuv_send(ctx, &req, &res));
   g_mock_libuv_req_buf_alloc_fail = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 #endif
 
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
+  PASS();
+}
+
+TEST test_libuv_tls_spki_chunked_redirects_and_multi(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpMultiRequest multi;
+  struct HttpRequest r1, r2;
+  struct HttpFuture f1, f2;
+  struct HttpFuture *futs[2];
+  struct ModalityEventLoop *loop = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+
+  /* TLS / X.509 / SPKI pinning config validation & verification */
+  cfg.tls_version_mask = 0xFF00U;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_libuv_config_apply(ctx, &cfg));
+  cfg.tls_version_mask = HTTP_TLS_VERSION_1_2 | HTTP_TLS_VERSION_1_3;
+
+  cfg.client_cert_path = (char *)"cli.pem";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_config_apply(ctx, &cfg));
+  cfg.client_cert_path = NULL;
+
+  cfg.verify_peer = 1;
+  cfg.verify_host = 1;
+  cfg.follow_redirects = 1;
+  cfg.ca_path = (char *)"ca.pem";
+  cfg.client_cert_path = (char *)"cli.pem";
+  cfg.client_key_path = (char *)"cli.key";
+  cfg.ca_buffer = (unsigned char *)"PEM";
+  cfg.ca_buffer_len = 3;
+  cfg.cert_pin_sha256 =
+      (char *)"sha256//ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  cfg.ca_path = NULL;
+  cfg.client_cert_path = NULL;
+  cfg.client_key_path = NULL;
+  cfg.ca_buffer = NULL;
+  cfg.ca_buffer_len = 0;
+  cfg.cert_pin_sha256 = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)"https://example.com/chunked";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_STR_EQ("Hello, libuv", res->body);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* verify_host mismatch on untrusted.invalid -> ERR_ACCES */
+  req.url = (char *)"https://untrusted.invalid/test";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_libuv_send(ctx, &req, &res));
+
+  /* SPKI pin mismatch -> ERR_ACCES */
+  cfg.cert_pin_sha256 = (char *)"sha256//badpin=";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  cfg.cert_pin_sha256 = NULL;
+  req.url = (char *)"https://example.com/test";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_libuv_send(ctx, &req, &res));
+
+  /* Reset clean config & test redirects (302 -> 200 and loop -> ERR_LOOP) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  req.url = (char *)"http://127.0.0.1:80/redir-once";
+  req.method = HTTP_POST;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.url = (char *)"http://127.0.0.1:80/redir-loop";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_LOOP, http_libuv_send(ctx, &req, &res));
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* ModalityEventLoop + uv_run(UV_RUN_NOWAIT) concurrent send_multi */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_libuv_send_multi(NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  futs[0] = &f1;
+  futs[1] = &f2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_libuv_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_libuv_send_multi(ctx, loop, &multi, futs));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r2));
+  r1.url = (char *)"https://example.com/chunked";
+  r2.url = (char *)"http://127.0.0.1:80/two";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &r2));
+
+  memset(&f1, 0, sizeof(f1));
+  memset(&f2, 0, sizeof(f2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_libuv_send_multi(ctx, loop, &multi, futs));
+  ASSERT_EQ(1, f1.is_ready);
+  ASSERT_EQ(1, f2.is_ready);
+  ASSERT_STR_EQ("Hello, libuv", f1.response->body);
+  ASSERT_STR_EQ("OK", f2.response->body);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+  free(f1.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+  free(f2.response);
+
+  memset(&f1, 0, sizeof(f1));
+  memset(&f2, 0, sizeof(f2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_libuv_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+  free(f1.response);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+  free(f2.response);
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  {
+    int k;
+    cfg.ca_path = (char *)"ca.pem";
+    cfg.client_cert_path = (char *)"cli.pem";
+    cfg.client_key_path = (char *)"cli.key";
+    cfg.ca_buffer = (unsigned char *)"PEM";
+    cfg.ca_buffer_len = 3;
+    cfg.cert_pin_sha256 =
+        (char *)"sha256//ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=";
+    for (k = 0; k < 25; ++k) {
+      enum c_abstract_http_error orc;
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_libuv_config_apply(ctx, &cfg);
+      g_mock_alloc_fail = 0;
+
+      res = NULL;
+      r2.url = (char *)"http://127.0.0.1:80/redir-once";
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_libuv_send(ctx, &r2, &res);
+      g_mock_alloc_fail = 0;
+      if (res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+
+      r2.url = (char *)"http://127.0.0.1:80/two";
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_libuv_send_multi(ctx, NULL, &multi, futs);
+      g_mock_alloc_fail = 0;
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+      (void)orc;
+    }
+    g_mock_alloc_count = 0;
+    {
+      struct HttpTransportContext *c2 = NULL;
+      g_mock_alloc_count = 1;
+      g_mock_alloc_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libuv_context_init(&c2));
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+
+      g_mock_headers_init_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &r2, &res));
+      g_mock_headers_init_fail = 0;
+
+      r2.url = (char *)"http://127.0.0.1:80/redir-once";
+      g_mock_response_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &r2, &res));
+      g_mock_response_free_fail = 0;
+
+      r2.url = (char *)"http://127.0.0.1:80/chunked-hex";
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &r2, &res));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+
+      {
+        struct libuv_TestChunkState cst;
+        memset(&cst, 0, sizeof(cst));
+        cst.abort_on_call = 1;
+        r2.on_chunk = libuv_mock_chunk_cb;
+        r2.on_chunk_user_data = &cst;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+                  http_libuv_send(ctx, &r2, &res));
+        r2.on_chunk = NULL;
+      }
+
+      r2.url = (char *)"http://127.0.0.1:80/chunked-bad1";
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &r2, &res));
+      r2.url = (char *)"http://127.0.0.1:80/chunked-bad2";
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &r2, &res));
+      r2.url = (char *)"http://127.0.0.1:80/chunked-bad3";
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &r2, &res));
+
+      g_mock_response_free_fail = 1;
+      (void)c_abstract_http_test_libuv_helpers();
+      g_mock_response_free_fail = 0;
+
+      for (k = 0; k < 20; ++k) {
+        enum c_abstract_http_error hrc;
+        g_mock_alloc_count = k;
+        g_mock_alloc_fail = 1;
+        hrc = c_abstract_http_test_libuv_helpers();
+        g_mock_alloc_fail = 0;
+        (void)hrc;
+      }
+      g_mock_alloc_count = 0;
+    }
+    cfg.ca_path = NULL;
+    cfg.client_cert_path = NULL;
+    cfg.client_key_path = NULL;
+    cfg.ca_buffer = NULL;
+    cfg.ca_buffer_len = 0;
+    cfg.cert_pin_sha256 = NULL;
+  }
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  r1.url = NULL;
+  r2.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
   PASS();
@@ -922,6 +1168,7 @@ SUITE(http_libuv_suite) {
   RUN_TEST(test_libuv_send_fault_injections);
   RUN_TEST(test_libuv_send_large_payloads);
   RUN_TEST(test_libuv_methods);
+  RUN_TEST(test_libuv_tls_spki_chunked_redirects_and_multi);
 }
 
 #ifdef __cplusplus

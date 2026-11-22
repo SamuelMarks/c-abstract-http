@@ -16,7 +16,7 @@ extern int g_mock_waitpid_fail;
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <io.h>
 #else
 #include <unistd.h>
@@ -79,6 +79,11 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection counter for IPC pipe creation and cleanup tests */
+extern int g_mock_pipe_fail;
+#endif
+
 /** @brief Optional global hooks overriding process spawn/wait and IPC I/O */
 static struct AbstractHttpProcessHooks g_process_hooks = {NULL, NULL, NULL,
                                                           NULL};
@@ -110,6 +115,12 @@ abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *pipe) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_pipe_fail > 0 && --g_mock_pipe_fail == 0) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+
   saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
   saAttr.bInheritHandle = TRUE;
   saAttr.lpSecurityDescriptor = NULL;
@@ -137,6 +148,11 @@ abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
       CloseHandle((HANDLE)pipe->write_handle);
       pipe->write_handle = NULL;
     }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_pipe_fail < 0 && ++g_mock_pipe_fail == 0) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+#endif
   }
   LOG_DEBUG("abstract_http_ipc_pipe_free: Exiting");
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -307,6 +323,81 @@ enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+
+/** @brief Internal struct AbstractHttpProcess for DOS */
+struct AbstractHttpProcess {
+  /** @brief Placeholder status field */
+  int status;
+};
+
+enum c_abstract_http_error
+abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *p) {
+  if (!p) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  p->read_handle = NULL;
+  p->write_handle = NULL;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+}
+
+enum c_abstract_http_error
+abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *p) {
+  if (p) {
+    p->read_handle = NULL;
+    p->write_handle = NULL;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+enum c_abstract_http_error
+abstract_http_process_spawn(struct AbstractHttpProcess **proc,
+                            struct AbstractHttpIpcPipe *parent_to_child,
+                            struct AbstractHttpIpcPipe *child_to_parent) {
+  if (g_process_hooks.spawn) {
+    return g_process_hooks.spawn(proc, parent_to_child, child_to_parent);
+  }
+  if (!proc || !parent_to_child || !child_to_parent) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+}
+
+enum c_abstract_http_error
+abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
+                                    int *exit_code) {
+  if (g_process_hooks.wait_and_free) {
+    return g_process_hooks.wait_and_free(proc, exit_code);
+  }
+  if (!proc) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  free(proc);
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+}
+
+enum c_abstract_http_error
+abstract_http_ipc_write(void *handle, const void *data, size_t len) {
+  if (g_process_hooks.ipc_write) {
+    return g_process_hooks.ipc_write(handle, data, len);
+  }
+  (void)handle;
+  (void)data;
+  (void)len;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+}
+
+enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
+                                                  size_t len) {
+  if (g_process_hooks.ipc_read) {
+    return g_process_hooks.ipc_read(handle, data, len);
+  }
+  (void)handle;
+  (void)data;
+  (void)len;
+  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+}
+
 #else /* POSIX */
 
 /** @brief Internal struct AbstractHttpProcess */
@@ -343,6 +434,11 @@ abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
       close((int)(size_t)pipe->write_handle);
     pipe->read_handle = NULL;
     pipe->write_handle = NULL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_pipe_fail < 0 && ++g_mock_pipe_fail == 0) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+#endif
     return C_ABSTRACT_HTTP_SUCCESS;
   }
   LOG_DEBUG("abstract_http_ipc_pipe_free: Exiting");

@@ -1195,6 +1195,218 @@ TEST test_wininet_coverage_branches(void) {
 }
 #endif
 
+TEST test_wininet_protocol_user_agent_and_send_multi(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest r1, r2;
+  struct HttpMultiRequest multi;
+  struct HttpFuture f1, f2;
+  struct HttpFuture *futs[2];
+  struct ModalityEventLoop *loop = NULL;
+  char *u1 = NULL;
+  char *u2 = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+
+  cfg.tls_version_mask = 0xFF00U;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_wininet_config_apply(ctx, &cfg));
+  cfg.tls_version_mask = HTTP_TLS_VERSION_1_2 | HTTP_TLS_VERSION_1_3;
+
+  cfg.version_mask = HTTP_VERSION_3;
+  cfg.http3_fallback = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_wininet_config_apply(ctx, &cfg));
+  cfg.version_mask = HTTP_VERSION_2 | HTTP_VERSION_3;
+  cfg.http3_fallback = 1;
+  free(cfg.user_agent);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("CustomWinInetUA/2.0", &cfg.user_agent));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            http_wininet_send_multi(NULL, NULL, NULL, NULL));
+
+#if !defined(_WIN32)
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+  futs[0] = &f1;
+  futs[1] = &f2;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_wininet_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_wininet_send_multi(ctx, loop, &multi, futs));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("https://127.0.0.1:8443/w1", &u1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:8080/w2", &u2));
+  r1.url = u1;
+  r2.url = u2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &r2));
+
+  memset(&f1, 0, sizeof(f1));
+  memset(&f2, 0, sizeof(f2));
+  g_mock_wininet_read_chunks = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_wininet_send_multi(ctx, loop, &multi, futs));
+  ASSERT_EQ(1, f1.is_ready);
+  ASSERT_EQ(1, f2.is_ready);
+  ASSERT_EQ(200, f1.response->status_code);
+  ASSERT_EQ(200, f2.response->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
+  g_mock_wininet_read_chunks = 0;
+
+  {
+    int k;
+    struct HttpRequest bad_req;
+    struct HttpMultiRequest m1;
+    struct HttpFuture bf;
+    struct HttpFuture *bfs[1];
+    bfs[0] = &bf;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&bad_req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&m1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&m1, &bad_req));
+    memset(&bf, 0, sizeof(bf));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_wininet_send_multi(ctx, loop, &m1, bfs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&m1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&bad_req));
+
+    g_mock_wininet_open_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_wininet_send_multi(ctx, loop, &multi, futs));
+    g_mock_wininet_open_fail = 0;
+
+    g_mock_wininet_crack_url_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_wininet_send_multi(ctx, loop, &multi, futs));
+    g_mock_wininet_crack_url_fail = 0;
+
+    g_mock_wininet_connect_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_wininet_send_multi(ctx, loop, &multi, futs));
+    g_mock_wininet_connect_fail = 0;
+
+    g_mock_wininet_open_request_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_wininet_send_multi(ctx, loop, &multi, futs));
+    g_mock_wininet_open_request_fail = 0;
+
+    g_mock_wininet_send_request_fail = 1;
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_wininet_send_multi(ctx, loop, &multi, futs));
+    g_mock_wininet_send_request_fail = 0;
+
+    g_mock_wininet_query_info_fail = 1;
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_wininet_send_multi(ctx, loop, &multi, futs));
+    g_mock_wininet_query_info_fail = 0;
+
+    g_mock_wininet_read_file_fail = 1;
+    g_mock_wininet_read_chunks = 1;
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_wininet_send_multi(ctx, loop, &multi, futs));
+    g_mock_wininet_read_file_fail = 0;
+    g_mock_wininet_read_chunks = 0;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_headers_add(&r1.headers, "X-Inet", "1"));
+    r1.on_chunk = wininet_chunk_cb;
+    {
+      struct wininet_TestChunkState dst;
+      memset(&dst, 0, sizeof(dst));
+      r1.on_chunk_user_data = &dst;
+      g_mock_wininet_read_chunks = 1;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_wininet_send_multi(ctx, loop, &multi, futs));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
+      g_mock_wininet_read_chunks = 0;
+    }
+    r1.on_chunk = NULL;
+
+    {
+      struct HttpResponse *sres = NULL;
+      struct HttpCookieJar jar;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+      cfg.cookie_jar = &jar;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_config_apply(ctx, &cfg));
+      g_mock_wininet_close_fail = 2;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_wininet_send(ctx, &r2, &sres));
+      g_mock_wininet_close_fail = 0;
+      if (sres) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(sres));
+        free(sres);
+        sres = NULL;
+      }
+
+      g_mock_wininet_cookie_count = 1;
+      g_mock_alloc_count = 5;
+      g_mock_alloc_fail = 1;
+      (void)http_wininet_send(ctx, &r2, &sres);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      g_mock_wininet_cookie_count = 0;
+      if (sres) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(sres));
+        free(sres);
+      }
+      cfg.cookie_jar = NULL;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_config_apply(ctx, &cfg));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
+    }
+
+    for (k = 0; k < 20; ++k) {
+      enum c_abstract_http_error orc;
+      g_mock_wininet_read_chunks = 1;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_wininet_send_multi(ctx, loop, &multi, futs);
+      g_mock_alloc_fail = 0;
+      (void)orc;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
+    }
+    g_mock_alloc_count = 0;
+    g_mock_wininet_read_chunks = 0;
+  }
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r2));
+#else
+  (void)r1;
+  (void)r2;
+  (void)multi;
+  (void)f1;
+  (void)f2;
+  (void)futs;
+  (void)loop;
+  (void)u1;
+  (void)u2;
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
+  PASS();
+}
+
 /** @brief WinInet test suite */
 SUITE(http_wininet_suite) {
   RUN_TEST(test_wininet_lifecycle);
@@ -1205,6 +1417,7 @@ SUITE(http_wininet_suite) {
   RUN_TEST(test_wininet_send_chunked);
   RUN_TEST(test_wininet_send_chunked_abort);
   RUN_TEST(test_wininet_send_upload_chunked);
+  RUN_TEST(test_wininet_protocol_user_agent_and_send_multi);
 #if !defined(_WIN32)
   RUN_TEST(test_wininet_send_mock_failures);
   RUN_TEST(test_wininet_coverage_branches);

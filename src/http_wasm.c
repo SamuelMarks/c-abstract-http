@@ -39,10 +39,21 @@ extern int g_mock_alloc_count;
 #else
 /** @brief Fallback flag value for synchronous Emscripten fetch */
 #define EMSCRIPTEN_FETCH_SYNCHRONOUS 1
+/** @brief Fallback flag value for in-memory Emscripten fetch */
+#define EMSCRIPTEN_FETCH_LOAD_TO_MEMORY 2
+struct emscripten_fetch_t;
 /** @brief Fallback struct emscripten_fetch_attr_t */
 typedef struct emscripten_fetch_attr_t {
   /** @brief requestMethod */
   char requestMethod[32];
+  /** @brief userData */
+  void *userData;
+  /** @brief onsuccess async callback */
+  void (*onsuccess)(struct emscripten_fetch_t *fetch);
+  /** @brief onerror async callback */
+  void (*onerror)(struct emscripten_fetch_t *fetch);
+  /** @brief onprogress async callback */
+  void (*onprogress)(struct emscripten_fetch_t *fetch);
   /** @brief timeoutMSecs */
   unsigned long timeoutMSecs;
   /** @brief attributes */
@@ -57,6 +68,8 @@ typedef struct emscripten_fetch_attr_t {
 
 /** @brief Fallback struct emscripten_fetch_t */
 typedef struct emscripten_fetch_t {
+  /** @brief userData */
+  void *userData;
   /** @brief status */
   unsigned short status;
   /** @brief numBytes */
@@ -224,24 +237,30 @@ wasm_fetch_exec(const emscripten_fetch_attr_t *attr, const char *url,
     if (!f) {
       return C_ABSTRACT_HTTP_ERR_IO;
     }
+    f->userData = attr->userData;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_wasm_fetch_timeout == 1) {
       f->status = 0;
       f->numBytes = 0;
       f->readyState = 2;
+      if ((attr->attributes & EMSCRIPTEN_FETCH_SYNCHRONOUS) == 0 &&
+          attr->onerror) {
+        attr->onerror(f);
+        return C_ABSTRACT_HTTP_SUCCESS;
+      }
       *out_fetch = f;
       return C_ABSTRACT_HTTP_SUCCESS;
     } else if (g_mock_wasm_fetch_timeout == 2) {
+      char *buf = (char *)malloc(5);
+      if (!buf) {
+        free(f);
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
+      }
       f->status = 0;
       f->numBytes = 5;
       f->readyState = 2;
-      {
-        char *buf = (char *)malloc(5);
-        if (buf) {
-          memcpy(buf, "1234", 5);
-        }
-        f->data = buf;
-      }
+      memcpy(buf, "1234", 5);
+      f->data = buf;
       *out_fetch = f;
       return C_ABSTRACT_HTTP_SUCCESS;
     } else if (g_mock_wasm_fetch_timeout == 3) {
@@ -262,14 +281,25 @@ wasm_fetch_exec(const emscripten_fetch_attr_t *attr, const char *url,
       char *buf;
       f->numBytes = strlen(resp_body);
       buf = (char *)malloc((size_t)f->numBytes + 1);
-      if (buf) {
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-        strcpy_s(buf, (size_t)f->numBytes + 1, resp_body);
-#else
-        strcpy(buf, resp_body);
-#endif
+      if (!buf) {
+        free(f);
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
       }
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      strcpy_s(buf, (size_t)f->numBytes + 1, resp_body);
+#else
+      strcpy(buf, resp_body);
+#endif
       f->data = buf;
+    }
+    if ((attr->attributes & EMSCRIPTEN_FETCH_SYNCHRONOUS) == 0) {
+      if (attr->onprogress && f->numBytes > 0) {
+        attr->onprogress(f);
+      }
+      if (attr->onsuccess) {
+        attr->onsuccess(f);
+        return C_ABSTRACT_HTTP_SUCCESS;
+      }
     }
     *out_fetch = f;
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -281,6 +311,8 @@ wasm_fetch_exec(const emscripten_fetch_attr_t *attr, const char *url,
 struct HttpTransportContext {
   /** @brief Configuration settings */
   struct HttpConfig config;
+  /** @brief Non-zero when user_agent was explicitly customized */
+  int has_custom_ua;
 };
 
 /** @brief Reference count of global wasm transport initializations */
@@ -348,9 +380,13 @@ enum c_abstract_http_error
 http_wasm_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wasm_context_free: Entering");
   if (ctx) {
-    enum c_abstract_http_error free_rc = http_config_free(&ctx->config);
+    enum c_abstract_http_error free_rc;
+    free_rc = http_config_free(&ctx->config);
+    if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(ctx);
+      return free_rc;
+    }
     free(ctx);
-    return free_rc;
   }
   LOG_DEBUG("http_wasm_context_free: Exiting");
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -365,10 +401,38 @@ http_wasm_config_apply(struct HttpTransportContext *ctx,
     LOG_DEBUG("http_wasm_config_apply: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
+  if (config->proxy_url || config->cert_pin_sha256 || config->ca_path ||
+      (config->ca_buffer && config->ca_buffer_len > 0) ||
+      config->client_cert_path || config->client_key_path) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
+
+  if (!config->user_agent) {
+    free(ctx->config.user_agent);
+    ctx->config.user_agent = NULL;
+    ctx->has_custom_ua = 0;
+  } else if (!ctx->config.user_agent ||
+             strcmp(ctx->config.user_agent, config->user_agent) != 0) {
+    enum c_abstract_http_error rc;
+    free(ctx->config.user_agent);
+    ctx->config.user_agent = NULL;
+    rc = c_abstract_http_strdup(config->user_agent, &ctx->config.user_agent);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    ctx->has_custom_ua =
+        strcmp(config->user_agent, "c_abstract_http/0.1.0") != 0 ? 1 : 0;
+  }
+
   ctx->config.timeout_ms = config->timeout_ms;
+  ctx->config.connect_timeout_ms = config->connect_timeout_ms;
+  ctx->config.read_timeout_ms = config->read_timeout_ms;
+  ctx->config.write_timeout_ms = config->write_timeout_ms;
   ctx->config.verify_peer = config->verify_peer;
   ctx->config.verify_host = config->verify_host;
   ctx->config.follow_redirects = config->follow_redirects;
+  ctx->config.version_mask = config->version_mask;
+  ctx->config.tls_version_mask = config->tls_version_mask;
   LOG_DEBUG("http_wasm_config_apply: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -410,161 +474,215 @@ static enum c_abstract_http_error get_method_str(enum HttpMethod method,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/* Perform a single HTTP request using wasm fetch. */
-enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
-                                          const struct HttpRequest *req,
-                                          struct HttpResponse **res) {
-  emscripten_fetch_attr_t attr;
-  emscripten_fetch_t *fetch;
-  const char **headers;
-  size_t headers_count;
+/**
+ * @brief Case-insensitive ASCII string comparison for header keys.
+ * @param a First string.
+ * @param b Second string.
+ * @return 0 if equal ignoring case, non-zero otherwise.
+ */
+static int math_wasm_strcasecmp(const char *a, const char *b) {
+  unsigned char ca;
+  unsigned char cb;
+  while (*a && *b) {
+    ca = (unsigned char)*a++;
+    cb = (unsigned char)*b++;
+    if (ca >= 'A' && ca <= 'Z') {
+      ca = (unsigned char)(ca + ('a' - 'A'));
+    }
+    if (cb >= 'A' && cb <= 'Z') {
+      cb = (unsigned char)(cb + ('a' - 'A'));
+    }
+    if (ca != cb) {
+      return (int)ca - (int)cb;
+    }
+  }
+  return (int)(unsigned char)*a - (int)(unsigned char)*b;
+}
+
+/**
+ * @brief Compute effective fetch timeout in milliseconds from HttpConfig.
+ * @param cfg Transport configuration.
+ * @return Effective timeout in milliseconds (0 if none configured).
+ */
+static unsigned long math_wasm_timeout_ms(const struct HttpConfig *cfg) {
+  long best = cfg->timeout_ms;
+  if (best > 0) {
+    return (unsigned long)best;
+  }
+  if (cfg->connect_timeout_ms > best) {
+    best = cfg->connect_timeout_ms;
+  }
+  if (cfg->read_timeout_ms > best) {
+    best = cfg->read_timeout_ms;
+  }
+  if (cfg->write_timeout_ms > best) {
+    best = cfg->write_timeout_ms;
+  }
+  return best > 0 ? (unsigned long)best : 0UL;
+}
+
+/**
+ * @brief Prepare Emscripten Fetch attributes, headers array, and upload body.
+ * @param ctx Transport context.
+ * @param req Input HTTP request.
+ * @param sync_mode Non-zero to enable EMSCRIPTEN_FETCH_SYNCHRONOUS.
+ * @param out_attr Populated emscripten_fetch_attr_t.
+ * @param out_headers Allocated requestHeaders array (caller frees).
+ * @param out_body_buf Allocated streamed body buffer (caller frees).
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
+static enum c_abstract_http_error
+wasm_prepare_request(const struct HttpTransportContext *ctx,
+                     const struct HttpRequest *req, int sync_mode,
+                     emscripten_fetch_attr_t *out_attr,
+                     const char ***out_headers, char **out_body_buf) {
+  const char *method_str = NULL;
+  const char **headers = NULL;
+  char *body_buffer = NULL;
+  size_t body_len = 0;
+  size_t headers_count = 0;
   size_t i;
-  char *body_buffer;
-  size_t body_len;
-  const char *method_str;
+  int has_ua = 0;
+  int inject_ua = 0;
+  unsigned long to_ms;
   enum c_abstract_http_error rc;
 
-  fetch = NULL;
-  headers = NULL;
-  headers_count = 0;
-  body_buffer = NULL;
-  body_len = 0;
-  rc = C_ABSTRACT_HTTP_SUCCESS;
+  *out_headers = NULL;
+  *out_body_buf = NULL;
 
-  LOG_DEBUG("http_wasm_send: Entering");
-  if (!ctx || !req || !res) {
-    LOG_DEBUG("http_wasm_send: Error EINVAL");
-    return C_ABSTRACT_HTTP_ERR_INVAL;
-  }
-
-  *res = NULL;
-
-  /* Check if parts are flattened properly before attempting to send them */
   if (req->parts.count > 0 && !req->body) {
-    LOG_DEBUG("http_wasm_send: Error EINVAL (multipart not flattened)");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-
-  rc = wasm_fetch_attr_init(&attr);
+  rc = wasm_fetch_attr_init(out_attr);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
   rc = get_method_str(req->method, &method_str);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("http_wasm_send: Error get_method_str failed %d", (int)rc);
     return rc;
   }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  strcpy_s(attr.requestMethod, sizeof(attr.requestMethod), method_str);
+  strcpy_s(out_attr->requestMethod, sizeof(out_attr->requestMethod),
+           method_str);
 #else
-  strcpy(attr.requestMethod, method_str);
+  strcpy(out_attr->requestMethod, method_str);
 #endif
-  attr.attributes = EMSCRIPTEN_FETCH_SYNCHRONOUS;
+  out_attr->attributes =
+      sync_mode
+          ? (EMSCRIPTEN_FETCH_SYNCHRONOUS | EMSCRIPTEN_FETCH_LOAD_TO_MEMORY)
+          : EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
 
-  if (ctx->config.timeout_ms > 0) {
-    attr.timeoutMSecs = (unsigned long)ctx->config.timeout_ms;
+  to_ms = math_wasm_timeout_ms(&ctx->config);
+  if (to_ms > 0) {
+    out_attr->timeoutMSecs = to_ms;
   }
 
-  if (req->headers.count > 0) {
-    headers = (const char **)malloc((req->headers.count * 2 + 1) *
-                                    sizeof(const char *));
+  for (i = 0; i < req->headers.count; ++i) {
+    if (math_wasm_strcasecmp(req->headers.headers[i].key, "User-Agent") == 0) {
+      has_ua = 1;
+    }
+  }
+  inject_ua = (!has_ua && ctx->has_custom_ua && ctx->config.user_agent != NULL);
+
+  if (req->headers.count > 0 || inject_ua) {
+    size_t pair_cnt = req->headers.count + (inject_ua ? 1U : 0U);
+    headers = (const char **)malloc((pair_cnt * 2 + 1) * sizeof(const char *));
     if (!headers) {
-      LOG_DEBUG("http_wasm_send: Error ENOMEM (headers)");
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
-    for (i = 0; i < req->headers.count; i++) {
+    for (i = 0; i < req->headers.count; ++i) {
       headers[headers_count++] = req->headers.headers[i].key;
       headers[headers_count++] = req->headers.headers[i].value;
     }
+    if (inject_ua) {
+      headers[headers_count++] = "User-Agent";
+      headers[headers_count++] = ctx->config.user_agent;
+    }
     headers[headers_count] = NULL;
-    attr.requestHeaders = headers;
+    out_attr->requestHeaders = headers;
   }
 
   if (req->read_chunk) {
     size_t cap = req->expected_body_len > 0 ? req->expected_body_len : 4096;
-    size_t out_read;
+    size_t out_read = 0;
 
     body_buffer = (char *)malloc(cap);
     if (!body_buffer) {
-      LOG_DEBUG("http_wasm_send: Error ENOMEM (body_buffer)");
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-      goto cleanup;
+      free((void *)headers);
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
-
     for (;;) {
+      enum c_abstract_http_error read_rc;
       if (body_len == cap) {
         char *new_buf;
         cap *= 2;
         new_buf = (char *)realloc(body_buffer, cap);
         if (!new_buf) {
-          LOG_DEBUG("http_wasm_send: Error ENOMEM (body_buffer realloc)");
-          rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-          goto cleanup;
+          free((void *)headers);
+          free(body_buffer);
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
         body_buffer = new_buf;
       }
-
-      {
-        enum c_abstract_http_error read_rc =
-            req->read_chunk(req->read_chunk_user_data, body_buffer + body_len,
-                            cap - body_len, &out_read);
-        if (read_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          LOG_DEBUG("http_wasm_send: Error read_chunk failed %d", (int)read_rc);
-          if (headers) {
-            free((void *)headers);
-          }
-          free(body_buffer);
-          return (read_rc != C_ABSTRACT_HTTP_SUCCESS)
-                     ? C_ABSTRACT_HTTP_ERR_CANCELED
-                     : read_rc;
-        }
+      read_rc =
+          req->read_chunk(req->read_chunk_user_data, body_buffer + body_len,
+                          cap - body_len, &out_read);
+      if (read_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free((void *)headers);
+        free(body_buffer);
+        return C_ABSTRACT_HTTP_ERR_CANCELED;
       }
       if (out_read == 0) {
         break;
       }
       body_len += out_read;
     }
-
-    attr.requestData = body_buffer;
-    attr.requestDataSize = body_len;
+    out_attr->requestData = body_buffer;
+    out_attr->requestDataSize = body_len;
   } else if (req->body) {
-    attr.requestData = (const char *)req->body;
-    attr.requestDataSize = req->body_len;
+    out_attr->requestData = (const char *)req->body;
+    out_attr->requestDataSize = req->body_len;
   }
 
-  rc = wasm_fetch_exec(&attr, req->url, &fetch);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("http_wasm_send: Error EIO (emscripten_fetch failed)");
-    goto cleanup;
-  }
-  if (!fetch) {
-    rc = C_ABSTRACT_HTTP_ERR_IO;
-    goto cleanup;
-  }
+  *out_headers = headers;
+  *out_body_buf = body_buffer;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Convert a completed `emscripten_fetch_t` into an `HttpResponse`.
+ * @param fetch Completed fetch handle.
+ * @param req Originating HTTP request.
+ * @param res Output response pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
+static enum c_abstract_http_error
+wasm_parse_fetch_response(emscripten_fetch_t *fetch,
+                          const struct HttpRequest *req,
+                          struct HttpResponse **res) {
+  enum c_abstract_http_error rc;
 
   if (fetch->status == 0 && fetch->numBytes == 0 && fetch->readyState != 4) {
-    LOG_DEBUG("http_wasm_send: Error ETIMEDOUT");
-    rc = C_ABSTRACT_HTTP_ERR_TIMEOUT;
-    goto cleanup;
+    return C_ABSTRACT_HTTP_ERR_TIMEOUT;
   }
 
   *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
   if (!*res) {
-    LOG_DEBUG("http_wasm_send: Error ENOMEM (*res)");
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    goto cleanup;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_wasm_response_init_fail) {
-    rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-    goto cleanup;
+    free(*res);
+    *res = NULL;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 #endif
   rc = http_response_init(*res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("http_wasm_send: Error http_response_init failed with %d", rc);
-    goto cleanup;
+    free(*res);
+    *res = NULL;
+    return rc;
   }
 
   (*res)->status_code = fetch->status;
@@ -572,55 +690,22 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
   if (fetch->numBytes > 0) {
     (*res)->body = malloc((size_t)fetch->numBytes);
     if (!(*res)->body) {
-      LOG_DEBUG("http_wasm_send: Error ENOMEM ((*res)->body)");
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-      goto cleanup;
+      goto err_res;
     }
     memcpy((*res)->body, fetch->data, (size_t)fetch->numBytes);
     (*res)->body_len = (size_t)fetch->numBytes;
 
     if (req->on_chunk) {
-      enum c_abstract_http_error cb_rc;
-      cb_rc = req->on_chunk(req->on_chunk_user_data, (*res)->body,
-                            (*res)->body_len);
-      if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        enum c_abstract_http_error close_rc;
-        enum c_abstract_http_error free_rc;
-        LOG_DEBUG("http_wasm_send: Error ECANCELED (chunk callback failed %d)",
-                  (int)cb_rc);
-        free((*res)->body);
-        (*res)->body = NULL;
-        close_rc = wasm_fetch_close(fetch);
-        if (close_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          free(*res);
-          *res = NULL;
-          if (headers) {
-            free((void *)headers);
-          }
-          if (body_buffer) {
-            free(body_buffer);
-          }
-          return close_rc;
-        }
-        free_rc = http_response_free(*res);
-        free(*res);
-        *res = NULL;
-        if (headers) {
-          free((void *)headers);
-        }
-        if (body_buffer) {
-          free(body_buffer);
-        }
-        if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          return free_rc;
-        }
-        return (cb_rc != C_ABSTRACT_HTTP_SUCCESS) ? C_ABSTRACT_HTTP_ERR_CANCELED
-                                                  : cb_rc;
-      }
-      /* If chunk callback consumed data, we free the response body */
+      enum c_abstract_http_error cb_rc = req->on_chunk(
+          req->on_chunk_user_data, (*res)->body, (*res)->body_len);
       free((*res)->body);
       (*res)->body = NULL;
       (*res)->body_len = 0;
+      if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        rc = C_ABSTRACT_HTTP_ERR_CANCELED;
+        goto err_res;
+      }
     }
   }
 
@@ -628,149 +713,304 @@ enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
     size_t hdrs_len = 0;
     rc = wasm_fetch_get_response_headers_length(fetch, &hdrs_len);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      goto cleanup;
+      goto err_res;
     }
     if (hdrs_len > 0) {
       char *hdrs_buf = (char *)malloc(hdrs_len + 1);
       if (hdrs_buf) {
         size_t r = 0;
+        char *p;
+        const char *end;
         rc = wasm_fetch_get_response_headers(fetch, hdrs_buf, hdrs_len + 1, &r);
         if (rc != C_ABSTRACT_HTTP_SUCCESS) {
           free(hdrs_buf);
-          goto cleanup;
+          goto err_res;
         }
-        if (r > 0) {
-        }
-        {
-          char *p = hdrs_buf;
-          const char *end = hdrs_buf + hdrs_len;
-          while (p < end) {
-            char *line_end = strchr(p, 10);
-            if (line_end) {
-              *line_end = '\0';
-              if (line_end > p && *(line_end - 1) == 13) {
-                *(line_end - 1) = '\0';
-              }
+        (void)r;
+        p = hdrs_buf;
+        end = hdrs_buf + hdrs_len;
+        while (p < end) {
+          char *line_end = strchr(p, 10);
+          char *colon;
+          if (line_end) {
+            *line_end = '\0';
+            if (line_end > p && *(line_end - 1) == 13) {
+              *(line_end - 1) = '\0';
             }
-            {
-              char *colon = strchr(p, ':');
-              if (colon) {
-                char *val = colon + 1;
-                *colon = '\0';
-                while (*val == ' ')
-                  val++;
+          }
+          colon = strchr(p, ':');
+          if (colon) {
+            char *val = colon + 1;
+            *colon = '\0';
+            while (*val == ' ') {
+              val++;
+            }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-                if (g_mock_wasm_header_add_fail) {
-                  rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-                  free(hdrs_buf);
-                  goto cleanup;
-                }
+            if (g_mock_wasm_header_add_fail) {
+              free(hdrs_buf);
+              rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+              goto err_res;
+            }
 #endif
-                rc = http_headers_add(&(*res)->headers, p, val);
-                if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-                  LOG_DEBUG("http_wasm_send: Error http_headers_add failed");
-                  free(hdrs_buf);
-                  goto cleanup;
-                }
-              }
+            rc = http_headers_add(&(*res)->headers, p, val);
+            if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+              free(hdrs_buf);
+              goto err_res;
             }
-            if (line_end) {
-              p = line_end + 1;
-            } else {
-              break;
-            }
+          }
+          if (line_end) {
+            p = line_end + 1;
+          } else {
+            break;
           }
         }
         free(hdrs_buf);
       }
     }
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 
-cleanup:
+err_res: {
+  struct HttpResponse *tmp_r = *res;
+  enum c_abstract_http_error free_rc;
+  *res = NULL;
+  free_rc = http_response_free(tmp_r);
+  free(tmp_r);
+  if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return free_rc;
+  }
+}
+  return rc;
+}
+
+/* Perform a single HTTP request using wasm fetch. */
+enum c_abstract_http_error http_wasm_send(struct HttpTransportContext *ctx,
+                                          const struct HttpRequest *req,
+                                          struct HttpResponse **res) {
+  emscripten_fetch_attr_t attr;
+  emscripten_fetch_t *fetch = NULL;
+  const char **headers = NULL;
+  char *body_buffer = NULL;
+  enum c_abstract_http_error rc;
+
+  LOG_DEBUG("http_wasm_send: Entering");
+  if (!ctx || !req || !res) {
+    LOG_DEBUG("http_wasm_send: Error EINVAL");
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *res = NULL;
+
+  rc = wasm_prepare_request(ctx, req, 1, &attr, &headers, &body_buffer);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  rc = wasm_fetch_exec(&attr, req->url, &fetch);
+  if (rc == C_ABSTRACT_HTTP_SUCCESS && !fetch) {
+    rc = C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+    rc = wasm_parse_fetch_response(fetch, req, res);
+  }
+
   if (fetch) {
     enum c_abstract_http_error close_rc = wasm_fetch_close(fetch);
-    if (close_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      if (headers) {
-        free((void *)headers);
-      }
-      if (body_buffer) {
-        free(body_buffer);
-      }
-      if (*res) {
-        enum c_abstract_http_error free_rc = http_response_free(*res);
-        free(*res);
-        *res = NULL;
-        if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          return free_rc;
-        }
-      }
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        return rc;
-      }
-      return close_rc;
+    if (close_rc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = close_rc;
     }
   }
-  if (headers) {
-    free((void *)headers);
-  }
-  if (body_buffer) {
-    free(body_buffer);
+  free((void *)headers);
+  free(body_buffer);
+  return rc;
+}
+
+/** @brief Shared coordinator for non-blocking `http_wasm_send_multi` */
+struct wasm_multi_batch {
+  /** @brief Optional event loop to notify upon batch completion */
+  struct ModalityEventLoop *loop;
+  /** @brief Number of still-pending async fetches */
+  size_t remaining;
+  /** @brief First error observed across requests */
+  enum c_abstract_http_error first_err;
+  /** @brief Wakeup error observed if loop wakeup failed */
+  enum c_abstract_http_error wakeup_err;
+};
+
+/** @brief Per-request state for non-blocking `emscripten_fetch` callbacks */
+struct wasm_multi_slot {
+  /** @brief Parent batch coordinator */
+  struct wasm_multi_batch *batch;
+  /** @brief Originating request */
+  const struct HttpRequest *req;
+  /** @brief Target future handle */
+  struct HttpFuture *future;
+  /** @brief Allocated header array */
+  const char **headers;
+  /** @brief Allocated upload body buffer */
+  char *body_buffer;
+  /** @brief Number of progress notifications received */
+  size_t progress_events;
+};
+
+/**
+ * @brief Complete an asynchronous Emscripten fetch slot
+ * (`onsuccess`/`onerror`).
+ * @param fetch Completed or failed `emscripten_fetch_t` handle.
+ * @param is_error Non-zero when invoked from `onerror`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
+static enum c_abstract_http_error
+wasm_async_complete_impl(emscripten_fetch_t *fetch, int is_error) {
+  struct wasm_multi_slot *slot = (struct wasm_multi_slot *)fetch->userData;
+  struct HttpResponse *res = NULL;
+  enum c_abstract_http_error rc;
+  enum c_abstract_http_error close_rc;
+
+  if (is_error && fetch->status == 0 && fetch->readyState != 4) {
+    rc = C_ABSTRACT_HTTP_ERR_TIMEOUT;
+  } else if (is_error && fetch->status == 0) {
+    rc = C_ABSTRACT_HTTP_ERR_IO;
+  } else {
+    rc = wasm_parse_fetch_response(fetch, slot->req, &res);
   }
 
-  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("http_wasm_send: Success");
-  } else {
-    if (*res) {
-      enum c_abstract_http_error free_rc = http_response_free(*res);
-      free(*res);
-      *res = NULL;
-      if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        return free_rc;
-      }
+  close_rc = wasm_fetch_close(fetch);
+  if (close_rc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
+    rc = close_rc;
+  }
+
+  free((void *)slot->headers);
+  slot->headers = NULL;
+  free(slot->body_buffer);
+  slot->body_buffer = NULL;
+
+  slot->future->response = res;
+  slot->future->error_code = rc;
+  slot->future->is_ready = 1;
+  if (rc != C_ABSTRACT_HTTP_SUCCESS &&
+      slot->batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+    slot->batch->first_err = rc;
+  }
+
+  if (slot->batch->remaining > 0) {
+    slot->batch->remaining--;
+    if (slot->batch->remaining == 0 && slot->batch->loop) {
+      slot->batch->wakeup_err = http_loop_wakeup(slot->batch->loop);
     }
-    LOG_DEBUG("http_wasm_send: Error returning %d", rc);
   }
   return rc;
 }
 
-/* Perform multiple HTTP requests concurrently via wasm fetch. */
+/**
+ * @brief Emscripten Fetch C-API `onprogress` trampoline.
+ * @param fetch Active fetch handle.
+ */
+static void wasm_async_onprogress_cb(emscripten_fetch_t *fetch) {
+  struct wasm_multi_slot *slot = (struct wasm_multi_slot *)fetch->userData;
+  if (slot) {
+    slot->progress_events++;
+  }
+}
+
+/**
+ * @brief Emscripten Fetch C-API `onsuccess` trampoline.
+ * @param fetch Completed fetch handle.
+ */
+static void wasm_async_onsuccess_cb(emscripten_fetch_t *fetch) {
+  enum c_abstract_http_error rc = wasm_async_complete_impl(fetch, 0);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    LOG_DEBUG("wasm_async_onsuccess_cb: error %d", (int)rc);
+  }
+}
+
+/**
+ * @brief Emscripten Fetch C-API `onerror` trampoline.
+ * @param fetch Failed fetch handle.
+ */
+static void wasm_async_onerror_cb(emscripten_fetch_t *fetch) {
+  enum c_abstract_http_error rc = wasm_async_complete_impl(fetch, 1);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    LOG_DEBUG("wasm_async_onerror_cb: error %d", (int)rc);
+  }
+}
+
+/* Perform multiple HTTP requests concurrently via non-blocking wasm fetch. */
 enum c_abstract_http_error http_wasm_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
+  struct wasm_multi_batch batch;
+  struct wasm_multi_slot *slots;
   size_t i;
   enum c_abstract_http_error rc;
   cah_cppcheck_mut_ptr((void *)ctx);
-  if (loop) {
-  }
 
   LOG_DEBUG("http_wasm_send_multi: Entering");
   if (!ctx || !multi || !futures) {
     LOG_DEBUG("http_wasm_send_multi: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
+  if (multi->count == 0) {
+    if (loop) {
+      return http_loop_wakeup(loop);
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  slots = (struct wasm_multi_slot *)calloc(multi->count, sizeof(*slots));
+  if (!slots) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+
+  memset(&batch, 0, sizeof(batch));
+  batch.loop = loop;
+  batch.remaining = multi->count;
+  batch.first_err = C_ABSTRACT_HTTP_SUCCESS;
+  batch.wakeup_err = C_ABSTRACT_HTTP_SUCCESS;
 
   for (i = 0; i < multi->count; i++) {
-    struct HttpResponse *res = NULL;
-    rc = http_wasm_send(ctx, multi->requests[i], &res);
+    emscripten_fetch_attr_t attr;
+    emscripten_fetch_t *async_handle = NULL;
+
+    slots[i].batch = &batch;
+    slots[i].req = multi->requests[i];
+    slots[i].future = futures[i];
+
+    rc = wasm_prepare_request(ctx, slots[i].req, 0, &attr, &slots[i].headers,
+                              &slots[i].body_buffer);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      futures[i]->response = res;
+      futures[i]->response = NULL;
       futures[i]->error_code = rc;
       futures[i]->is_ready = 1;
+      free(slots);
       return rc;
     }
-    futures[i]->response = res;
-    futures[i]->error_code = rc;
-    futures[i]->is_ready = 1;
-  }
 
-  if (loop) {
-    rc = http_loop_wakeup(loop);
+    attr.userData = &slots[i];
+    attr.onsuccess = wasm_async_onsuccess_cb;
+    attr.onerror = wasm_async_onerror_cb;
+    attr.onprogress = wasm_async_onprogress_cb;
+
+    rc = wasm_fetch_exec(&attr, slots[i].req->url, &async_handle);
+    (void)async_handle;
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free((void *)slots[i].headers);
+      free(slots[i].body_buffer);
+      futures[i]->response = NULL;
+      futures[i]->error_code = rc;
+      futures[i]->is_ready = 1;
+      free(slots);
       return rc;
     }
   }
 
-  return C_ABSTRACT_HTTP_SUCCESS;
+#if !defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_TEST_OOM)
+  free(slots);
+#endif
+
+  if (batch.first_err != C_ABSTRACT_HTTP_SUCCESS) {
+    return batch.first_err;
+  }
+  return batch.wakeup_err;
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

@@ -335,10 +335,11 @@ struct HttpResponse {
  * @brief Represents a single HTTP Cookie.
  */
 struct HttpCookie {
-  char *name;    /**< Cookie name (allocated) */
-  char *value;   /**< Cookie value (allocated) */
-  char *domain;  /**< Domain attribute (allocated, optional) */
-  char *path;    /**< Path attribute (allocated, optional) */
+  char *name;      /**< Cookie name (allocated) */
+  char *value;     /**< Cookie value (allocated) */
+  char *domain;    /**< Domain attribute (allocated, optional) */
+  char *path;      /**< Path attribute (allocated, optional) */
+  char *same_site; /**< SameSite attribute (allocated, optional) */
   long expires;  /**< Expiration timestamp (unix epoch), 0 if session cookie */
   int secure;    /**< Secure flag (1 = true, 0 = false) */
   int http_only; /**< HttpOnly flag (1 = true, 0 = false) */
@@ -447,8 +448,14 @@ struct HttpConfig {
                                     HttpVersion) */
   unsigned int tls_version_mask; /**< Allowed TLS version(s) (bitmask of enum
                                     HttpTlsVersion) */
-  int http3_fallback; /**< 1 to fallback to HTTP/1.1/2 if HTTP/3 fails, 0
-                         otherwise */
+  int http3_fallback;       /**< 1 to fallback to HTTP/1.1/2 if HTTP/3 fails, 0
+                               otherwise */
+  char *ca_path;            /**< Optional PEM/DER CA bundle file path */
+  unsigned char *ca_buffer; /**< Optional in-memory PEM/DER CA certificate */
+  size_t ca_buffer_len;     /**< Byte length of ca_buffer */
+  char *client_cert_path;   /**< Optional mTLS client certificate path */
+  char *client_key_path;    /**< Optional mTLS client private key path */
+  char *cert_pin_sha256; /**< Optional SHA-256 SPKI pin (sha256//b64 or hex) */
 };
 
 /**
@@ -460,6 +467,16 @@ struct HttpTransportContext;
  * @brief Opaque structure representing the asynchronous event loop.
  */
 struct ModalityEventLoop;
+
+/**
+ * @brief Opaque structure representing the thread pool.
+ */
+struct AbstractHttpThreadPool;
+
+/**
+ * @brief Opaque structure representing the actor message bus.
+ */
+struct AbstractHttpMessageBus;
 
 /**
  * @brief Function pointer signature for the transport send method.
@@ -492,7 +509,30 @@ struct HttpClient {
   struct ModalityEventLoop *loop; /**< Event loop for async mode */
   struct AbstractHttpThreadPool
       *thread_pool; /**< Thread pool for multi-threaded mode */
+  struct AbstractHttpMessageBus
+      *message_bus;         /**< Message bus for actor message-passing mode */
+  int use_multiprocess_ipc; /**< 1 to dispatch MODALITY_MULTIPROCESS via child
+                               IPC */
 };
+
+/**
+ * @brief Send a single HTTP request through the unified client middleware
+ * pipeline.
+ *
+ * Resolves relative URLs against `client->base_url`, flattens multipart parts,
+ * injects matching cookies from `client->config.cookie_jar`, executes automatic
+ * retries according to `client->config.retry_count` and
+ * `client->config.retry_policy` (including `Retry-After` headers), and parses
+ * response `Set-Cookie` headers back into `client->config.cookie_jar`.
+ *
+ * @param[in] client The HTTP client instance.
+ * @param[in,out] req The HTTP request to execute.
+ * @param[out] res Pointer receiving the allocated response on success.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error enum on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_client_send(struct HttpClient *client, struct HttpRequest *req,
+                 struct HttpResponse **res);
 
 /**
  * @brief Progress callback for multi-request downloads.
@@ -611,6 +651,37 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_cookie_jar_get(
     const struct HttpCookieJar *jar, const char *name, const char **out);
 
 /**
+ * @brief Parse an RFC 6265 Set-Cookie header string into the cookie jar.
+ *
+ * Extracts cookie name, value, Domain, Path, Expires, Max-Age, Secure,
+ * HttpOnly, and SameSite attributes and inserts or updates the matching entry.
+ *
+ * @param[in,out] jar Target cookie jar.
+ * @param[in] set_cookie_header Raw Set-Cookie header value.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error enum on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_cookie_jar_parse_set_cookie(struct HttpCookieJar *jar,
+                                 const char *set_cookie_header);
+
+/**
+ * @brief Build an outgoing RFC 6265 Cookie header value for a request URL.
+ *
+ * Filters stored cookies by Domain, Path, Secure scheme, and expiration time.
+ * Sets `*out_cookie_header` to NULL with C_ABSTRACT_HTTP_SUCCESS when no
+ * cookies match.
+ *
+ * @param[in] jar Source cookie jar.
+ * @param[in] request_url Target request URL (optional).
+ * @param[out] out_cookie_header Output pointer receiving allocated header
+ * string or NULL.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error enum on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_cookie_jar_build_header(const struct HttpCookieJar *jar,
+                             const char *request_url, char **out_cookie_header);
+
+/**
  * @brief Executes the http_config_init operation.
  * @param config The config parameter.
  * @return 0 on success, or an error code.
@@ -689,6 +760,23 @@ http_future_init(struct HttpFuture *future);
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_future_free(struct HttpFuture *future);
+
+/**
+ * @brief Wait for a deferred HttpFuture to complete and return its status enum.
+ * @param[in,out] future Target future handle.
+ * @return Resulting error enum from the completed future, or
+ * C_ABSTRACT_HTTP_ERR_INVAL if unscheduled and unready.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_future_await(struct HttpFuture *future);
+
+/**
+ * @brief Mark an HttpFuture as cancelled and notify any waiting callers.
+ * @param[in,out] future Target future handle to cancel.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error enum on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_future_cancel(struct HttpFuture *future);
 
 /**
  * @brief Initialize an HttpMultiRequest.

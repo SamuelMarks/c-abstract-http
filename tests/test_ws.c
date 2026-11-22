@@ -18,10 +18,16 @@
 #include <string.h>
 #include "mock_alloc.h"
 #if defined(_WIN32)
-#if !defined(_MSC_VER) || _MSC_VER >= 1600
-__declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #endif
-#else
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#elif !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 #endif
 /* clang-format on */
@@ -1860,7 +1866,8 @@ TEST test_ws_free_partial(void) {
   PASS();
 }
 
-#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__)
+#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__) &&   \
+    !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 static enum c_abstract_http_error ws_cond_wake_cb(void *arg) {
   struct HttpRequest *req = (struct HttpRequest *)arg;
   if (!req) {
@@ -1952,6 +1959,9 @@ TEST test_ws_async_task_branches(void) {
 
 TEST test_ws_sha1_failures(void) {
   char accept[29];
+  g_mock_sha1_fail = -1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            ws_sign_key("dGhlIHNhbXBsZSBub25jZQ==", accept));
   g_mock_sha1_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
             ws_sign_key("dGhlIHNhbXBsZSBub25jZQ==", accept));
@@ -2106,6 +2116,14 @@ TEST test_ws_free_ooms(void) {
   g_mock_queue_malloc_fail = 1;
   g_mock_cond_free_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_init(&req, NULL));
+  g_mock_cond_free_fail = 0;
+  g_mock_queue_malloc_fail = 0;
+
+  g_mock_queue_malloc_fail = 1;
+  g_mock_cond_free_fail = 1;
+  g_mock_mutex_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_init(&req, NULL));
+  g_mock_mutex_free_fail = 0;
   g_mock_cond_free_fail = 0;
   g_mock_queue_malloc_fail = 0;
 
@@ -2503,6 +2521,722 @@ TEST test_ws_callback_error_percolation(void) {
   PASS();
 }
 
+#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__) &&   \
+    !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+struct ws_test_server_cfg {
+  int srv_fd;
+  int mode;
+  char last_rx[256];
+  size_t last_rx_len;
+};
+
+static enum c_abstract_http_error ws_test_srv_task(void *arg) {
+  struct ws_test_server_cfg *cfg = (struct ws_test_server_cfg *)arg;
+  int cli_fd = (int)accept(cfg->srv_fd, NULL, NULL);
+  char req_buf[2048];
+  int n;
+  if (cli_fd < 0) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#if defined(SO_NOSIGPIPE)
+  {
+    int nosig = 1;
+    setsockopt(cli_fd, SOL_SOCKET, SO_NOSIGPIPE, (const char *)&nosig,
+               sizeof(nosig));
+  }
+#endif
+  n = (int)recv(cli_fd, req_buf, (int)sizeof(req_buf) - 1, 0);
+  if (n <= 0) {
+#if defined(_WIN32)
+    closesocket((SOCKET)cli_fd);
+#else
+    close(cli_fd);
+#endif
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  req_buf[n] = '\0';
+
+  if (cfg->mode == 1) {
+    const char *bad = "HTTP/1.1 400 Bad Request\r\n\r\n";
+    send(cli_fd, bad,
+#if defined(_WIN32)
+         (int)strlen(bad),
+#else
+         strlen(bad),
+#endif
+         0);
+  } else if (cfg->mode == 9) {
+    /* Immediate close before sending any response bytes */
+  } else if (cfg->mode == 2) {
+    const char *no_acc =
+        "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\r\n";
+    send(cli_fd, no_acc,
+#if defined(_WIN32)
+         (int)strlen(no_acc),
+#else
+         strlen(no_acc),
+#endif
+         0);
+  } else if (cfg->mode == 3) {
+    const char *bad_acc = "HTTP/1.1 101 Switching Protocols\r\n"
+                          "Sec-WebSocket-Accept: invalidaccept==\r\n\r\n";
+    send(cli_fd, bad_acc,
+#if defined(_WIN32)
+         (int)strlen(bad_acc),
+#else
+         strlen(bad_acc),
+#endif
+         0);
+  } else {
+    char key_val[64];
+    char accept_val[29];
+    char resp[512];
+    const char *kp = strstr(req_buf, "Sec-WebSocket-Key:");
+    int roff;
+    memset(key_val, 0, sizeof(key_val));
+    if (kp) {
+      const char *ks = kp + 18;
+      size_t ki = 0;
+      while (*ks == ' ')
+        ks++;
+      while (*ks && *ks != '\r' && *ks != '\n' && ki + 1 < sizeof(key_val)) {
+        key_val[ki++] = *ks++;
+      }
+      key_val[ki] = '\0';
+    }
+    if (ws_sign_key(key_val, accept_val) != C_ABSTRACT_HTTP_SUCCESS) {
+#if defined(_WIN32)
+      closesocket((SOCKET)cli_fd);
+#else
+      close(cli_fd);
+#endif
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    roff = sprintf_s(resp, sizeof(resp),
+                     "HTTP/1.1 101 Switching Protocols\r\n"
+                     "Upgrade: websocket\r\n"
+                     "Connection: Upgrade\r\n"
+                     "Sec-WebSocket-Accept: %s\r\n\r\n",
+                     accept_val);
+#else
+    roff = sprintf(resp,
+                   "HTTP/1.1 101 Switching Protocols\r\n"
+                   "Upgrade: websocket\r\n"
+                   "Connection: Upgrade\r\n"
+                   "Sec-WebSocket-Accept: %s\r\n\r\n",
+                   accept_val);
+#endif
+    if (cfg->mode == 4) {
+      ((unsigned char *)resp)[roff++] = 0x81U;
+      ((unsigned char *)resp)[roff++] = 0x02U;
+      resp[roff++] = 'h';
+      resp[roff++] = 'i';
+    } else if (cfg->mode == 5) {
+      ((unsigned char *)resp)[roff++] = 0x88U;
+      ((unsigned char *)resp)[roff++] = 0x02U;
+      ((unsigned char *)resp)[roff++] = 0x03U;
+      ((unsigned char *)resp)[roff++] = 0xE8U;
+    } else if (cfg->mode == 6) {
+      ((unsigned char *)resp)[roff++] = 0x08U;
+      ((unsigned char *)resp)[roff++] = 0x00U;
+    }
+    send(cli_fd, resp,
+#if defined(_WIN32)
+         roff,
+#else
+         (size_t)roff,
+#endif
+         0);
+
+    if (cfg->mode == 4) {
+      unsigned char ping_f[3] = {0x89, 0x01, 'p'};
+      unsigned char close_f[4] = {0x88, 0x02, 0x03, 0xE8};
+      unsigned char rx_f[128];
+      int rn;
+      send(cli_fd, (const char *)ping_f, 3, 0);
+      rn = (int)recv(cli_fd, (char *)rx_f, (int)sizeof(rx_f), 0);
+      if (rn > 0) {
+        cfg->last_rx_len = (size_t)rn;
+        memcpy(cfg->last_rx, rx_f, (size_t)rn);
+      }
+      send(cli_fd, (const char *)close_f, 4, 0);
+    } else if (cfg->mode == 8) {
+      unsigned char rx_f[64];
+      unsigned char bad_f[2] = {0x08, 0x00};
+      recv(cli_fd, (char *)rx_f, (int)sizeof(rx_f), 0);
+      send(cli_fd, (const char *)bad_f, 2, 0);
+    } else if (cfg->mode == 10) {
+      unsigned char rx_f[64];
+      while (recv(cli_fd, (char *)rx_f, (int)sizeof(rx_f), 0) > 0) {
+      }
+    }
+  }
+
+#if defined(_WIN32)
+  closesocket((SOCKET)cli_fd);
+#else
+  close(cli_fd);
+#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+struct ws_upgraded_cb_trace {
+  int msg_count;
+  int ping_count;
+  int err_code;
+  int close_code;
+  char text[32];
+};
+
+static enum c_abstract_http_error
+ws_trace_on_msg(const struct c_abstract_http_ws_event *ev, void *user_data) {
+  struct ws_upgraded_cb_trace *tr = (struct ws_upgraded_cb_trace *)user_data;
+  if (ev->opcode == C_ABSTRACT_HTTP_WS_OPCODE_PING) {
+    tr->ping_count++;
+  } else if (ev->opcode == C_ABSTRACT_HTTP_WS_OPCODE_TEXT) {
+    size_t cp = ev->payload_len < sizeof(tr->text) - 1 ? ev->payload_len
+                                                       : sizeof(tr->text) - 1;
+    memcpy(tr->text, ev->payload, cp);
+    tr->text[cp] = '\0';
+    tr->msg_count++;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error ws_trace_on_err(int error_code,
+                                                  void *user_data) {
+  struct ws_upgraded_cb_trace *tr = (struct ws_upgraded_cb_trace *)user_data;
+  tr->err_code = error_code;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error ws_trace_on_close(int status_code,
+                                                    void *user_data) {
+  struct ws_upgraded_cb_trace *tr = (struct ws_upgraded_cb_trace *)user_data;
+  tr->close_code = status_code;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static int ws_bind_ephemeral_listener(int *out_port) {
+  struct sockaddr_in addr;
+  int s;
+  int opt = 1;
+#if defined(_WIN32)
+  int alen = (int)sizeof(addr);
+  WSADATA wsa;
+  WSAStartup(MAKEWORD(2, 2), &wsa);
+#else
+  socklen_t alen = (socklen_t)sizeof(addr);
+#endif
+  s = (int)socket(AF_INET, SOCK_STREAM, 0);
+  setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt));
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;
+  bind(s, (struct sockaddr *)&addr, sizeof(addr));
+  listen(s, 4);
+  getsockname(s, (struct sockaddr *)&addr, &alen);
+  *out_port = (int)math_ws_ntohs(addr.sin_port);
+  return s;
+}
+
+static enum c_abstract_http_error ws_ext_add_fail(void *ctx, int fd, int ev,
+                                                  http_loop_cb cb, void *ud) {
+  (void)ctx;
+  (void)fd;
+  (void)ev;
+  (void)cb;
+  (void)ud;
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
+static enum c_abstract_http_error ws_ext_add_ok(void *ctx, int fd, int ev,
+                                                http_loop_cb cb, void *ud) {
+  http_loop_cb *slot = (http_loop_cb *)ctx;
+  (void)fd;
+  (void)ev;
+  (void)ud;
+  if (slot)
+    *slot = cb;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error ws_ext_mod_ok(void *ctx, int fd, int ev) {
+  (void)ctx;
+  (void)fd;
+  (void)ev;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error ws_ext_rm_fail(void *ctx, int fd) {
+  (void)ctx;
+  (void)fd;
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
+static enum c_abstract_http_error ws_ext_wakeup_ok(void *ctx) {
+  (void)ctx;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_ws_upgraded_socket_event_loop(void) {
+  struct HttpClient client;
+  struct HttpRequest req;
+  struct AbstractHttpThreadPool *pool = NULL;
+  struct ws_test_server_cfg srv;
+  struct ws_upgraded_cb_trace tr;
+  char url[128];
+  int port = 0;
+  int m;
+
+  memset(&client, 0, sizeof(client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&client.loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_ws_async_connect(
+                                           NULL, NULL, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = "wss://127.0.0.1:443/ws";
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOTSUP,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  req.url = "ftp://127.0.0.1/ws";
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  req.url = "ws://:0/ws";
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  req.url = "http://127.0.0.1:1";
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_CONNREFUSED,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* Parser OOM (0), host OOM (0 after parser init), path OOM (1), DNS, socket
+   */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
+  req.url = "ws://invalid.host.test";
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOMEM,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOMEM,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 1;
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOMEM,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  g_mock_alloc_fail = 0;
+  g_mock_raw_gethostbyname_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_async_connect(
+                                        &client, &req, NULL, NULL, NULL, NULL));
+  g_mock_raw_gethostbyname_fail = 0;
+  req.url = "ws://127.0.0.1:80/ws";
+  g_mock_socket_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_async_connect(
+                                        &client, &req, NULL, NULL, NULL, NULL));
+  g_mock_socket_fail = 0;
+#endif
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  srv.srv_fd = ws_bind_ephemeral_listener(&port);
+  for (m = 1; m <= 8; ++m) {
+    char *dup_url = NULL;
+    memset(&tr, 0, sizeof(tr));
+    srv.mode = m;
+    srv.last_rx_len = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(url, sizeof(url),
+              (m % 2 == 0) ? "ws://127.0.0.1:%d/chat"
+                           : "http://localhost:%d/chat",
+              port);
+#else
+    sprintf(url,
+            (m % 2 == 0) ? "ws://127.0.0.1:%d/chat"
+                         : "http://localhost:%d/chat",
+            port);
+#endif
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
+    req.url = dup_url;
+
+    if (m <= 3) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE,
+                c_abstract_http_ws_async_register(
+                    &client, &req, ws_trace_on_msg, ws_trace_on_err,
+                    ws_trace_on_close, &tr));
+    } else if (m == 5) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_ws_async_connect(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    } else if (m == 6) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
+                c_abstract_http_ws_async_connect(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    } else if (m == 4) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_ws_async_register(
+                    &client, &req, ws_trace_on_msg, ws_trace_on_err,
+                    ws_trace_on_close, &tr));
+      ASSERT_EQ(1, tr.msg_count);
+      ASSERT_STR_EQ("hi", tr.text);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+      {
+        /* EWOULDBLOCK queues frame + schedules HTTP_LOOP_WRITE + wakeup */
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_ws_send_mode(1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                          (const unsigned char *)"ok", 2));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(client.loop));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_ws_send_mode(0));
+      }
+#else
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                        (const unsigned char *)"ok", 2));
+#endif
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(client.loop));
+      ASSERT_EQ(1, tr.ping_count);
+      ASSERT_EQ(1000, tr.close_code);
+    } else if (m == 7) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_ws_async_connect(&client, &req, NULL, NULL,
+                                                 ws_trace_on_close, &tr));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(client.loop));
+      ASSERT_EQ(1006, tr.close_code);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_ws_async_connect(&client, &req, NULL, NULL,
+                                                 NULL, NULL));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(client.loop));
+    } else if (m == 8) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_ws_async_connect(&client, &req, ws_trace_on_msg,
+                                                 ws_trace_on_err,
+                                                 ws_trace_on_close, &tr));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                        (const unsigned char *)"go", 2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, http_loop_run(client.loop));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, tr.err_code);
+    }
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* Exercise handshake send fail, missing key, external loop add_fd/remove_fd
+   * failures, send I/O error, and parser_destroy error */
+  {
+    extern enum c_abstract_http_error c_abstract_http_test_set_ws_send_mode(
+        int mode);
+    struct HttpLoopHooks lhooks;
+    struct HttpClient ext_cli;
+    http_loop_cb captured_cb = NULL;
+    char *dup_url = NULL;
+
+    /* Handshake send failure */
+    srv.mode = 7;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(url, sizeof(url), "ws://127.0.0.1:%d/chat", port);
+#else
+    sprintf(url, "ws://127.0.0.1:%d/chat", port);
+#endif
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_ws_send_mode(2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL,
+                                               NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_ws_send_mode(0));
+    /* Missing Sec-WebSocket-Key header when ws_ctx already allocated */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_free(&req.headers));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_init(&req.headers));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL,
+                                               NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* External loop add_fd failure + pre-queued frame before connect */
+    memset(&lhooks, 0, sizeof(lhooks));
+    memset(&ext_cli, 0, sizeof(ext_cli));
+    lhooks.add_fd = ws_ext_add_fail;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_init_external(&ext_cli.loop, &lhooks));
+    srv.mode = 7;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_init(&req, NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                      (const unsigned char *)"q", 1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, NULL, NULL, NULL,
+                                               NULL));
+    g_mock_parser_destroy_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_free(&req));
+    g_mock_parser_destroy_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(ext_cli.loop));
+
+    /* ws_init OOM inside async_connect */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    req.url = "ws://127.0.0.1:80/ws";
+    g_mock_queue_malloc_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+              c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL,
+                                               NULL));
+    g_mock_queue_malloc_fail = 0;
+    req.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* Mode 9: empty handshake EOF */
+    srv.mode = 9;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(url, sizeof(url), "ws://127.0.0.1:%d/chat", port);
+#else
+    sprintf(url, "ws://127.0.0.1:%d/chat", port);
+#endif
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE,
+              c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL,
+                                               NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* External loop remove_fd failure + send error + WRITE close_requested */
+    memset(&lhooks, 0, sizeof(lhooks));
+    lhooks.external_context = &captured_cb;
+    lhooks.add_fd = ws_ext_add_ok;
+    lhooks.mod_fd = ws_ext_mod_ok;
+    lhooks.remove_fd = ws_ext_rm_fail;
+    lhooks.wakeup = ws_ext_wakeup_ok;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_init_external(&ext_cli.loop, &lhooks));
+    srv.mode = 10;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, NULL, NULL, NULL,
+                                               NULL));
+    ASSERT(captured_cb != NULL);
+
+    /* Test flush when loop_registered == 0 */
+    ((struct ws_stream_ctx *)req.ws_ctx)->loop_registered = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                      (const unsigned char *)"z", 1));
+    ((struct ws_stream_ctx *)req.ws_ctx)->loop_registered = 1;
+
+    /* Test PING with NULL user_on_msg + PING auto-pong send failure */
+    {
+      unsigned char ping_f[3] = {0x89, 0x01, 'p'};
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_SUCCESS,
+          ws_parser_feed(&((struct ws_stream_ctx *)req.ws_ctx)->async_parser,
+                         ping_f, 3));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_ws_send_mode(2));
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_ERR_IO,
+          ws_parser_feed(&((struct ws_stream_ctx *)req.ws_ctx)->async_parser,
+                         ping_f, 3));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_ws_send_mode(0));
+      ((struct ws_stream_ctx *)req.ws_ctx)->queue_len = 0;
+    }
+
+    /* Test send mode 2 + mutex unlock failures on ws_send & loop WRITE */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_ws_send_mode(2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                      (const unsigned char *)"x", 1));
+    g_mock_mutex_fail = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                      (const unsigned char *)"x", 1));
+    g_mock_mutex_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              captured_cb(ext_cli.loop,
+                          ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                          HTTP_LOOP_WRITE, &req));
+    g_mock_mutex_fail = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              captured_cb(ext_cli.loop,
+                          ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                          HTTP_LOOP_WRITE, &req));
+    g_mock_mutex_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              captured_cb(ext_cli.loop,
+                          ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                          HTTP_LOOP_WRITE, &req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_ws_send_mode(0));
+
+    /* Test ws_send normal mutex unlock fail + loop WRITE mutex unlock fail */
+    g_mock_mutex_fail = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                      (const unsigned char *)"x", 1));
+    g_mock_mutex_fail = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              captured_cb(ext_cli.loop,
+                          ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                          HTTP_LOOP_WRITE, &req));
+    g_mock_mutex_fail = 0;
+
+    /* Test close_requested flush via HTTP_LOOP_WRITE + remove_fd fail */
+    ((struct ws_stream_ctx *)req.ws_ctx)->close_requested = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              captured_cb(ext_cli.loop,
+                          ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                          HTTP_LOOP_WRITE, &req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* Also test ws_fail_upgraded_socket remove_fd fail + ws_free remove_fd fail
+     * + ws_close immediate detach */
+    srv.mode = 10;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, NULL, NULL, NULL,
+                                               NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_close(&req, 1000));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    srv.mode = 8;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, NULL, NULL, NULL,
+                                               NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              captured_cb(ext_cli.loop,
+                          ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                          HTTP_LOOP_READ, &req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                      (const unsigned char *)"go", 2));
+    {
+      fd_set rset;
+      struct timeval tv;
+      int ufd = ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd;
+      FD_ZERO(&rset);
+#if defined(_WIN32)
+      FD_SET((SOCKET)ufd, &rset);
+#else
+      FD_SET((size_t)ufd, &rset);
+#endif
+      tv.tv_sec = 2;
+      tv.tv_usec = 0;
+      select(ufd + 1, &rset, NULL, NULL, &tv);
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                captured_cb(ext_cli.loop, ufd, HTTP_LOOP_READ, &req));
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    srv.mode = 7;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, NULL, NULL, NULL,
+                                               NULL));
+    {
+      fd_set rset;
+      struct timeval tv;
+      int ufd = ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd;
+      /* Wait for peer EOF, then exercise READ EOF -> remove_fd failure */
+      FD_ZERO(&rset);
+#if defined(_WIN32)
+      FD_SET((SOCKET)ufd, &rset);
+#else
+      FD_SET((size_t)ufd, &rset);
+#endif
+      tv.tv_sec = 2;
+      tv.tv_usec = 0;
+      select(ufd + 1, &rset, NULL, NULL, &tv);
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                captured_cb(ext_cli.loop, ufd, HTTP_LOOP_READ, &req));
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    srv.mode = 7;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, NULL, NULL, NULL,
+                                               NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(ext_cli.loop));
+  }
+#endif
+
+#if defined(_WIN32)
+  closesocket((SOCKET)srv.srv_fd);
+#else
+  close(srv.srv_fd);
+#endif
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(client.loop));
+  PASS();
+}
+#endif
+
 SUITE(ws_suite) {
   RUN_TEST(test_ws_callback_error_percolation);
   RUN_TEST(test_ws_parser_branch_coverage);
@@ -2600,8 +3334,10 @@ SUITE(ws_suite) {
   RUN_TEST(test_ws_async_task_branches);
   RUN_TEST(test_ws_sha1_failures);
 #endif
-#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__)
+#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__) &&   \
+    !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
   RUN_TEST(test_ws_read_chunk_cond_wait_success);
+  RUN_TEST(test_ws_upgraded_socket_event_loop);
 #endif
 }
 GREATEST_MAIN_DEFS();

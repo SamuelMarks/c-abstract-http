@@ -751,6 +751,183 @@ TEST test_wasm_send_multi(void) {
   PASS();
 }
 
+TEST test_wasm_async_timeouts_ua_and_limits(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpMultiRequest multi;
+  struct HttpFuture f1;
+  struct HttpFuture *futs[1];
+  struct ModalityEventLoop *loop = NULL;
+  int read_called = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+
+  /* Browser Fetch API limitation checks -> ERR_NOTSUP */
+  cfg.proxy_url = (char *)"http://127.0.0.1:8080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_wasm_config_apply(ctx, &cfg));
+  cfg.proxy_url = NULL;
+  cfg.cert_pin_sha256 = (char *)"sha256//pin=";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_wasm_config_apply(ctx, &cfg));
+  cfg.cert_pin_sha256 = NULL;
+  cfg.ca_path = (char *)"ca.pem";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_wasm_config_apply(ctx, &cfg));
+  cfg.ca_path = NULL;
+  cfg.ca_buffer = (unsigned char *)"PEM";
+  cfg.ca_buffer_len = 3;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_wasm_config_apply(ctx, &cfg));
+  cfg.ca_buffer = NULL;
+  cfg.ca_buffer_len = 0;
+  cfg.client_cert_path = (char *)"cli.pem";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_wasm_config_apply(ctx, &cfg));
+  cfg.client_cert_path = NULL;
+
+  /* Granular timeouts & custom user_agent */
+  cfg.timeout_ms = 0;
+  cfg.connect_timeout_ms = 1000;
+  cfg.read_timeout_ms = 2000;
+  cfg.write_timeout_ms = 3000;
+  free(cfg.user_agent);
+  cfg.user_agent = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("WasmCustomUA/2.0", &cfg.user_agent));
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_wasm_config_apply(ctx, &cfg));
+  g_mock_alloc_fail = 0;
+#endif
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)"https://example.com/ua";
+  req.method = HTTP_POST;
+  req.read_chunk = wasm_mock_read_chunk;
+  req.read_chunk_user_data = &read_called;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Explicit User-Agent header overrides config user_agent */
+  read_called = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "user-agent", "OverrideUA/1.0"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Async send_multi: empty batch, timeout/error callback, OOM */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  futs[0] = &f1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_wasm_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_wasm_send_multi(ctx, loop, &multi, futs));
+
+  read_called = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req));
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+            http_wasm_send_multi(ctx, loop, &multi, futs));
+  g_mock_alloc_fail = 0;
+
+  read_called = 0;
+  g_mock_wasm_fetch_timeout = 1;
+  memset(&f1, 0, sizeof(f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT,
+            http_wasm_send_multi(ctx, loop, &multi, futs));
+  ASSERT_EQ(1, f1.is_ready);
+  g_mock_wasm_fetch_timeout = 0;
+
+  read_called = 0;
+  g_mock_wasm_fetch_fail = 1;
+  memset(&f1, 0, sizeof(f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_wasm_send_multi(ctx, loop, &multi, futs));
+  g_mock_wasm_fetch_fail = 0;
+#endif
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  {
+    int k;
+    for (k = 0; k < 25; ++k) {
+      enum c_abstract_http_error orc;
+      res = NULL;
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_wasm_config_apply(ctx, &cfg);
+      g_mock_alloc_fail = 0;
+      (void)orc;
+
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_wasm_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+
+      memset(&f1, 0, sizeof(f1));
+      g_mock_alloc_count = k;
+      g_mock_alloc_fail = 1;
+      orc = http_wasm_send_multi(ctx, NULL, &multi, futs);
+      g_mock_alloc_fail = 0;
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      (void)orc;
+    }
+    g_mock_alloc_count = 0;
+    {
+      struct HttpTransportContext *c2 = NULL;
+      req.url = (char *)"http://127.0.0.1:8080/empty";
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_send(ctx, &req, &res));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+      req.url = (char *)"http://127.0.0.1:8080/w";
+
+      g_mock_alloc_count = 1;
+      g_mock_alloc_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_wasm_context_init(&c2));
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+
+      g_mock_headers_init_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_wasm_send(ctx, &req, &res));
+      g_mock_headers_init_fail = 0;
+
+      g_mock_config_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_wasm_context_free(ctx));
+      g_mock_config_free_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_context_init(&ctx));
+    }
+  }
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
+  PASS();
+}
+
 /**
  * @brief Suite definition for wasm backend.
  */
@@ -763,6 +940,7 @@ SUITE(http_wasm_suite) {
   RUN_TEST(test_wasm_send_headers_and_body);
   RUN_TEST(test_wasm_send_failures);
   RUN_TEST(test_wasm_send_multi);
+  RUN_TEST(test_wasm_async_timeouts_ua_and_limits);
 }
 
 #ifdef __cplusplus

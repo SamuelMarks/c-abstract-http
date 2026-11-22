@@ -18,6 +18,7 @@
 #define C_ABSTRACT_HTTP_HTTP_LIBEVENT_H
 
 /* clang-format off */
+#include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
 
@@ -107,6 +108,25 @@ http_libevent_config_apply(struct HttpTransportContext *ctx,
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libevent_send(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, struct HttpResponse **res);
+
+/**
+ * @brief Asynchronous multi-request dispatcher for libevent.
+ *
+ * Submits concurrent `evhttp_request` operations onto a shared `event_base` and
+ * bridges non-blocking `event_base_loop(EVLOOP_NONBLOCK)` ticks onto
+ * `ModalityEventLoop`.
+ *
+ * @param[in] ctx The transport context.
+ * @param[in,out] loop Optional event loop to drive and wake on completion.
+ * @param[in] multi Batch of HTTP requests to execute concurrently.
+ * @param[out] futures Array of futures populated with responses/errors.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+http_libevent_send_multi(struct HttpTransportContext *ctx,
+                         struct ModalityEventLoop *loop,
+                         const struct HttpMultiRequest *multi,
+                         struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

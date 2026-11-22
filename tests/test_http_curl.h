@@ -600,6 +600,29 @@ TEST test_curl_http3_config(void) {
   config.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
 
+  /* granular connect_timeout_ms, read_timeout_ms, and write_timeout_ms */
+  config.proxy_url = NULL;
+  config.proxy_username = NULL;
+  config.proxy_password = NULL;
+  config.connect_timeout_ms = 1500;
+  config.read_timeout_ms = 2500;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
+  config.read_timeout_ms = 0;
+  config.write_timeout_ms = 3500;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
+  {
+    int step;
+    for (step = 0; step < 8; ++step) {
+      g_mock_curl_setopt_fail = 1;
+      g_mock_curl_setopt_count = step;
+      ret = http_curl_config_apply(ctx, &config);
+      g_mock_curl_setopt_fail = 0;
+      ASSERT(ret == C_ABSTRACT_HTTP_SUCCESS || ret == C_ABSTRACT_HTTP_ERR_IO);
+    }
+  }
+  config.connect_timeout_ms = 0;
+  config.write_timeout_ms = 0;
+
   /* ctx->curl == NULL */
   {
     void *saved = *(void **)ctx;
@@ -649,7 +672,7 @@ TEST test_curl_edge_cases(void) {
   req.parts.count = 1;
   req.body = (void *)"x";
   req.body_len = 1;
-  req.url = "http://127.0.0.1:8080";
+  req.url = "http://127.0.0.1:1";
   ASSERT(http_curl_send(ctx, &req, &res) != C_ABSTRACT_HTTP_SUCCESS);
   req.parts.count = 0;
 

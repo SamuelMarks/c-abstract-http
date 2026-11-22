@@ -1,8 +1,8 @@
 
 /**
  * @file event_loop.c
- * @brief Portable select-based event loop, timer min-heap, and external loop
- * hook adapter.
+ * @brief Scalable native I/O event loop (epoll, kqueue, IOCP/WSAPoll, select),
+ * timer min-heap, and external loop hook adapter.
  */
 
 /* clang-format off */
@@ -21,15 +21,31 @@
 /** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
+#if (!defined(_MSC_VER) || _MSC_VER >= 1500) && (_WIN32_WINNT >= 0x0600)
+/** @brief Enable Windows IOCP + WSAPoll scalable backend */
+#define CAH_HAVE_IOCP_WSAPOLL 1
+#endif
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <dos.h>
+#include <time.h>
 #else
+#include <sys/types.h>
 #include <sys/select.h>
 #include <sys/time.h>
 #if !defined(_MSC_VER)
 #include <unistd.h>
 #endif
 #include <fcntl.h>
+#if defined(__linux__)
+/** @brief Enable Linux epoll O(1) backend */
+#define CAH_HAVE_EPOLL 1
+#include <sys/epoll.h>
+#elif (defined(__APPLE__) && defined(__MACH__)) || defined(__FreeBSD__) ||     \
+    defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
+/** @brief Enable Darwin / BSD kqueue O(1) backend */
+#define CAH_HAVE_KQUEUE 1
+#include <sys/event.h>
+#endif
 #endif
 
 #include <c_abstract_http/event_loop.h>
@@ -79,6 +95,8 @@
  * @return Non-zero if descriptor is set.
  */
 #define ABSTRACT_HTTP_FD_ISSET(d, s) FD_ISSET(d, s)
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+/* No POSIX fd_set on DOS */
 #else
 /**
  * @brief Portable wrapper around POSIX FD_SET with unsigned cast.
@@ -115,6 +133,8 @@ struct FdNode {
   int fd;
   /** @brief events (variable) of struct FdNode */
   int events;
+  /** @brief Ready event bitmask populated during poll cycle */
+  int pending_revents;
   /** @brief cb (variable) of struct FdNode */
   http_loop_cb cb;
   /** @brief user_data (variable) of struct FdNode */
@@ -129,6 +149,10 @@ struct ModalityEventLoop {
   int running;
   /** @brief stop_requested (variable) of struct ModalityEventLoop */
   int stop_requested;
+  /** @brief Active I/O multiplexing backend */
+  enum HttpLoopBackend backend;
+  /** @brief Non-zero when a non-pollable fd forced fallback to `select()` */
+  int fallback_to_select;
   /* External Hooks (if any) */
   /** @brief has_hooks (variable) of struct ModalityEventLoop */
   int has_hooks;
@@ -150,22 +174,41 @@ struct ModalityEventLoop {
   size_t fd_count;
   /** @brief fd_capacity (variable) of struct ModalityEventLoop */
   size_t fd_capacity;
-  /* Wakeup mechanism (Self-pipe trick or Windows Event) */
+  /* Wakeup & Native Multiplexer Handles */
 #if defined(_WIN32)
   /** @brief Win32 manual/auto-reset event handle for loop wakeup */
   HANDLE wakeup_event;
+#if defined(CAH_HAVE_IOCP_WSAPOLL)
+  /** @brief Win32 I/O Completion Port handle for scalable wakeup */
+  HANDLE iocp_handle;
+#endif
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  /** @brief DOS wakeup pending flag */
+  int wakeup_pending;
 #else
   /** @brief wakeup_pipe[2] (variable) of struct ModalityEventLoop */
   int wakeup_pipe[2];
+#if defined(CAH_HAVE_EPOLL)
+  /** @brief Linux epoll instance descriptor */
+  int epoll_fd;
+#endif
+#if defined(CAH_HAVE_KQUEUE)
+  /** @brief Darwin / BSD kqueue instance descriptor */
+  int kq_fd;
+#endif
 #endif
 };
 
+#ifndef CAH_MATH_TIME_DECLARED
+/** @brief Guard macro for math_get_current_time_ms declaration */
+#define CAH_MATH_TIME_DECLARED 1
 /** @brief Return current monotonic/wall time in milliseconds */
 abstract_http_int64_t math_get_current_time_ms(void);
 C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void);
 #ifndef math_get_current_time_ms
 /** @brief Default mapping of math_get_current_time_ms to real implementation */
 #define math_get_current_time_ms real_math_get_current_time_ms
+#endif
 #endif
 C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void) {
 
@@ -176,6 +219,9 @@ C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void) {
 #else
   return (abstract_http_int64_t)GetTickCount64();
 #endif
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  return ((abstract_http_int64_t)clock() * 1000) /
+         (abstract_http_int64_t)CLOCKS_PER_SEC;
 #else
   struct timeval tv;
   gettimeofday(&tv, NULL);
@@ -267,6 +313,163 @@ timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for select failure tests */
+extern int g_mock_select_fail;
+/** @brief Fault-injection flag for select error-fd readiness tests */
+extern int g_mock_select_error_fds;
+/** @brief Fault-injection flag for native multiplexer init failure */
+static int g_mock_native_mux_fail = 0;
+
+/**
+ * @brief Configure test-only native multiplexer (`epoll`/`kqueue`/`IOCP`)
+ * creation failure.
+ * @param v Non-zero to force native multiplexer init failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+c_abstract_http_test_set_native_mux_fail(int v);
+
+C_ABSTRACT_HTTP_API enum c_abstract_http_error
+c_abstract_http_test_set_native_mux_fail(int v) {
+  g_mock_native_mux_fail = v;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
+/**
+ * @brief Pure helper resolving `HTTP_LOOP_BACKEND_AUTO` to host-optimal
+ * backend.
+ * @param requested Caller-requested backend enum.
+ * @return Concrete `enum HttpLoopBackend`, or `(enum HttpLoopBackend)-1` if
+ * invalid, or `(enum HttpLoopBackend)-2` if unsupported on this OS.
+ */
+static int math_resolve_loop_backend(enum HttpLoopBackend requested) {
+  if (requested == HTTP_LOOP_BACKEND_AUTO) {
+#if defined(CAH_HAVE_EPOLL)
+    return (int)HTTP_LOOP_BACKEND_EPOLL;
+#elif defined(CAH_HAVE_KQUEUE)
+    return (int)HTTP_LOOP_BACKEND_KQUEUE;
+#elif defined(CAH_HAVE_IOCP_WSAPOLL)
+    return (int)HTTP_LOOP_BACKEND_IOCP;
+#else
+    return (int)HTTP_LOOP_BACKEND_SELECT;
+#endif
+  }
+  if (requested == HTTP_LOOP_BACKEND_SELECT) {
+    return (int)HTTP_LOOP_BACKEND_SELECT;
+  }
+  if (requested == HTTP_LOOP_BACKEND_EPOLL) {
+#if defined(CAH_HAVE_EPOLL)
+    return (int)HTTP_LOOP_BACKEND_EPOLL;
+#else
+    return -2;
+#endif
+  }
+  if (requested == HTTP_LOOP_BACKEND_KQUEUE) {
+#if defined(CAH_HAVE_KQUEUE)
+    return (int)HTTP_LOOP_BACKEND_KQUEUE;
+#else
+    return -2;
+#endif
+  }
+  if (requested == HTTP_LOOP_BACKEND_IOCP) {
+#if defined(CAH_HAVE_IOCP_WSAPOLL)
+    return (int)HTTP_LOOP_BACKEND_IOCP;
+#else
+    return -2;
+#endif
+  }
+  return -1;
+}
+
+#if defined(CAH_HAVE_EPOLL)
+/**
+ * @brief Synchronize a descriptor's watched mask with the Linux `epoll`
+ * instance.
+ * @param loop Event loop context.
+ * @param op `EPOLL_CTL_ADD`, `EPOLL_CTL_MOD`, or `EPOLL_CTL_DEL`.
+ * @param fd Descriptor to update.
+ * @param events `HttpLoopEvent` bitmask.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+static enum c_abstract_http_error epoll_sync_fd(struct ModalityEventLoop *loop,
+                                                int op, int fd, int events) {
+  struct epoll_event ev;
+  if (loop->backend != HTTP_LOOP_BACKEND_EPOLL || loop->epoll_fd < 0 ||
+      loop->fallback_to_select) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  memset(&ev, 0, sizeof(ev));
+  ev.data.fd = fd;
+  if (events & HTTP_LOOP_READ)
+    ev.events |= EPOLLIN;
+  if (events & HTTP_LOOP_WRITE)
+    ev.events |= EPOLLOUT;
+  if (events & HTTP_LOOP_ERROR)
+    ev.events |= (EPOLLERR | EPOLLHUP);
+  if (epoll_ctl(loop->epoll_fd, op, fd, op == EPOLL_CTL_DEL ? NULL : &ev) < 0) {
+    if (op != EPOLL_CTL_DEL) {
+      loop->fallback_to_select = 1;
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
+#if defined(CAH_HAVE_KQUEUE)
+/**
+ * @brief Synchronize a descriptor's watched mask with the Darwin/BSD `kqueue`
+ * instance.
+ * @param loop Event loop context.
+ * @param fd Descriptor to update.
+ * @param old_events Previous `HttpLoopEvent` bitmask (`0` on add).
+ * @param new_events New `HttpLoopEvent` bitmask (`0` on remove).
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+static enum c_abstract_http_error kqueue_sync_fd(struct ModalityEventLoop *loop,
+                                                 int fd, int old_events,
+                                                 int new_events) {
+  struct kevent changes[2];
+  struct timespec zero_ts;
+  int n = 0;
+  int old_r = (old_events & (HTTP_LOOP_READ | HTTP_LOOP_ERROR)) ? 1 : 0;
+  int new_r = (new_events & (HTTP_LOOP_READ | HTTP_LOOP_ERROR)) ? 1 : 0;
+  int old_w = (old_events & HTTP_LOOP_WRITE) ? 1 : 0;
+  int new_w = (new_events & HTTP_LOOP_WRITE) ? 1 : 0;
+
+  if (loop->backend != HTTP_LOOP_BACKEND_KQUEUE || loop->kq_fd < 0 ||
+      loop->fallback_to_select) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (new_r && !old_r) {
+    EV_SET(&changes[n], (uintptr_t)fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0,
+           NULL);
+    n++;
+  } else if (!new_r && old_r) {
+    EV_SET(&changes[n], (uintptr_t)fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+    n++;
+  }
+  if (new_w && !old_w) {
+    EV_SET(&changes[n], (uintptr_t)fd, EVFILT_WRITE, EV_ADD | EV_ENABLE, 0, 0,
+           NULL);
+    n++;
+  } else if (!new_w && old_w) {
+    EV_SET(&changes[n], (uintptr_t)fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+    n++;
+  }
+  if (n > 0) {
+    zero_ts.tv_sec = 0;
+    zero_ts.tv_nsec = 0;
+    if (kevent(loop->kq_fd, changes, n, NULL, 0, &zero_ts) < 0 &&
+        new_events != 0) {
+      loop->fallback_to_select = 1;
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
 enum c_abstract_http_error
 http_loop_init_external(struct ModalityEventLoop **loop,
                         const struct HttpLoopHooks *hooks) {
@@ -283,18 +486,41 @@ http_loop_init_external(struct ModalityEventLoop **loop,
 
   l->has_hooks = 1;
   l->hooks = *hooks;
+  l->backend = HTTP_LOOP_BACKEND_SELECT;
 
   *loop = l;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/** @brief Initialize a new event loop instance */
-enum c_abstract_http_error http_loop_init(struct ModalityEventLoop **loop) {
-  struct ModalityEventLoop *l;
-  LOG_DEBUG("http_loop_init: Entering");
-  if (!loop) {
-    LOG_DEBUG("http_loop_init: Error EINVAL");
+/** @brief Query active I/O backend of an event loop */
+enum c_abstract_http_error
+http_loop_get_backend(const struct ModalityEventLoop *loop,
+                      enum HttpLoopBackend *out_backend) {
+  if (!loop || !out_backend) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *out_backend =
+      loop->fallback_to_select ? HTTP_LOOP_BACKEND_SELECT : loop->backend;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/** @brief Initialize a new event loop instance with an explicit backend */
+enum c_abstract_http_error
+http_loop_init_with_backend(struct ModalityEventLoop **loop,
+                            enum HttpLoopBackend backend) {
+  struct ModalityEventLoop *l;
+  int resolved;
+  LOG_DEBUG("http_loop_init_with_backend: Entering");
+  if (!loop) {
+    LOG_DEBUG("http_loop_init_with_backend: Error EINVAL");
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  resolved = math_resolve_loop_backend(backend);
+  if (resolved == -1) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  if (resolved == -2) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
 
   l = (struct ModalityEventLoop *)malloc(sizeof(struct ModalityEventLoop));
@@ -303,6 +529,17 @@ enum c_abstract_http_error http_loop_init(struct ModalityEventLoop **loop) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   memset(l, 0, sizeof(struct ModalityEventLoop));
+  l->backend = (enum HttpLoopBackend)resolved;
+
+#if !defined(_WIN32) && !defined(__MSDOS__) && !defined(__DOS__) &&            \
+    !defined(DOS)
+#if defined(CAH_HAVE_EPOLL)
+  l->epoll_fd = -1;
+#endif
+#if defined(CAH_HAVE_KQUEUE)
+  l->kq_fd = -1;
+#endif
+#endif
 
   l->timer_capacity = 16;
   l->timers =
@@ -331,6 +568,27 @@ enum c_abstract_http_error http_loop_init(struct ModalityEventLoop **loop) {
     free(l);
     return C_ABSTRACT_HTTP_ERR_IO;
   }
+#if defined(CAH_HAVE_IOCP_WSAPOLL)
+  if (l->backend == HTTP_LOOP_BACKEND_IOCP) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_native_mux_fail) {
+      l->iocp_handle = NULL;
+    } else
+#endif
+    {
+      l->iocp_handle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 1);
+    }
+    if (!l->iocp_handle) {
+      CloseHandle(l->wakeup_event);
+      free(l->fds);
+      free(l->timers);
+      free(l);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+  }
+#endif
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  l->wakeup_pending = 0;
 #else
   if (pipe(l->wakeup_pipe) < 0) {
     LOG_DEBUG("http_loop_init: Error EIO (pipe failed)");
@@ -341,11 +599,72 @@ enum c_abstract_http_error http_loop_init(struct ModalityEventLoop **loop) {
   }
   fcntl(l->wakeup_pipe[0], F_SETFL, O_NONBLOCK);
   fcntl(l->wakeup_pipe[1], F_SETFL, O_NONBLOCK);
+#if defined(CAH_HAVE_EPOLL)
+  if (l->backend == HTTP_LOOP_BACKEND_EPOLL) {
+    struct epoll_event ev;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_native_mux_fail) {
+      l->epoll_fd = -1;
+    } else
+#endif
+    {
+#ifdef EPOLL_CLOEXEC
+      l->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
+#else
+      l->epoll_fd = epoll_create(64);
+#endif
+    }
+    if (l->epoll_fd < 0) {
+      close(l->wakeup_pipe[0]);
+      close(l->wakeup_pipe[1]);
+      free(l->fds);
+      free(l->timers);
+      free(l);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    memset(&ev, 0, sizeof(ev));
+    ev.events = EPOLLIN;
+    ev.data.fd = l->wakeup_pipe[0];
+    epoll_ctl(l->epoll_fd, EPOLL_CTL_ADD, l->wakeup_pipe[0], &ev);
+  }
+#endif
+#if defined(CAH_HAVE_KQUEUE)
+  if (l->backend == HTTP_LOOP_BACKEND_KQUEUE) {
+    struct kevent kev;
+    struct timespec zts;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_native_mux_fail) {
+      l->kq_fd = -1;
+    } else
+#endif
+    {
+      l->kq_fd = kqueue();
+    }
+    if (l->kq_fd < 0) {
+      close(l->wakeup_pipe[0]);
+      close(l->wakeup_pipe[1]);
+      free(l->fds);
+      free(l->timers);
+      free(l);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    EV_SET(&kev, (uintptr_t)l->wakeup_pipe[0], EVFILT_READ, EV_ADD | EV_ENABLE,
+           0, 0, NULL);
+    zts.tv_sec = 0;
+    zts.tv_nsec = 0;
+    kevent(l->kq_fd, &kev, 1, NULL, 0, &zts);
+  }
+#endif
 #endif
 
   *loop = l;
   LOG_DEBUG("http_loop_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/** @brief Initialize a new event loop instance */
+enum c_abstract_http_error http_loop_init(struct ModalityEventLoop **loop) {
+  return http_loop_init_with_backend(loop, HTTP_LOOP_BACKEND_AUTO);
 }
 
 /** @brief Free an event loop instance */
@@ -358,10 +677,27 @@ enum c_abstract_http_error http_loop_free(struct ModalityEventLoop *loop) {
 
   if (!loop->has_hooks) {
 #if defined(_WIN32)
+#if defined(CAH_HAVE_IOCP_WSAPOLL)
+    if (loop->iocp_handle) {
+      CloseHandle(loop->iocp_handle);
+    }
+#endif
     if (loop->wakeup_event) {
       CloseHandle(loop->wakeup_event);
     }
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+    loop->wakeup_pending = 0;
 #else
+#if defined(CAH_HAVE_EPOLL)
+    if (loop->epoll_fd >= 0) {
+      close(loop->epoll_fd);
+    }
+#endif
+#if defined(CAH_HAVE_KQUEUE)
+    if (loop->kq_fd >= 0) {
+      close(loop->kq_fd);
+    }
+#endif
     close(loop->wakeup_pipe[0]);
     close(loop->wakeup_pipe[1]);
 #endif
@@ -393,7 +729,15 @@ enum c_abstract_http_error http_loop_wakeup(struct ModalityEventLoop *loop) {
 
 #if defined(_WIN32)
   SetEvent(loop->wakeup_event);
+#if defined(CAH_HAVE_IOCP_WSAPOLL)
+  if (loop->backend == HTTP_LOOP_BACKEND_IOCP && loop->iocp_handle) {
+    PostQueuedCompletionStatus(loop->iocp_handle, 0, 1, NULL);
+  }
+#endif
   LOG_DEBUG("http_loop_wakeup: Success (Windows)");
+  return C_ABSTRACT_HTTP_SUCCESS;
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  loop->wakeup_pending = 1;
   return C_ABSTRACT_HTTP_SUCCESS;
 #else
   {
@@ -458,12 +802,19 @@ enum c_abstract_http_error http_loop_add_fd(struct ModalityEventLoop *loop,
 
   loop->fds[i].fd = fd;
   loop->fds[i].events = events;
+  loop->fds[i].pending_revents = 0;
   loop->fds[i].cb = cb;
   loop->fds[i].user_data = user_data;
   loop->fds[i].active = 1;
 
+#if defined(CAH_HAVE_EPOLL)
+  return epoll_sync_fd(loop, EPOLL_CTL_ADD, fd, events);
+#elif defined(CAH_HAVE_KQUEUE)
+  return kqueue_sync_fd(loop, fd, 0, events);
+#else
   LOG_DEBUG("http_loop_add_fd: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
+#endif
 }
 
 /** @brief Modify watched events for a file descriptor in the event loop */
@@ -487,9 +838,18 @@ enum c_abstract_http_error http_loop_mod_fd(struct ModalityEventLoop *loop,
 
   for (i = 0; i < loop->fd_count; ++i) {
     if (loop->fds[i].active && loop->fds[i].fd == fd) {
+#if defined(CAH_HAVE_KQUEUE)
+      int old_ev = loop->fds[i].events;
+#endif
       loop->fds[i].events = events;
+#if defined(CAH_HAVE_EPOLL)
+      return epoll_sync_fd(loop, EPOLL_CTL_MOD, fd, events);
+#elif defined(CAH_HAVE_KQUEUE)
+      return kqueue_sync_fd(loop, fd, old_ev, events);
+#else
       LOG_DEBUG("http_loop_mod_fd: Success");
       return C_ABSTRACT_HTTP_SUCCESS;
+#endif
     }
   }
   LOG_DEBUG("http_loop_mod_fd: Error ENOENT");
@@ -517,9 +877,19 @@ enum c_abstract_http_error http_loop_remove_fd(struct ModalityEventLoop *loop,
 
   for (i = 0; i < loop->fd_count; ++i) {
     if (loop->fds[i].active && loop->fds[i].fd == fd) {
+#if defined(CAH_HAVE_KQUEUE)
+      int old_ev = loop->fds[i].events;
+#endif
       loop->fds[i].active = 0;
+      loop->fds[i].pending_revents = 0;
+#if defined(CAH_HAVE_EPOLL)
+      return epoll_sync_fd(loop, EPOLL_CTL_DEL, fd, 0);
+#elif defined(CAH_HAVE_KQUEUE)
+      return kqueue_sync_fd(loop, fd, old_ev, 0);
+#else
       LOG_DEBUG("http_loop_remove_fd: Success");
       return C_ABSTRACT_HTTP_SUCCESS;
+#endif
     }
   }
   LOG_DEBUG("http_loop_remove_fd: Error ENOENT");
@@ -653,96 +1023,129 @@ process_timers(struct ModalityEventLoop *loop) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/** @brief Run a single non-blocking tick of the event loop */
-enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+/**
+ * @brief Invoke callbacks for all active descriptors with non-zero
+ * `pending_revents`.
+ * @param loop Event loop context.
+ * @return C_ABSTRACT_HTTP_SUCCESS or first callback error enum.
+ */
+static enum c_abstract_http_error
+dispatch_pending_fd_callbacks(struct ModalityEventLoop *loop) {
   size_t i;
-  int active_fds;
-  int max_fd;
-  fd_set read_fds, write_fds, error_fds;
-  struct timeval tv;
-  struct timeval *ptv = NULL;
-  int ret;
-  enum c_abstract_http_error rc;
-
-  active_fds = 0;
-  max_fd = -1;
-
-  LOG_DEBUG("http_loop_tick: Entering");
-  if (!loop) {
-    LOG_DEBUG("http_loop_tick: Error EINVAL");
-    return C_ABSTRACT_HTTP_ERR_INVAL;
-  }
-
-  if (loop->has_hooks) {
-    /* If hooked externally, ticketing should ideally be handled by the
-     * framework */
-    LOG_DEBUG("http_loop_tick: Exiting (external loop)");
-    return C_ABSTRACT_HTTP_SUCCESS;
-  }
-
-  /* Process expired timers first */
-  rc = process_timers(loop);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return rc;
-  }
-
-  if (loop->stop_requested) {
-    return C_ABSTRACT_HTTP_SUCCESS;
-  }
-
-  /* Calculate next timeout */
-  if (loop->timer_count > 0) {
-    while (loop->timer_count > 0 && !loop->timers[0].active) {
-      loop->timers[0] = loop->timers[loop->timer_count - 1];
-      loop->timer_count--;
-      if (loop->timer_count > 0) {
-        rc = timer_heap_down(loop, 0);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS)
-          return rc;
+  for (i = 0; i < loop->fd_count; ++i) {
+    if (loop->fds[i].active && loop->fds[i].pending_revents != 0) {
+      int revents = loop->fds[i].pending_revents;
+      abstract_http_int64_t start_cb = math_get_current_time_ms();
+      enum c_abstract_http_error cb_rc;
+      loop->fds[i].pending_revents = 0;
+      cb_rc = loop->fds[i].cb(loop, loop->fds[i].fd, revents,
+                              loop->fds[i].user_data);
+      if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return cb_rc;
+      }
+      if (math_get_current_time_ms() - start_cb > 50) {
+        fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
+                        "detected (callback took >50ms). This breaks "
+                        "asynchronous concurrency!\n");
       }
     }
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
-  /* tick should be non-blocking or very short blocking */
-  tv.tv_sec = 0;
-  tv.tv_usec = 0; /* Fully non-blocking for tick */
-  ptv = &tv;
+/**
+ * @brief Count active descriptors and clear `pending_revents`.
+ * @param loop Event loop context.
+ * @return Number of active descriptors.
+ */
+static int math_count_active_fds(struct ModalityEventLoop *loop) {
+  size_t i;
+  int count = 0;
+  for (i = 0; i < loop->fd_count; ++i) {
+    loop->fds[i].pending_revents = 0;
+    if (loop->fds[i].active) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * @brief Poll descriptors using portable `select()`.
+ * @param loop Event loop context.
+ * @param active_fds Number of active registered descriptors.
+ * @param timeout_ms Timeout in milliseconds (`0` non-blocking, `<0` infinite).
+ * @return C_ABSTRACT_HTTP_SUCCESS or callback error enum.
+ */
+static enum c_abstract_http_error
+poll_select_once(struct ModalityEventLoop *loop, int active_fds,
+                 abstract_http_int64_t timeout_ms) {
+  size_t i;
+  int max_fd = -1;
+  fd_set read_fds;
+  fd_set write_fds;
+  fd_set error_fds;
+  struct timeval tv;
+  struct timeval *ptv = NULL;
+  int ret;
+
+#if defined(_WIN32)
+  if (active_fds == 0) {
+    DWORD wait_ms = timeout_ms >= 0 ? (DWORD)timeout_ms : INFINITE;
+    if (WaitForSingleObject(loop->wakeup_event, wait_ms) == WAIT_OBJECT_0) {
+      ResetEvent(loop->wakeup_event);
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#endif
 
   FD_ZERO(&read_fds);
   FD_ZERO(&write_fds);
   FD_ZERO(&error_fds);
 
-  /* Setup wakeup pipe */
 #if !defined(_WIN32)
   ABSTRACT_HTTP_FD_SET(loop->wakeup_pipe[0], &read_fds);
   max_fd = loop->wakeup_pipe[0];
 #endif
 
-  /* Setup sockets */
-  for (i = 0; i < loop->fd_count; ++i) {
-    if (loop->fds[i].active) {
-      active_fds++;
-      if (loop->fds[i].events & HTTP_LOOP_READ)
-        ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &read_fds);
-      if (loop->fds[i].events & HTTP_LOOP_WRITE)
-        ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &write_fds);
-      if (loop->fds[i].events & HTTP_LOOP_ERROR)
-        ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &error_fds);
-      if (loop->fds[i].fd > max_fd)
-        max_fd = loop->fds[i].fd;
+  if (active_fds > 0) {
+    for (i = 0; i < loop->fd_count; ++i) {
+      if (loop->fds[i].active) {
+#if !defined(_WIN32)
+        if (loop->fds[i].fd >= (int)FD_SETSIZE) {
+          continue;
+        }
+#endif
+        if (loop->fds[i].events & HTTP_LOOP_READ)
+          ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &read_fds);
+        if (loop->fds[i].events & HTTP_LOOP_WRITE)
+          ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &write_fds);
+        if (loop->fds[i].events & HTTP_LOOP_ERROR)
+          ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &error_fds);
+        if (loop->fds[i].fd > max_fd)
+          max_fd = loop->fds[i].fd;
+      }
     }
   }
 
-  if (active_fds == 0 && loop->timer_count == 0) {
-    return C_ABSTRACT_HTTP_SUCCESS; /* Nothing to do */
-  }
-
+  if (timeout_ms >= 0) {
 #if defined(_WIN32)
-  if (active_fds == 0) {
-    if (WaitForSingleObject(loop->wakeup_event, 0) == WAIT_OBJECT_0) {
-      ResetEvent(loop->wakeup_event);
-    }
-    return C_ABSTRACT_HTTP_SUCCESS;
+    abstract_http_int64_t eff_ms =
+        (timeout_ms > 50) ? (abstract_http_int64_t)50 : timeout_ms;
+    tv.tv_sec = (long)(eff_ms / 1000);
+    tv.tv_usec = (int)((eff_ms % 1000) * 1000);
+#else
+    tv.tv_sec = (long)(timeout_ms / 1000);
+    tv.tv_usec = (int)((timeout_ms % 1000) * 1000);
+#endif
+    ptv = &tv;
+  }
+#if defined(_WIN32)
+  else {
+    tv.tv_sec = 0;
+    tv.tv_usec = 50000;
+    ptv = &tv;
   }
 #endif
 
@@ -764,34 +1167,364 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
   if (ret > 0) {
     for (i = 0; i < loop->fd_count; ++i) {
       if (loop->fds[i].active) {
-        int revents;
-        revents = 0;
+        int revents = 0;
+#if !defined(_WIN32)
+        if (loop->fds[i].fd >= (int)FD_SETSIZE) {
+          continue;
+        }
+#endif
         if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &read_fds))
           revents |= HTTP_LOOP_READ;
         if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &write_fds))
           revents |= HTTP_LOOP_WRITE;
         if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &error_fds))
           revents |= HTTP_LOOP_ERROR;
+        loop->fds[i].pending_revents = revents;
+      }
+    }
+    return dispatch_pending_fd_callbacks(loop);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
-        if (revents) {
-          abstract_http_int64_t start_cb = math_get_current_time_ms();
-          enum c_abstract_http_error cb_rc = loop->fds[i].cb(
-              loop, loop->fds[i].fd, revents, loop->fds[i].user_data);
-          if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
-            return cb_rc;
-          }
-          if (math_get_current_time_ms() - start_cb > 50) {
-            fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
-                            "detected (callback took >50ms). This breaks "
-                            "asynchronous concurrency!\n");
-          }
+#if defined(CAH_HAVE_EPOLL)
+/**
+ * @brief Poll descriptors in O(1) using Linux `epoll_wait`.
+ * @param loop Event loop context.
+ * @param timeout_ms Timeout in milliseconds (`0` non-blocking, `<0` infinite).
+ * @return C_ABSTRACT_HTTP_SUCCESS or callback error enum.
+ */
+static enum c_abstract_http_error
+poll_epoll_once(struct ModalityEventLoop *loop,
+                abstract_http_int64_t timeout_ms) {
+  struct epoll_event ev_batch[64];
+  int wait_arg = timeout_ms < 0 ? -1 : (int)timeout_ms;
+  int nev;
+  int k;
+
+  nev = epoll_wait(loop->epoll_fd, ev_batch, 64, wait_arg);
+  if (nev <= 0) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  for (k = 0; k < nev; ++k) {
+    int fd = ev_batch[k].data.fd;
+    unsigned int mask = ev_batch[k].events;
+    size_t i;
+    if (fd == loop->wakeup_pipe[0]) {
+      char buf[64];
+      while (read(loop->wakeup_pipe[0], buf, sizeof(buf)) > 0) {
+      }
+      continue;
+    }
+    for (i = 0; i < loop->fd_count; ++i) {
+      if (loop->fds[i].active && loop->fds[i].fd == fd) {
+        int revents = 0;
+        if ((mask & (EPOLLIN | EPOLLHUP)) &&
+            (loop->fds[i].events & HTTP_LOOP_READ)) {
+          revents |= HTTP_LOOP_READ;
+        }
+        if ((mask & EPOLLOUT) && (loop->fds[i].events & HTTP_LOOP_WRITE)) {
+          revents |= HTTP_LOOP_WRITE;
+        }
+        if ((mask & (EPOLLERR | EPOLLHUP)) &&
+            (loop->fds[i].events & HTTP_LOOP_ERROR)) {
+          revents |= HTTP_LOOP_ERROR;
+        }
+        loop->fds[i].pending_revents |= revents;
+        break;
+      }
+    }
+  }
+  return dispatch_pending_fd_callbacks(loop);
+}
+#endif
+
+#if defined(CAH_HAVE_KQUEUE)
+/**
+ * @brief Poll descriptors in O(1) using Darwin/BSD `kevent`.
+ * @param loop Event loop context.
+ * @param timeout_ms Timeout in milliseconds (`0` non-blocking, `<0` infinite).
+ * @return C_ABSTRACT_HTTP_SUCCESS or callback error enum.
+ */
+static enum c_abstract_http_error
+poll_kqueue_once(struct ModalityEventLoop *loop,
+                 abstract_http_int64_t timeout_ms) {
+  struct kevent ev_batch[64];
+  struct timespec ts;
+  struct timespec *pts = NULL;
+  int nev;
+  int k;
+
+  if (timeout_ms >= 0) {
+    ts.tv_sec = (time_t)(timeout_ms / 1000);
+    ts.tv_nsec = (long)((timeout_ms % 1000) * 1000000L);
+    pts = &ts;
+  }
+  nev = kevent(loop->kq_fd, NULL, 0, ev_batch, 64, pts);
+  if (nev <= 0) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  for (k = 0; k < nev; ++k) {
+    int fd = (int)ev_batch[k].ident;
+    size_t i;
+    if (fd == loop->wakeup_pipe[0]) {
+      char buf[64];
+      while (read(loop->wakeup_pipe[0], buf, sizeof(buf)) > 0) {
+      }
+      continue;
+    }
+    for (i = 0; i < loop->fd_count; ++i) {
+      if (loop->fds[i].active && loop->fds[i].fd == fd) {
+        int revents = 0;
+        if (ev_batch[k].filter == EVFILT_READ &&
+            (loop->fds[i].events & HTTP_LOOP_READ)) {
+          revents |= HTTP_LOOP_READ;
+        }
+        if (ev_batch[k].filter == EVFILT_WRITE &&
+            (loop->fds[i].events & HTTP_LOOP_WRITE)) {
+          revents |= HTTP_LOOP_WRITE;
+        }
+        if ((ev_batch[k].flags & (EV_EOF | EV_ERROR)) &&
+            (loop->fds[i].events & HTTP_LOOP_ERROR)) {
+          revents |= HTTP_LOOP_ERROR;
+        }
+        loop->fds[i].pending_revents |= revents;
+        break;
+      }
+    }
+  }
+  return dispatch_pending_fd_callbacks(loop);
+}
+#endif
+
+#if defined(CAH_HAVE_IOCP_WSAPOLL)
+/**
+ * @brief Poll sockets via scalable `WSAPoll` (>64 descriptors) and IOCP wakeup.
+ * @param loop Event loop context.
+ * @param active_fds Number of active registered sockets.
+ * @param timeout_ms Timeout in milliseconds (`0` non-blocking, `<0` infinite).
+ * @return C_ABSTRACT_HTTP_SUCCESS or callback error enum.
+ */
+static enum c_abstract_http_error
+poll_iocp_once(struct ModalityEventLoop *loop, int active_fds,
+               abstract_http_int64_t timeout_ms) {
+  DWORD bytes = 0;
+  ULONG_PTR comp_key = 0;
+  LPOVERLAPPED ov = NULL;
+  WSAPOLLFD stack_pfds[64];
+  WSAPOLLFD *pfds = stack_pfds;
+  size_t idx_map_stack[64];
+  size_t *idx_map = idx_map_stack;
+  size_t n_poll = 0;
+  size_t i;
+  int slice_ms;
+  int ret;
+
+  if (active_fds == 0) {
+    DWORD wait_ms = timeout_ms >= 0 ? (DWORD)timeout_ms : INFINITE;
+    GetQueuedCompletionStatus(loop->iocp_handle, &bytes, &comp_key, &ov,
+                              wait_ms);
+    while (GetQueuedCompletionStatus(loop->iocp_handle, &bytes, &comp_key, &ov,
+                                     0)) {
+    }
+    ResetEvent(loop->wakeup_event);
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  if ((size_t)active_fds > 64U) {
+    pfds = (WSAPOLLFD *)malloc((size_t)active_fds * sizeof(WSAPOLLFD));
+    if (!pfds) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    idx_map = (size_t *)malloc((size_t)active_fds * sizeof(size_t));
+    if (!idx_map) {
+      free(pfds);
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+  }
+
+  for (i = 0; i < loop->fd_count; ++i) {
+    if (loop->fds[i].active) {
+      short ev = 0;
+      if (loop->fds[i].events & HTTP_LOOP_READ)
+        ev |= POLLRDNORM;
+      if (loop->fds[i].events & HTTP_LOOP_WRITE)
+        ev |= POLLWRNORM;
+      pfds[n_poll].fd = (SOCKET)loop->fds[i].fd;
+      pfds[n_poll].events = ev;
+      pfds[n_poll].revents = 0;
+      idx_map[n_poll] = i;
+      n_poll++;
+    }
+  }
+
+  if (timeout_ms < 0 || timeout_ms > 50) {
+    slice_ms = 50;
+  } else {
+    slice_ms = (int)timeout_ms;
+  }
+
+  ret = WSAPoll(pfds, (ULONG)n_poll, slice_ms);
+  if (ret == 0 && n_poll > 0 && n_poll <= FD_SETSIZE) {
+    fd_set err_set;
+    struct timeval zero_tv;
+    size_t p;
+    FD_ZERO(&err_set);
+    for (p = 0; p < n_poll; ++p) {
+      FD_SET(pfds[p].fd, &err_set);
+    }
+    zero_tv.tv_sec = 0;
+    zero_tv.tv_usec = 0;
+    if (select(0, NULL, NULL, &err_set, &zero_tv) > 0) {
+      for (p = 0; p < n_poll; ++p) {
+        if (FD_ISSET(pfds[p].fd, &err_set)) {
+          pfds[p].revents |= POLLERR;
+          ret++;
         }
       }
     }
   }
+  while (
+      GetQueuedCompletionStatus(loop->iocp_handle, &bytes, &comp_key, &ov, 0)) {
+  }
+  if (WaitForSingleObject(loop->wakeup_event, 0) == WAIT_OBJECT_0) {
+    ResetEvent(loop->wakeup_event);
+  }
+
+  if (ret > 0) {
+    size_t p;
+    for (p = 0; p < n_poll; ++p) {
+      short rev = pfds[p].revents;
+      if (rev != 0) {
+        size_t slot = idx_map[p];
+        int mapped = 0;
+        if ((rev & (POLLRDNORM | POLLIN | POLLHUP)) &&
+            (loop->fds[slot].events & HTTP_LOOP_READ)) {
+          mapped |= HTTP_LOOP_READ;
+        }
+        if ((rev & (POLLWRNORM | POLLOUT)) &&
+            (loop->fds[slot].events & HTTP_LOOP_WRITE)) {
+          mapped |= HTTP_LOOP_WRITE;
+        }
+        if (rev & (POLLERR | POLLNVAL)) {
+          mapped |= HTTP_LOOP_ERROR;
+        }
+        loop->fds[slot].pending_revents = mapped;
+      }
+    }
+  }
+
+  if (pfds != stack_pfds) {
+    free(pfds);
+    free(idx_map);
+  }
+
+  if (ret > 0) {
+    return dispatch_pending_fd_callbacks(loop);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
+/**
+ * @brief Dispatch one I/O readiness poll cycle using the loop's active backend.
+ * @param loop Event loop context.
+ * @param active_fds Number of active registered descriptors.
+ * @param timeout_ms Timeout in milliseconds (`0` non-blocking, `<0` infinite).
+ * @return C_ABSTRACT_HTTP_SUCCESS or callback error enum.
+ */
+static enum c_abstract_http_error
+poll_fds_once(struct ModalityEventLoop *loop, int active_fds,
+              abstract_http_int64_t timeout_ms) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_select_fail || g_mock_select_error_fds) {
+    return poll_select_once(loop, active_fds, timeout_ms);
+  }
+#endif
+  if (!loop->fallback_to_select) {
+#if defined(CAH_HAVE_EPOLL)
+    if (loop->backend == HTTP_LOOP_BACKEND_EPOLL && loop->epoll_fd >= 0) {
+      return poll_epoll_once(loop, timeout_ms);
+    }
+#endif
+#if defined(CAH_HAVE_KQUEUE)
+    if (loop->backend == HTTP_LOOP_BACKEND_KQUEUE && loop->kq_fd >= 0) {
+      return poll_kqueue_once(loop, timeout_ms);
+    }
+#endif
+#if defined(CAH_HAVE_IOCP_WSAPOLL)
+    if (loop->backend == HTTP_LOOP_BACKEND_IOCP && loop->iocp_handle != NULL) {
+      return poll_iocp_once(loop, active_fds, timeout_ms);
+    }
+#endif
+  }
+  return poll_select_once(loop, active_fds, timeout_ms);
+}
+#endif
+
+/** @brief Run a single non-blocking tick of the event loop */
+enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  enum c_abstract_http_error rc;
+  if (!loop) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  if (loop->has_hooks) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  rc = process_timers(loop);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  loop->wakeup_pending = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+#else
+  int active_fds;
+  enum c_abstract_http_error rc;
+
+  LOG_DEBUG("http_loop_tick: Entering");
+  if (!loop) {
+    LOG_DEBUG("http_loop_tick: Error EINVAL");
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  if (loop->has_hooks) {
+    LOG_DEBUG("http_loop_tick: Exiting (external loop)");
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  rc = process_timers(loop);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  if (loop->stop_requested) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  while (loop->timer_count > 0 && !loop->timers[0].active) {
+    loop->timers[0] = loop->timers[loop->timer_count - 1];
+    loop->timer_count--;
+    if (loop->timer_count > 0) {
+      rc = timer_heap_down(loop, 0);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+        return rc;
+    }
+  }
+
+  active_fds = math_count_active_fds(loop);
+  if (active_fds == 0 && loop->timer_count == 0) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  rc = poll_fds_once(loop, active_fds, 0);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
   LOG_DEBUG("http_loop_tick: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
+#endif
 }
 
 /** @brief Run the event loop until stopped or idle */
@@ -803,7 +1536,6 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
   }
 
   if (loop->has_hooks) {
-    /* If we have hooks, running the loop is not our responsibility */
     LOG_DEBUG("http_loop_run: Error ENOTSUP (external loop)");
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
@@ -811,23 +1543,44 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
   loop->running = 1;
   loop->stop_requested = 0;
 
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  while (!loop->stop_requested) {
+    enum c_abstract_http_error rc = process_timers(loop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      loop->running = 0;
+      return rc;
+    }
+    if (loop->stop_requested) {
+      break;
+    }
+    while (loop->timer_count > 0 && !loop->timers[0].active) {
+      loop->timers[0] = loop->timers[loop->timer_count - 1];
+      loop->timer_count--;
+      if (loop->timer_count > 0) {
+        rc = timer_heap_down(loop, 0);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          loop->running = 0;
+          return rc;
+        }
+      }
+    }
+    if (loop->timer_count == 0) {
+      break;
+    }
+    if (!loop->wakeup_pending) {
+      delay(1);
+    }
+    loop->wakeup_pending = 0;
+  }
+  loop->running = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+#else
   while (!loop->stop_requested) {
     abstract_http_int64_t now;
-    abstract_http_int64_t next_timeout;
-    size_t i;
+    abstract_http_int64_t next_timeout = -1;
     int active_fds;
-    int max_fd;
-    fd_set read_fds, write_fds, error_fds;
-    struct timeval tv;
-    struct timeval *ptv = NULL;
-    int ret;
     enum c_abstract_http_error rc;
 
-    next_timeout = -1;
-    active_fds = 0;
-    max_fd = -1;
-
-    /* Process expired timers first */
     rc = process_timers(loop);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       loop->running = 0;
@@ -837,7 +1590,6 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
     if (loop->stop_requested)
       break;
 
-    /* Calculate next timeout */
     if (loop->timer_count > 0) {
       now = math_get_current_time_ms();
       while (loop->timer_count > 0 && !loop->timers[0].active) {
@@ -859,105 +1611,22 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
       }
     }
 
-    FD_ZERO(&read_fds);
-    FD_ZERO(&write_fds);
-    FD_ZERO(&error_fds);
-
-    /* Setup wakeup pipe */
-#if !defined(_WIN32)
-    ABSTRACT_HTTP_FD_SET(loop->wakeup_pipe[0], &read_fds);
-    max_fd = loop->wakeup_pipe[0];
-#endif
-
-    /* Setup sockets */
-    for (i = 0; i < loop->fd_count; ++i) {
-      if (loop->fds[i].active) {
-        active_fds++;
-        if (loop->fds[i].events & HTTP_LOOP_READ)
-          ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &read_fds);
-        if (loop->fds[i].events & HTTP_LOOP_WRITE)
-          ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &write_fds);
-        if (loop->fds[i].events & HTTP_LOOP_ERROR)
-          ABSTRACT_HTTP_FD_SET(loop->fds[i].fd, &error_fds);
-        if (loop->fds[i].fd > max_fd)
-          max_fd = loop->fds[i].fd;
-      }
-    }
-
+    active_fds = math_count_active_fds(loop);
     if (active_fds == 0 && loop->timer_count == 0) {
-      break; /* Nothing to do */
+      break;
     }
 
-    if (next_timeout >= 0) {
-      tv.tv_sec = (long)(next_timeout / 1000);
-      tv.tv_usec = (int)((next_timeout % 1000) * 1000);
-      ptv = &tv;
-    }
-
-#if defined(_WIN32)
-    if (active_fds == 0) {
-      DWORD wait_ms = next_timeout >= 0 ? (DWORD)next_timeout : INFINITE;
-      WaitForSingleObject(loop->wakeup_event, wait_ms);
-      ResetEvent(loop->wakeup_event);
-      continue;
-    }
-#endif
-
-    ret = select(max_fd + 1, &read_fds, &write_fds, &error_fds, ptv);
-
-#if defined(_WIN32)
-    if (next_timeout < 0 || next_timeout > 50) {
-      tv.tv_sec = 0;
-      tv.tv_usec = 50000;
-      ptv = &tv;
-      ret = select(max_fd + 1, &read_fds, &write_fds, &error_fds, ptv);
-      if (WaitForSingleObject(loop->wakeup_event, 0) == WAIT_OBJECT_0) {
-        ResetEvent(loop->wakeup_event);
-      }
-    }
-#else
-    if (ret > 0 && ABSTRACT_HTTP_FD_ISSET(loop->wakeup_pipe[0], &read_fds)) {
-      char buf[64];
-      while (read(loop->wakeup_pipe[0], buf, sizeof(buf)) > 0) {
-      }
-      ret--;
-    }
-#endif
-
-    if (ret > 0) {
-      for (i = 0; i < loop->fd_count; ++i) {
-        if (loop->fds[i].active) {
-          int revents;
-          revents = 0;
-          if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &read_fds))
-            revents |= HTTP_LOOP_READ;
-          if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &write_fds))
-            revents |= HTTP_LOOP_WRITE;
-          if (ABSTRACT_HTTP_FD_ISSET(loop->fds[i].fd, &error_fds))
-            revents |= HTTP_LOOP_ERROR;
-
-          if (revents) {
-            abstract_http_int64_t start_cb = math_get_current_time_ms();
-            enum c_abstract_http_error cb_rc = loop->fds[i].cb(
-                loop, loop->fds[i].fd, revents, loop->fds[i].user_data);
-            if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
-              loop->running = 0;
-              return cb_rc;
-            }
-            if (math_get_current_time_ms() - start_cb > 50) {
-              fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
-                              "detected (callback took >50ms). This breaks "
-                              "asynchronous concurrency!\n");
-            }
-          }
-        }
-      }
+    rc = poll_fds_once(loop, active_fds, next_timeout);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      loop->running = 0;
+      return rc;
     }
   }
 
   loop->running = 0;
   LOG_DEBUG("http_loop_run: Exiting cleanly");
   return C_ABSTRACT_HTTP_SUCCESS;
+#endif
 }
 
 /** @brief Request the event loop to stop */

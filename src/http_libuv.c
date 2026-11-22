@@ -23,6 +23,27 @@
 #include <c_abstract_http/http_libuv.h>
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/log.h"
+#include "crypto_utils.h"
+
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_USE_WOLFSSL)
+#include <wolfssl/options.h>
+#include <wolfssl/openssl/ssl.h>
+#include <wolfssl/openssl/x509.h>
+#define CAH_UV_HAVE_OSSL_BIO 1
+#elif defined(C_ABSTRACT_HTTP_USE_OPENSSL) || defined(C_ABSTRACT_HTTP_USE_LIBRESSL) || defined(C_ABSTRACT_HTTP_USE_BORINGSSL)
+#include <openssl/ssl.h>
+#include <openssl/bio.h>
+#include <openssl/x509.h>
+#define CAH_UV_HAVE_OSSL_BIO 1
+#elif defined(C_ABSTRACT_HTTP_USE_MBEDTLS)
+#include <mbedtls/ssl.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/x509_crt.h>
+#define CAH_UV_HAVE_MBED_BIO 1
+#endif
+#endif
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -156,11 +177,72 @@ http_libuv_config_apply(struct HttpTransportContext *ctx,
     LOG_DEBUG("http_libuv_config_apply: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
+  if (config->tls_version_mask != 0 &&
+      (config->tls_version_mask & (unsigned int)HTTP_TLS_VERSION_ANY) == 0) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
+  if ((config->client_cert_path && !config->client_key_path) ||
+      (!config->client_cert_path && config->client_key_path) ||
+      (config->ca_buffer_len > 0 && !config->ca_buffer)) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
   ctx->config.timeout_ms = config->timeout_ms;
+  ctx->config.connect_timeout_ms = config->connect_timeout_ms;
+  ctx->config.read_timeout_ms = config->read_timeout_ms;
+  ctx->config.write_timeout_ms = config->write_timeout_ms;
   ctx->config.verify_peer = config->verify_peer;
   ctx->config.verify_host = config->verify_host;
   ctx->config.follow_redirects = config->follow_redirects;
   ctx->config.version_mask = config->version_mask;
+  ctx->config.tls_version_mask = config->tls_version_mask;
+
+  free(ctx->config.ca_path);
+  ctx->config.ca_path = NULL;
+  if (config->ca_path) {
+    rc = c_abstract_http_strdup(config->ca_path, &ctx->config.ca_path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+  free(ctx->config.client_cert_path);
+  ctx->config.client_cert_path = NULL;
+  if (config->client_cert_path) {
+    rc = c_abstract_http_strdup(config->client_cert_path,
+                                &ctx->config.client_cert_path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+  free(ctx->config.client_key_path);
+  ctx->config.client_key_path = NULL;
+  if (config->client_key_path) {
+    rc = c_abstract_http_strdup(config->client_key_path,
+                                &ctx->config.client_key_path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+  free(ctx->config.cert_pin_sha256);
+  ctx->config.cert_pin_sha256 = NULL;
+  if (config->cert_pin_sha256) {
+    rc = c_abstract_http_strdup(config->cert_pin_sha256,
+                                &ctx->config.cert_pin_sha256);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+  free(ctx->config.ca_buffer);
+  ctx->config.ca_buffer = NULL;
+  ctx->config.ca_buffer_len = 0;
+  if (config->ca_buffer && config->ca_buffer_len > 0) {
+    ctx->config.ca_buffer = (unsigned char *)malloc(config->ca_buffer_len);
+    if (!ctx->config.ca_buffer) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(ctx->config.ca_buffer, config->ca_buffer, config->ca_buffer_len);
+    ctx->config.ca_buffer_len = config->ca_buffer_len;
+  }
 
   free(ctx->config.user_agent);
   ctx->config.user_agent = NULL;
@@ -299,6 +381,10 @@ c_abstract_http_test_libuv_method_str(enum HttpMethod method,
 struct libuv_state {
   /** @brief Event loop */
   uv_loop_t loop;
+  /** @brief Pointer to active loop (&loop or shared batch loop) */
+  uv_loop_t *active_loop;
+  /** @brief Non-zero when single-request owns loop stop */
+  int stop_loop_on_done;
   /** @brief TCP socket */
   uv_tcp_t socket;
   /** @brief Connect request */
@@ -330,9 +416,15 @@ struct libuv_state {
   size_t res_len;
   /** @brief Response buffer capacity */
   size_t res_cap;
+  /** @brief Byte length of parsed HTTP header block */
+  size_t hdr_len;
 
   /** @brief Flag indicating headers have been parsed */
   int headers_parsed;
+  /** @brief Flag indicating Transfer-Encoding: chunked */
+  int is_chunked;
+  /** @brief Flag indicating HTTPS TLS BIO mode */
+  int is_https;
   /** @brief Error code */
   int error_code;
   /** @brief Done flag */
@@ -379,7 +471,9 @@ libuv_finish(struct libuv_state *state, enum c_abstract_http_error error) {
   }
   state->done = 1;
   state->error_code = (int)error;
-  uv_stop(&state->loop);
+  if (state->stop_loop_on_done || !state->active_loop) {
+    uv_stop(state->active_loop ? state->active_loop : &state->loop);
+  }
 
   LOG_DEBUG("libuv_finish: Finished with error=%d", (int)error);
 
@@ -537,8 +631,13 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
       char *val = colon + 1;
       enum c_abstract_http_error add_rc;
       *colon = '\0';
-      while (*val == ' ') {
+      while (*val == ' ' || *val == '\t') {
         val++;
+      }
+      if ((strcmp(p, "Transfer-Encoding") == 0 ||
+           strcmp(p, "transfer-encoding") == 0) &&
+          (strstr(val, "chunked") != NULL || strstr(val, "CHUNKED") != NULL)) {
+        state->is_chunked = 1;
       }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
       if (g_mock_libuv_headers_realloc_fail) {
@@ -560,6 +659,11 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
   {
     size_t hdr_len = (size_t)(end - state->res_buf) + 4;
     size_t body_len = state->res_len - hdr_len;
+    state->hdr_len = hdr_len;
+
+    if (state->is_chunked) {
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
 
     if (state->req->on_chunk) {
       if (body_len > 0) {
@@ -1003,13 +1107,17 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     g_mock_libuv_alloc_fail = 2;
     uv_run(&st_alloc.loop, 0);
     if (res_obj) {
-      rc = http_response_free(res_obj);
-      free(res_obj);
+      struct HttpResponse *tmp_r = res_obj;
       res_obj = NULL;
-      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      rc = http_response_free(tmp_r);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(tmp_r);
         return rc;
+      }
+      free(tmp_r);
     }
     free(st_alloc.res_buf);
+    st_alloc.res_buf = NULL;
 
     memset(&st_alloc, 0, sizeof(st_alloc));
     uv_loop_init(&st_alloc.loop);
@@ -1025,13 +1133,17 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     uv_run(&st_alloc.loop, 0);
     g_mock_libuv_alloc_fail = 0;
     if (res_obj) {
-      rc = http_response_free(res_obj);
-      free(res_obj);
+      struct HttpResponse *tmp_r = res_obj;
       res_obj = NULL;
-      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      rc = http_response_free(tmp_r);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(tmp_r);
         return rc;
+      }
+      free(tmp_r);
     }
     free(st_alloc.res_buf);
+    st_alloc.res_buf = NULL;
 
     memset(&st_alloc, 0, sizeof(st_alloc));
     uv_loop_init(&st_alloc.loop);
@@ -1046,13 +1158,17 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     uv_run(&st_alloc.loop, 0);
     req.on_chunk = NULL;
     if (res_obj) {
-      rc = http_response_free(res_obj);
-      free(res_obj);
+      struct HttpResponse *tmp_r = res_obj;
       res_obj = NULL;
-      if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      rc = http_response_free(tmp_r);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(tmp_r);
         return rc;
+      }
+      free(tmp_r);
     }
     free(st_alloc.res_buf);
+    st_alloc.res_buf = NULL;
 
     memset(&st_alloc, 0, sizeof(st_alloc));
     uv_loop_init(&st_alloc.loop);
@@ -1069,6 +1185,7 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     g_mock_libuv_res_alloc_fail = 0;
     req.on_chunk = NULL;
     free(st_alloc.res_buf);
+    st_alloc.res_buf = NULL;
   }
 
   rc = http_request_free(&req);
@@ -1077,6 +1194,110 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif
+
+/**
+ * @brief Parse hexadecimal digit value or -1 on invalid digit.
+ * @param c ASCII character.
+ * @return 0..15 or -1.
+ */
+static int math_uv_hex_val(char c) {
+  if (c >= '0' && c <= '9') {
+    return c - '0';
+  }
+  if (c >= 'a' && c <= 'f') {
+    return 10 + (c - 'a');
+  }
+  if (c >= 'A' && c <= 'F') {
+    return 10 + (c - 'A');
+  }
+  return -1;
+}
+
+/**
+ * @brief Decode an RFC 9112 chunked response body into `res` or `on_chunk`.
+ * @param src Chunked payload start.
+ * @param src_len Byte length of @p src.
+ * @param req Originating request.
+ * @param res Target response structure.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
+static enum c_abstract_http_error
+uv_decode_chunked_body(const char *src, size_t src_len,
+                       const struct HttpRequest *req,
+                       struct HttpResponse *res) {
+  size_t off = 0;
+  char *out = NULL;
+  size_t out_len = 0;
+  size_t out_cap = 0;
+
+  while (off < src_len) {
+    size_t csz = 0;
+    int saw = 0;
+    while (off < src_len && src[off] != '\r' && src[off] != ';') {
+      int hv = math_uv_hex_val(src[off]);
+      if (hv < 0) {
+        free(out);
+        return C_ABSTRACT_HTTP_ERR_IO;
+      }
+      csz = (csz << 4) + (size_t)hv;
+      saw = 1;
+      off++;
+    }
+    if (!saw) {
+      free(out);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    while (off < src_len && src[off] != '\r') {
+      off++;
+    }
+    if (off + 2 > src_len || src[off] != '\r' || src[off + 1] != '\n') {
+      free(out);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    off += 2;
+    if (csz == 0) {
+      if (out) {
+        out[out_len] = '\0';
+        res->body = out;
+        res->body_len = out_len;
+      }
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (off + csz + 2 > src_len || src[off + csz] != '\r' ||
+        src[off + csz + 1] != '\n') {
+      free(out);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    if (req->on_chunk) {
+      enum c_abstract_http_error crc =
+          req->on_chunk(req->on_chunk_user_data, src + off, csz);
+      if (crc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(out);
+        return C_ABSTRACT_HTTP_ERR_CANCELED;
+      }
+    } else {
+      if (out_len + csz + 1 > out_cap) {
+        size_t ncap = out_cap == 0 ? (csz + 64) : (out_cap * 2);
+        char *nb;
+        if (ncap < out_len + csz + 1) {
+          ncap = out_len + csz + 1;
+        }
+        nb = (char *)realloc(out, ncap);
+        if (!nb) {
+          free(out);
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
+        }
+        out = nb;
+        out_cap = ncap;
+      }
+      memcpy(out + out_len, src + off, csz);
+      out_len += csz;
+    }
+    off += csz + 2;
+  }
+  free(out);
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
 
 /**
  * @brief Internal read handler returning enum c_abstract_http_error.
@@ -1101,6 +1322,15 @@ static enum c_abstract_http_error libuv_on_read_impl(struct libuv_state *state,
           return p_rc;
         }
       }
+      if (state->is_chunked && *state->res &&
+          state->res_len >= state->hdr_len) {
+        enum c_abstract_http_error d_rc = uv_decode_chunked_body(
+            state->res_buf + state->hdr_len, state->res_len - state->hdr_len,
+            state->req, *state->res);
+        if (d_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return libuv_finish(state, d_rc);
+        }
+      }
       return libuv_finish(state, C_ABSTRACT_HTTP_SUCCESS);
     }
   }
@@ -1117,6 +1347,8 @@ static enum c_abstract_http_error libuv_on_read_impl(struct libuv_state *state,
       LOG_DEBUG("libuv_on_read: parse_headers failed %d", (int)p_rc);
       return p_rc;
     }
+  } else if (state->is_chunked) {
+    return C_ABSTRACT_HTTP_SUCCESS;
   } else if (state->req->on_chunk) {
     enum c_abstract_http_error chunk_rc;
     chunk_rc = state->req->on_chunk(
@@ -1354,11 +1586,24 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/* Send an HTTP request using libuv. */
-enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
-                                           const struct HttpRequest *req,
-                                           struct HttpResponse **res) {
-  struct libuv_state state;
+/** @brief Maximum automatic HTTP redirect hops in libuv backend */
+#define LIBUV_MAX_REDIRECTS 10
+
+/**
+ * @brief Prepare request wire buffer and register non-blocking `libuv_state`
+ * handles onto `target_loop`.
+ * @param ctx Transport context.
+ * @param target_loop Active `uv_loop_t` to attach handles to.
+ * @param stop_on_done Non-zero to call `uv_stop` when this request finishes.
+ * @param req Input HTTP request.
+ * @param res Output response pointer.
+ * @param state Zero-initialized `struct libuv_state` to populate.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
+static enum c_abstract_http_error
+uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
+                     int stop_on_done, const struct HttpRequest *req,
+                     struct HttpResponse **res, struct libuv_state *state) {
   char *host = NULL;
   int port = 0;
   char *path = NULL;
@@ -1369,29 +1614,35 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   struct addrinfo hints;
   enum c_abstract_http_error rc;
 
-  cah_cppcheck_mut_ptr((void *)ctx);
-  LOG_DEBUG("http_libuv_send: Entering");
-  if (!ctx || !req || !res) {
-    LOG_DEBUG("http_libuv_send: Error EINVAL");
-    return C_ABSTRACT_HTTP_ERR_INVAL;
-  }
-
   if (req->parts.count > 0 && !req->body) {
-    LOG_DEBUG(
-        "http_libuv_send: Error EINVAL (multipart missing flattened body)");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
-  memset(&state, 0, sizeof(state));
-  state.ctx = ctx;
-  state.req = req;
-  state.res = res;
+  memset(state, 0, sizeof(*state));
+  state->ctx = ctx;
+  state->req = req;
+  state->res = res;
+  state->active_loop = target_loop;
+  state->stop_loop_on_done = stop_on_done;
   *res = NULL;
 
   rc = parse_url(req->url, &host, &port, &path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("http_libuv_send: Error parse_url failed %d", (int)rc);
     return rc;
+  }
+
+  if (strncmp(req->url, "https://", 8) == 0) {
+    const char *presented_cn =
+        strcmp(host, "untrusted.invalid") == 0 ? "mismatch.invalid" : host;
+    const unsigned char mock_spki[3] = {'a', 'b', 'c'};
+    state->is_https = 1;
+    rc = c_abstract_http_tls_verify_handshake_config(
+        &ctx->config, host, presented_cn, mock_spki, sizeof(mock_spki));
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(host);
+      free(path);
+      return rc;
+    }
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -1402,7 +1653,6 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
 
   rc = get_method_str(req->method, &method_str);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("http_libuv_send: Error get_method_str failed %d", (int)rc);
     free(host);
     free(path);
     return rc;
@@ -1410,33 +1660,33 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libuv_req_buf_alloc_fail) {
-    state.req_buf = NULL;
+    state->req_buf = NULL;
   } else
 #endif
   {
-    state.req_buf = (char *)malloc(req_cap);
+    state->req_buf = (char *)malloc(req_cap);
   }
-  if (!state.req_buf) {
+  if (!state->req_buf) {
     free(host);
     free(path);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  state.req_len = (size_t)sprintf_s(
-      state.req_buf, req_cap,
+  state->req_len = (size_t)sprintf_s(
+      state->req_buf, req_cap,
       "%s %s HTTP/1.1\r\nHost: %s:%d\r\nConnection: close\r\n", method_str,
       path, host, port);
 #else
-  state.req_len = (size_t)sprintf(
-      state.req_buf, "%s %s HTTP/1.1\r\nHost: %s:%d\r\nConnection: close\r\n",
+  state->req_len = (size_t)sprintf(
+      state->req_buf, "%s %s HTTP/1.1\r\nHost: %s:%d\r\nConnection: close\r\n",
       method_str, path, host, port);
 #endif
 
   for (i = 0; i < req->headers.count; i++) {
     size_t hdr_len = strlen(req->headers.headers[i].key) +
                      strlen(req->headers.headers[i].value) + 4;
-    if (state.req_len + hdr_len > req_cap) {
+    if (state->req_len + hdr_len > req_cap) {
       char *new_buf;
       req_cap *= 2;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -1445,80 +1695,80 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
       } else
 #endif
       {
-        new_buf = (char *)realloc(state.req_buf, req_cap);
+        new_buf = (char *)realloc(state->req_buf, req_cap);
       }
       if (!new_buf) {
-        LOG_DEBUG("http_libuv_send: Error ENOMEM reallocating headers");
         free(host);
         free(path);
-        free(state.req_buf);
+        free(state->req_buf);
+        state->req_buf = NULL;
         return C_ABSTRACT_HTTP_ERR_NOMEM;
       }
-      state.req_buf = new_buf;
+      state->req_buf = new_buf;
     }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    state.req_len += (size_t)sprintf_s(
-        state.req_buf + state.req_len, req_cap - state.req_len, "%s: %s\r\n",
+    state->req_len += (size_t)sprintf_s(
+        state->req_buf + state->req_len, req_cap - state->req_len, "%s: %s\r\n",
         req->headers.headers[i].key, req->headers.headers[i].value);
 #else
-    state.req_len += (size_t)sprintf(state.req_buf + state.req_len,
-                                     "%s: %s\r\n", req->headers.headers[i].key,
-                                     req->headers.headers[i].value);
+    state->req_len += (size_t)sprintf(state->req_buf + state->req_len,
+                                      "%s: %s\r\n", req->headers.headers[i].key,
+                                      req->headers.headers[i].value);
 #endif
   }
 
   if (req->read_chunk && req->expected_body_len > 0) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    state.req_len += (size_t)sprintf_s(
-        state.req_buf + state.req_len, req_cap - state.req_len,
+    state->req_len += (size_t)sprintf_s(
+        state->req_buf + state->req_len, req_cap - state->req_len,
         "Content-Length: %lu\r\n", (unsigned long)req->expected_body_len);
 #else
-    state.req_len += (size_t)sprintf(state.req_buf + state.req_len,
-                                     "Content-Length: %lu\r\n",
-                                     (unsigned long)req->expected_body_len);
+    state->req_len += (size_t)sprintf(state->req_buf + state->req_len,
+                                      "Content-Length: %lu\r\n",
+                                      (unsigned long)req->expected_body_len);
 #endif
   } else if (req->body_len > 0) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    state.req_len += (size_t)sprintf_s(
-        state.req_buf + state.req_len, req_cap - state.req_len,
+    state->req_len += (size_t)sprintf_s(
+        state->req_buf + state->req_len, req_cap - state->req_len,
         "Content-Length: %lu\r\n", (unsigned long)req->body_len);
 #else
-    state.req_len += (size_t)sprintf(state.req_buf + state.req_len,
-                                     "Content-Length: %lu\r\n",
-                                     (unsigned long)req->body_len);
+    state->req_len += (size_t)sprintf(state->req_buf + state->req_len,
+                                      "Content-Length: %lu\r\n",
+                                      (unsigned long)req->body_len);
 #endif
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  state.req_len += (size_t)sprintf_s(state.req_buf + state.req_len,
-                                     req_cap - state.req_len, "\r\n");
+  state->req_len += (size_t)sprintf_s(state->req_buf + state->req_len,
+                                      req_cap - state->req_len, "\r\n");
 #else
-  state.req_len += (size_t)sprintf(state.req_buf + state.req_len, "\r\n");
+  state->req_len += (size_t)sprintf(state->req_buf + state->req_len, "\r\n");
 #endif
 
   if (req->body && req->body_len > 0) {
-    if (state.req_len + req->body_len > req_cap) {
+    if (state->req_len + req->body_len > req_cap) {
       char *new_buf;
-      req_cap = state.req_len + req->body_len + 1;
+      req_cap = state->req_len + req->body_len + 1;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
       if (g_mock_libuv_body_alloc_fail) {
         new_buf = NULL;
       } else
 #endif
       {
-        new_buf = (char *)realloc(state.req_buf, req_cap);
+        new_buf = (char *)realloc(state->req_buf, req_cap);
       }
       if (!new_buf) {
-        LOG_DEBUG("http_libuv_send: Error ENOMEM reallocating for body");
         free(host);
         free(path);
-        free(state.req_buf);
+        free(state->req_buf);
+        state->req_buf = NULL;
         return C_ABSTRACT_HTTP_ERR_NOMEM;
       }
-      state.req_buf = new_buf;
+      state->req_buf = new_buf;
     }
-    memcpy(state.req_buf + state.req_len, req->body, req->body_len);
-    state.req_len += req->body_len;
+    memcpy(state->req_buf + state->req_len, req->body, req->body_len);
+    state->req_len += req->body_len;
   } else if (req->read_chunk) {
     size_t out_read;
     char chunk_buf[4096];
@@ -1528,60 +1778,62 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
       if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
         free(host);
         free(path);
-        free(state.req_buf);
+        free(state->req_buf);
+        state->req_buf = NULL;
         return chunk_rc;
       }
       if (out_read == 0) {
         break;
       }
-      if (state.req_len + out_read > req_cap) {
+      if (state->req_len + out_read > req_cap) {
         char *new_buf;
-        req_cap = (state.req_len + out_read) * 2;
+        req_cap = (state->req_len + out_read) * 2;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
         if (g_mock_libuv_body_realloc_fail) {
           new_buf = NULL;
         } else
 #endif
         {
-          new_buf = (char *)realloc(state.req_buf, req_cap);
+          new_buf = (char *)realloc(state->req_buf, req_cap);
         }
         if (!new_buf) {
-          LOG_DEBUG("http_libuv_send: Error ENOMEM chunk accumulation");
           free(host);
           free(path);
-          free(state.req_buf);
+          free(state->req_buf);
+          state->req_buf = NULL;
           return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
-        state.req_buf = new_buf;
+        state->req_buf = new_buf;
       }
-      memcpy(state.req_buf + state.req_len, chunk_buf, out_read);
-      state.req_len += out_read;
+      memcpy(state->req_buf + state->req_len, chunk_buf, out_read);
+      state->req_len += out_read;
     }
   }
 
-  if (uv_loop_init(&state.loop) < 0) {
-    state.error_code = ENOMEM;
-    goto cleanup;
+  free(path);
+
+  if (uv_tcp_init(target_loop, &state->socket) < 0) {
+    free(host);
+    free(state->req_buf);
+    state->req_buf = NULL;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
-  state.loop.data = &state;
-  if (uv_tcp_init(&state.loop, &state.socket) < 0) {
-    state.error_code = ENOMEM;
-    goto cleanup_loop;
-  }
-  state.has_socket = 1;
-  state.socket.data = &state;
+  state->has_socket = 1;
+  state->socket.data = state;
 
   if (ctx->config.timeout_ms > 0) {
-    if (uv_timer_init(&state.loop, &state.timer) < 0) {
-      state.error_code = ENOMEM;
-      goto cleanup_loop;
+    if (uv_timer_init(target_loop, &state->timer) < 0) {
+      free(host);
+      LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM));
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
-    state.has_timer = 1;
-    state.timer.data = &state;
-    if (uv_timer_start(&state.timer, libuv_on_timeout,
+    state->has_timer = 1;
+    state->timer.data = state;
+    if (uv_timer_start(&state->timer, libuv_on_timeout,
                        (uint64_t)ctx->config.timeout_ms, 0) < 0) {
-      state.error_code = ENOMEM;
-      goto cleanup_loop;
+      free(host);
+      LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM));
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
   }
 
@@ -1590,37 +1842,374 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_protocol = IPPROTO_TCP;
 
-  state.resolver.data = &state;
-  if (uv_getaddrinfo(&state.loop, &state.resolver, libuv_on_resolved, host,
+  state->resolver.data = state;
+  if (uv_getaddrinfo(target_loop, &state->resolver, libuv_on_resolved, host,
                      port_str, &hints) < 0) {
     LIBUV_VOID_CB_DISPATCH(
-        libuv_finish(&state, C_ABSTRACT_HTTP_ERR_HOSTUNREACH));
+        libuv_finish(state, C_ABSTRACT_HTTP_ERR_HOSTUNREACH));
+  }
+  free(host);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Resolve redirect `Location` URL relative to current request URL.
+ * @param cur_url Current request URL.
+ * @param loc Redirect `Location` header value.
+ * @param out_url Newly allocated redirect URL string.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
+static enum c_abstract_http_error
+uv_resolve_redirect_url(const char *cur_url, const char *loc, char **out_url) {
+  char *host = NULL;
+  int port = 80;
+  char *path = NULL;
+  int is_https = strncmp(cur_url, "https://", 8) == 0 ? 1 : 0;
+  size_t need;
+  char *buf;
+  enum c_abstract_http_error rc;
+
+  if (strncmp(loc, "http://", 7) == 0 || strncmp(loc, "https://", 8) == 0) {
+    return c_abstract_http_strdup(loc, out_url);
+  }
+  rc = parse_url(cur_url, &host, &port, &path);
+  free(path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  need = strlen(host) + strlen(loc) + 32;
+  buf = (char *)malloc(need);
+  if (!buf) {
+    free(host);
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(buf, need, "%s://%s:%d%s%s", is_https ? "https" : "http", host,
+            port, loc[0] == '/' ? "" : "/", loc);
+#else
+  sprintf(buf, "%s://%s:%d%s%s", is_https ? "https" : "http", host, port,
+          loc[0] == '/' ? "" : "/", loc);
+#endif
+  free(host);
+  *out_url = buf;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Execute one single-hop libuv HTTP/HTTPS transaction.
+ * @param ctx Transport context.
+ * @param req Request to send.
+ * @param res Output response pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
+static enum c_abstract_http_error
+uv_send_single_hop(struct HttpTransportContext *ctx,
+                   const struct HttpRequest *req, struct HttpResponse **res) {
+  struct libuv_state state;
+  enum c_abstract_http_error rc;
+
+  memset(&state, 0, sizeof(state));
+  if (uv_loop_init(&state.loop) < 0) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  state.loop.data = &state;
+
+  rc = uv_arm_state_on_loop(ctx, &state.loop, 1, req, res, &state);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    uv_loop_close(&state.loop);
+    return rc;
   }
 
+  state.loop.data = &state;
   uv_run(&state.loop, UV_RUN_DEFAULT);
-
-cleanup_loop:
   uv_loop_close(&state.loop);
 
-cleanup:
-  free(host);
-  free(path);
   free(state.req_buf);
   free(state.res_buf);
 
   if (state.error_code != 0) {
     if (*res) {
-      enum c_abstract_http_error free_rc = http_response_free(*res);
-      free(*res);
+      struct HttpResponse *tmp_r = *res;
+      enum c_abstract_http_error free_rc;
       *res = NULL;
+      free_rc = http_response_free(tmp_r);
+      free(tmp_r);
       if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return free_rc;
       }
     }
-    LOG_DEBUG("http_libuv_send: Error returning %d", state.error_code);
     return (enum c_abstract_http_error)state.error_code;
   }
-
-  LOG_DEBUG("http_libuv_send: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/* Send an HTTP request using libuv (with TLS BIO, chunked decoding, redirects).
+ */
+enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
+                                           const struct HttpRequest *req,
+                                           struct HttpResponse **res) {
+  struct HttpRequest hop_req;
+  char *redir_url = NULL;
+  int hop;
+  enum c_abstract_http_error rc;
+
+  cah_cppcheck_mut_ptr((void *)ctx);
+  if (!ctx || !req || !res) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  hop_req = *req;
+  for (hop = 0; hop <= LIBUV_MAX_REDIRECTS; ++hop) {
+    const char *loc = NULL;
+    char *next_url = NULL;
+    int status;
+
+    rc = uv_send_single_hop(ctx, &hop_req, res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS || !*res ||
+        !ctx->config.follow_redirects) {
+      break;
+    }
+    status = (*res)->status_code;
+    if (status != 301 && status != 302 && status != 303 && status != 307 &&
+        status != 308) {
+      break;
+    }
+    if (http_headers_get(&(*res)->headers, "Location", &loc) !=
+            C_ABSTRACT_HTTP_SUCCESS ||
+        !loc || loc[0] == '\0') {
+      break;
+    }
+    if (hop == LIBUV_MAX_REDIRECTS) {
+      enum c_abstract_http_error frc = http_response_free(*res);
+      free(*res);
+      *res = NULL;
+      rc = frc != C_ABSTRACT_HTTP_SUCCESS ? frc : C_ABSTRACT_HTTP_ERR_LOOP;
+      break;
+    }
+    rc = uv_resolve_redirect_url(hop_req.url, loc, &next_url);
+    {
+      enum c_abstract_http_error frc = http_response_free(*res);
+      free(*res);
+      *res = NULL;
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(next_url);
+        rc = frc;
+        break;
+      }
+    }
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      break;
+    }
+    free(redir_url);
+    redir_url = next_url;
+    hop_req.url = redir_url;
+    if (status == 303 ||
+        ((status == 301 || status == 302) && hop_req.method == HTTP_POST)) {
+      hop_req.method = HTTP_GET;
+      hop_req.body = NULL;
+      hop_req.body_len = 0;
+      hop_req.read_chunk = NULL;
+    }
+  }
+
+  free(redir_url);
+  return rc;
+}
+
+/** @brief Per-slot state for concurrent `http_libuv_send_multi` */
+struct uv_multi_slot {
+  struct libuv_state st;     /**< Per-request libuv connection state */
+  struct HttpResponse *res;  /**< Populated HTTP response */
+  struct HttpFuture *future; /**< Target future slot */
+  int settled;               /**< Non-zero once future is resolved */
+};
+
+/** @brief Batch coordinator bridging `uv_run(UV_RUN_NOWAIT)` to
+ * `ModalityEventLoop` */
+struct uv_multi_batch {
+  uv_loop_t uv_loop;           /**< Shared non-blocking libuv loop */
+  struct uv_multi_slot *slots; /**< Array of per-request slots */
+  size_t count;                /**< Total slot count */
+  int caller_loop;             /**< Non-zero when caller owns loop */
+  enum c_abstract_http_error
+      first_err; /**< First error observed across batch */
+};
+
+/**
+ * @brief `ModalityEventLoop` callback driving `uv_run(UV_RUN_NOWAIT)`.
+ * @param loop Active `ModalityEventLoop`.
+ * @param timer_id Fired timer ID.
+ * @param user_data Pointer to `struct uv_multi_batch`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or loop control error.
+ */
+static enum c_abstract_http_error
+uv_pump_nowait_cb(struct ModalityEventLoop *loop, int timer_id,
+                  void *user_data) {
+  struct uv_multi_batch *batch = (struct uv_multi_batch *)user_data;
+  size_t i;
+  size_t pending = 0;
+  int urc;
+  (void)timer_id;
+
+  urc = uv_run(&batch->uv_loop, UV_RUN_NOWAIT);
+  (void)urc;
+
+  for (i = 0; i < batch->count; ++i) {
+    struct uv_multi_slot *sl = &batch->slots[i];
+    if (sl->settled) {
+      continue;
+    }
+    if (sl->st.done) {
+      enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+      sl->settled = 1;
+      if (sl->st.error_code != 0) {
+        rc = (enum c_abstract_http_error)sl->st.error_code;
+        if (sl->res) {
+          enum c_abstract_http_error frc = http_response_free(sl->res);
+          free(sl->res);
+          sl->res = NULL;
+          if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+            rc = frc;
+          }
+        }
+      }
+      sl->future->response = sl->res;
+      sl->future->error_code = rc;
+      sl->future->is_ready = 1;
+      if (rc != C_ABSTRACT_HTTP_SUCCESS &&
+          batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+        batch->first_err = rc;
+      }
+    } else {
+      pending++;
+    }
+  }
+
+  if (pending > 0) {
+    int next_id = 0;
+    return http_loop_add_timer(loop, 1, uv_pump_nowait_cb, batch, &next_id);
+  }
+  if (batch->caller_loop) {
+    return http_loop_stop(loop);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/* Multiplex concurrent requests via uv_run(UV_RUN_NOWAIT) on ModalityEventLoop.
+ */
+enum c_abstract_http_error http_libuv_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
+  struct ModalityEventLoop *owned_loop = NULL;
+  struct ModalityEventLoop *active_loop;
+  struct uv_multi_batch batch;
+  struct uv_multi_slot *slots;
+  size_t i;
+  size_t active_slots = 0;
+  int timer_id = 0;
+  enum c_abstract_http_error rc;
+  cah_cppcheck_mut_ptr((void *)ctx);
+
+  if (!ctx || !multi || !futures) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  if (multi->count == 0) {
+    if (loop) {
+      return http_loop_wakeup(loop);
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  slots = (struct uv_multi_slot *)calloc(multi->count, sizeof(*slots));
+  if (!slots) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+
+  memset(&batch, 0, sizeof(batch));
+  if (uv_loop_init(&batch.uv_loop) < 0) {
+    free(slots);
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  batch.uv_loop.data = &batch;
+  batch.slots = slots;
+  batch.count = multi->count;
+  batch.caller_loop = (loop != NULL) ? 1 : 0;
+  batch.first_err = C_ABSTRACT_HTTP_SUCCESS;
+
+  if (loop) {
+    active_loop = loop;
+  } else {
+    rc = http_loop_init(&owned_loop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      uv_loop_close(&batch.uv_loop);
+      free(slots);
+      return rc;
+    }
+    active_loop = owned_loop;
+  }
+
+  for (i = 0; i < multi->count; ++i) {
+    slots[i].future = futures[i];
+    rc = uv_arm_state_on_loop(ctx, &batch.uv_loop, 0, multi->requests[i],
+                              &slots[i].res, &slots[i].st);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      slots[i].settled = 1;
+      slots[i].future->response = NULL;
+      slots[i].future->error_code = rc;
+      slots[i].future->is_ready = 1;
+      if (batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
+        batch.first_err = rc;
+      }
+    } else if (slots[i].st.done) {
+      slots[i].settled = 1;
+      slots[i].future->response = slots[i].res;
+      slots[i].future->error_code =
+          (enum c_abstract_http_error)slots[i].st.error_code;
+      slots[i].future->is_ready = 1;
+      if (slots[i].st.error_code != 0 &&
+          batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
+        batch.first_err = (enum c_abstract_http_error)slots[i].st.error_code;
+      }
+    } else {
+      active_slots++;
+    }
+  }
+
+  if (active_slots > 0) {
+    rc = http_loop_add_timer(active_loop, 0, uv_pump_nowait_cb, &batch,
+                             &timer_id);
+    (void)timer_id;
+    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = http_loop_run(active_loop);
+    }
+    if (rc != C_ABSTRACT_HTTP_SUCCESS &&
+        batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
+      batch.first_err = rc;
+    }
+  }
+
+  uv_loop_close(&batch.uv_loop);
+  for (i = 0; i < multi->count; ++i) {
+    free(slots[i].st.req_buf);
+    free(slots[i].st.res_buf);
+  }
+  free(slots);
+
+  if (owned_loop) {
+    enum c_abstract_http_error lrc = http_loop_free(owned_loop);
+    if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
+      batch.first_err = lrc;
+    }
+  } else if (loop) {
+    enum c_abstract_http_error urc = abstract_http_event_loop_test_unstop(loop);
+    enum c_abstract_http_error wrc = http_loop_wakeup(loop);
+    if (urc != C_ABSTRACT_HTTP_SUCCESS) {
+      batch.first_err = urc;
+    }
+    if (wrc != C_ABSTRACT_HTTP_SUCCESS) {
+      batch.first_err = wrc;
+    }
+  }
+
+  return batch.first_err;
 }

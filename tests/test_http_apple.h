@@ -720,6 +720,36 @@ static enum c_abstract_http_error dummy_apple_fail_wakeup(void *ctx) {
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
+static enum c_abstract_http_error dummy_apple_add_fd_fail(void *ctx, int fd,
+                                                          int events,
+                                                          http_loop_cb cb,
+                                                          void *user_data) {
+  (void)ctx;
+  (void)fd;
+  (void)events;
+  (void)cb;
+  (void)user_data;
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
+static enum c_abstract_http_error dummy_apple_add_fd_capture(void *ctx, int fd,
+                                                             int events,
+                                                             http_loop_cb cb,
+                                                             void *user_data) {
+  void **pack = (void **)ctx;
+  (void)events;
+  *(http_loop_cb *)pack[0] = cb;
+  *(int *)pack[1] = fd;
+  *(void **)pack[2] = user_data;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static enum c_abstract_http_error dummy_apple_rm_fd_fail(void *ctx, int fd) {
+  (void)ctx;
+  (void)fd;
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
 TEST test_apple_send_multi_branches(void) {
 #if defined(__APPLE__)
   struct HttpTransportContext *ctx = NULL;
@@ -1442,7 +1472,7 @@ TEST test_apple_nsurlsession_bridge(void) {
     g_mock_response_free_fail = 0;
 
     req.url = url_ok;
-    for (step = 0; step < 20; ++step) {
+    for (step = 0; step < 25; ++step) {
       enum c_abstract_http_error orc;
       res = NULL;
       g_mock_alloc_count = step;
@@ -1454,6 +1484,407 @@ TEST test_apple_nsurlsession_bridge(void) {
         free(res);
       }
     }
+    req.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 9. Granular HttpConfig options (user_agent, proxy_url, proxy_auth, H3,
+     * TLS versions, read/connect/write timeouts) + OOM sweep */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+    cfg.proxy_url = (char *)"badproxy";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_config_apply(ctx, &cfg));
+    cfg.proxy_url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("AppleBot/1.0", &cfg.user_agent));
+    {
+      char pbuf[128];
+      sprintf(pbuf, "http://127.0.0.1:%d", port);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_strdup(pbuf, &cfg.proxy_url));
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("puser", &cfg.proxy_username));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("ppass", &cfg.proxy_password));
+    cfg.connect_timeout_ms = 500;
+    cfg.read_timeout_ms = 1000;
+    cfg.write_timeout_ms = 500;
+    cfg.verify_host = 1;
+    cfg.version_mask = HTTP_VERSION_3;
+    cfg.http3_fallback = 0;
+    cfg.tls_version_mask = HTTP_TLS_VERSION_1_3;
+
+    for (step = 0; step <= 8; ++step) {
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      if (http_apple_config_apply(ctx, &cfg) != C_ABSTRACT_HTTP_SUCCESS) {
+      }
+      g_mock_alloc_fail = 0;
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
+
+    /* Send real request through AppleMiniSrv configured as HTTP proxy! */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    req.url = url_ok;
+    req.method = HTTP_POST;
+    req.body = (void *)"bodydata";
+    req.body_len = 8;
+    for (step = 0; step <= 6; ++step) {
+      res = NULL;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      if (http_apple_send(ctx, &req, &res) == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+      }
+      g_mock_alloc_fail = 0;
+    }
+    res = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+    ASSERT_EQ(200, res->status_code);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    req.body = NULL;
+    req.body_len = 0;
+    req.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* Exercise proxy_url without :port or / (default 8080) and empty host */
+    free(cfg.proxy_url);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http://127.0.0.1", &cfg.proxy_url));
+    cfg.tls_version_mask = HTTP_TLS_VERSION_1_2;
+    cfg.read_timeout_ms = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    req.url = (char *)"http://127.0.0.1:1/x";
+    res = NULL;
+    if (http_apple_send(ctx, &req, &res) == C_ABSTRACT_HTTP_SUCCESS && res) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+    }
+    req.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    free(cfg.proxy_url);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("http:///bad", &cfg.proxy_url));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    req.url = url_ok;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
+    {
+      struct HttpMultiRequest bmulti;
+      struct HttpFuture bf1;
+      struct HttpFuture *bfuts[1];
+      struct ModalityEventLoop *bloop = NULL;
+      bfuts[0] = &bf1;
+      memset(&bf1, 0, sizeof(bf1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&bloop));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&bmulti));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&bmulti, &req));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+                http_apple_send_multi(ctx, bloop, &bmulti, bfuts));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&bmulti));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(bloop));
+    }
+    req.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    free(cfg.proxy_url);
+    cfg.proxy_url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    req.url = url_ok;
+    for (step = 0; step <= 10; ++step) {
+      enum c_abstract_http_error orc;
+      res = NULL;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      orc = http_apple_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+      }
+    }
+    res = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+    ASSERT_EQ(200, res->status_code);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    req.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_config_apply(ctx, &cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+
+    /* 10. Multipart req->parts in http_apple_send & http_apple_send_multi */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    req.url = url_ok;
+    req.method = HTTP_POST;
+    req.parts.count = 1;
+    req.parts.parts = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_send(ctx, &req, &res));
+    req.parts.count = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_request_add_part(&req, "field1", NULL, NULL, "val1", 4));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_headers_add(&req.headers, "X-Part", "1"));
+    for (step = 0; step <= 12; ++step) {
+      enum c_abstract_http_error orc;
+      res = NULL;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      orc = http_apple_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+      }
+    }
+    res = NULL;
+    g_mock_headers_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
+    req.url = (char *)"ht tp:// bad";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_apple_send(ctx, &req, &res));
+    g_mock_alloc_fail = 0;
+    req.url = url_ok;
+    g_mock_headers_free_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_send(ctx, &req, &res));
+    ASSERT_EQ(200, res->status_code);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+
+    /* 11. ModalityEventLoop http_loop_run kqueue pipe-bridged send_multi +
+     * 0-count + all-invalid + OOM */
+    {
+      struct HttpMultiRequest multi2;
+      struct HttpFuture mf1, mf2;
+      struct HttpFuture *mfuts[2];
+      struct ModalityEventLoop *mloop = NULL;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&mloop));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi2));
+      mfuts[0] = &mf1;
+      mfuts[1] = &mf2;
+
+      /* Empty multi batch */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_apple_send_multi(ctx, mloop, &multi2, mfuts));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_apple_send_multi(ctx, NULL, &multi2, mfuts));
+
+      /* NULL slot -> launched == 0 */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi2, &req));
+      multi2.requests[0] = NULL;
+      memset(&mf1, 0, sizeof(mf1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_apple_send_multi(ctx, mloop, &multi2, mfuts));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, mf1.error_code);
+
+      /* Real concurrent multipart + GET driven by http_loop_run(mloop) */
+      multi2.count = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi2, &req));
+      memset(&mf1, 0, sizeof(mf1));
+      g_mock_pthread_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_apple_send_multi(ctx, mloop, &multi2, mfuts));
+      g_mock_pthread_fail = 0;
+      for (step = 0; step <= 3; ++step) {
+        g_mock_alloc_fail = 1;
+        g_mock_alloc_count = step;
+        if (http_apple_send_multi(ctx, mloop, &multi2, mfuts) ==
+            C_ABSTRACT_HTTP_SUCCESS) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(mloop));
+          if (mf1.response) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                      http_response_free(mf1.response));
+            free(mf1.response);
+            mf1.response = NULL;
+          }
+        }
+        g_mock_alloc_fail = 0;
+      }
+
+      /* Multipart headers_free_fail on completed slot + bad-URL slot */
+      memset(&mf1, 0, sizeof(mf1));
+      g_mock_headers_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_apple_send_multi(ctx, mloop, &multi2, mfuts));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(mloop));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, mf1.error_code);
+      req.url = (char *)"ht tp:// bad";
+      memset(&mf1, 0, sizeof(mf1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_apple_send_multi(ctx, mloop, &multi2, mfuts));
+      req.url = url_ok;
+      g_mock_headers_free_fail = 0;
+
+      /* 1-item failing batch + 2-item succeeding batch + NULL-loop async */
+      {
+        struct HttpRequest fail_req;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&fail_req));
+        fail_req.url = (char *)"http://127.0.0.1:1/refused";
+
+        multi2.count = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_multi_request_add(&multi2, &fail_req));
+        memset(&mf1, 0, sizeof(mf1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_apple_send_multi(ctx, mloop, &multi2, mfuts));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(mloop));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, mf1.error_code);
+
+        multi2.count = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_multi_request_add(&multi2, &req));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_multi_request_add(&multi2, &req));
+        memset(&mf1, 0, sizeof(mf1));
+        memset(&mf2, 0, sizeof(mf2));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_apple_send_multi(ctx, mloop, &multi2, mfuts));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(mloop));
+        ASSERT_EQ(200, mf1.response->status_code);
+        ASSERT_EQ(200, mf2.response->status_code);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf1.response));
+        free(mf1.response);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf2.response));
+        free(mf2.response);
+
+        /* Async NULL loop + async failing wakeup loop */
+        multi2.count = 1;
+        memset(&mf1, 0, sizeof(mf1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_apple_send_multi(ctx, NULL, &multi2, mfuts));
+        while (!mf1.is_ready) {
+          usleep(2000);
+        }
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf1.response));
+        free(mf1.response);
+
+        {
+          struct ModalityEventLoop *fl = NULL;
+          struct HttpLoopHooks fhooks;
+          memset(&fhooks, 0, sizeof(fhooks));
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    http_loop_init_external(&fl, &fhooks));
+          memset(&mf1, 0, sizeof(mf1));
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    http_apple_send_multi(ctx, fl, &multi2, mfuts));
+          while (!mf1.is_ready) {
+            usleep(2000);
+          }
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf1.response));
+          free(mf1.response);
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(fl));
+
+          memset(&fhooks, 0, sizeof(fhooks));
+          fhooks.wakeup = dummy_apple_fail_wakeup;
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    http_loop_init_external(&fl, &fhooks));
+          multi2.requests[0] = NULL;
+          memset(&mf1, 0, sizeof(mf1));
+          ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                    http_apple_send_multi(ctx, fl, &multi2, mfuts));
+          multi2.requests[0] = &req;
+          memset(&mf1, 0, sizeof(mf1));
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    http_apple_send_multi(ctx, fl, &multi2, mfuts));
+          while (!mf1.is_ready) {
+            usleep(2000);
+          }
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf1.response));
+          free(mf1.response);
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(fl));
+        }
+
+        /* External loop add_fd failure + remove_fd failure on empty & active */
+        {
+          struct ModalityEventLoop *el = NULL;
+          struct HttpLoopHooks ehooks;
+          http_loop_cb pipe_cb = NULL;
+          int pipe_fd = -1;
+          void *pipe_ud = NULL;
+          void *pack[3];
+          pack[0] = &pipe_cb;
+          pack[1] = &pipe_fd;
+          pack[2] = &pipe_ud;
+          memset(&ehooks, 0, sizeof(ehooks));
+          ehooks.add_fd = dummy_apple_add_fd_fail;
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    http_loop_init_external(&el, &ehooks));
+          memset(&mf1, 0, sizeof(mf1));
+          ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                    http_apple_send_multi(ctx, el, &multi2, mfuts));
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(el));
+
+          memset(&ehooks, 0, sizeof(ehooks));
+          ehooks.external_context = pack;
+          ehooks.add_fd = dummy_apple_add_fd_capture;
+          ehooks.remove_fd = dummy_apple_rm_fd_fail;
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    http_loop_init_external(&el, &ehooks));
+          /* Empty launched == 0 remove_fd fail */
+          multi2.requests[0] = NULL;
+          memset(&mf1, 0, sizeof(mf1));
+          ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                    http_apple_send_multi(ctx, el, &multi2, mfuts));
+          /* Active batch pipe_cb remove_fd fail */
+          multi2.requests[0] = &req;
+          pipe_cb = NULL;
+          pipe_fd = -1;
+          memset(&mf1, 0, sizeof(mf1));
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    http_apple_send_multi(ctx, el, &multi2, mfuts));
+          ASSERT(pipe_cb != NULL);
+          {
+            fd_set rset;
+            struct timeval tv;
+            FD_ZERO(&rset);
+            FD_SET((size_t)pipe_fd, &rset);
+            tv.tv_sec = 2;
+            tv.tv_usec = 0;
+            select(pipe_fd + 1, &rset, NULL, NULL, &tv);
+            ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                      pipe_cb(el, pipe_fd, HTTP_LOOP_READ, pipe_ud));
+          }
+          ASSERT_EQ(1, mf1.is_ready);
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf1.response));
+          free(mf1.response);
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(el));
+        }
+
+        multi2.count = 1;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_multi_request_add(&multi2, &fail_req));
+        memset(&mf1, 0, sizeof(mf1));
+        memset(&mf2, 0, sizeof(mf2));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_apple_send_multi(ctx, mloop, &multi2, mfuts));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(mloop));
+        ASSERT_EQ(1, mf1.is_ready);
+        ASSERT_EQ(1, mf2.is_ready);
+        ASSERT_EQ(200, mf1.response->status_code);
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, mf2.error_code);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf1.response));
+        free(mf1.response);
+        fail_req.url = NULL;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&fail_req));
+      }
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(mloop));
+    }
+
     req.url = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }

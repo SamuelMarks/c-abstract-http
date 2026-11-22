@@ -34,7 +34,7 @@
 #define recv c_abstract_http_mock_recv
 #define select c_abstract_http_mock_select
 #endif
-#else
+#elif !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -307,7 +307,8 @@ size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nmemb,
                                    FILE *stream);
 int c_abstract_http_mock_fclose(FILE *stream);
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__MSDOS__) && !defined(__DOS__) &&            \
+    !defined(DOS)
 int c_abstract_http_mock_pipe(int fildes[2]);
 pid_t c_abstract_http_mock_fork(void);
 pid_t c_abstract_http_mock_waitpid(pid_t pid, int *stat_loc, int options);
@@ -346,7 +347,7 @@ extern int WSAAPI c_abstract_http_mock_select(int nfds, fd_set *readfds,
                                               fd_set *writefds,
                                               fd_set *exceptfds,
                                               const struct timeval *timeout);
-#else
+#elif !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 extern int c_abstract_http_mock_socket(int domain, int type, int protocol);
 extern int c_abstract_http_mock_bind(int socket, const struct sockaddr *address,
                                      socklen_t address_len);
@@ -368,6 +369,15 @@ abstract_http_int64_t c_abstract_http_mock_math_get_current_time_ms(void);
 
 enum c_abstract_http_error dummy_cb_thread(void *arg);
 void *dummy_cb_pthread(void *arg);
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+extern enum c_abstract_http_error
+c_abstract_http_test_set_ws_send_mode(int mode);
+extern enum c_abstract_http_error
+c_abstract_http_test_set_oauth2_redirect_env(const char *val);
+extern enum c_abstract_http_error
+c_abstract_http_test_set_native_mux_fail(int v);
+#endif
 
 #ifdef __cplusplus
 }

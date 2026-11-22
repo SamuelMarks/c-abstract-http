@@ -44,6 +44,17 @@ typedef int gboolean;
 #define G_IO_ERROR_CONNECTION_REFUSED 1
 #define G_IO_ERROR_TIMED_OUT 2
 #define G_URI_FLAGS_NONE 0
+#define G_PRIORITY_DEFAULT 0
+#define SOUP_MESSAGE_NO_REDIRECT (1U << 1)
+
+typedef void *GAsyncResult;
+typedef void (*GAsyncReadyCallback)(void *source_object, GAsyncResult *res,
+                                    void *user_data);
+
+/** @brief Mock GMainContext structure */
+typedef struct GMainContext {
+  int dummy;
+} GMainContext;
 
 /** @brief Mock GError structure */
 struct GError {
@@ -96,6 +107,8 @@ typedef struct SoupMessageHeaders SoupMessageHeaders;
 
 /** @brief Mock SoupMessage structure */
 struct SoupMessage {
+  /** @brief GObject mock kind (2 = SoupMessage) */
+  int obj_kind;
   /** @brief HTTP method */
   char *method;
   /** @brief URL */
@@ -106,25 +119,49 @@ struct SoupMessage {
   GBytes *request_body;
   /** @brief HTTP response status code */
   unsigned int status_code;
+  /** @brief Message flags */
+  unsigned int flags;
 };
 typedef struct SoupMessage SoupMessage;
 
+struct mock_soup_async_item {
+  SoupMessage *msg;
+  GAsyncReadyCallback cb;
+  void *user_data;
+  int active;
+};
+
 /** @brief Mock SoupSession structure */
 struct SoupSession {
+  /** @brief GObject mock kind (1 = SoupSession) */
+  int obj_kind;
   /** @brief Session timeout */
   guint timeout;
+  /** @brief Session idle timeout */
+  guint idle_timeout;
   /** @brief User agent string */
   char *user_agent;
   /** @brief Proxy URI */
   GUri *proxy_uri;
+  /** @brief Queued async operations */
+  struct mock_soup_async_item async_items[32];
+  /** @brief Queued async count */
+  size_t async_count;
 };
 typedef struct SoupSession SoupSession;
 
+static SoupSession *g_mock_active_soup_session = NULL;
+
 static SoupSession *soup_session_new(void) {
+  SoupSession *s;
   if (g_mock_libsoup3_session_new_fail) {
     return NULL;
   }
-  return (SoupSession *)calloc(1, sizeof(SoupSession));
+  s = (SoupSession *)calloc(1, sizeof(SoupSession));
+  if (s) {
+    s->obj_kind = 1;
+  }
+  return s;
 }
 
 static SoupMessage *soup_message_new(const char *method, const char *uri) {
@@ -143,10 +180,16 @@ static SoupMessage *soup_message_new(const char *method, const char *uri) {
   if (!msg) {
     return NULL;
   }
-  if (c_abstract_http_strdup(method, &msg->method) != C_ABSTRACT_HTTP_SUCCESS)
+  msg->obj_kind = 2;
+  if (c_abstract_http_strdup(method, &msg->method) != C_ABSTRACT_HTTP_SUCCESS) {
+    free(msg);
     return NULL;
-  if (c_abstract_http_strdup(uri, &msg->url) != C_ABSTRACT_HTTP_SUCCESS)
+  }
+  if (c_abstract_http_strdup(uri, &msg->url) != C_ABSTRACT_HTTP_SUCCESS) {
+    free(msg->method);
+    free(msg);
     return NULL;
+  }
   msg->status_code = 200;
   return msg;
 }
@@ -161,18 +204,25 @@ static void soup_message_headers_append(SoupMessageHeaders *hdrs,
       C_ABSTRACT_HTTP_SUCCESS)
     return;
   if (c_abstract_http_strdup(value, &hdrs->values[hdrs->count]) !=
-      C_ABSTRACT_HTTP_SUCCESS)
+      C_ABSTRACT_HTTP_SUCCESS) {
+    free(hdrs->keys[hdrs->count]);
+    hdrs->keys[hdrs->count] = NULL;
     return;
+  }
   hdrs->count++;
 }
 
 static GBytes *g_bytes_new(const void *data, size_t size) {
   GBytes *b = (GBytes *)calloc(1, sizeof(GBytes));
-  if (g_mock_libsoup3_msg_new_fail == 3) {
+  if (!b || g_mock_libsoup3_msg_new_fail == 3) {
     free(b);
     return NULL;
   }
   b->data = malloc(size);
+  if (!b->data) {
+    free(b);
+    return NULL;
+  }
   memcpy(b->data, data, size);
   b->size = size;
   return b;
@@ -240,6 +290,11 @@ static GBytes *g_byte_array_free_to_bytes(GByteArray *arr) {
     return NULL;
   }
   b = (GBytes *)calloc(1, sizeof(GBytes));
+  if (!b) {
+    free(arr->data);
+    free(arr);
+    return NULL;
+  }
   b->data = arr->data;
   b->size = arr->len;
   free(arr);
@@ -260,6 +315,8 @@ static void g_object_set(void *obj, const char *first_property_name, ...) {
   while (prop) {
     if (strcmp(prop, "timeout") == 0) {
       session->timeout = va_arg(args, guint);
+    } else if (strcmp(prop, "idle-timeout") == 0) {
+      session->idle_timeout = va_arg(args, guint);
     } else if (strcmp(prop, "user-agent") == 0) {
       const char *ua = va_arg(args, const char *);
       if (session->user_agent) {
@@ -288,9 +345,27 @@ static void g_object_set(void *obj, const char *first_property_name, ...) {
 
 static void g_object_unref(void *obj) {
   if (obj) {
-    SoupSession *s = (SoupSession *)obj;
-    free(s->user_agent);
-    free(s);
+    int kind = *(int *)obj;
+    if (kind == 1) {
+      SoupSession *s = (SoupSession *)obj;
+      if (g_mock_active_soup_session == s) {
+        g_mock_active_soup_session = NULL;
+      }
+      free(s->user_agent);
+      free(s);
+    } else if (kind == 2) {
+      SoupMessage *m = (SoupMessage *)obj;
+      size_t i;
+      for (i = 0; i < m->headers.count; ++i) {
+        free(m->headers.keys[i]);
+        free(m->headers.values[i]);
+      }
+      free(m->method);
+      free(m->url);
+      free(m);
+    } else {
+      free(obj);
+    }
   }
 }
 
@@ -319,8 +394,13 @@ static GUri *g_uri_parse(const char *uri, int flags, GError **error) {
     return NULL;
   }
   u = (GUri *)calloc(1, sizeof(GUri));
-  if (c_abstract_http_strdup(uri, &u->uri_string) != C_ABSTRACT_HTTP_SUCCESS)
+  if (!u) {
     return NULL;
+  }
+  if (c_abstract_http_strdup(uri, &u->uri_string) != C_ABSTRACT_HTTP_SUCCESS) {
+    free(u);
+    return NULL;
+  }
   return u;
 }
 
@@ -333,6 +413,71 @@ static void g_uri_unref(GUri *uri) {
 
 static guint soup_message_get_status(const SoupMessage *msg) {
   return msg->status_code;
+}
+
+static void soup_message_set_flags(SoupMessage *msg, unsigned int flags) {
+  if (msg) {
+    msg->flags = flags;
+  }
+}
+
+static GMainContext *g_main_context_default(void) {
+  static GMainContext g_def_ctx = {0};
+  return &g_def_ctx;
+}
+
+static void soup_session_send_and_read_async(SoupSession *session,
+                                             SoupMessage *msg, int io_priority,
+                                             void *cancellable,
+                                             GAsyncReadyCallback callback,
+                                             void *user_data) {
+  struct mock_soup_async_item *it;
+  (void)io_priority;
+  (void)cancellable;
+  if (!session || session->async_count >= 32) {
+    return;
+  }
+  g_mock_active_soup_session = session;
+  it = &session->async_items[session->async_count++];
+  it->msg = msg;
+  it->cb = callback;
+  it->user_data = user_data;
+  it->active = 1;
+}
+
+static GBytes *soup_session_send_and_read(SoupSession *session,
+                                          SoupMessage *msg, void *cancellable,
+                                          GError **error);
+
+static GBytes *soup_session_send_and_read_finish(SoupSession *session,
+                                                 GAsyncResult *result,
+                                                 GError **error) {
+  SoupMessage *msg = (SoupMessage *)result;
+  return soup_session_send_and_read(session, msg, NULL, error);
+}
+
+static gboolean g_main_context_iteration(GMainContext *context,
+                                         gboolean may_block) {
+  size_t i;
+  gboolean dispatched = FALSE;
+  SoupSession *s = g_mock_active_soup_session;
+  (void)context;
+  (void)may_block;
+  if (!s) {
+    return FALSE;
+  }
+  for (i = 0; i < s->async_count; ++i) {
+    if (s->async_items[i].active) {
+      s->async_items[i].active = 0;
+      dispatched = TRUE;
+      if (s->async_items[i].cb) {
+        s->async_items[i].cb(s, (GAsyncResult *)s->async_items[i].msg,
+                             s->async_items[i].user_data);
+      }
+    }
+  }
+  s->async_count = 0;
+  return dispatched;
 }
 
 static GBytes *soup_session_send_and_read(SoupSession *session,

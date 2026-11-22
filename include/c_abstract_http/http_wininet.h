@@ -17,6 +17,7 @@
 #define C_ABSTRACT_HTTP_HTTP_WININET_H
 
 /* clang-format off */
+#include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 /* clang-format on */
 
@@ -97,6 +98,24 @@ http_wininet_config_apply(struct HttpTransportContext *ctx,
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_wininet_send(struct HttpTransportContext *ctx,
                   const struct HttpRequest *req, struct HttpResponse **res);
+
+/**
+ * @brief Asynchronous multi-request dispatcher for WinInet.
+ *
+ * Uses `INTERNET_FLAG_ASYNC` + `InternetSetStatusCallbackW` and posts
+ * completion notifications to `ModalityEventLoop`.
+ *
+ * @param[in] ctx The transport context.
+ * @param[in,out] loop Optional event loop to wake on completion.
+ * @param[in] multi Batch of HTTP requests to execute concurrently.
+ * @param[out] futures Array of futures populated with responses/errors.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+http_wininet_send_multi(struct HttpTransportContext *ctx,
+                        struct ModalityEventLoop *loop,
+                        const struct HttpMultiRequest *multi,
+                        struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

@@ -34,6 +34,17 @@ enum HttpLoopEvent {
 };
 
 /**
+ * @brief Native I/O multiplexing backend used by `ModalityEventLoop`.
+ */
+enum HttpLoopBackend {
+  HTTP_LOOP_BACKEND_AUTO = 0,   /**< Automatically pick best native backend */
+  HTTP_LOOP_BACKEND_SELECT = 1, /**< Portable `select()` backend */
+  HTTP_LOOP_BACKEND_EPOLL = 2,  /**< Linux `epoll` O(1) backend */
+  HTTP_LOOP_BACKEND_KQUEUE = 3, /**< macOS / BSD `kqueue` O(1) backend */
+  HTTP_LOOP_BACKEND_IOCP = 4    /**< Windows `WSAPoll` + IOCP wakeup backend */
+};
+
+/**
  * @brief Callback for socket events.
  * @param[in] loop Event loop context.
  * @param[in] fd File descriptor.
@@ -83,12 +94,32 @@ struct HttpLoopHooks {
 };
 
 /**
- * @brief Initialize an event loop context.
+ * @brief Initialize an event loop context using the platform's optimal backend.
  * @param[out] loop Pointer to receive the allocated loop.
  * @return 0 on success, ENOMEM on allocation failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_loop_init(struct ModalityEventLoop **loop);
+
+/**
+ * @brief Initialize an event loop context with an explicit I/O backend.
+ * @param[out] loop Pointer to receive the allocated loop.
+ * @param[in] backend Desired `enum HttpLoopBackend` variant.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, C_ABSTRACT_HTTP_ERR_NOTSUP if
+ * the requested backend is unavailable on the host OS, or error code.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+http_loop_init_with_backend(struct ModalityEventLoop **loop,
+                            enum HttpLoopBackend backend);
+
+/**
+ * @brief Query the active I/O multiplexing backend of an event loop.
+ * @param[in] loop Event loop context.
+ * @param[out] out_backend Pointer receiving active `enum HttpLoopBackend`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_loop_get_backend(
+    const struct ModalityEventLoop *loop, enum HttpLoopBackend *out_backend);
 
 /**
  * @brief Initialize an event loop context that proxies to an external reactor.
