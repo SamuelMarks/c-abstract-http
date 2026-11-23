@@ -20,6 +20,31 @@
         "libevent"
       ]
     },
+    "libsoup3": {
+      "description": "Use libsoup3 transport backend",
+      "dependencies": [
+        "libsoup"
+      ]
+    },
+    "nghttp3": {
+      "description": "Use nghttp3 + ngtcp2 HTTP/3 transport backend",
+      "dependencies": [
+        "nghttp3",
+        "ngtcp2"
+      ]
+    },
+    "lsquic": {
+      "description": "Use LiteSpeed QUIC (lsquic) HTTP/3 transport backend",
+      "dependencies": [
+        "lsquic"
+      ]
+    },
+    "msh3": {
+      "description": "Use Microsoft msh3 (msquic) HTTP/3 transport backend",
+      "dependencies": [
+        "msquic"
+      ]
+    },
     "mbedtls": {
       "description": "Use mbedtls for cryptography",
       "dependencies": [

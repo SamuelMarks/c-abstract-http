@@ -32,7 +32,7 @@ struct HttpTransportContext;
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_lsquic_global_init(void);
 
 /**
@@ -41,7 +41,7 @@ http_lsquic_global_init(void);
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_lsquic_global_cleanup(void);
 
 /**
@@ -51,7 +51,7 @@ http_lsquic_global_cleanup(void);
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or C_ABSTRACT_HTTP_ERR_NOMEM on
  * failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_lsquic_context_init(struct HttpTransportContext **ctx);
 
 /**
@@ -60,7 +60,7 @@ http_lsquic_context_init(struct HttpTransportContext **ctx);
  * @param[in] ctx The context to free.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_lsquic_context_free(struct HttpTransportContext *ctx);
 
 /**
@@ -73,9 +73,8 @@ http_lsquic_context_free(struct HttpTransportContext *ctx);
  * @param[in] config The configuration settings.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or a mapped error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-http_lsquic_config_apply(struct HttpTransportContext *ctx,
-                         const struct HttpConfig *config);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_lsquic_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config);
 
 /**
  * @brief Synchronous single request dispatcher for LiteSpeed QUIC.
@@ -86,7 +85,7 @@ http_lsquic_config_apply(struct HttpTransportContext *ctx,
  * @param[out] res Double pointer to receive the newly allocated response.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or a mapped error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_lsquic_send(struct HttpTransportContext *ctx,
                  const struct HttpRequest *req, struct HttpResponse **res);
 
@@ -100,11 +99,9 @@ http_lsquic_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures populated with responses/errors.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or a mapped error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-http_lsquic_send_multi(struct HttpTransportContext *ctx,
-                       struct ModalityEventLoop *loop,
-                       const struct HttpMultiRequest *multi,
-                       struct HttpFuture **futures);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_lsquic_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

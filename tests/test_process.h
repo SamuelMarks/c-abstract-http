@@ -279,11 +279,13 @@ TEST test_abstract_http_process_spawn_errors(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void);
-extern enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void);
+NO_DISCARD extern c_abstract_http_error_t
+abstract_http_process_test_waitpid_fail(void);
+NO_DISCARD extern c_abstract_http_error_t
+abstract_http_process_test_waitpid_exit(void);
 #endif
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dummy_process_spawn(struct AbstractHttpProcess **proc,
                     struct AbstractHttpIpcPipe *p2c,
                     struct AbstractHttpIpcPipe *c2p) {
@@ -292,21 +294,21 @@ dummy_process_spawn(struct AbstractHttpProcess **proc,
   (void)c2p;
   return 0;
 }
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dummy_process_wait_and_free(struct AbstractHttpProcess *proc, int *exit_code) {
   (void)proc;
   (void)exit_code;
   return 0;
 }
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dummy_ipc_write(void *handle, const void *data, size_t len) {
   (void)handle;
   (void)data;
   (void)len;
   return 0;
 }
-static enum c_abstract_http_error dummy_ipc_read(void *handle, void *data,
-                                                 size_t len) {
+NO_DISCARD static c_abstract_http_error_t
+dummy_ipc_read(void *handle, void *data, size_t len) {
   (void)handle;
   (void)data;
   (void)len;
@@ -337,7 +339,7 @@ TEST test_process_hooks_coverage(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_fallback_paths(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct AbstractHttpProcess *proc = NULL;
   struct AbstractHttpIpcPipe pipe = {0};
   struct AbstractHttpIpcPipe p2c = {0}, c2p = {0};
@@ -630,7 +632,7 @@ TEST test_process_more_edge_cases(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_process_final_edge_cases(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpRequest req;
   struct HttpResponse res;
   char *buf = NULL;
@@ -956,6 +958,38 @@ TEST test_process_write_partial(void) {
   g_mock_write_partial = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
             abstract_http_ipc_write(my_pipe.write_handle, "t", 1));
+  {
+    char rbuf[5];
+    memset(rbuf, 0, sizeof(rbuf));
+    g_mock_write_partial = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_ipc_write(my_pipe.write_handle, "test", 4));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_ipc_read(my_pipe.read_handle, rbuf, 4));
+    ASSERT_STR_EQ("test", rbuf);
+  }
+  {
+    int saved_stdin = dup(0);
+    if (saved_stdin >= 0) {
+      struct AbstractHttpIpcPipe fd0_pipe;
+      char c = 'Z';
+      char out_c = 0;
+      close(0);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_ipc_pipe_init(&fd0_pipe));
+      ASSERT(fd0_pipe.read_handle != NULL);
+      ASSERT(fd0_pipe.write_handle != NULL);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_ipc_write(fd0_pipe.write_handle, &c, 1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_ipc_read(fd0_pipe.read_handle, &out_c, 1));
+      ASSERT_EQ('Z', out_c);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_ipc_pipe_free(&fd0_pipe));
+      dup2(saved_stdin, 0);
+      close(saved_stdin);
+    }
+  }
 #endif
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_ipc_pipe_free(&my_pipe));
   PASS();
@@ -966,7 +1000,7 @@ TEST test_process_write_partial(void) {
 TEST test_process_deserialize_oom(void) {
   struct HttpRequest req;
   struct HttpResponse res;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   char req_buf[100];
   char res_buf[100];
   char *p;
@@ -1031,7 +1065,7 @@ TEST test_process_deserialize_oom(void) {
   PASS();
 }
 
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_process_test_write_helpers(int step);
 
 TEST test_process_serialize_step_failures(void) {

@@ -27,6 +27,11 @@ extern "C" {
 #include "abstract_http_test_helpers/mock_server.h"
 /* clang-format on */
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_wininet_slot_guard(int mode);
+#endif
+
 /** @brief Helper structure for chunk testing */
 struct wininet_TestChunkState {
   /** @brief Call count */
@@ -37,7 +42,7 @@ struct wininet_TestChunkState {
   int abort_on_call;
 };
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 wininet_chunk_cb(void *user_data, const void *data, size_t length) {
   struct wininet_TestChunkState *state =
       (struct wininet_TestChunkState *)user_data;
@@ -50,9 +55,10 @@ wininet_chunk_cb(void *user_data, const void *data, size_t length) {
   return 0;
 }
 
-static enum c_abstract_http_error wininet_read_cb(void *user_data, void *buffer,
-                                                  size_t max_len,
-                                                  size_t *out_len) {
+NO_DISCARD static c_abstract_http_error_t wininet_read_cb(void *user_data,
+                                                          void *buffer,
+                                                          size_t max_len,
+                                                          size_t *out_len) {
   struct wininet_TestChunkState *state =
       (struct wininet_TestChunkState *)user_data;
   state->call_count++;
@@ -71,7 +77,7 @@ static enum c_abstract_http_error wininet_read_cb(void *user_data, void *buffer,
 
 /** @brief Test WinInet lifecycle */
 TEST test_wininet_lifecycle(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpTransportContext *ctx = NULL;
 
   /* Global init/cleanup */
@@ -119,7 +125,7 @@ TEST test_wininet_config_apply(void) {
   char *_ast_strdup_proxy2 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig config;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
 
   rc = http_wininet_context_init(&ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -224,7 +230,7 @@ TEST test_wininet_send_validation(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
 
   rc = http_wininet_context_init(&ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -316,7 +322,7 @@ TEST test_wininet_send_validation(void) {
 
 /** @brief Test WinInet methods and headers */
 TEST test_wininet_send_methods_and_headers(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -398,7 +404,7 @@ TEST test_wininet_send_methods_and_headers(void) {
 
 /** @brief Test WinInet cookies handling */
 TEST test_wininet_send_cookies(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -471,7 +477,7 @@ TEST test_wininet_send_cookies(void) {
 
 /** @brief Test WinInet chunked streaming response */
 TEST test_wininet_send_chunked(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -530,7 +536,7 @@ TEST test_wininet_send_chunked(void) {
 
 /** @brief Test WinInet chunked response abort */
 TEST test_wininet_send_chunked_abort(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -587,7 +593,7 @@ TEST test_wininet_send_chunked_abort(void) {
 
 /** @brief Test WinInet upload chunked */
 TEST test_wininet_send_upload_chunked(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -669,7 +675,7 @@ TEST test_wininet_send_upload_chunked(void) {
 #if !defined(_WIN32)
 /** @brief Test WinInet send mock failure branches */
 TEST test_wininet_send_mock_failures(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -845,7 +851,7 @@ TEST test_wininet_send_mock_failures(void) {
 
 /** @brief Test WinInet coverage branches */
 TEST test_wininet_coverage_branches(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -1353,13 +1359,17 @@ TEST test_wininet_protocol_user_agent_and_send_multi(void) {
         sres = NULL;
       }
 
-      g_mock_wininet_cookie_count = 1;
-      g_mock_alloc_count = 5;
-      g_mock_alloc_fail = 1;
-      (void)http_wininet_send(ctx, &r2, &sres);
-      g_mock_alloc_fail = 0;
-      g_mock_alloc_count = 0;
-      g_mock_wininet_cookie_count = 0;
+      {
+        c_abstract_http_error_t wrc;
+        g_mock_wininet_cookie_count = 1;
+        g_mock_alloc_count = 5;
+        g_mock_alloc_fail = 1;
+        wrc = http_wininet_send(ctx, &r2, &sres);
+        g_mock_alloc_fail = 0;
+        g_mock_alloc_count = 0;
+        g_mock_wininet_cookie_count = 0;
+        ASSERT((int)wrc >= -2000 && (int)wrc <= 2000);
+      }
       if (sres) {
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(sres));
         free(sres);
@@ -1370,7 +1380,7 @@ TEST test_wininet_protocol_user_agent_and_send_multi(void) {
     }
 
     for (k = 0; k < 20; ++k) {
-      enum c_abstract_http_error orc;
+      c_abstract_http_error_t orc;
       g_mock_wininet_read_chunks = 1;
       memset(&f1, 0, sizeof(f1));
       memset(&f2, 0, sizeof(f2));
@@ -1378,12 +1388,167 @@ TEST test_wininet_protocol_user_agent_and_send_multi(void) {
       g_mock_alloc_fail = 1;
       orc = http_wininet_send_multi(ctx, loop, &multi, futs);
       g_mock_alloc_fail = 0;
-      (void)orc;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
     }
     g_mock_alloc_count = 0;
     g_mock_wininet_read_chunks = 0;
+
+    {
+      struct HttpTransportContext *c2 = NULL;
+      struct HttpResponse *sres = NULL;
+      struct HttpCookieJar jar;
+      struct wininet_TestChunkState cb_st;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_wininet_slot_guard(0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_wininet_slot_guard(1));
+
+      g_mock_wininet_open_fail = 2;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_wininet_send_multi(ctx, loop, &multi, futs));
+      g_mock_wininet_open_fail = 0;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_init(&c2));
+      g_mock_config_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_wininet_context_free(c2));
+      g_mock_config_free_fail = 0;
+      c2 = NULL;
+
+      for (k = 0; k < 8; ++k) {
+        c_abstract_http_error_t arc;
+        g_mock_alloc_count = k;
+        g_mock_alloc_fail = 1;
+        arc = http_wininet_config_apply(ctx, &cfg);
+        g_mock_alloc_fail = 0;
+        ASSERT((int)arc >= -2000 && (int)arc <= 2000);
+      }
+      g_mock_alloc_count = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_config_apply(ctx, &cfg));
+
+      /* cookie malloc OOM + cookie_jar_set OOM */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+      cfg.cookie_jar = &jar;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_config_apply(ctx, &cfg));
+      for (k = 0; k < 15; ++k) {
+        c_abstract_http_error_t wrc;
+        sres = NULL;
+        g_mock_wininet_cookie_count = 1;
+        g_mock_alloc_count = k;
+        g_mock_alloc_fail = 1;
+        wrc = http_wininet_send(ctx, &r2, &sres);
+        g_mock_alloc_fail = 0;
+        g_mock_wininet_cookie_count = 0;
+        ASSERT((int)wrc >= -2000 && (int)wrc <= 2000);
+        if (sres) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(sres));
+          free(sres);
+        }
+      }
+      g_mock_alloc_count = 0;
+      cfg.cookie_jar = NULL;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_config_apply(ctx, &cfg));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
+
+      /* sync response_init fail via g_mock_headers_init_fail */
+      g_mock_headers_init_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_wininet_send(ctx, &r2, &sres));
+      g_mock_headers_init_fail = 0;
+
+      /* dual handle close failure */
+      {
+        c_abstract_http_error_t wrc;
+        g_mock_wininet_close_fail = -1;
+        wrc = http_wininet_send(ctx, &r2, &sres);
+        g_mock_wininet_close_fail = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, wrc);
+        if (sres) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(sres));
+          free(sres);
+          sres = NULL;
+        }
+        g_mock_wininet_close_fail = -1;
+        g_mock_wininet_send_request_fail = 1;
+        wrc = http_wininet_send(ctx, &r2, &sres);
+        g_mock_wininet_send_request_fail = 0;
+        g_mock_wininet_close_fail = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, wrc);
+      }
+
+      /* async wakeup fail + response_init fail + on_chunk fail */
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(3, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_wininet_send_multi(ctx, loop, &multi, futs));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      g_mock_headers_init_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_wininet_send_multi(ctx, loop, &multi, futs));
+      g_mock_headers_init_fail = 0;
+
+      memset(&cb_st, 0, sizeof(cb_st));
+      cb_st.abort_on_call = 1;
+      r1.on_chunk = wininet_chunk_cb;
+      r1.on_chunk_user_data = &cb_st;
+      g_mock_wininet_read_chunks = 2;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_wininet_send_multi(ctx, loop, &multi, futs));
+      g_mock_wininet_read_chunks = 0;
+      r1.on_chunk = NULL;
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+
+      /* async NULL url */
+      r1.url = NULL;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+                http_wininet_send_multi(ctx, loop, &multi, futs));
+      r1.url = u1;
+
+      /* async HttpSendRequestW sync return 1 (mode 2) & non-pending return 0
+       * (mode 3) */
+      g_mock_wininet_send_request_fail = 2;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_wininet_send_multi(ctx, loop, &multi, futs));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+
+      g_mock_wininet_send_request_fail = 3;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_wininet_send_multi(ctx, loop, &multi, futs));
+      g_mock_wininet_send_request_fail = 0;
+    }
   }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
@@ -1407,6 +1572,67 @@ TEST test_wininet_protocol_user_agent_and_send_multi(void) {
   PASS();
 }
 
+#if !defined(_WIN32)
+TEST test_wininet_utf8_and_async_timeouts(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpMultiRequest multi;
+  struct HttpFuture fut;
+  struct HttpFuture *futs[1];
+  struct HttpCookieJar jar;
+  const char utf8_hdr[] = "v-\xC3\xA9-\xE2\x82\xAC-\xF0\x9F\x98\x80-\xFF";
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+  cfg.cookie_jar = &jar;
+  cfg.connect_timeout_ms = 100;
+  cfg.write_timeout_ms = 200;
+  cfg.read_timeout_ms = 300;
+  cfg.version_mask = HTTP_VERSION_2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:8080/utf8", &req.url));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "X-Utf8", utf8_hdr));
+  g_mock_wininet_cookie_count = 99;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_send(ctx, &req, &res));
+  g_mock_wininet_cookie_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req));
+  futs[0] = &fut;
+  memset(&fut, 0, sizeof(fut));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_wininet_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut));
+
+  cfg.connect_timeout_ms = 0;
+  cfg.write_timeout_ms = 0;
+  cfg.read_timeout_ms = 0;
+  cfg.timeout_ms = 0;
+  cfg.version_mask = HTTP_VERSION_DEFAULT;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_config_apply(ctx, &cfg));
+  memset(&fut, 0, sizeof(fut));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_wininet_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wininet_context_free(ctx));
+  PASS();
+}
+#endif
+
 /** @brief WinInet test suite */
 SUITE(http_wininet_suite) {
   RUN_TEST(test_wininet_lifecycle);
@@ -1419,6 +1645,7 @@ SUITE(http_wininet_suite) {
   RUN_TEST(test_wininet_send_upload_chunked);
   RUN_TEST(test_wininet_protocol_user_agent_and_send_multi);
 #if !defined(_WIN32)
+  RUN_TEST(test_wininet_utf8_and_async_timeouts);
   RUN_TEST(test_wininet_send_mock_failures);
   RUN_TEST(test_wininet_coverage_branches);
 #endif

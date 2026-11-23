@@ -143,7 +143,7 @@ static HINTERNET InternetOpenW(const wchar_t *lpszAgent, DWORD dwAccessType,
   (void)dwAccessType;
   (void)lpszProxy;
   (void)lpszProxyBypass;
-  if (g_mock_wininet_open_fail) {
+  if (g_mock_wininet_open_fail == 1) {
     return NULL;
   }
   if (dwFlags & INTERNET_FLAG_ASYNC) {
@@ -157,6 +157,9 @@ InternetSetStatusCallbackW(HINTERNET hInternet,
                            INTERNET_STATUS_CALLBACK lpfnInternetCallback) {
   INTERNET_STATUS_CALLBACK prev = s_mock_wininet_status_cb;
   (void)hInternet;
+  if (g_mock_wininet_open_fail == 2 && lpfnInternetCallback != NULL) {
+    return INTERNET_INVALID_STATUS_CALLBACK;
+  }
   s_mock_wininet_status_cb = lpfnInternetCallback;
   return prev;
 }
@@ -165,6 +168,9 @@ static BOOL InternetCloseHandle(HINTERNET hInternet) {
   if (hInternet == (HINTERNET)(size_t)301) {
     s_mock_wininet_status_cb = NULL;
     s_mock_wininet_async_ctx = 0;
+  }
+  if (g_mock_wininet_close_fail < 0) {
+    return 0;
   }
   if (g_mock_wininet_close_fail > 0) {
     if (--g_mock_wininet_close_fail == 0) {
@@ -377,8 +383,18 @@ static BOOL HttpSendRequestW(HINTERNET hRequest, const wchar_t *lpszHeaders,
   if (hRequest == (HINTERNET)(size_t)303 && s_mock_wininet_status_cb &&
       s_mock_wininet_async_ctx != 0) {
     INTERNET_ASYNC_RESULT ar;
+    if (g_mock_wininet_send_request_fail == 2) {
+      return 1;
+    }
+    if (g_mock_wininet_send_request_fail == 3) {
+      SetLastError(12002);
+      return 0;
+    }
     ar.dwResult = g_mock_wininet_send_request_fail ? 0 : 1;
     ar.dwError = g_mock_wininet_send_request_fail ? 12002 : 0;
+    s_mock_wininet_status_cb(hRequest, 0, 0x99999999U, NULL, 0);
+    s_mock_wininet_status_cb(hRequest, s_mock_wininet_async_ctx, 0x99999999U,
+                             NULL, 0);
     SetLastError(ERROR_IO_PENDING);
     s_mock_wininet_status_cb(hRequest, s_mock_wininet_async_ctx,
                              INTERNET_STATUS_REQUEST_COMPLETE, &ar, sizeof(ar));
@@ -407,21 +423,36 @@ static BOOL HttpQueryInfoW(HINTERNET hRequest, DWORD dwInfoLevel,
     return 1;
   }
   if (g_mock_wininet_cookie_count > 0) {
+    wchar_t utf_cookie[8];
     const wchar_t cookie_val1[] = L"mock_cookie=456; path=/";
     const wchar_t cookie_val2[] = L"mock_cookie2=789";
-    const wchar_t *cookie_val =
-        (g_mock_wininet_cookie_count == 1) ? cookie_val2 : cookie_val1;
-    DWORD needed_bytes = (DWORD)((wcslen(cookie_val) + 1) * sizeof(wchar_t));
-    if (!lpBuffer) {
+    const wchar_t *cookie_val;
+    utf_cookie[0] = L'u';
+    utf_cookie[1] = L'=';
+    utf_cookie[2] = (wchar_t)0x00E9;
+    utf_cookie[3] = (wchar_t)0x20AC;
+    utf_cookie[4] = L'\0';
+    cookie_val =
+        (g_mock_wininet_cookie_count == 99)
+            ? utf_cookie
+            : ((g_mock_wininet_cookie_count == 1) ? cookie_val2 : cookie_val1);
+    {
+      DWORD needed_bytes = (DWORD)((wcslen(cookie_val) + 1) * sizeof(wchar_t));
+      if (!lpBuffer) {
+        *lpdwBufferLength = needed_bytes;
+        SetLastError(ERROR_INSUFFICIENT_BUFFER);
+        return 0;
+      }
+      memcpy(lpBuffer, cookie_val, needed_bytes);
       *lpdwBufferLength = needed_bytes;
-      SetLastError(ERROR_INSUFFICIENT_BUFFER);
-      return 0;
+      if (g_mock_wininet_cookie_count == 99) {
+        g_mock_wininet_cookie_count = 0;
+      } else {
+        g_mock_wininet_cookie_count--;
+      }
+      SetLastError(0);
+      return 1;
     }
-    memcpy(lpBuffer, cookie_val, needed_bytes);
-    *lpdwBufferLength = needed_bytes;
-    g_mock_wininet_cookie_count--;
-    SetLastError(0);
-    return 1;
   }
   SetLastError(0);
   return 0;

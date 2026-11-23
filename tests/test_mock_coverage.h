@@ -291,8 +291,8 @@ TEST test_mock_alloc_more(void) {
   PASS();
 }
 
-static enum c_abstract_http_error trigger_req_cb(void *arg) {
-  enum c_abstract_http_error rc;
+NO_DISCARD static c_abstract_http_error_t trigger_req_cb(void *arg) {
+  c_abstract_http_error_t rc;
   MockServerPtr srv = (MockServerPtr)arg;
 #if !defined(_WIN32)
   struct timespec ts;
@@ -766,7 +766,7 @@ TEST test_mock_server_coverage(void) {
 }
 
 TEST test_abstract_http_helpers_coverage(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   const char *tmp_filename;
   FILE *fh;
 
@@ -824,7 +824,7 @@ TEST test_abstract_http_helpers_coverage(void) {
 }
 
 TEST test_fuzz_harness_coverage(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   int out_rc;
 #if defined(C_ABSTRACT_HTTP_ENABLE_SSE)
   char *big_line = NULL;

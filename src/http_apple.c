@@ -16,6 +16,10 @@
 #include "c_abstract_http/log.h"
 
 #if defined(__APPLE__)
+#ifndef OBJC_OLD_DISPATCH_PROTOTYPES
+/** @brief Enforce non-variadic objc_msgSend declaration */
+#define OBJC_OLD_DISPATCH_PROTOTYPES 0
+#endif
 #include <AvailabilityMacros.h>
 #include <CFNetwork/CFNetwork.h>
 #include <CoreFoundation/CoreFoundation.h>
@@ -29,6 +33,13 @@
 /* clang-format on */
 
 #if defined(__APPLE__)
+
+/** @brief Generic function pointer to `objc_msgSend` for ISO C89 typed dispatch
+ */
+static void (*const cah_objc_msg_send)(void) = &objc_msgSend;
+#undef objc_msgSend
+/** @brief Redirect `objc_msgSend` casts through `cah_objc_msg_send` variable */
+#define objc_msgSend cah_objc_msg_send
 
 #if (defined(MAC_OS_X_VERSION_MIN_REQUIRED) &&                                 \
      MAC_OS_X_VERSION_MIN_REQUIRED >= 101100) ||                               \
@@ -54,6 +65,11 @@
 struct HttpTransportContext {
   struct HttpConfig config; /**< Active HTTP configuration */
   int use_nsurlsession;     /**< 1 for NSURLSession bridge, 0 for CFStream */
+#if C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM
+  pthread_mutex_t cf_worker_lock; /**< Synchronizes active_cf_workers */
+  pthread_cond_t cf_worker_cond;  /**< Signaled when CFStream workers exit */
+  int active_cf_workers;          /**< Count of running CFStream workers */
+#endif
 };
 
 /** @brief Worker context for Apple multi-request dispatch */
@@ -70,8 +86,8 @@ struct AppleMultiWorkerCtx {
  * @param out Output CFStringRef constant.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-static enum c_abstract_http_error apple_method_cfstr(enum HttpMethod method,
-                                                     CFStringRef *out) {
+NO_DISCARD static c_abstract_http_error_t
+apple_method_cfstr(enum HttpMethod method, CFStringRef *out) {
   switch ((int)method) {
   case HTTP_GET:
     *out = CFSTR("GET");
@@ -113,11 +129,11 @@ static enum c_abstract_http_error apple_method_cfstr(enum HttpMethod method,
  * @param orig_rc Primary error code to return if cleanup succeeds.
  * @return Cleanup error if cleanup failed, otherwise @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_cleanup_failed_res(struct HttpResponse **res,
-                         enum c_abstract_http_error orig_rc) {
+                         c_abstract_http_error_t orig_rc) {
   struct HttpResponse *tmp;
-  enum c_abstract_http_error free_rc;
+  c_abstract_http_error_t free_rc;
   if (!*res) {
     return orig_rc;
   }
@@ -152,7 +168,7 @@ struct AppleURLSessionBatch {
   int has_pipe;                       /**< Non-zero when pipe is on `loop` */
   int sync_wait;                      /**< Non-zero when caller awaits cv */
   int batch_done;                     /**< Non-zero once remaining == 0 */
-  enum c_abstract_http_error wake_rc; /**< Wakeup status recorded on finish */
+  c_abstract_http_error_t wake_rc;    /**< Wakeup status recorded on finish */
   pthread_mutex_t mtx;                /**< Batch synchronization mutex */
   pthread_cond_t cv;                  /**< Batch completion condition var */
 };
@@ -166,7 +182,7 @@ struct AppleURLSessionState {
   struct HttpFuture *async_future;    /**< Optional async future slot */
   struct AppleURLSessionBatch *batch; /**< Optional owning multi-batch */
   CFMutableDataRef body_data;         /**< Buffered response payload */
-  enum c_abstract_http_error error;   /**< Recorded transport/callback error */
+  c_abstract_http_error_t error;      /**< Recorded transport/callback error */
   int done;                           /**< Task completion flag */
   pthread_mutex_t mtx;                /**< Completion mutex */
   pthread_cond_t cv;                  /**< Completion condition variable */
@@ -178,10 +194,10 @@ struct AppleURLSessionState {
  * @param orig_rc Primary error enum.
  * @return Cleanup error if `http_headers_free` fails, otherwise `orig_rc`.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_fail_flat_req(struct HttpRequest *flat_req,
-                    enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error frc;
+                    c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t frc;
   free(flat_req->body);
   flat_req->body = NULL;
   frc = http_headers_free(&flat_req->headers);
@@ -199,11 +215,11 @@ apple_fail_flat_req(struct HttpRequest *flat_req,
  * @param out_eff Output pointer to effective request to transmit.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
  */
-static enum c_abstract_http_error apple_prepare_effective_request(
+NO_DISCARD static c_abstract_http_error_t apple_prepare_effective_request(
     const struct HttpRequest *req, struct HttpRequest *flat_req,
     int *out_flattened, const struct HttpRequest **out_eff) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   *out_flattened = 0;
   *out_eff = req;
@@ -243,7 +259,7 @@ static enum c_abstract_http_error apple_prepare_effective_request(
  * @param flattened Non-zero when `flat_req` owns flattened allocations.
  * @return C_ABSTRACT_HTTP_SUCCESS or cleanup error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
   if (!flattened) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -260,7 +276,7 @@ apple_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
  * @param out_hdr Output allocated header value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
   const char *pw = pass ? pass : "";
   size_t ulen = strlen(user);
@@ -269,7 +285,7 @@ apple_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
   char *b64 = NULL;
   size_t b64_len = 0;
   char *hdr;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   raw = (char *)malloc(ulen + 1U + plen + 1U);
   if (!raw) {
@@ -308,7 +324,7 @@ apple_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
  * @param scfg `NSURLSessionConfiguration` Objective-C object.
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_configure_session_only(const struct HttpConfig *cfg, id scfg) {
   long req_ms = cfg->read_timeout_ms > 0
                     ? cfg->read_timeout_ms
@@ -386,7 +402,7 @@ apple_configure_session_only(const struct HttpConfig *cfg, id scfg) {
  * @param nsreq `NSMutableURLRequest` Objective-C object.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_apply_nsurl_options(const struct HttpConfig *cfg, id nsreq) {
   long req_ms = cfg->read_timeout_ms > 0
                     ? cfg->read_timeout_ms
@@ -410,7 +426,7 @@ apple_apply_nsurl_options(const struct HttpConfig *cfg, id nsreq) {
   }
   if (cfg->proxy_username) {
     char *auth_val = NULL;
-    enum c_abstract_http_error arc;
+    c_abstract_http_error_t arc;
     arc = apple_build_proxy_auth(cfg->proxy_username, cfg->proxy_password,
                                  &auth_val);
     if (arc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -444,7 +460,7 @@ apple_apply_nsurl_options(const struct HttpConfig *cfg, id nsreq) {
  * @param out_headers Destination HttpHeaders collection.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 cah_copy_nshttp_headers(CFDictionaryRef hdrs, struct HttpHeaders *out_headers) {
   CFIndex count = CFDictionaryGetCount(hdrs);
   const void **keys;
@@ -471,7 +487,7 @@ cah_copy_nshttp_headers(CFDictionaryRef hdrs, struct HttpHeaders *out_headers) {
     CFStringGetCString((CFStringRef)vals[i], vbuf, (CFIndex)sizeof(vbuf),
                        kCFStringEncodingUTF8);
     {
-      enum c_abstract_http_error rc = http_headers_add(out_headers, kbuf, vbuf);
+      c_abstract_http_error_t rc = http_headers_add(out_headers, kbuf, vbuf);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         free((void *)keys);
         free((void *)vals);
@@ -491,13 +507,13 @@ cah_copy_nshttp_headers(CFDictionaryRef hdrs, struct HttpHeaders *out_headers) {
  * @param data Toll-free bridged CFDataRef chunk.
  * @return C_ABSTRACT_HTTP_SUCCESS or callback error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 cah_urlsession_handle_data(struct AppleURLSessionState *st, id data_task,
                            CFDataRef data) {
   CFIndex len = CFDataGetLength(data);
   const UInt8 *bytes = CFDataGetBytePtr(data);
   if (st->req->on_chunk) {
-    enum c_abstract_http_error cb_rc =
+    c_abstract_http_error_t cb_rc =
         st->req->on_chunk(st->req->on_chunk_user_data, bytes, (size_t)len);
     if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
       st->error = cb_rc;
@@ -513,7 +529,7 @@ cah_urlsession_handle_data(struct AppleURLSessionState *st, id data_task,
 /** @brief Dispatch an enum-returning helper inside a void Apple callback */
 #define APPLE_VOID_CB_DISPATCH(expr)                                           \
   do {                                                                         \
-    enum c_abstract_http_error _apple_rc = (expr);                             \
+    c_abstract_http_error_t _apple_rc = (expr);                                \
     if (_apple_rc != C_ABSTRACT_HTTP_SUCCESS) {                                \
       LOG_DEBUG("apple_cb: helper returned %d", (int)_apple_rc);               \
     }                                                                          \
@@ -546,9 +562,9 @@ static void cah_urlsession_did_receive_data(id self, SEL _cmd, id session,
  * @param orig_rc Status enum to return.
  * @return `orig_rc`.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_destroy_batch_and_return(struct AppleURLSessionBatch *batch,
-                               enum c_abstract_http_error orig_rc) {
+                               c_abstract_http_error_t orig_rc) {
   pthread_mutex_destroy(&batch->mtx);
   pthread_cond_destroy(&batch->cv);
   free(batch->tasks);
@@ -563,9 +579,9 @@ apple_destroy_batch_and_return(struct AppleURLSessionBatch *batch,
  * @param orig_rc Status enum to return.
  * @return `orig_rc`.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_publish_and_free_batch(struct AppleURLSessionBatch *batch,
-                             enum c_abstract_http_error orig_rc) {
+                             c_abstract_http_error_t orig_rc) {
   size_t k;
   for (k = 0; k < batch->count; ++k) {
     if (batch->tasks[k].async_future) {
@@ -586,20 +602,20 @@ apple_publish_and_free_batch(struct AppleURLSessionBatch *batch,
  * @param slot_rc Status of the final completed slot.
  * @return Wakeup error if non-zero, otherwise `slot_rc`.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_publish_and_finish_batch(struct AppleURLSessionBatch *batch, id session,
-                               int sync_wait,
-                               enum c_abstract_http_error slot_rc) {
+                               int sync_wait, c_abstract_http_error_t slot_rc) {
   size_t k;
   ((void (*)(id, SEL))objc_msgSend)(
       session, sel_registerName("finishTasksAndInvalidate"));
 
   if (batch->has_pipe) {
     char b = 'd';
-    ssize_t wr = write(batch->notify_pipe[1], &b, 1);
-    (void)wr;
+    ssize_t nw = write(batch->notify_pipe[1], &b, 1);
     close(batch->notify_pipe[1]);
-    return slot_rc;
+    return (nw < 0 && slot_rc == C_ABSTRACT_HTTP_SUCCESS)
+               ? C_ABSTRACT_HTTP_ERR_IO
+               : slot_rc;
   }
 
   for (k = 0; k < batch->count; ++k) {
@@ -610,7 +626,7 @@ apple_publish_and_finish_batch(struct AppleURLSessionBatch *batch, id session,
     }
   }
   if (batch->loop) {
-    enum c_abstract_http_error w_rc = http_loop_wakeup(batch->loop);
+    c_abstract_http_error_t w_rc = http_loop_wakeup(batch->loop);
     if (w_rc != C_ABSTRACT_HTTP_SUCCESS) {
       if (sync_wait) {
         pthread_mutex_lock(&batch->mtx);
@@ -639,10 +655,10 @@ apple_publish_and_finish_batch(struct AppleURLSessionBatch *batch, id session,
  * @param st Task state to finalize.
  * @return Final status enum for this task slot.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 cah_finalize_slot_payload(struct AppleURLSessionState *st) {
-  enum c_abstract_http_error rc = st->error;
-  enum c_abstract_http_error eff_rc;
+  c_abstract_http_error_t rc = st->error;
+  c_abstract_http_error_t eff_rc;
   int flat = st->flattened;
 
   if (rc == C_ABSTRACT_HTTP_SUCCESS && !st->req->on_chunk) {
@@ -699,10 +715,10 @@ static int math_decrement_batch_remaining(struct AppleURLSessionBatch *batch,
  * @param session Shared `NSURLSession` to invalidate when `remaining == 0`.
  * @return C_ABSTRACT_HTTP_SUCCESS or cleanup/wakeup error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 cah_urlsession_finish_batch_slot(struct AppleURLSessionState *st, id session) {
   struct AppleURLSessionBatch *batch = st->batch;
-  enum c_abstract_http_error slot_rc;
+  c_abstract_http_error_t slot_rc;
   int sync_wait = 0;
 
   slot_rc = cah_finalize_slot_payload(st);
@@ -730,10 +746,10 @@ cah_urlsession_finish_batch_slot(struct AppleURLSessionState *st, id session) {
  * @param error Optional NSError / CFErrorRef on failure, or NULL on success.
  * @return C_ABSTRACT_HTTP_SUCCESS or mapped error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 cah_urlsession_handle_complete(struct AppleURLSessionState *st, id session,
                                id task, CFErrorRef error) {
-  enum c_abstract_http_error rc = st->error;
+  c_abstract_http_error_t rc = st->error;
   if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     if (error) {
       CFIndex code = CFErrorGetCode(error);
@@ -791,7 +807,8 @@ static void cah_urlsession_did_complete(id self, SEL _cmd, id session, id task,
  * @brief Register the CAHURLSessionDelegate Objective-C class implementation.
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-static enum c_abstract_http_error cah_register_urlsession_delegate_impl(void) {
+NO_DISCARD static c_abstract_http_error_t
+cah_register_urlsession_delegate_impl(void) {
   Class sup = objc_getClass("NSObject");
   Class cls = objc_allocateClassPair(sup, "CAHURLSessionDelegate", 0);
   class_addMethod(cls, sel_registerName("URLSession:dataTask:didReceiveData:"),
@@ -821,7 +838,7 @@ static void cah_register_urlsession_delegate(void) {
  * @param out_task Output `NSURLSessionDataTask` Objective-C object.
  * @return C_ABSTRACT_HTTP_SUCCESS or validation/allocation error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_create_nsurlsession_task(const struct HttpConfig *cfg, id session,
                                const struct HttpRequest *eff_req,
                                struct AppleURLSessionState *st, id *out_task) {
@@ -832,7 +849,7 @@ apple_create_nsurlsession_task(const struct HttpConfig *cfg, id session,
   id nsreq;
   id task;
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = apple_method_cfstr(eff_req->method, &method_cf);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -870,7 +887,7 @@ apple_create_nsurlsession_task(const struct HttpConfig *cfg, id session,
     for (;;) {
       UInt8 chunk_buf[8192];
       size_t out_read = 0;
-      enum c_abstract_http_error cb_rc =
+      c_abstract_http_error_t cb_rc =
           eff_req->read_chunk(eff_req->read_chunk_user_data, chunk_buf,
                               sizeof(chunk_buf), &out_read);
       if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -948,7 +965,7 @@ apple_create_nsurlsession_task(const struct HttpConfig *cfg, id session,
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 http_apple_nsurlsession_send(struct HttpTransportContext *ctx,
                              const struct HttpRequest *req,
                              struct HttpResponse **res) {
@@ -960,7 +977,7 @@ http_apple_nsurlsession_send(struct HttpTransportContext *ctx,
   id scfg;
   id session;
   id task = (id)0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   memset(&st, 0, sizeof(st));
   st.mtx = init_mtx;
@@ -981,6 +998,10 @@ http_apple_nsurlsession_send(struct HttpTransportContext *ctx,
       sel_registerName("ephemeralSessionConfiguration"));
   rc = apple_configure_session_only(&ctx->config, scfg);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    ((void (*)(id, SEL))objc_msgSend)(del, sel_registerName("release"));
+    ((void (*)(id, SEL))objc_msgSend)(pool, sel_registerName("drain"));
+    pthread_mutex_destroy(&st.mtx);
+    pthread_cond_destroy(&st.cv);
     return rc;
   }
   session = ((id(*)(Class, SEL, id, id, id))objc_msgSend)(
@@ -1029,12 +1050,12 @@ http_apple_nsurlsession_send(struct HttpTransportContext *ctx,
  * @param user_data Pointer to `struct AppleURLSessionBatch`.
  * @return C_ABSTRACT_HTTP_SUCCESS or `http_loop_remove_fd` error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_multi_pipe_cb(struct ModalityEventLoop *loop, int fd, int revents,
                     void *user_data) {
   struct AppleURLSessionBatch *batch = (struct AppleURLSessionBatch *)user_data;
   char drain[16];
-  enum c_abstract_http_error rm_rc;
+  c_abstract_http_error_t rm_rc;
   (void)revents;
   while (read(fd, drain, sizeof(drain)) > 0) {
   }
@@ -1059,11 +1080,11 @@ extern int g_mock_pthread_create_sync;
  * @param loop Optional `ModalityEventLoop`.
  * @return C_ABSTRACT_HTTP_SUCCESS or `add_fd` error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_try_attach_batch_pipe(struct AppleURLSessionBatch *batch,
                             struct ModalityEventLoop *loop) {
   if (loop && !batch->sync_wait && pipe(batch->notify_pipe) == 0) {
-    enum c_abstract_http_error add_rc;
+    c_abstract_http_error_t add_rc;
     fcntl(batch->notify_pipe[0], F_SETFL, O_NONBLOCK);
     fcntl(batch->notify_pipe[1], F_SETFL, O_NONBLOCK);
     add_rc = http_loop_add_fd(loop, batch->notify_pipe[0], HTTP_LOOP_READ,
@@ -1091,12 +1112,12 @@ apple_try_attach_batch_pipe(struct AppleURLSessionBatch *batch,
  * @param fail_fast Non-zero to return per-slot error immediately.
  * @return C_ABSTRACT_HTTP_SUCCESS or cleanup/slot error enum.
  */
-static enum c_abstract_http_error apple_prepare_batch_slot(
+NO_DISCARD static c_abstract_http_error_t apple_prepare_batch_slot(
     const struct HttpConfig *cfg, id session,
     const struct HttpRequest *orig_req, struct AppleURLSessionState *st,
     struct HttpFuture *future, id *out_task, int fail_fast) {
   const struct HttpRequest *eff_req = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   *out_task = (id)0;
   if (!orig_req) {
@@ -1117,7 +1138,7 @@ static enum c_abstract_http_error apple_prepare_batch_slot(
 
   rc = apple_create_nsurlsession_task(cfg, session, eff_req, st, out_task);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error cl_rc;
+    c_abstract_http_error_t cl_rc;
     int flat = st->flattened;
     st->flattened = 0;
     cl_rc = apple_cleanup_effective_request(&st->flat_req, flat);
@@ -1147,10 +1168,9 @@ static enum c_abstract_http_error apple_prepare_batch_slot(
  * @param orig_rc Primary status enum to return if cleanup succeeds.
  * @return Cleanup error if pipe removal/wakeup fails, otherwise `orig_rc`.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_abort_empty_batch(struct AppleURLSessionBatch *batch, id session, id pool,
-                        id *tasks_to_resume,
-                        enum c_abstract_http_error orig_rc) {
+                        id *tasks_to_resume, c_abstract_http_error_t orig_rc) {
   struct ModalityEventLoop *loop = batch->loop;
   if (session) {
     ((void (*)(id, SEL))objc_msgSend)(session,
@@ -1161,7 +1181,7 @@ apple_abort_empty_batch(struct AppleURLSessionBatch *batch, id session, id pool,
   if (batch->has_pipe) {
     int rfd = batch->notify_pipe[0];
     int wfd = batch->notify_pipe[1];
-    enum c_abstract_http_error rm_rc;
+    c_abstract_http_error_t rm_rc;
     batch->has_pipe = 0;
     rm_rc = http_loop_remove_fd(loop, rfd);
     if (rm_rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1173,7 +1193,7 @@ apple_abort_empty_batch(struct AppleURLSessionBatch *batch, id session, id pool,
     close(wfd);
   }
   if (loop && orig_rc == C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error wk_rc = http_loop_wakeup(loop);
+    c_abstract_http_error_t wk_rc = http_loop_wakeup(loop);
     if (wk_rc != C_ABSTRACT_HTTP_SUCCESS) {
       return apple_destroy_batch_and_return(batch, wk_rc);
     }
@@ -1190,7 +1210,7 @@ apple_abort_empty_batch(struct AppleURLSessionBatch *batch, id session, id pool,
  * @param futures Array of `HttpFuture` pointers.
  * @return C_ABSTRACT_HTTP_SUCCESS or allocation/I/O error enum.
  */
-static enum c_abstract_http_error apple_nsurlsession_send_multi_async(
+NO_DISCARD static c_abstract_http_error_t apple_nsurlsession_send_multi_async(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   struct AppleURLSessionBatch *batch;
@@ -1204,7 +1224,7 @@ static enum c_abstract_http_error apple_nsurlsession_send_multi_async(
   size_t launched = 0;
   size_t i;
   int sync_wait = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_pthread_fail) {
@@ -1264,7 +1284,8 @@ static enum c_abstract_http_error apple_nsurlsession_send_multi_async(
       sel_registerName("ephemeralSessionConfiguration"));
   rc = apple_configure_session_only(&ctx->config, scfg);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return rc;
+    ((void (*)(id, SEL))objc_msgSend)(del, sel_registerName("release"));
+    return apple_abort_empty_batch(batch, (id)0, pool, tasks_to_resume, rc);
   }
   session = ((id(*)(Class, SEL, id, id, id))objc_msgSend)(
       objc_getClass("NSURLSession"),
@@ -1321,13 +1342,13 @@ static enum c_abstract_http_error apple_nsurlsession_send_multi_async(
 
 /** @brief Internal Apple CFStream request state */
 struct AppleReqState {
-  const struct HttpRequest *req;    /**< Request pointer */
-  struct HttpResponse **res;        /**< Response output pointer */
-  CFMutableDataRef bodyData;        /**< Response body buffer */
-  enum c_abstract_http_error error; /**< Error code */
-  int done;                         /**< Completion flag */
-  CFRunLoopRef runloop;             /**< CFRunLoop reference */
-  int *pending_count;               /**< Pending request counter */
+  const struct HttpRequest *req; /**< Request pointer */
+  struct HttpResponse **res;     /**< Response output pointer */
+  CFMutableDataRef bodyData;     /**< Response body buffer */
+  c_abstract_http_error_t error; /**< Error code */
+  int done;                      /**< Completion flag */
+  CFRunLoopRef runloop;          /**< CFRunLoop reference */
+  int *pending_count;            /**< Pending request counter */
 };
 
 /**
@@ -1336,7 +1357,7 @@ struct AppleReqState {
  * @param readStream Completed CFReadStreamRef.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_extract_response(struct AppleReqState *state,
                        CFReadStreamRef readStream) {
   CFHTTPMessageRef responseRef;
@@ -1385,10 +1406,10 @@ apple_extract_response(struct AppleReqState *state,
  * @param bytesRead Number of bytes read.
  * @return C_ABSTRACT_HTTP_SUCCESS or callback error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_stream_handle_chunk(struct AppleReqState *state, const UInt8 *buf,
                           CFIndex bytesRead) {
-  enum c_abstract_http_error cb_rc = state->req->on_chunk(
+  c_abstract_http_error_t cb_rc = state->req->on_chunk(
       state->req->on_chunk_user_data, buf, (size_t)bytesRead);
   if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
     state->error = cb_rc;
@@ -1489,7 +1510,7 @@ static void apple_stream_cb(CFReadStreamRef stream, CFStreamEventType type,
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 http_apple_cfstream_send(struct HttpTransportContext *ctx,
                          const struct HttpRequest *req,
                          struct HttpResponse **res) {
@@ -1499,7 +1520,7 @@ http_apple_cfstream_send(struct HttpTransportContext *ctx,
   CFHTTPMessageRef requestRef;
   CFReadStreamRef readStream;
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = apple_method_cfstr(req->method, &method);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1595,7 +1616,7 @@ http_apple_cfstream_send(struct HttpTransportContext *ctx,
     }
 
     for (;;) {
-      enum c_abstract_http_error cb_rc;
+      c_abstract_http_error_t cb_rc;
       UInt8 chunkBuf[8192];
       size_t out_read = 0;
       cb_rc = req->read_chunk(req->read_chunk_user_data, chunkBuf,
@@ -1663,7 +1684,7 @@ http_apple_cfstream_send(struct HttpTransportContext *ctx,
   {
     struct AppleReqState state;
     CFStreamClientContext clientContext;
-    enum c_abstract_http_error ext_rc;
+    c_abstract_http_error_t ext_rc;
     memset(&clientContext, 0, sizeof(clientContext));
     memset(&state, 0, sizeof(state));
     state.req = req;
@@ -1773,9 +1794,9 @@ http_apple_cfstream_send(struct HttpTransportContext *ctx,
  * @param stream Completed CFReadStreamRef.
  * @return C_ABSTRACT_HTTP_SUCCESS or extraction error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_multi_extract_into(struct AppleReqState *st, CFReadStreamRef stream) {
-  enum c_abstract_http_error ext_rc = apple_extract_response(st, stream);
+  c_abstract_http_error_t ext_rc = apple_extract_response(st, stream);
   if (ext_rc != C_ABSTRACT_HTTP_SUCCESS) {
     st->error = ext_rc;
     return ext_rc;
@@ -1788,7 +1809,7 @@ apple_multi_extract_into(struct AppleReqState *st, CFReadStreamRef stream) {
  * @param wctx Worker context (freed before returning).
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_cfstream_multi_worker_impl(struct AppleMultiWorkerCtx *wctx) {
   size_t i;
   int pending;
@@ -1817,7 +1838,7 @@ apple_cfstream_multi_worker_impl(struct AppleMultiWorkerCtx *wctx) {
     CFStringRef method = NULL;
     CFHTTPMessageRef requestRef;
     CFStreamClientContext clientContext;
-    enum c_abstract_http_error m_rc;
+    c_abstract_http_error_t m_rc;
 
     if (!res) {
       states[i].error = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -1980,8 +2001,8 @@ apple_cfstream_multi_worker_impl(struct AppleMultiWorkerCtx *wctx) {
   }
 
   {
-    enum c_abstract_http_error ext_rc = C_ABSTRACT_HTTP_SUCCESS;
-    enum c_abstract_http_error batch_ext_rc = C_ABSTRACT_HTTP_SUCCESS;
+    c_abstract_http_error_t ext_rc = C_ABSTRACT_HTTP_SUCCESS;
+    c_abstract_http_error_t batch_ext_rc = C_ABSTRACT_HTTP_SUCCESS;
     for (i = 0; i < wctx->multi->count; ++i) {
       if (streams[i]) {
         CFReadStreamClose(streams[i]);
@@ -2004,7 +2025,7 @@ apple_cfstream_multi_worker_impl(struct AppleMultiWorkerCtx *wctx) {
     }
 
     if (wctx->loop) {
-      enum c_abstract_http_error wake_rc = http_loop_wakeup(wctx->loop);
+      c_abstract_http_error_t wake_rc = http_loop_wakeup(wctx->loop);
       if (wake_rc != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG("http_loop_wakeup failed in apple_multi_worker");
         free(states);
@@ -2031,15 +2052,15 @@ apple_cfstream_multi_worker_impl(struct AppleMultiWorkerCtx *wctx) {
 /* Public Apple Transport Interface                                           */
 /* ========================================================================== */
 
-enum c_abstract_http_error http_apple_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_apple_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error http_apple_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_apple_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_apple_context_init(struct HttpTransportContext **ctx) {
   LOG_DEBUG("http_apple_context_init: Entering");
   if (!ctx) {
@@ -2055,7 +2076,7 @@ http_apple_context_init(struct HttpTransportContext **ctx) {
   }
 
   {
-    enum c_abstract_http_error rc = http_config_init(&(*ctx)->config);
+    c_abstract_http_error_t rc = http_config_init(&(*ctx)->config);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       free(*ctx);
       *ctx = NULL;
@@ -2063,15 +2084,30 @@ http_apple_context_init(struct HttpTransportContext **ctx) {
     }
   }
   (*ctx)->use_nsurlsession = C_ABSTRACT_HTTP_APPLE_DEFAULT_NSURLSESSION;
+#if C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM
+  pthread_mutex_init(&(*ctx)->cf_worker_lock, NULL);
+  pthread_cond_init(&(*ctx)->cf_worker_cond, NULL);
+  (*ctx)->active_cf_workers = 0;
+#endif
 
   LOG_DEBUG("http_apple_context_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_apple_context_free(struct HttpTransportContext *ctx) {
   if (ctx) {
-    enum c_abstract_http_error rch = http_config_free(&ctx->config);
+    c_abstract_http_error_t rch;
+#if C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM
+    pthread_mutex_lock(&ctx->cf_worker_lock);
+    while (ctx->active_cf_workers > 0) {
+      pthread_cond_wait(&ctx->cf_worker_cond, &ctx->cf_worker_lock);
+    }
+    pthread_mutex_unlock(&ctx->cf_worker_lock);
+    pthread_cond_destroy(&ctx->cf_worker_cond);
+    pthread_mutex_destroy(&ctx->cf_worker_lock);
+#endif
+    rch = http_config_free(&ctx->config);
     if (rch != C_ABSTRACT_HTTP_SUCCESS)
       return rch;
     free(ctx);
@@ -2085,8 +2121,8 @@ http_apple_context_free(struct HttpTransportContext *ctx) {
  * @param src Optional source string to duplicate.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error apple_replace_str(char **dst,
-                                                    const char *src) {
+NO_DISCARD static c_abstract_http_error_t apple_replace_str(char **dst,
+                                                            const char *src) {
   free(*dst);
   *dst = NULL;
   if (!src) {
@@ -2095,10 +2131,9 @@ static enum c_abstract_http_error apple_replace_str(char **dst,
   return c_abstract_http_strdup(src, dst);
 }
 
-enum c_abstract_http_error
-http_apple_config_apply(struct HttpTransportContext *ctx,
-                        const struct HttpConfig *config) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t http_apple_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
   LOG_DEBUG("http_apple_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_apple_config_apply: Error EINVAL");
@@ -2138,7 +2173,7 @@ http_apple_config_apply(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_apple_set_use_nsurlsession(struct HttpTransportContext *ctx, int enabled) {
   if (!ctx) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -2160,11 +2195,10 @@ http_apple_set_use_nsurlsession(struct HttpTransportContext *ctx, int enabled) {
  * @param orig_rc Primary send result.
  * @return Final status enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 apple_finish_send(struct HttpRequest *flat_req, int flattened,
-                  struct HttpResponse **res,
-                  enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error cl_rc;
+                  struct HttpResponse **res, c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t cl_rc;
   cl_rc = apple_cleanup_effective_request(flat_req, flattened);
   if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
     return apple_cleanup_failed_res(res, cl_rc);
@@ -2172,13 +2206,13 @@ apple_finish_send(struct HttpRequest *flat_req, int flattened,
   return orig_rc;
 }
 
-enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
-                                           const struct HttpRequest *req,
-                                           struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_apple_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+                struct HttpResponse **res) {
   struct HttpRequest flat_req;
   const struct HttpRequest *eff_req = NULL;
   int flattened = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   LOG_DEBUG("http_apple_send: Entering");
   if (!ctx || !req || !res) {
@@ -2215,7 +2249,14 @@ enum c_abstract_http_error http_apple_send(struct HttpTransportContext *ctx,
  */
 static void *apple_multi_worker(void *arg) {
   struct AppleMultiWorkerCtx *wctx = (struct AppleMultiWorkerCtx *)arg;
-  enum c_abstract_http_error rc = apple_cfstream_multi_worker_impl(wctx);
+  struct HttpTransportContext *parent_ctx = wctx->ctx;
+  c_abstract_http_error_t rc = apple_cfstream_multi_worker_impl(wctx);
+  pthread_mutex_lock(&parent_ctx->cf_worker_lock);
+  parent_ctx->active_cf_workers--;
+  if (parent_ctx->active_cf_workers == 0) {
+    pthread_cond_broadcast(&parent_ctx->cf_worker_cond);
+  }
+  pthread_mutex_unlock(&parent_ctx->cf_worker_lock);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("apple_multi_worker: completed with %d", (int)rc);
     return (void *)((size_t)(int)rc * 0);
@@ -2235,7 +2276,7 @@ static void *apple_multi_worker(void *arg) {
 #endif
 #endif /* C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM */
 
-enum c_abstract_http_error http_apple_send_multi(
+NO_DISCARD c_abstract_http_error_t http_apple_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   LOG_DEBUG("http_apple_send_multi: Entering");
@@ -2262,8 +2303,15 @@ enum c_abstract_http_error http_apple_send_multi(
     wctx->multi = multi;
     wctx->futures = futures;
 
+    pthread_mutex_lock(&ctx->cf_worker_lock);
+    ctx->active_cf_workers++;
+    pthread_mutex_unlock(&ctx->cf_worker_lock);
+
     if (PTHREAD_CREATE_APPLE(&thread, NULL, apple_multi_worker, wctx) != 0) {
       LOG_DEBUG("http_apple_send_multi: Error pthread_create failed");
+      pthread_mutex_lock(&ctx->cf_worker_lock);
+      ctx->active_cf_workers--;
+      pthread_mutex_unlock(&ctx->cf_worker_lock);
       free(wctx);
       return C_ABSTRACT_HTTP_ERR_IO;
     }

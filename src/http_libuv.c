@@ -84,7 +84,7 @@ static int libuv_global_init_count = 0;
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error http_libuv_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_libuv_global_init(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libuv_global_init_fail) {
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -99,7 +99,7 @@ enum c_abstract_http_error http_libuv_global_init(void) {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error http_libuv_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_libuv_global_cleanup(void) {
   if (libuv_global_init_count > 0) {
     libuv_global_init_count--;
   }
@@ -107,9 +107,9 @@ enum c_abstract_http_error http_libuv_global_cleanup(void) {
 }
 
 /* Create a new libuv-backed transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_libuv_context_init(struct HttpTransportContext **ctx) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   LOG_DEBUG("http_libuv_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_libuv_context_init: Error EINVAL");
@@ -151,9 +151,9 @@ http_libuv_context_init(struct HttpTransportContext **ctx) {
 }
 
 /* Free the transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_libuv_context_free(struct HttpTransportContext *ctx) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   LOG_DEBUG("http_libuv_context_free: Entering");
   if (ctx) {
     rc = http_config_free(&ctx->config);
@@ -168,10 +168,9 @@ http_libuv_context_free(struct HttpTransportContext *ctx) {
 }
 
 /* Apply configuration to the transport context. */
-enum c_abstract_http_error
-http_libuv_config_apply(struct HttpTransportContext *ctx,
-                        const struct HttpConfig *config) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t http_libuv_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
   LOG_DEBUG("http_libuv_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_libuv_config_apply: Error EINVAL");
@@ -313,8 +312,8 @@ http_libuv_config_apply(struct HttpTransportContext *ctx,
  * @param[out] out_str Pointer to receive string constant.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-static enum c_abstract_http_error get_method_str(enum HttpMethod method,
-                                                 const char **out_str) {
+NO_DISCARD static c_abstract_http_error_t get_method_str(enum HttpMethod method,
+                                                         const char **out_str) {
   if (!out_str) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -357,11 +356,10 @@ static enum c_abstract_http_error get_method_str(enum HttpMethod method,
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /** @brief Expose get_method_str for testing */
-enum c_abstract_http_error
-c_abstract_http_test_libuv_method_str(enum HttpMethod method,
-                                      const char **out_str);
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libuv_method_str(
+    enum HttpMethod method, const char **out_str);
 /** @brief Expose libuv helpers for testing */
-enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void);
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libuv_helpers(void);
 
 /**
  * @brief Expose get_method_str for testing.
@@ -370,9 +368,8 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void);
  * @param[out] out_str Output string.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
-c_abstract_http_test_libuv_method_str(enum HttpMethod method,
-                                      const char **out_str) {
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libuv_method_str(
+    enum HttpMethod method, const char **out_str) {
   return get_method_str(method, out_str);
 }
 #endif
@@ -447,11 +444,11 @@ static void libuv_on_close(uv_handle_t *handle) {
 
 /**
  * @brief Execute an enum-returning helper inside a void libuv callback.
- * @param expr Expression returning enum c_abstract_http_error.
+ * @param expr Expression returning c_abstract_http_error_t.
  */
 #define LIBUV_VOID_CB_DISPATCH(expr)                                           \
   do {                                                                         \
-    enum c_abstract_http_error _uv_rc = (expr);                                \
+    c_abstract_http_error_t _uv_rc = (expr);                                   \
     if (_uv_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
       LOG_DEBUG("libuv_cb: impl returned %d", (int)_uv_rc);                    \
     }                                                                          \
@@ -464,8 +461,8 @@ static void libuv_on_close(uv_handle_t *handle) {
  * @param[in] error Error code.
  * @return Error enum matching error.
  */
-static enum c_abstract_http_error
-libuv_finish(struct libuv_state *state, enum c_abstract_http_error error) {
+NO_DISCARD static c_abstract_http_error_t
+libuv_finish(struct libuv_state *state, c_abstract_http_error_t error) {
   if (state->done) {
     return error;
   }
@@ -557,11 +554,12 @@ static void libuv_alloc_cb(uv_handle_t *handle, size_t suggested_size,
  * @param[in,out] state State pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
+NO_DISCARD static c_abstract_http_error_t
+parse_headers(struct libuv_state *state) {
   struct HttpResponse *r;
   char *p;
   const char *end;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!state) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -629,7 +627,7 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
     colon = strchr(p, ':');
     if (colon) {
       char *val = colon + 1;
-      enum c_abstract_http_error add_rc;
+      c_abstract_http_error_t add_rc;
       *colon = '\0';
       while (*val == ' ' || *val == '\t') {
         val++;
@@ -667,7 +665,7 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
 
     if (state->req->on_chunk) {
       if (body_len > 0) {
-        enum c_abstract_http_error chunk_rc;
+        c_abstract_http_error_t chunk_rc;
         chunk_rc = state->req->on_chunk(state->req->on_chunk_user_data,
                                         state->res_buf + hdr_len, body_len);
         if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -702,8 +700,8 @@ static enum c_abstract_http_error parse_headers(struct libuv_state *state) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-static enum c_abstract_http_error parse_url(const char *url, char **host,
-                                            int *port, char **path);
+NO_DISCARD static c_abstract_http_error_t
+parse_url(const char *url, char **host, int *port, char **path);
 /**
  * @brief libuv stream read completion callback.
  * @param stream Active uv_stream_t handle.
@@ -727,7 +725,7 @@ static int uv_run(uv_loop_t *loop, int mode);
  * @param[in] chunk_len Chunk byte length.
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_helper_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   if (user_data || chunk || chunk_len) {
   }
@@ -741,19 +739,86 @@ test_helper_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
  * @param[in] chunk_len Chunk byte length.
  * @return Error enum simulating cancellation.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_helper_chunk_cb_err(void *user_data, const void *chunk, size_t chunk_len) {
   if (user_data || chunk || chunk_len) {
   }
-  return (enum c_abstract_http_error)ECANCELED;
+  return (c_abstract_http_error_t)ECANCELED;
+}
+
+/** @brief Step selector for `c_abstract_http_test_libuv_helpers` */
+static int g_mock_libuv_helper_step = 0;
+
+/**
+ * @brief Set test helper step mode for `c_abstract_http_test_libuv_helpers`.
+ * @param step Step selector (`0` = default suite, `1..10` = targeted checks).
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_set_libuv_helper_step(int step);
+
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_set_libuv_helper_step(int step) {
+  g_mock_libuv_helper_step = step;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD static c_abstract_http_error_t
+uv_resolve_redirect_url(const char *cur_url, const char *loc, char **out_url);
+
+/**
+ * @brief Free optional response and scratch buffer at end of a helper case.
+ * @param test_res Response pointer or NULL.
+ * @param buf Heap buffer or NULL.
+ * @param primary_rc Primary status to return when cleanup succeeds.
+ * @return Cleanup error or `primary_rc`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_helper_free_res_buf(struct HttpResponse *test_res, char *buf,
+                       c_abstract_http_error_t primary_rc) {
+  free(buf);
+  if (test_res) {
+    c_abstract_http_error_t frc = http_response_free(test_res);
+    free(test_res);
+    if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+      return frc;
+    }
+  }
+  return primary_rc;
+}
+
+/**
+ * @brief Free response via double pointer and percolate primary error.
+ * @param res_ptr Address of response pointer to free and zero.
+ * @param primary_rc Status to percolate.
+ * @return Cleanup error or `primary_rc`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_helper_free_res_ptr(struct HttpResponse **res_ptr,
+                       c_abstract_http_error_t primary_rc) {
+  struct HttpResponse *r = *res_ptr;
+  *res_ptr = NULL;
+  return uv_helper_free_res_buf(r, NULL, primary_rc);
+}
+
+/**
+ * @brief Reset an integer fault-injection flag and return status.
+ * @param flag Pointer to integer flag to zero.
+ * @param rc Status to percolate.
+ * @return `rc`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_helper_reset_ret(int *flag, c_abstract_http_error_t rc) {
+  *flag = 0;
+  return rc;
 }
 
 /**
  * @brief Test libuv helper functions and edge cases.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libuv_helpers(void) {
+  c_abstract_http_error_t rc;
   uv_timer_t timer;
   struct libuv_state state;
   struct HttpRequest req;
@@ -762,100 +827,156 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
   int p = 0;
   char *path = NULL;
 
+  if (g_mock_libuv_helper_step == 1) {
+    return parse_url(NULL, &h, &p, &path);
+  }
+  if (g_mock_libuv_helper_step == 2) {
+    return parse_url("http://127.0.0.1", NULL, &p, &path);
+  }
+  if (g_mock_libuv_helper_step == 3) {
+    return parse_url("http://127.0.0.1", &h, NULL, &path);
+  }
+  if (g_mock_libuv_helper_step == 4) {
+    return parse_url("http://127.0.0.1", &h, &p, NULL);
+  }
+  if (g_mock_libuv_helper_step == 5) {
+    return parse_headers(NULL);
+  }
+  if (g_mock_libuv_helper_step == 6) {
+    g_mock_libuv_req_buf_alloc_fail = 3;
+    return uv_helper_reset_ret(
+        &g_mock_libuv_req_buf_alloc_fail,
+        parse_url("http://127.0.0.1/path", &h, &p, &path));
+  }
+  if (g_mock_libuv_helper_step == 7) {
+    g_mock_libuv_req_buf_alloc_fail = 4;
+    return uv_helper_reset_ret(&g_mock_libuv_req_buf_alloc_fail,
+                               parse_url("http://127.0.0.1", &h, &p, &path));
+  }
+  if (g_mock_libuv_helper_step == 8) {
+    return uv_resolve_redirect_url(NULL, "/rel", &h);
+  }
+  if (g_mock_libuv_helper_step == 9) {
+    char buf1[] = "HTTP/1.1 200 OK";
+    memset(&state, 0, sizeof(state));
+    memset(&req, 0, sizeof(req));
+    state.req = &req;
+    state.res_buf = buf1;
+    state.res_len = strlen(buf1);
+    state.res = &test_res;
+    return parse_headers(&state);
+  }
+  if (g_mock_libuv_helper_step == 10) {
+    memset(&state, 0, sizeof(state));
+    state.headers_parsed = 1;
+    return parse_headers(&state);
+  }
+  if (g_mock_libuv_helper_step == 11) {
+    memset(&state, 0, sizeof(state));
+    return parse_headers(&state);
+  }
+  if (g_mock_libuv_helper_step == 12) {
+    memset(&state, 0, sizeof(state));
+    return libuv_finish(&state, C_ABSTRACT_HTTP_SUCCESS);
+  }
+  if (g_mock_libuv_helper_step == 13) {
+    memset(&state, 0, sizeof(state));
+    state.done = 1;
+    return libuv_finish(&state, C_ABSTRACT_HTTP_SUCCESS);
+  }
+  if (g_mock_libuv_helper_step == 14) {
+    char buf4[] = "HTTP/1.1 200 OK\r\n\r\nCHUNK_DATA";
+    memset(&state, 0, sizeof(state));
+    memset(&req, 0, sizeof(req));
+    req.on_chunk = test_helper_chunk_cb_err;
+    state.req = &req;
+    state.res_buf = buf4;
+    state.res_len = strlen(buf4);
+    test_res = NULL;
+    state.res = &test_res;
+    return uv_helper_free_res_ptr(&test_res, parse_headers(&state));
+  }
+  if (g_mock_libuv_helper_step == 15) {
+    char buf5[] = "HTTP/1.1 200 OK\r\n\r\nBODY_DATA";
+    memset(&state, 0, sizeof(state));
+    memset(&req, 0, sizeof(req));
+    state.req = &req;
+    state.res_buf = buf5;
+    state.res_len = strlen(buf5);
+    test_res = NULL;
+    state.res = &test_res;
+    g_mock_libuv_body_alloc_fail = 1;
+    return uv_helper_free_res_ptr(
+        &test_res, uv_helper_reset_ret(&g_mock_libuv_body_alloc_fail,
+                                       parse_headers(&state)));
+  }
+  if (g_mock_libuv_helper_step == 16) {
+    char buf6[] = "HTTP/1.1 200 OK\r\nKey: Val\r\nKey2: Val2\r\n\r\n";
+    memset(&state, 0, sizeof(state));
+    memset(&req, 0, sizeof(req));
+    state.req = &req;
+    state.res_buf = buf6;
+    state.res_len = strlen(buf6);
+    test_res = NULL;
+    state.res = &test_res;
+    g_mock_libuv_headers_realloc_fail = 1;
+    return uv_helper_free_res_ptr(
+        &test_res, uv_helper_reset_ret(&g_mock_libuv_headers_realloc_fail,
+                                       parse_headers(&state)));
+  }
+
   memset(&timer, 0, sizeof(timer));
   memset(&state, 0, sizeof(state));
   rc = http_request_init(&req);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
+  }
 
   timer.data = &state;
   libuv_on_timeout(&timer);
-
   libuv_on_close(NULL);
   uv_loop_close(NULL);
-  rc = parse_url(NULL, &h, &p, &path);
-  if (rc != C_ABSTRACT_HTTP_ERR_INVAL)
-    return rc;
-  rc = parse_url("http://127.0.0.1", NULL, &p, &path);
-  if (rc != C_ABSTRACT_HTTP_ERR_INVAL)
-    return rc;
-  rc = parse_url("http://127.0.0.1", &h, NULL, &path);
-  if (rc != C_ABSTRACT_HTTP_ERR_INVAL)
-    return rc;
-  rc = parse_url("http://127.0.0.1", &h, &p, NULL);
-  if (rc != C_ABSTRACT_HTTP_ERR_INVAL)
-    return rc;
+  uv_run(NULL, 0);
+  {
+    uv_loop_t l;
+    memset(&l, 0, sizeof(l));
+    uv_run(&l, 0);
+  }
+
   rc = parse_url("http://127.0.0.1/path:8080", &h, &p, &path);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS)
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(h);
+    free(path);
     return rc;
+  }
   free(h);
   h = NULL;
   free(path);
   path = NULL;
 
-  /* parse_headers without end separator */
   {
-    char *buf1 = NULL;
-    if (c_abstract_http_strdup("HTTP/1.1 200 OK", &buf1) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    char buf2[] = "HTTP/1.1 200 OK\r\nKey: Value\r\nNoColon\r\n\r\nBODY";
     state.done = 0;
     state.error_code = 0;
     state.headers_parsed = 0;
     state.req = &req;
-    state.res_buf = buf1;
-    state.res_len = strlen(buf1);
-    test_res = NULL;
-    state.res = &test_res;
-    rc = parse_headers(&state);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(buf1);
-      return rc;
-    }
-    /* Also test parse_headers when headers_parsed == 1 */
-    state.headers_parsed = 1;
-    rc = parse_headers(&state);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(buf1);
-      return rc;
-    }
-    state.headers_parsed = 0;
-    free(buf1);
-  }
-
-  /* parse_headers with valid headers and body */
-  {
-    char *buf2 = NULL;
-    if (c_abstract_http_strdup(
-            "HTTP/1.1 200 OK\r\nKey: Value\r\nNoColon\r\n\r\nBODY", &buf2) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
-    state.done = 0;
-    state.error_code = 0;
-    state.headers_parsed = 0;
     state.res_buf = buf2;
     state.res_len = strlen(buf2);
     test_res = NULL;
     state.res = &test_res;
     rc = parse_headers(&state);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(buf2);
+      return uv_helper_free_res_buf(test_res, NULL, rc);
+    }
+    rc = uv_helper_free_res_buf(test_res, NULL, C_ABSTRACT_HTTP_SUCCESS);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
-    rc = http_response_free(test_res);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-    free(test_res);
     test_res = NULL;
-    free(buf2);
   }
 
-  /* parse_headers with status line without space */
   {
-    char *buf3 = NULL;
-    if (c_abstract_http_strdup("HTTP/1.1\r\n\r\n", &buf3) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    char buf3[] = "HTTP/1.1\r\n\r\n";
     state.done = 0;
     state.error_code = 0;
     state.headers_parsed = 0;
@@ -865,23 +986,17 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     state.res = &test_res;
     rc = parse_headers(&state);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(buf3);
+      return uv_helper_free_res_buf(test_res, NULL, rc);
+    }
+    rc = uv_helper_free_res_buf(test_res, NULL, C_ABSTRACT_HTTP_SUCCESS);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
     }
-    rc = http_response_free(test_res);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-    free(test_res);
     test_res = NULL;
-    free(buf3);
   }
 
-  /* parse_headers with on_chunk success and error */
   {
-    char *buf4 = NULL;
-    if (c_abstract_http_strdup("HTTP/1.1 200 OK\r\n\r\nCHUNK_DATA", &buf4) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    char buf4[] = "HTTP/1.1 200 OK\r\n\r\nCHUNK_DATA";
     req.on_chunk = test_helper_chunk_cb;
     state.done = 0;
     state.error_code = 0;
@@ -892,121 +1007,21 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     state.res = &test_res;
     rc = parse_headers(&state);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(buf4);
-      return rc;
+      req.on_chunk = NULL;
+      return uv_helper_free_res_buf(test_res, NULL, rc);
     }
-    rc = http_response_free(test_res);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-    free(test_res);
-    test_res = NULL;
-
-    req.on_chunk = test_helper_chunk_cb_err;
-    state.done = 0;
-    state.error_code = 0;
-    state.headers_parsed = 0;
-    state.res_len = strlen(buf4);
-    test_res = NULL;
-    state.res = &test_res;
-    rc = parse_headers(&state);
-    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-      free(buf4);
-      return rc;
-    }
-    rc = http_response_free(test_res);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-    free(test_res);
-    test_res = NULL;
-    req.on_chunk = NULL;
-    free(buf4);
-  }
-
-  /* test parse_headers with NULL res_buf */
-  state.done = 0;
-  state.error_code = 0;
-  state.headers_parsed = 0;
-  state.res_buf = NULL;
-  rc = parse_headers(&state);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS)
-    return rc;
-
-  /* test parse_headers with body alloc fail */
-  {
-    char *buf5 = NULL;
-    if (c_abstract_http_strdup("HTTP/1.1 200 OK\r\n\r\nBODY_DATA", &buf5) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
-    state.done = 0;
-    state.error_code = 0;
-    state.headers_parsed = 0;
-    state.res_buf = buf5;
-    state.res_len = strlen(buf5);
-    test_res = NULL;
-    state.res = &test_res;
-    g_mock_libuv_body_alloc_fail = 1;
-    rc = parse_headers(&state);
-    if (rc != C_ABSTRACT_HTTP_ERR_NOMEM) {
-      g_mock_libuv_body_alloc_fail = 0;
-      free(buf5);
-      return rc;
-    }
-    g_mock_libuv_body_alloc_fail = 0;
-    rc = http_response_free(test_res);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-    free(test_res);
-    test_res = NULL;
-    free(buf5);
-  }
-
-  /* test parse_headers with header add fail */
-  {
-    char *buf6 = NULL;
-    if (c_abstract_http_strdup(
-            "HTTP/1.1 200 OK\r\nKey: Val\r\nKey2: Val2\r\n\r\n", &buf6) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
-    state.done = 0;
-    state.error_code = 0;
-    state.headers_parsed = 0;
-    state.res_buf = buf6;
-    state.res_len = strlen(buf6);
-    test_res = NULL;
-    state.res = &test_res;
-    g_mock_libuv_headers_realloc_fail = 1;
-    rc = parse_headers(&state);
+    rc = uv_helper_free_res_buf(test_res, NULL, C_ABSTRACT_HTTP_SUCCESS);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      g_mock_libuv_headers_realloc_fail = 0;
-      free(buf6);
+      req.on_chunk = NULL;
       return rc;
     }
-    g_mock_libuv_headers_realloc_fail = 0;
-    rc = http_response_free(test_res);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-    free(test_res);
+    req.on_chunk = NULL;
     test_res = NULL;
-    free(buf6);
   }
 
-  /* test parse_headers NULL */
-  rc = parse_headers(NULL);
-  if (rc != C_ABSTRACT_HTTP_ERR_INVAL)
-    return rc;
-
-  /* test libuv_finish double call */
-  state.done = 0;
-  rc = libuv_finish(&state, C_ABSTRACT_HTTP_SUCCESS);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS)
-    return rc;
-  rc = libuv_finish(&state, C_ABSTRACT_HTTP_SUCCESS);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS)
-    return rc;
-
-  /* test libuv_on_read edge branches */
   {
     uv_buf_t b;
+    char eof_hdr[] = "HTTP/1.1 200 OK\r\n\r\n";
     memset(&b, 0, sizeof(b));
     state.socket.data = &state;
     state.done = 0;
@@ -1015,50 +1030,20 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     state.res_buf = NULL;
     libuv_on_read((uv_stream_t *)&state.socket, UV_EOF, &b);
 
-    /* EOF with unparsed headers and alloc fail to trigger parse_headers error
-     * in EOF branch */
     state.done = 0;
-    if (c_abstract_http_strdup("HTTP/1.1 200 OK\r\n\r\n", &state.res_buf) !=
-        C_ABSTRACT_HTTP_SUCCESS)
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    state.res_buf = eof_hdr;
     test_res = NULL;
     state.res = &test_res;
     g_mock_libuv_res_alloc_fail = 1;
     libuv_on_read((uv_stream_t *)&state.socket, UV_EOF, &b);
     g_mock_libuv_res_alloc_fail = 0;
     state.res = NULL;
-    free(state.res_buf);
     state.res_buf = NULL;
 
     state.done = 0;
-    state.res_buf = NULL;
     libuv_on_read((uv_stream_t *)&state.socket, 10, &b);
   }
 
-  /* test parse_url dup_rc fail */
-  g_mock_libuv_req_buf_alloc_fail = 3;
-  rc = parse_url("http://127.0.0.1/path", &h, &p, &path);
-  if (rc != C_ABSTRACT_HTTP_ERR_NOMEM) {
-    g_mock_libuv_req_buf_alloc_fail = 0;
-    return rc;
-  }
-  g_mock_libuv_req_buf_alloc_fail = 4;
-  rc = parse_url("http://127.0.0.1", &h, &p, &path);
-  if (rc != C_ABSTRACT_HTTP_ERR_NOMEM) {
-    g_mock_libuv_req_buf_alloc_fail = 0;
-    return rc;
-  }
-  g_mock_libuv_req_buf_alloc_fail = 0;
-
-  /* test uv_run NULL */
-  uv_run(NULL, 0);
-  {
-    uv_loop_t l;
-    memset(&l, 0, sizeof(l));
-    uv_run(&l, 0);
-  }
-
-  /* test alloc_cb realloc branches */
   {
     uv_buf_t ab;
     uv_buf_t ab3;
@@ -1077,121 +1062,43 @@ enum c_abstract_http_error c_abstract_http_test_libuv_helpers(void) {
     g_mock_libuv_alloc_fail = 0;
   }
 
-  /* test uv_run alloc_cb failure branches */
   {
-    struct libuv_state st_alloc;
-    struct HttpResponse *res_obj = NULL;
-    memset(&st_alloc, 0, sizeof(st_alloc));
-    uv_loop_init(&st_alloc.loop);
-    st_alloc.loop.data = &st_alloc;
-    uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
-    uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
-                  libuv_on_read);
-    st_alloc.socket.data = &st_alloc;
-    st_alloc.res = &res_obj;
-    st_alloc.req = &req;
-    req.on_chunk = test_helper_chunk_cb;
-    g_mock_libuv_alloc_fail = 1;
-    uv_run(&st_alloc.loop, 0);
-
-    memset(&st_alloc, 0, sizeof(st_alloc));
-    uv_loop_init(&st_alloc.loop);
-    st_alloc.loop.data = &st_alloc;
-    uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
-    uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
-                  libuv_on_read);
-    st_alloc.socket.data = &st_alloc;
-    st_alloc.res = &res_obj;
-    st_alloc.req = &req;
-    req.on_chunk = test_helper_chunk_cb;
-    g_mock_libuv_alloc_fail = 2;
-    uv_run(&st_alloc.loop, 0);
-    if (res_obj) {
-      struct HttpResponse *tmp_r = res_obj;
-      res_obj = NULL;
-      rc = http_response_free(tmp_r);
+    int run_mode;
+    for (run_mode = 0; run_mode < 4; ++run_mode) {
+      struct libuv_state st_alloc;
+      struct HttpResponse *res_obj = NULL;
+      memset(&st_alloc, 0, sizeof(st_alloc));
+      uv_loop_init(&st_alloc.loop);
+      st_alloc.loop.data = &st_alloc;
+      uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
+      uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
+                    libuv_on_read);
+      st_alloc.socket.data = &st_alloc;
+      st_alloc.res = &res_obj;
+      st_alloc.req = &req;
+      req.on_chunk = (run_mode == 2)   ? test_helper_chunk_cb_err
+                     : (run_mode == 1) ? NULL
+                                       : test_helper_chunk_cb;
+      if (run_mode == 0) {
+        g_mock_libuv_alloc_fail = 1;
+      } else if (run_mode == 1) {
+        g_mock_libuv_alloc_fail = 2;
+      } else if (run_mode == 3) {
+        g_mock_libuv_res_alloc_fail = 1;
+      }
+      uv_run(&st_alloc.loop, 0);
+      g_mock_libuv_alloc_fail = 0;
+      g_mock_libuv_res_alloc_fail = 0;
+      req.on_chunk = NULL;
+      rc = uv_helper_free_res_buf(res_obj, st_alloc.res_buf,
+                                  C_ABSTRACT_HTTP_SUCCESS);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(tmp_r);
         return rc;
       }
-      free(tmp_r);
     }
-    free(st_alloc.res_buf);
-    st_alloc.res_buf = NULL;
-
-    memset(&st_alloc, 0, sizeof(st_alloc));
-    uv_loop_init(&st_alloc.loop);
-    st_alloc.loop.data = &st_alloc;
-    uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
-    uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
-                  libuv_on_read);
-    st_alloc.socket.data = &st_alloc;
-    st_alloc.res = &res_obj;
-    st_alloc.req = &req;
-    req.on_chunk = NULL;
-    g_mock_libuv_alloc_fail = 2;
-    uv_run(&st_alloc.loop, 0);
-    g_mock_libuv_alloc_fail = 0;
-    if (res_obj) {
-      struct HttpResponse *tmp_r = res_obj;
-      res_obj = NULL;
-      rc = http_response_free(tmp_r);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(tmp_r);
-        return rc;
-      }
-      free(tmp_r);
-    }
-    free(st_alloc.res_buf);
-    st_alloc.res_buf = NULL;
-
-    memset(&st_alloc, 0, sizeof(st_alloc));
-    uv_loop_init(&st_alloc.loop);
-    st_alloc.loop.data = &st_alloc;
-    uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
-    uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
-                  libuv_on_read);
-    st_alloc.socket.data = &st_alloc;
-    st_alloc.res = &res_obj;
-    st_alloc.req = &req;
-    req.on_chunk = test_helper_chunk_cb_err;
-    uv_run(&st_alloc.loop, 0);
-    req.on_chunk = NULL;
-    if (res_obj) {
-      struct HttpResponse *tmp_r = res_obj;
-      res_obj = NULL;
-      rc = http_response_free(tmp_r);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(tmp_r);
-        return rc;
-      }
-      free(tmp_r);
-    }
-    free(st_alloc.res_buf);
-    st_alloc.res_buf = NULL;
-
-    memset(&st_alloc, 0, sizeof(st_alloc));
-    uv_loop_init(&st_alloc.loop);
-    st_alloc.loop.data = &st_alloc;
-    uv_tcp_init(&st_alloc.loop, &st_alloc.socket);
-    uv_read_start((uv_stream_t *)&st_alloc.socket, libuv_alloc_cb,
-                  libuv_on_read);
-    st_alloc.socket.data = &st_alloc;
-    st_alloc.res = &test_res;
-    st_alloc.req = &req;
-    req.on_chunk = test_helper_chunk_cb;
-    g_mock_libuv_res_alloc_fail = 1;
-    uv_run(&st_alloc.loop, 0);
-    g_mock_libuv_res_alloc_fail = 0;
-    req.on_chunk = NULL;
-    free(st_alloc.res_buf);
-    st_alloc.res_buf = NULL;
   }
 
-  rc = http_request_free(&req);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS)
-    return rc;
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return http_request_free(&req);
 }
 #endif
 
@@ -1221,7 +1128,7 @@ static int math_uv_hex_val(char c) {
  * @param res Target response structure.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 uv_decode_chunked_body(const char *src, size_t src_len,
                        const struct HttpRequest *req,
                        struct HttpResponse *res) {
@@ -1269,11 +1176,13 @@ uv_decode_chunked_body(const char *src, size_t src_len,
       return C_ABSTRACT_HTTP_ERR_IO;
     }
     if (req->on_chunk) {
-      enum c_abstract_http_error crc =
+      c_abstract_http_error_t crc =
           req->on_chunk(req->on_chunk_user_data, src + off, csz);
       if (crc != C_ABSTRACT_HTTP_SUCCESS) {
         free(out);
-        return C_ABSTRACT_HTTP_ERR_CANCELED;
+        return (crc == C_ABSTRACT_HTTP_ERR_NOMEM)
+                   ? crc
+                   : C_ABSTRACT_HTTP_ERR_CANCELED;
       }
     } else {
       if (out_len + csz + 1 > out_cap) {
@@ -1300,13 +1209,13 @@ uv_decode_chunked_body(const char *src, size_t src_len,
 }
 
 /**
- * @brief Internal read handler returning enum c_abstract_http_error.
+ * @brief Internal read handler returning c_abstract_http_error_t.
  * @param state Active libuv request state.
  * @param nread Bytes read or negative UV status code.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static enum c_abstract_http_error libuv_on_read_impl(struct libuv_state *state,
-                                                     ssize_t nread) {
+NO_DISCARD static c_abstract_http_error_t
+libuv_on_read_impl(struct libuv_state *state, ssize_t nread) {
   if (nread < 0) {
     if (nread == UV_ENOBUFS) {
       return libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM);
@@ -1315,7 +1224,7 @@ static enum c_abstract_http_error libuv_on_read_impl(struct libuv_state *state,
       return libuv_finish(state, C_ABSTRACT_HTTP_ERR_CONNREFUSED);
     } else {
       if (!state->headers_parsed) {
-        enum c_abstract_http_error p_rc = parse_headers(state);
+        c_abstract_http_error_t p_rc = parse_headers(state);
         if (p_rc != C_ABSTRACT_HTTP_SUCCESS) {
           LOG_DEBUG("libuv_on_read: parse_headers failed %d", (int)p_rc);
           LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_SUCCESS));
@@ -1324,7 +1233,7 @@ static enum c_abstract_http_error libuv_on_read_impl(struct libuv_state *state,
       }
       if (state->is_chunked && *state->res &&
           state->res_len >= state->hdr_len) {
-        enum c_abstract_http_error d_rc = uv_decode_chunked_body(
+        c_abstract_http_error_t d_rc = uv_decode_chunked_body(
             state->res_buf + state->hdr_len, state->res_len - state->hdr_len,
             state->req, *state->res);
         if (d_rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1342,7 +1251,7 @@ static enum c_abstract_http_error libuv_on_read_impl(struct libuv_state *state,
   state->res_len += (size_t)nread;
 
   if (!state->headers_parsed) {
-    enum c_abstract_http_error p_rc = parse_headers(state);
+    c_abstract_http_error_t p_rc = parse_headers(state);
     if (p_rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("libuv_on_read: parse_headers failed %d", (int)p_rc);
       return p_rc;
@@ -1350,7 +1259,7 @@ static enum c_abstract_http_error libuv_on_read_impl(struct libuv_state *state,
   } else if (state->is_chunked) {
     return C_ABSTRACT_HTTP_SUCCESS;
   } else if (state->req->on_chunk) {
-    enum c_abstract_http_error chunk_rc;
+    c_abstract_http_error_t chunk_rc;
     chunk_rc = state->req->on_chunk(
         state->req->on_chunk_user_data,
         state->res_buf + state->res_len - (size_t)nread, (size_t)nread);
@@ -1486,8 +1395,8 @@ static void libuv_on_resolved(uv_getaddrinfo_t *resolver, int status,
  * @param[out] path Pointer to receive path.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-static enum c_abstract_http_error parse_url(const char *url, char **host,
-                                            int *port, char **path) {
+NO_DISCARD static c_abstract_http_error_t
+parse_url(const char *url, char **host, int *port, char **path) {
   const char *p;
   const char *host_start;
   const char *port_start;
@@ -1550,7 +1459,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   (*host)[host_len] = '\0';
 
   if (path_start) {
-    enum c_abstract_http_error dup_rc;
+    c_abstract_http_error_t dup_rc;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libuv_req_buf_alloc_fail == 3) {
       dup_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -1566,7 +1475,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
     }
     *path = _ast_strdup;
   } else {
-    enum c_abstract_http_error dup_rc;
+    c_abstract_http_error_t dup_rc;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libuv_req_buf_alloc_fail == 4) {
       dup_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -1600,7 +1509,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
  * @param state Zero-initialized `struct libuv_state` to populate.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
                      int stop_on_done, const struct HttpRequest *req,
                      struct HttpResponse **res, struct libuv_state *state) {
@@ -1612,7 +1521,7 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
   size_t i;
   size_t req_cap = 4096;
   struct addrinfo hints;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (req->parts.count > 0 && !req->body) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -1773,7 +1682,7 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
     size_t out_read;
     char chunk_buf[4096];
     for (;;) {
-      enum c_abstract_http_error chunk_rc = req->read_chunk(
+      c_abstract_http_error_t chunk_rc = req->read_chunk(
           req->read_chunk_user_data, chunk_buf, sizeof(chunk_buf), &out_read);
       if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
         free(host);
@@ -1859,24 +1768,25 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
  * @param out_url Newly allocated redirect URL string.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 uv_resolve_redirect_url(const char *cur_url, const char *loc, char **out_url) {
   char *host = NULL;
   int port = 80;
   char *path = NULL;
-  int is_https = strncmp(cur_url, "https://", 8) == 0 ? 1 : 0;
+  int is_https = (cur_url && strncmp(cur_url, "https://", 8) == 0) ? 1 : 0;
   size_t need;
   char *buf;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (strncmp(loc, "http://", 7) == 0 || strncmp(loc, "https://", 8) == 0) {
     return c_abstract_http_strdup(loc, out_url);
   }
   rc = parse_url(cur_url, &host, &port, &path);
-  free(path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(path);
     return rc;
   }
+  free(path);
   need = strlen(host) + strlen(loc) + 32;
   buf = (char *)malloc(need);
   if (!buf) {
@@ -1902,11 +1812,11 @@ uv_resolve_redirect_url(const char *cur_url, const char *loc, char **out_url) {
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 uv_send_single_hop(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, struct HttpResponse **res) {
   struct libuv_state state;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   memset(&state, 0, sizeof(state));
   if (uv_loop_init(&state.loop) < 0) {
@@ -1930,7 +1840,7 @@ uv_send_single_hop(struct HttpTransportContext *ctx,
   if (state.error_code != 0) {
     if (*res) {
       struct HttpResponse *tmp_r = *res;
-      enum c_abstract_http_error free_rc;
+      c_abstract_http_error_t free_rc;
       *res = NULL;
       free_rc = http_response_free(tmp_r);
       free(tmp_r);
@@ -1938,20 +1848,55 @@ uv_send_single_hop(struct HttpTransportContext *ctx,
         return free_rc;
       }
     }
-    return (enum c_abstract_http_error)state.error_code;
+    return (c_abstract_http_error_t)state.error_code;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Check whether a response triggers an HTTP redirect hop.
+ * @param ctx Transport context.
+ * @param res Received response.
+ * @param out_loc Output pointer receiving Location value when redirecting.
+ * @return 1 if redirect should be followed, 0 otherwise.
+ */
+static int math_uv_should_redirect(const struct HttpTransportContext *ctx,
+                                   const struct HttpResponse *res,
+                                   const char **out_loc) {
+  size_t i;
+  const char *loc = NULL;
+  if (!ctx || !ctx->config.follow_redirects || !res) {
+    return 0;
+  }
+  if (res->status_code != 301 && res->status_code != 302 &&
+      res->status_code != 303 && res->status_code != 307 &&
+      res->status_code != 308) {
+    return 0;
+  }
+  for (i = 0; i < res->headers.count; ++i) {
+    if (res->headers.headers[i].key &&
+        (strcmp(res->headers.headers[i].key, "Location") == 0 ||
+         strcmp(res->headers.headers[i].key, "location") == 0)) {
+      loc = res->headers.headers[i].value;
+      break;
+    }
+  }
+  if (!loc || loc[0] == '\0') {
+    return 0;
+  }
+  *out_loc = loc;
+  return 1;
+}
+
 /* Send an HTTP request using libuv (with TLS BIO, chunked decoding, redirects).
  */
-enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
-                                           const struct HttpRequest *req,
-                                           struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_libuv_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+                struct HttpResponse **res) {
   struct HttpRequest hop_req;
   char *redir_url = NULL;
   int hop;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
   if (!ctx || !req || !res) {
@@ -1962,44 +1907,55 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   for (hop = 0; hop <= LIBUV_MAX_REDIRECTS; ++hop) {
     const char *loc = NULL;
     char *next_url = NULL;
+    c_abstract_http_error_t frc;
     int status;
 
     rc = uv_send_single_hop(ctx, &hop_req, res);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS || !*res ||
-        !ctx->config.follow_redirects) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(redir_url);
+      return rc;
+    }
+    if (!math_uv_should_redirect(ctx, *res, &loc)) {
       break;
     }
     status = (*res)->status_code;
-    if (status != 301 && status != 302 && status != 303 && status != 307 &&
-        status != 308) {
-      break;
-    }
-    if (http_headers_get(&(*res)->headers, "Location", &loc) !=
-            C_ABSTRACT_HTTP_SUCCESS ||
-        !loc || loc[0] == '\0') {
-      break;
-    }
     if (hop == LIBUV_MAX_REDIRECTS) {
-      enum c_abstract_http_error frc = http_response_free(*res);
+      frc = http_response_free(*res);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(*res);
+        *res = NULL;
+        free(redir_url);
+        return frc;
+      }
       free(*res);
       *res = NULL;
-      rc = frc != C_ABSTRACT_HTTP_SUCCESS ? frc : C_ABSTRACT_HTTP_ERR_LOOP;
-      break;
+      free(redir_url);
+      return C_ABSTRACT_HTTP_ERR_LOOP;
     }
     rc = uv_resolve_redirect_url(hop_req.url, loc, &next_url);
-    {
-      enum c_abstract_http_error frc = http_response_free(*res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      frc = http_response_free(*res);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(*res);
+        *res = NULL;
+        free(redir_url);
+        return frc;
+      }
       free(*res);
       *res = NULL;
-      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(next_url);
-        rc = frc;
-        break;
-      }
+      free(redir_url);
+      return rc;
     }
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      break;
+    frc = http_response_free(*res);
+    if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(*res);
+      *res = NULL;
+      free(next_url);
+      free(redir_url);
+      return frc;
     }
+    free(*res);
+    *res = NULL;
     free(redir_url);
     redir_url = next_url;
     hop_req.url = redir_url;
@@ -2013,7 +1969,7 @@ enum c_abstract_http_error http_libuv_send(struct HttpTransportContext *ctx,
   }
 
   free(redir_url);
-  return rc;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /** @brief Per-slot state for concurrent `http_libuv_send_multi` */
@@ -2027,13 +1983,51 @@ struct uv_multi_slot {
 /** @brief Batch coordinator bridging `uv_run(UV_RUN_NOWAIT)` to
  * `ModalityEventLoop` */
 struct uv_multi_batch {
-  uv_loop_t uv_loop;           /**< Shared non-blocking libuv loop */
-  struct uv_multi_slot *slots; /**< Array of per-request slots */
-  size_t count;                /**< Total slot count */
-  int caller_loop;             /**< Non-zero when caller owns loop */
-  enum c_abstract_http_error
-      first_err; /**< First error observed across batch */
+  uv_loop_t uv_loop;                 /**< Shared non-blocking libuv loop */
+  struct uv_multi_slot *slots;       /**< Array of per-request slots */
+  size_t count;                      /**< Total slot count */
+  int caller_loop;                   /**< Non-zero when caller owns loop */
+  c_abstract_http_error_t first_err; /**< First error observed across batch */
 };
+
+/**
+ * @brief Settle one completed libuv batch slot.
+ * @param batch Parent batch coordinator.
+ * @param sl Slot to settle.
+ * @return C_ABSTRACT_HTTP_SUCCESS or response cleanup error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_settle_multi_slot(struct uv_multi_batch *batch, struct uv_multi_slot *sl) {
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
+  sl->settled = 1;
+  if (sl->st.error_code != 0) {
+    rc = (c_abstract_http_error_t)sl->st.error_code;
+    if (sl->res) {
+      c_abstract_http_error_t frc = http_response_free(sl->res);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(sl->res);
+        sl->res = NULL;
+        sl->future->response = NULL;
+        sl->future->error_code = frc;
+        sl->future->is_ready = 1;
+        if (batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+          batch->first_err = frc;
+        }
+        return frc;
+      }
+      free(sl->res);
+      sl->res = NULL;
+    }
+  }
+  sl->future->response = sl->res;
+  sl->future->error_code = rc;
+  sl->future->is_ready = 1;
+  if (rc != C_ABSTRACT_HTTP_SUCCESS &&
+      batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+    batch->first_err = rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 /**
  * @brief `ModalityEventLoop` callback driving `uv_run(UV_RUN_NOWAIT)`.
@@ -2042,17 +2036,15 @@ struct uv_multi_batch {
  * @param user_data Pointer to `struct uv_multi_batch`.
  * @return C_ABSTRACT_HTTP_SUCCESS or loop control error.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 uv_pump_nowait_cb(struct ModalityEventLoop *loop, int timer_id,
                   void *user_data) {
   struct uv_multi_batch *batch = (struct uv_multi_batch *)user_data;
   size_t i;
   size_t pending = 0;
-  int urc;
   (void)timer_id;
 
-  urc = uv_run(&batch->uv_loop, UV_RUN_NOWAIT);
-  (void)urc;
+  uv_run(&batch->uv_loop, UV_RUN_NOWAIT);
 
   for (i = 0; i < batch->count; ++i) {
     struct uv_multi_slot *sl = &batch->slots[i];
@@ -2060,25 +2052,9 @@ uv_pump_nowait_cb(struct ModalityEventLoop *loop, int timer_id,
       continue;
     }
     if (sl->st.done) {
-      enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-      sl->settled = 1;
-      if (sl->st.error_code != 0) {
-        rc = (enum c_abstract_http_error)sl->st.error_code;
-        if (sl->res) {
-          enum c_abstract_http_error frc = http_response_free(sl->res);
-          free(sl->res);
-          sl->res = NULL;
-          if (frc != C_ABSTRACT_HTTP_SUCCESS) {
-            rc = frc;
-          }
-        }
-      }
-      sl->future->response = sl->res;
-      sl->future->error_code = rc;
-      sl->future->is_ready = 1;
-      if (rc != C_ABSTRACT_HTTP_SUCCESS &&
-          batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
-        batch->first_err = rc;
+      c_abstract_http_error_t src_rc = uv_settle_multi_slot(batch, sl);
+      if (src_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return src_rc;
       }
     } else {
       pending++;
@@ -2095,9 +2071,115 @@ uv_pump_nowait_cb(struct ModalityEventLoop *loop, int timer_id,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Arm timer and run `active_loop` for `http_libuv_send_multi`.
+ * @param active_loop Event loop to drive.
+ * @param batch Active batch state.
+ * @return C_ABSTRACT_HTTP_SUCCESS or loop error code.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_drive_multi_loop(struct ModalityEventLoop *active_loop,
+                    struct uv_multi_batch *batch) {
+  int timer_id = 0;
+  c_abstract_http_error_t rc;
+
+  rc = http_loop_add_timer(active_loop, 0, uv_pump_nowait_cb, batch, &timer_id);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  return http_loop_run(active_loop);
+}
+
+/**
+ * @brief Tear down `http_libuv_send_multi` resources and finalize loop.
+ * @param batch Batch state owning `uv_loop`.
+ * @param slots Slot array to release.
+ * @param count Number of slots.
+ * @param owned_loop Internally owned loop or NULL.
+ * @param caller_loop Caller-supplied loop or NULL.
+ * @param primary_rc Primary batch status.
+ * @return Final `c_abstract_http_error_t`.
+ */
+NO_DISCARD static c_abstract_http_error_t uv_finish_multi_cleanup(
+    struct uv_multi_batch *batch, struct uv_multi_slot *slots, size_t count,
+    struct ModalityEventLoop *owned_loop, struct ModalityEventLoop *caller_loop,
+    c_abstract_http_error_t primary_rc) {
+  size_t i;
+  c_abstract_http_error_t cleanup_err;
+
+  uv_loop_close(&batch->uv_loop);
+  for (i = 0; i < count; ++i) {
+    free(slots[i].st.req_buf);
+    free(slots[i].st.res_buf);
+  }
+  free(slots);
+
+  if (owned_loop) {
+    cleanup_err = http_loop_free(owned_loop);
+    if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
+      return cleanup_err;
+    }
+  } else if (caller_loop) {
+    cleanup_err = abstract_http_event_loop_test_unstop(caller_loop);
+    if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
+      return cleanup_err;
+    }
+    cleanup_err = http_loop_wakeup(caller_loop);
+    if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
+      return cleanup_err;
+    }
+  }
+  return primary_rc;
+}
+
+/**
+ * @brief Arm a single slot on `batch->uv_loop` for `http_libuv_send_multi`.
+ * @param ctx Transport context.
+ * @param batch Batch coordinator.
+ * @param req Input HTTP request.
+ * @param slot Target slot entry.
+ * @param out_active Incremented when slot remains pending on loop.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_arm_multi_slot(struct HttpTransportContext *ctx,
+                  struct uv_multi_batch *batch, const struct HttpRequest *req,
+                  struct uv_multi_slot *slot, size_t *out_active) {
+  c_abstract_http_error_t rc;
+
+  if (!slot->future) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  rc =
+      uv_arm_state_on_loop(ctx, &batch->uv_loop, 0, req, &slot->res, &slot->st);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    slot->settled = 1;
+    slot->future->response = NULL;
+    slot->future->error_code = rc;
+    slot->future->is_ready = 1;
+    if (batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+      batch->first_err = rc;
+    }
+    return !slot->future ? rc : C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (slot->st.done) {
+    slot->settled = 1;
+    slot->future->response = slot->res;
+    slot->future->error_code = (c_abstract_http_error_t)slot->st.error_code;
+    slot->future->is_ready = 1;
+    if (slot->st.error_code != 0 &&
+        batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+      batch->first_err = (c_abstract_http_error_t)slot->st.error_code;
+    }
+  } else {
+    (*out_active)++;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 /* Multiplex concurrent requests via uv_run(UV_RUN_NOWAIT) on ModalityEventLoop.
  */
-enum c_abstract_http_error http_libuv_send_multi(
+NO_DISCARD c_abstract_http_error_t http_libuv_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   struct ModalityEventLoop *owned_loop = NULL;
@@ -2106,8 +2188,7 @@ enum c_abstract_http_error http_libuv_send_multi(
   struct uv_multi_slot *slots;
   size_t i;
   size_t active_slots = 0;
-  int timer_id = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   cah_cppcheck_mut_ptr((void *)ctx);
 
   if (!ctx || !multi || !futures) {
@@ -2150,66 +2231,23 @@ enum c_abstract_http_error http_libuv_send_multi(
 
   for (i = 0; i < multi->count; ++i) {
     slots[i].future = futures[i];
-    rc = uv_arm_state_on_loop(ctx, &batch.uv_loop, 0, multi->requests[i],
-                              &slots[i].res, &slots[i].st);
+    rc = uv_arm_multi_slot(ctx, &batch, multi->requests[i], &slots[i],
+                           &active_slots);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      slots[i].settled = 1;
-      slots[i].future->response = NULL;
-      slots[i].future->error_code = rc;
-      slots[i].future->is_ready = 1;
-      if (batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
-        batch.first_err = rc;
-      }
-    } else if (slots[i].st.done) {
-      slots[i].settled = 1;
-      slots[i].future->response = slots[i].res;
-      slots[i].future->error_code =
-          (enum c_abstract_http_error)slots[i].st.error_code;
-      slots[i].future->is_ready = 1;
-      if (slots[i].st.error_code != 0 &&
-          batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
-        batch.first_err = (enum c_abstract_http_error)slots[i].st.error_code;
-      }
-    } else {
-      active_slots++;
+      return uv_finish_multi_cleanup(&batch, slots, multi->count, owned_loop,
+                                     loop, rc);
     }
   }
 
   if (active_slots > 0) {
-    rc = http_loop_add_timer(active_loop, 0, uv_pump_nowait_cb, &batch,
-                             &timer_id);
-    (void)timer_id;
-    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = http_loop_run(active_loop);
-    }
-    if (rc != C_ABSTRACT_HTTP_SUCCESS &&
-        batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = rc;
+    rc = uv_drive_multi_loop(active_loop, &batch);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return uv_finish_multi_cleanup(
+          &batch, slots, multi->count, owned_loop, loop,
+          batch.first_err != C_ABSTRACT_HTTP_SUCCESS ? batch.first_err : rc);
     }
   }
 
-  uv_loop_close(&batch.uv_loop);
-  for (i = 0; i < multi->count; ++i) {
-    free(slots[i].st.req_buf);
-    free(slots[i].st.res_buf);
-  }
-  free(slots);
-
-  if (owned_loop) {
-    enum c_abstract_http_error lrc = http_loop_free(owned_loop);
-    if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = lrc;
-    }
-  } else if (loop) {
-    enum c_abstract_http_error urc = abstract_http_event_loop_test_unstop(loop);
-    enum c_abstract_http_error wrc = http_loop_wakeup(loop);
-    if (urc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = urc;
-    }
-    if (wrc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = wrc;
-    }
-  }
-
-  return batch.first_err;
+  return uv_finish_multi_cleanup(&batch, slots, multi->count, owned_loop, loop,
+                                 batch.first_err);
 }

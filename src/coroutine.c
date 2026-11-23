@@ -64,7 +64,7 @@ static struct AbstractHttpCoroutineHooks g_coroutine_hooks = {NULL, NULL, NULL,
                                                               NULL, NULL};
 
 /** @brief Set custom coroutine hooks */
-enum c_abstract_http_error abstract_http_coroutine_set_hooks(
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_set_hooks(
     const struct AbstractHttpCoroutineHooks *hooks) {
   if (hooks) {
     g_coroutine_hooks = *hooks;
@@ -85,7 +85,7 @@ struct AbstractHttpCoroutine {
   /** @brief arg (variable) of struct AbstractHttpCoroutine */
   void *arg;
   /** @brief body_rc (variable) of struct AbstractHttpCoroutine */
-  enum c_abstract_http_error body_rc;
+  c_abstract_http_error_t body_rc;
   /** @brief is_done (variable) of struct AbstractHttpCoroutine */
   int is_done;
 };
@@ -96,22 +96,30 @@ static DWORD dwTlsIndex = TLS_OUT_OF_INDEXES;
 /**
  * @brief Win32 Fiber start trampoline executing the coroutine body.
  * @param lpParameter Pointer to struct AbstractHttpCoroutine.
+ * @return None.
  */
 static void WINAPI fiber_entry(LPVOID lpParameter) {
   struct AbstractHttpCoroutine *co =
       (struct AbstractHttpCoroutine *)lpParameter;
+  c_abstract_http_error_t rc;
   TlsSetValue(dwTlsIndex, co);
 
-  co->body_rc = co->cb(co->arg);
+  rc = co->cb(co->arg);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    co->body_rc = rc;
+    co->is_done = 1;
+    SwitchToFiber(co->caller_fiber);
+    return;
+  }
 
+  co->body_rc = C_ABSTRACT_HTTP_SUCCESS;
   co->is_done = 1;
   SwitchToFiber(co->caller_fiber);
 }
 
-enum c_abstract_http_error
-abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
-                             size_t stack_size, abstract_http_coroutine_cb cb,
-                             void *arg) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_init(
+    struct AbstractHttpCoroutine **co, size_t stack_size,
+    abstract_http_coroutine_cb cb, void *arg) {
   struct AbstractHttpCoroutine *c;
 
   LOG_DEBUG("abstract_http_coroutine_init: Entering");
@@ -160,7 +168,7 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   LOG_DEBUG("abstract_http_coroutine_free: Entering");
   if (g_coroutine_hooks.free) {
@@ -178,7 +186,7 @@ abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   LPVOID current_fiber;
   struct AbstractHttpCoroutine *prev_co;
@@ -222,7 +230,7 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
 }
 
 /** @brief Yield execution from current coroutine */
-enum c_abstract_http_error abstract_http_coroutine_yield(void) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_yield(void) {
   struct AbstractHttpCoroutine *co;
 
   LOG_DEBUG("abstract_http_coroutine_yield: Entering");
@@ -247,9 +255,8 @@ enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   LOG_DEBUG("abstract_http_coroutine_yield: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-enum c_abstract_http_error
-abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
-                                int *out_is_done) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_is_done(
+    const struct AbstractHttpCoroutine *co, int *out_is_done) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co, out_is_done);
   }
@@ -266,9 +273,11 @@ abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void);
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_coroutine_reset_fallback(void);
 
-enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void) {
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_coroutine_reset_fallback(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif
@@ -296,7 +305,7 @@ struct AbstractHttpCoroutine {
   /** @brief User context pointer */
   void *arg;
   /** @brief Result enum from coroutine callback */
-  enum c_abstract_http_error body_rc;
+  c_abstract_http_error_t body_rc;
   /** @brief Non-zero once coroutine has entered `cb` */
   int started;
   /** @brief Non-zero once coroutine body completed */
@@ -307,19 +316,28 @@ struct AbstractHttpCoroutine {
 static struct AbstractHttpCoroutine *g_dos_current_co = NULL;
 
 /**
- * @brief Start coroutine body below a stack headroom buffer so subsequent
- * `resume` calls from slightly deeper frames do not overlap `saved_low`.
- * @param co Coroutine to start (never returns normally; `longjmp`s to caller).
+ * @brief Reserve 512 bytes of stack headroom below `caller_env` so resume/yield
+ * frame copies never overlap the caller's `setjmp` frame, then run `co->cb`.
  * @return C_ABSTRACT_HTTP_SUCCESS (unreachable; satisfies enum return rule).
  */
-static enum c_abstract_http_error
-dos_co_start_padded(struct AbstractHttpCoroutine *co) {
+NO_DISCARD static c_abstract_http_error_t dos_co_start_padded(void) {
+  struct AbstractHttpCoroutine *co = g_dos_current_co;
   volatile unsigned char headroom[512];
   volatile unsigned char anchor = 0;
+  c_abstract_http_error_t rc;
   headroom[0] = 0;
   headroom[sizeof(headroom) - 1] = 0;
   co->stack_high = (const unsigned char *)&anchor;
-  co->body_rc = co->cb(co->arg);
+  rc = co->cb(co->arg);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    co->body_rc = rc;
+    co->stack_high = NULL;
+    co->is_done = 1;
+    longjmp(co->caller_env, 2);
+    return rc;
+  }
+  co->body_rc = C_ABSTRACT_HTTP_SUCCESS;
+  co->stack_high = NULL;
   co->is_done = 1;
   longjmp(co->caller_env, 2);
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -331,7 +349,7 @@ dos_co_start_padded(struct AbstractHttpCoroutine *co) {
  * @param co Yielded coroutine to restore.
  * @return C_ABSTRACT_HTTP_SUCCESS (unreachable; satisfies enum return rule).
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dos_co_restore_and_jump(struct AbstractHttpCoroutine *co) {
   volatile unsigned char pad[256];
   const unsigned char *probe = (const unsigned char *)&pad[0];
@@ -350,10 +368,9 @@ dos_co_restore_and_jump(struct AbstractHttpCoroutine *co) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
-                             size_t stack_size, abstract_http_coroutine_cb cb,
-                             void *arg) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_init(
+    struct AbstractHttpCoroutine **co, size_t stack_size,
+    abstract_http_coroutine_cb cb, void *arg) {
   struct AbstractHttpCoroutine *c;
   if (g_coroutine_hooks.init) {
     return g_coroutine_hooks.init(co, stack_size, cb, arg);
@@ -383,7 +400,7 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   if (g_coroutine_hooks.free) {
     return g_coroutine_hooks.free(co);
@@ -395,7 +412,7 @@ abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   struct AbstractHttpCoroutine *prev;
   if (g_coroutine_hooks.resume) {
@@ -409,7 +426,7 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   if (setjmp(co->caller_env) == 0) {
     if (!co->started) {
       co->started = 1;
-      return dos_co_start_padded(co);
+      return dos_co_start_padded();
     }
     return dos_co_restore_and_jump(co);
   }
@@ -420,7 +437,7 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error abstract_http_coroutine_yield(void) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_yield(void) {
   struct AbstractHttpCoroutine *co;
   volatile unsigned char sp_marker = 0;
   const unsigned char *cur_sp;
@@ -463,9 +480,8 @@ enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
-                                int *out_is_done) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_is_done(
+    const struct AbstractHttpCoroutine *co, int *out_is_done) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co, out_is_done);
   }
@@ -493,7 +509,7 @@ struct AbstractHttpCoroutine {
   /** @brief arg (variable) of struct AbstractHttpCoroutine */
   void *arg;
   /** @brief body_rc (variable) of struct AbstractHttpCoroutine */
-  enum c_abstract_http_error body_rc;
+  c_abstract_http_error_t body_rc;
   /** @brief is_done (variable) of struct AbstractHttpCoroutine */
   int is_done;
 };
@@ -510,10 +526,9 @@ static int co_tls_initialized = 0;
  * @brief Lazily initialize the ucontext thread-local key.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_SYSCALL.
  */
-static enum c_abstract_http_error init_tls_key(void) {
-  int rc;
+NO_DISCARD static c_abstract_http_error_t init_tls_key(void) {
   if (!co_tls_initialized) {
-    rc = pthread_key_create(&co_tls_key, NULL);
+    int rc = pthread_key_create(&co_tls_key, NULL);
     if (rc != 0) {
       return C_ABSTRACT_HTTP_ERR_SYSCALL;
     }
@@ -531,10 +546,9 @@ static void ucontext_entry(void) {
   co->is_done = 1;
 }
 
-enum c_abstract_http_error
-abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
-                             size_t stack_size, abstract_http_coroutine_cb cb,
-                             void *arg) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_init(
+    struct AbstractHttpCoroutine **co, size_t stack_size,
+    abstract_http_coroutine_cb cb, void *arg) {
   struct AbstractHttpCoroutine *c;
 
   LOG_DEBUG("abstract_http_coroutine_init: Entering");
@@ -548,7 +562,7 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   {
-    enum c_abstract_http_error tls_rc = init_tls_key();
+    c_abstract_http_error_t tls_rc = init_tls_key();
     if (tls_rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("abstract_http_coroutine_init: Error init_tls_key failed");
       return tls_rc;
@@ -595,7 +609,7 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   LOG_DEBUG("abstract_http_coroutine_free: Entering");
   if (g_coroutine_hooks.free) {
@@ -611,7 +625,7 @@ abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   LOG_DEBUG("abstract_http_coroutine_resume: Entering");
   if (g_coroutine_hooks.resume) {
@@ -625,7 +639,7 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   }
 
   {
-    enum c_abstract_http_error tls_rc = init_tls_key();
+    c_abstract_http_error_t tls_rc = init_tls_key();
     if (tls_rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("abstract_http_coroutine_resume: Error init_tls_key failed");
       return tls_rc;
@@ -644,7 +658,7 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
 }
 
 /** @brief Yield execution from current coroutine */
-enum c_abstract_http_error abstract_http_coroutine_yield(void) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_yield(void) {
   struct AbstractHttpCoroutine *co;
 
   LOG_DEBUG("abstract_http_coroutine_yield: Entering");
@@ -654,7 +668,7 @@ enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   }
 
   {
-    enum c_abstract_http_error tls_rc = init_tls_key();
+    c_abstract_http_error_t tls_rc = init_tls_key();
     if (tls_rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("abstract_http_coroutine_yield: Error init_tls_key failed");
       return tls_rc;
@@ -672,9 +686,8 @@ enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   LOG_DEBUG("abstract_http_coroutine_yield: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-enum c_abstract_http_error
-abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
-                                int *out_is_done) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_is_done(
+    const struct AbstractHttpCoroutine *co, int *out_is_done) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co, out_is_done);
   }
@@ -691,9 +704,11 @@ abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void);
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_coroutine_reset_fallback(void);
 
-enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void) {
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_coroutine_reset_fallback(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif
@@ -714,7 +729,7 @@ struct AbstractHttpCoroutine {
   /** @brief arg (variable) of struct AbstractHttpCoroutine */
   void *arg;
   /** @brief body_rc (variable) of struct AbstractHttpCoroutine */
-  enum c_abstract_http_error body_rc;
+  c_abstract_http_error_t body_rc;
   /** @brief is_done (variable) of struct AbstractHttpCoroutine */
   int is_done;
   /** @brief should_run (variable) of struct AbstractHttpCoroutine */
@@ -738,9 +753,11 @@ static int co_fallback_initialized = 0;
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void);
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_coroutine_reset_fallback(void);
 
-enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void) {
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_coroutine_reset_fallback(void) {
   co_fallback_initialized = 0;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -750,7 +767,7 @@ enum c_abstract_http_error c_abstract_http_test_coroutine_reset_fallback(void) {
  * @brief Lazily initialize the pthread-fallback thread-local key.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
  */
-static enum c_abstract_http_error init_fallback_key(void) {
+NO_DISCARD static c_abstract_http_error_t init_fallback_key(void) {
   if (!co_fallback_initialized) {
     if (pthread_key_create(&co_fallback_key, NULL) != 0) {
       return C_ABSTRACT_HTTP_ERR_IO;
@@ -765,9 +782,9 @@ static enum c_abstract_http_error init_fallback_key(void) {
  * @param co Active coroutine instance.
  * @return Callback result enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 co_thread_run_body(struct AbstractHttpCoroutine *co) {
-  enum c_abstract_http_error cb_rc = co->cb(co->arg);
+  c_abstract_http_error_t cb_rc = co->cb(co->arg);
   if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
     return cb_rc;
   }
@@ -792,7 +809,7 @@ static void *co_thread_func(void *arg) {
   pthread_mutex_unlock(&co->mutex);
 
   {
-    enum c_abstract_http_error b_rc = co_thread_run_body(co);
+    c_abstract_http_error_t b_rc = co_thread_run_body(co);
     if (b_rc != C_ABSTRACT_HTTP_SUCCESS) {
       pthread_mutex_lock(&co->mutex);
       co->body_rc = b_rc;
@@ -812,12 +829,11 @@ static void *co_thread_func(void *arg) {
   return NULL;
 }
 
-enum c_abstract_http_error
-abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
-                             size_t stack_size, abstract_http_coroutine_cb cb,
-                             void *arg) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_init(
+    struct AbstractHttpCoroutine **co, size_t stack_size,
+    abstract_http_coroutine_cb cb, void *arg) {
   struct AbstractHttpCoroutine *c;
-  enum c_abstract_http_error k_rc;
+  c_abstract_http_error_t k_rc;
 
   (void)stack_size;
   k_rc = init_fallback_key();
@@ -855,7 +871,7 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_coroutine_free(struct AbstractHttpCoroutine *co) {
   LOG_DEBUG("abstract_http_coroutine_free (fallback): Entering");
   if (g_coroutine_hooks.free) {
@@ -901,9 +917,9 @@ extern int g_mock_pthread_fail;
 #define PTHREAD_CREATE_MOCK pthread_create
 #endif
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
-  enum c_abstract_http_error body_rc;
+  c_abstract_http_error_t body_rc;
   LOG_DEBUG("abstract_http_coroutine_resume (fallback): Entering");
   if (g_coroutine_hooks.resume) {
     LOG_DEBUG("abstract_http_coroutine_resume (fallback): Hooking");
@@ -941,9 +957,9 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
 }
 
 /** @brief Yield execution from current coroutine */
-enum c_abstract_http_error abstract_http_coroutine_yield(void) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_yield(void) {
   struct AbstractHttpCoroutine *co;
-  enum c_abstract_http_error k_rc;
+  c_abstract_http_error_t k_rc;
   LOG_DEBUG("abstract_http_coroutine_yield (fallback): Entering");
   if (g_coroutine_hooks.yield) {
     LOG_DEBUG("abstract_http_coroutine_yield (fallback): Hooking");
@@ -972,9 +988,8 @@ enum c_abstract_http_error abstract_http_coroutine_yield(void) {
   pthread_mutex_unlock(&co->mutex);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-enum c_abstract_http_error
-abstract_http_coroutine_is_done(const struct AbstractHttpCoroutine *co,
-                                int *out_is_done) {
+NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_is_done(
+    const struct AbstractHttpCoroutine *co, int *out_is_done) {
   if (g_coroutine_hooks.is_done) {
     return g_coroutine_hooks.is_done(co, out_is_done);
   }

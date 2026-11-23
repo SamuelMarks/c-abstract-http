@@ -32,6 +32,10 @@ extern "C" {
 #if defined(_WIN32)
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_winhttp_slot_guard(int mode);
+#endif
 
 /** @brief Helper structure for chunk testing */
 struct winhttp_TestChunkState {
@@ -43,7 +47,7 @@ struct winhttp_TestChunkState {
   int abort_on_call;
 };
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 winhttp_chunk_cb(void *user_data, const void *data, size_t length) {
   struct winhttp_TestChunkState *state =
       (struct winhttp_TestChunkState *)user_data;
@@ -56,9 +60,10 @@ winhttp_chunk_cb(void *user_data, const void *data, size_t length) {
   return 0;
 }
 
-static enum c_abstract_http_error winhttp_read_cb(void *user_data, void *buffer,
-                                                  size_t max_len,
-                                                  size_t *out_len) {
+NO_DISCARD static c_abstract_http_error_t winhttp_read_cb(void *user_data,
+                                                          void *buffer,
+                                                          size_t max_len,
+                                                          size_t *out_len) {
   struct winhttp_TestChunkState *state =
       (struct winhttp_TestChunkState *)user_data;
   state->call_count++;
@@ -77,7 +82,7 @@ static enum c_abstract_http_error winhttp_read_cb(void *user_data, void *buffer,
 
 /** @brief Test WinHTTP lifecycle */
 TEST test_winhttp_lifecycle(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpTransportContext *ctx = NULL;
 
   /* Global init/cleanup */
@@ -121,7 +126,7 @@ TEST test_winhttp_lifecycle(void) {
 
 /** @brief Test WinHTTP configuration */
 TEST test_winhttp_config_usage(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *_ast_strdup_0 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
@@ -223,7 +228,7 @@ TEST test_winhttp_config_usage(void) {
 
 /** @brief Test WinHTTP send validation */
 TEST test_winhttp_send_null_checks(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
@@ -258,7 +263,7 @@ TEST test_winhttp_send_null_checks(void) {
 
 /** @brief Test WinHTTP send failure paths */
 TEST test_winhttp_send_fail(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *_ast_strdup_1 = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -285,7 +290,7 @@ TEST test_winhttp_send_fail(void) {
 
 /** @brief Test WinHTTP methods and headers */
 TEST test_winhttp_send_methods_and_headers(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -367,7 +372,7 @@ TEST test_winhttp_send_methods_and_headers(void) {
 
 /** @brief Test WinHTTP cookies handling */
 TEST test_winhttp_send_cookies(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -440,7 +445,7 @@ TEST test_winhttp_send_cookies(void) {
 
 /** @brief Test WinHTTP chunked streaming response */
 TEST test_winhttp_send_chunked(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -499,7 +504,7 @@ TEST test_winhttp_send_chunked(void) {
 
 /** @brief Test WinHTTP chunked response abort */
 TEST test_winhttp_send_chunked_abort(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -556,7 +561,7 @@ TEST test_winhttp_send_chunked_abort(void) {
 
 /** @brief Test WinHTTP upload chunked */
 TEST test_winhttp_send_upload_chunked(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -637,7 +642,7 @@ TEST test_winhttp_send_upload_chunked(void) {
 
 /** @brief Test WinHTTP send multi */
 TEST test_winhttp_send_multi(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct ModalityEventLoop *loop = NULL;
@@ -729,14 +734,15 @@ TEST test_winhttp_send_multi(void) {
 }
 
 #if !defined(_WIN32)
-static enum c_abstract_http_error mock_winhttp_fail_wakeup(void *user_ctx) {
+NO_DISCARD static c_abstract_http_error_t
+mock_winhttp_fail_wakeup(void *user_ctx) {
   (void)user_ctx;
   return 1;
 }
 
 /** @brief Test WinHTTP send mock failure branches */
 TEST test_winhttp_send_mock_failures(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -909,7 +915,7 @@ TEST test_winhttp_send_mock_failures(void) {
 
 /** @brief Test WinHTTP coverage branches */
 TEST test_winhttp_coverage_branches(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   char *url_dup = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -1494,13 +1500,15 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
       g_mock_winhttp_close_fail = 0;
 
       for (k = 0; k < 15; ++k) {
+        c_abstract_http_error_t wrc;
         sres = NULL;
         g_mock_winhttp_cookie_count = 1;
         g_mock_alloc_count = k;
         g_mock_alloc_fail = 1;
-        (void)http_winhttp_send(ctx, &r2, &sres);
+        wrc = http_winhttp_send(ctx, &r2, &sres);
         g_mock_alloc_fail = 0;
         g_mock_winhttp_cookie_count = 0;
+        ASSERT((int)wrc >= -2000 && (int)wrc <= 2000);
         if (sres) {
           ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(sres));
           free(sres);
@@ -1513,7 +1521,7 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
     }
 
     for (k = 0; k < 20; ++k) {
-      enum c_abstract_http_error orc;
+      c_abstract_http_error_t orc;
       up_st.call_count = 0;
       g_mock_winhttp_read_chunks = 1;
       memset(&f1, 0, sizeof(f1));
@@ -1522,12 +1530,218 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
       g_mock_alloc_fail = 1;
       orc = http_winhttp_send_multi(ctx, loop, &multi, futs);
       g_mock_alloc_fail = 0;
-      (void)orc;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
     }
     g_mock_alloc_count = 0;
     g_mock_winhttp_read_chunks = 0;
+
+    {
+      struct HttpTransportContext *c2 = NULL;
+      struct HttpResponse *sres = NULL;
+      struct HttpCookieJar jar;
+      struct winhttp_TestChunkState cb_st;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_winhttp_slot_guard(0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_winhttp_slot_guard(1));
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_init(&c2));
+      g_mock_config_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_winhttp_context_free(c2));
+      g_mock_config_free_fail = 0;
+      c2 = NULL;
+
+      /* user_agent malloc OOM in config_apply */
+      for (k = 0; k < 8; ++k) {
+        c_abstract_http_error_t arc;
+        g_mock_alloc_count = k;
+        g_mock_alloc_fail = 1;
+        arc = http_winhttp_config_apply(ctx, &cfg);
+        g_mock_alloc_fail = 0;
+        ASSERT((int)arc >= -2000 && (int)arc <= 2000);
+      }
+      g_mock_alloc_count = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+
+      /* sync response_init fail via g_mock_headers_init_fail */
+      g_mock_headers_init_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_winhttp_send(ctx, &r2, &sres));
+      g_mock_headers_init_fail = 0;
+
+      /* cookie_jar_set fail + response_free fail */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+      cfg.cookie_jar = &jar;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+      for (k = 0; k < 15; ++k) {
+        c_abstract_http_error_t wrc;
+        sres = NULL;
+        g_mock_winhttp_cookie_count = 1;
+        g_mock_alloc_count = k;
+        g_mock_alloc_fail = 1;
+        g_mock_response_free_fail = 1;
+        wrc = http_winhttp_send(ctx, &r2, &sres);
+        g_mock_response_free_fail = 0;
+        g_mock_alloc_fail = 0;
+        g_mock_alloc_count = 0;
+        g_mock_winhttp_cookie_count = 0;
+        ASSERT((int)wrc >= -2000 && (int)wrc <= 2000);
+        if (sres) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(sres));
+          free(sres);
+          sres = NULL;
+        }
+      }
+      cfg.cookie_jar = NULL;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
+
+      /* dual handle close failure (rc == SUCCESS and rc != SUCCESS) */
+      {
+        c_abstract_http_error_t wrc;
+        g_mock_winhttp_close_fail = -1;
+        wrc = http_winhttp_send(ctx, &r2, &sres);
+        g_mock_winhttp_close_fail = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, wrc);
+        if (sres) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(sres));
+          free(sres);
+          sres = NULL;
+        }
+        g_mock_winhttp_close_fail = -1;
+        g_mock_winhttp_send_request_fail = 1;
+        wrc = http_winhttp_send(ctx, &r2, &sres);
+        g_mock_winhttp_send_request_fail = 0;
+        g_mock_winhttp_close_fail = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, wrc);
+      }
+
+      /* async response_init fail (+ wakeup fail & wakeup ok) */
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      up_st.call_count = 0;
+      g_mock_headers_init_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_winhttp_send_multi(ctx, loop, &multi, futs));
+      g_mock_headers_init_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
+
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      up_st.call_count = 0;
+      g_mock_headers_init_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(3, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_winhttp_send_multi(ctx, loop, &multi, futs));
+      g_mock_headers_init_fail = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
+
+      /* async read_chunks == 3 (avail > 4096 + unknown status) */
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      up_st.call_count = 0;
+      g_mock_winhttp_read_chunks = 3;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_winhttp_send_multi(ctx, loop, &multi, futs));
+      g_mock_winhttp_read_chunks = 0;
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+
+      /* async WinHttpReadData fail */
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      up_st.call_count = 0;
+      g_mock_winhttp_read_chunks = 1;
+      g_mock_winhttp_read_data_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_winhttp_send_multi(ctx, loop, &multi, futs));
+      g_mock_winhttp_read_data_fail = 0;
+      g_mock_winhttp_read_chunks = 0;
+
+      /* async second QueryDataAvailable fail after read */
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      up_st.call_count = 0;
+      g_mock_winhttp_read_chunks = 1;
+      g_mock_winhttp_query_data_available_fail = 2;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_winhttp_send_multi(ctx, loop, &multi, futs));
+      g_mock_winhttp_query_data_available_fail = 0;
+      g_mock_winhttp_read_chunks = 0;
+
+      /* async read_chunk abort & on_chunk abort */
+      memset(&cb_st, 0, sizeof(cb_st));
+      cb_st.abort_on_call = 1;
+      r1.read_chunk = winhttp_read_cb;
+      r1.read_chunk_user_data = &cb_st;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_winhttp_send_multi(ctx, loop, &multi, futs));
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+      r1.read_chunk = winhttp_read_cb;
+      r1.read_chunk_user_data = &up_st;
+      up_st.call_count = 0;
+
+      memset(&cb_st, 0, sizeof(cb_st));
+      cb_st.abort_on_call = 1;
+      r1.on_chunk = winhttp_chunk_cb;
+      r1.on_chunk_user_data = &cb_st;
+      g_mock_winhttp_read_chunks = 2;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_winhttp_send_multi(ctx, loop, &multi, futs));
+      g_mock_winhttp_read_chunks = 0;
+      r1.on_chunk = NULL;
+      up_st.call_count = 0;
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+
+      /* async READ_COMPLETE with dwStatusInformationLength == 0 */
+      g_mock_winhttp_read_chunks = 2;
+      g_mock_winhttp_read_data_fail = 2;
+      up_st.call_count = 0;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_winhttp_send_multi(ctx, loop, &multi, futs));
+      g_mock_winhttp_read_data_fail = 0;
+      g_mock_winhttp_read_chunks = 0;
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+
+      /* async WinHttpSendRequest synchronous return 0 */
+      g_mock_winhttp_send_request_fail = 2;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      up_st.call_count = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_winhttp_send_multi(ctx, loop, &multi, futs));
+      g_mock_winhttp_send_request_fail = 0;
+    }
   }
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
@@ -1552,6 +1766,69 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
   PASS();
 }
 
+#if !defined(_WIN32)
+TEST test_winhttp_utf8_and_async_timeouts(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpMultiRequest multi;
+  struct HttpFuture fut;
+  struct HttpFuture *futs[1];
+  struct HttpCookieJar jar;
+  /* Contains 2-byte (C3 A9), 3-byte (E2 82 AC), 4-byte (F0 9F 98 80), and
+   * invalid (FF) */
+  const char utf8_hdr[] = "v-\xC3\xA9-\xE2\x82\xAC-\xF0\x9F\x98\x80-\xFF";
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+  cfg.cookie_jar = &jar;
+  cfg.connect_timeout_ms = 100;
+  cfg.write_timeout_ms = 200;
+  cfg.read_timeout_ms = 300;
+  cfg.version_mask = HTTP_VERSION_2 | HTTP_VERSION_3;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("http://127.0.0.1:8080/utf8", &req.url));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "X-Utf8", utf8_hdr));
+  g_mock_winhttp_cookie_count = 99;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_send(ctx, &req, &res));
+  g_mock_winhttp_cookie_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req));
+  futs[0] = &fut;
+  memset(&fut, 0, sizeof(fut));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_winhttp_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut));
+
+  cfg.connect_timeout_ms = 0;
+  cfg.write_timeout_ms = 0;
+  cfg.read_timeout_ms = 0;
+  cfg.timeout_ms = 0;
+  cfg.version_mask = HTTP_VERSION_DEFAULT;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+  memset(&fut, 0, sizeof(fut));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_winhttp_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
+  PASS();
+}
+#endif
+
 /** @brief WinHTTP test suite */
 SUITE(http_winhttp_suite) {
   RUN_TEST(test_winhttp_lifecycle);
@@ -1566,6 +1843,7 @@ SUITE(http_winhttp_suite) {
   RUN_TEST(test_winhttp_send_multi);
   RUN_TEST(test_winhttp_protocol_user_agent_and_async_callback);
 #if !defined(_WIN32)
+  RUN_TEST(test_winhttp_utf8_and_async_timeouts);
   RUN_TEST(test_winhttp_send_mock_failures);
   RUN_TEST(test_winhttp_coverage_branches);
 #endif

@@ -19,28 +19,26 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* WebSocket public API definitions will go here */
-
 /**
  * @brief WebSocket opcodes per RFC 6455.
  */
 enum c_abstract_http_ws_opcode {
-  C_ABSTRACT_HTTP_WS_OPCODE_CONTINUATION = 0x0,
-  C_ABSTRACT_HTTP_WS_OPCODE_TEXT = 0x1,
-  C_ABSTRACT_HTTP_WS_OPCODE_BINARY = 0x2,
-  C_ABSTRACT_HTTP_WS_OPCODE_CLOSE = 0x8,
-  C_ABSTRACT_HTTP_WS_OPCODE_PING = 0x9,
-  C_ABSTRACT_HTTP_WS_OPCODE_PONG = 0xA
+  C_ABSTRACT_HTTP_WS_OPCODE_CONTINUATION = 0x0, /**< Continuation frame */
+  C_ABSTRACT_HTTP_WS_OPCODE_TEXT = 0x1,         /**< UTF-8 text frame */
+  C_ABSTRACT_HTTP_WS_OPCODE_BINARY = 0x2,       /**< Binary data frame */
+  C_ABSTRACT_HTTP_WS_OPCODE_CLOSE = 0x8,        /**< Connection close frame */
+  C_ABSTRACT_HTTP_WS_OPCODE_PING = 0x9,         /**< Ping control frame */
+  C_ABSTRACT_HTTP_WS_OPCODE_PONG = 0xA          /**< Pong control frame */
 };
 
 /**
  * @brief WebSocket connection state.
  */
 enum c_abstract_http_ws_state {
-  C_ABSTRACT_HTTP_WS_STATE_CONNECTING = 0,
-  C_ABSTRACT_HTTP_WS_STATE_OPEN,
-  C_ABSTRACT_HTTP_WS_STATE_CLOSING,
-  C_ABSTRACT_HTTP_WS_STATE_CLOSED
+  C_ABSTRACT_HTTP_WS_STATE_CONNECTING = 0, /**< Upgrade handshake in progress */
+  C_ABSTRACT_HTTP_WS_STATE_OPEN,           /**< WebSocket session open */
+  C_ABSTRACT_HTTP_WS_STATE_CLOSING,        /**< Close handshake in progress */
+  C_ABSTRACT_HTTP_WS_STATE_CLOSED          /**< WebSocket session closed */
 };
 
 /**
@@ -69,7 +67,7 @@ struct c_abstract_http_ws_config {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef enum c_abstract_http_error (*c_abstract_http_ws_on_message)(
+typedef c_abstract_http_error_t (*c_abstract_http_ws_on_message)(
     const struct c_abstract_http_ws_event *ev, void *user_data);
 
 /**
@@ -79,8 +77,8 @@ typedef enum c_abstract_http_error (*c_abstract_http_ws_on_message)(
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef enum c_abstract_http_error (*c_abstract_http_ws_on_error)(
-    int error_code, void *user_data);
+typedef c_abstract_http_error_t (*c_abstract_http_ws_on_error)(int error_code,
+                                                               void *user_data);
 
 /**
  * @brief Callback invoked when a WebSocket connection is closed.
@@ -89,8 +87,8 @@ typedef enum c_abstract_http_error (*c_abstract_http_ws_on_error)(
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef enum c_abstract_http_error (*c_abstract_http_ws_on_close)(
-    int status_code, void *user_data);
+typedef c_abstract_http_error_t (*c_abstract_http_ws_on_close)(int status_code,
+                                                               void *user_data);
 
 /**
  * @brief Initialize a WebSocket request.
@@ -205,7 +203,7 @@ c_abstract_http_ws_close(struct HttpRequest *req, int status_code);
  * @param req The HTTP request containing WebSocket context to free.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_ws_free(struct HttpRequest *req);
 
 #ifdef __cplusplus

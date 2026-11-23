@@ -32,24 +32,44 @@
 #endif
 /* clang-format on */
 
-/**
- * @brief Free a parsed libfetch URL structure and return success enum.
- * @param u Parsed libfetch URL structure to release.
- * @return C_ABSTRACT_HTTP_SUCCESS.
- */
-static enum c_abstract_http_error fetch_free_url_wrap(struct url *u) {
-  fetchFreeURL(u);
-  return C_ABSTRACT_HTTP_SUCCESS;
-}
-
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
   /** @brief Transport configuration */
   struct HttpConfig config;
+  /** @brief Preformatted `basic:*:user:pass` value for `HTTP_PROXY_AUTH` */
+  char *proxy_auth_val;
+#if !defined(_MSC_VER) && !defined(_POSIX_C_SOURCE) && !defined(__unix__) &&   \
+    !defined(__APPLE__)
+  /** @brief Owned `putenv` string for `HTTP_USER_AGENT` on legacy C89 */
+  char *putenv_ua;
+  /** @brief Owned `putenv` string for `HTTP_PROXY` on legacy C89 */
+  char *putenv_proxy;
+  /** @brief Owned `putenv` string for `HTTP_PROXY_AUTH` on legacy C89 */
+  char *putenv_proxy_auth;
+#endif
 };
 
 /** @brief Reference count of global libfetch initializations */
 static int g_fetch_init_count = 0;
+
+/**
+ * @brief Map a libfetch error code to `c_abstract_http_error_t`.
+ * @param err Libfetch error code.
+ * @return Corresponding `c_abstract_http_error_t` value.
+ */
+NO_DISCARD static c_abstract_http_error_t fetch_map_err_code(int err) {
+  switch (err) {
+  case FETCH_TIMEOUT:
+    return C_ABSTRACT_HTTP_ERR_TIMEOUT;
+  case FETCH_MEMORY:
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  case FETCH_DOWN:
+  case FETCH_NETWORK:
+  case FETCH_RESOLV:
+  default:
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+}
 
 /**
  * @brief Map libfetch error code to abstract HTTP error enum.
@@ -58,8 +78,8 @@ static int g_fetch_init_count = 0;
  * @param[out] out_err Pointer to receive abstract HTTP error enum.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-static enum c_abstract_http_error
-map_fetch_error(int err, enum c_abstract_http_error *out_err) {
+NO_DISCARD static c_abstract_http_error_t
+map_fetch_error(int err, c_abstract_http_error_t *out_err) {
   if (!out_err) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -90,8 +110,8 @@ map_fetch_error(int err, enum c_abstract_http_error *out_err) {
  * @param[out] out_str Pointer to receive method string pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-static enum c_abstract_http_error get_fetch_method_str(enum HttpMethod method,
-                                                       const char **out_str) {
+NO_DISCARD static c_abstract_http_error_t
+get_fetch_method_str(enum HttpMethod method, const char **out_str) {
   if (!out_str) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -133,13 +153,11 @@ static enum c_abstract_http_error get_fetch_method_str(enum HttpMethod method,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-enum c_abstract_http_error
-c_abstract_http_test_fetch_map_error(int err,
-                                     enum c_abstract_http_error *out_err);
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_fetch_map_error(int err, c_abstract_http_error_t *out_err);
 
-enum c_abstract_http_error
-c_abstract_http_test_fetch_method_str(enum HttpMethod method,
-                                      const char **out_str);
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_fetch_method_str(
+    enum HttpMethod method, const char **out_str);
 
 /**
  * @brief Test hook to invoke map_fetch_error directly.
@@ -148,9 +166,8 @@ c_abstract_http_test_fetch_method_str(enum HttpMethod method,
  * @param[out] out_err Mapped error enum pointer.
  * @return Error enum.
  */
-enum c_abstract_http_error
-c_abstract_http_test_fetch_map_error(int err,
-                                     enum c_abstract_http_error *out_err) {
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_fetch_map_error(
+    int err, c_abstract_http_error_t *out_err) {
   return map_fetch_error(err, out_err);
 }
 
@@ -161,15 +178,14 @@ c_abstract_http_test_fetch_map_error(int err,
  * @param[out] out_str Method string pointer.
  * @return Error enum.
  */
-enum c_abstract_http_error
-c_abstract_http_test_fetch_method_str(enum HttpMethod method,
-                                      const char **out_str) {
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_fetch_method_str(
+    enum HttpMethod method, const char **out_str) {
   return get_fetch_method_str(method, out_str);
 }
 #endif
 
 /* Initialize global libfetch resources. */
-enum c_abstract_http_error http_fetch_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_fetch_global_init(void) {
   LOG_DEBUG("http_fetch_global_init: Entering");
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_fetch_global_init_fail) {
@@ -184,7 +200,7 @@ enum c_abstract_http_error http_fetch_global_init(void) {
 }
 
 /* Clean up global libfetch resources. */
-enum c_abstract_http_error http_fetch_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_fetch_global_cleanup(void) {
   LOG_DEBUG("http_fetch_global_cleanup: Entering");
   if (g_fetch_init_count > 0 && --g_fetch_init_count == 0) {
     /* Clean up global libfetch state */
@@ -194,9 +210,9 @@ enum c_abstract_http_error http_fetch_global_cleanup(void) {
 }
 
 /* Initialize a new libfetch transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_fetch_context_init(struct HttpTransportContext **const ctx) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpTransportContext *c;
 
   LOG_DEBUG("http_fetch_context_init: Entering");
@@ -240,13 +256,24 @@ http_fetch_context_init(struct HttpTransportContext **const ctx) {
 }
 
 /* Free a libfetch transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_fetch_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_fetch_context_free: Entering");
   if (ctx) {
-    enum c_abstract_http_error rch = http_config_free(&ctx->config);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+    c_abstract_http_error_t rch;
+    free(ctx->proxy_auth_val);
+    ctx->proxy_auth_val = NULL;
+#if !defined(_MSC_VER) && !defined(_POSIX_C_SOURCE) && !defined(__unix__) &&   \
+    !defined(__APPLE__)
+    free(ctx->putenv_ua);
+    free(ctx->putenv_proxy);
+    free(ctx->putenv_proxy_auth);
+#endif
+    rch = http_config_free(&ctx->config);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+      free(ctx);
       return rch;
+    }
     free(ctx);
   }
   LOG_DEBUG("http_fetch_context_free: Exiting");
@@ -254,10 +281,9 @@ http_fetch_context_free(struct HttpTransportContext *ctx) {
 }
 
 /* Apply configuration to libfetch transport context. */
-enum c_abstract_http_error
-http_fetch_config_apply(struct HttpTransportContext *ctx,
-                        const struct HttpConfig *config) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t http_fetch_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
 
   LOG_DEBUG("http_fetch_config_apply: Entering");
   if (!ctx || !config) {
@@ -311,14 +337,70 @@ http_fetch_config_apply(struct HttpTransportContext *ctx,
     }
   }
 
+  free(ctx->proxy_auth_val);
+  ctx->proxy_auth_val = NULL;
+  if (ctx->config.proxy_username) {
+    const char *pw =
+        ctx->config.proxy_password ? ctx->config.proxy_password : "";
+    size_t ulen = strlen(ctx->config.proxy_username);
+    size_t plen = strlen(pw);
+    char *auth = (char *)malloc(8U + ulen + 1U + plen + 1U);
+    if (!auth) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(auth, "basic:*:", 8U);
+    memcpy(auth + 8U, ctx->config.proxy_username, ulen);
+    auth[8U + ulen] = ':';
+    memcpy(auth + 8U + ulen + 1U, pw, plen);
+    auth[8U + ulen + 1U + plen] = '\0';
+    ctx->proxy_auth_val = auth;
+  }
+
+#if !defined(_MSC_VER) && !defined(_POSIX_C_SOURCE) && !defined(__unix__) &&   \
+    !defined(__APPLE__)
+  free(ctx->putenv_ua);
+  ctx->putenv_ua = NULL;
+  if (ctx->config.user_agent) {
+    size_t n = strlen(ctx->config.user_agent);
+    ctx->putenv_ua = (char *)malloc(16U + n + 1U);
+    if (!ctx->putenv_ua) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(ctx->putenv_ua, "HTTP_USER_AGENT=", 16U);
+    memcpy(ctx->putenv_ua + 16U, ctx->config.user_agent, n + 1U);
+  }
+  free(ctx->putenv_proxy);
+  ctx->putenv_proxy = NULL;
+  if (ctx->config.proxy_url) {
+    size_t n = strlen(ctx->config.proxy_url);
+    ctx->putenv_proxy = (char *)malloc(11U + n + 1U);
+    if (!ctx->putenv_proxy) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(ctx->putenv_proxy, "HTTP_PROXY=", 11U);
+    memcpy(ctx->putenv_proxy + 11U, ctx->config.proxy_url, n + 1U);
+  }
+  free(ctx->putenv_proxy_auth);
+  ctx->putenv_proxy_auth = NULL;
+  if (ctx->proxy_auth_val) {
+    size_t n = strlen(ctx->proxy_auth_val);
+    ctx->putenv_proxy_auth = (char *)malloc(16U + n + 1U);
+    if (!ctx->putenv_proxy_auth) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(ctx->putenv_proxy_auth, "HTTP_PROXY_AUTH=", 16U);
+    memcpy(ctx->putenv_proxy_auth + 16U, ctx->proxy_auth_val, n + 1U);
+  }
+#endif
+
   LOG_DEBUG("http_fetch_config_apply: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /* Perform a single HTTP request using libfetch. */
-enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
-                                           const struct HttpRequest *req,
-                                           struct HttpResponse **const res) {
+NO_DISCARD c_abstract_http_error_t
+http_fetch_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+                struct HttpResponse **const res) {
   struct url *u;
   FILE *f;
   const char *method_str;
@@ -328,7 +410,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   size_t bytes_read;
   struct HttpResponse *new_res;
   char *tmp;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   method_str = "GET";
   body_ptr = NULL;
@@ -384,10 +466,8 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
 #elif defined(_POSIX_C_SOURCE) || defined(__unix__) || defined(__APPLE__)
     setenv("HTTP_USER_AGENT", ctx->config.user_agent, 1);
 #else
-    {
-      char env_buf[512];
-      sprintf(env_buf, "HTTP_USER_AGENT=%s", ctx->config.user_agent);
-      putenv(env_buf);
+    if (ctx->putenv_ua) {
+      putenv(ctx->putenv_ua);
     }
 #endif
   }
@@ -398,29 +478,33 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
 #elif defined(_POSIX_C_SOURCE) || defined(__unix__) || defined(__APPLE__)
     setenv("HTTP_PROXY", ctx->config.proxy_url, 1);
 #else
-    {
-      char env_buf[512];
-      sprintf(env_buf, "HTTP_PROXY=%s", ctx->config.proxy_url);
-      putenv(env_buf);
+    if (ctx->putenv_proxy) {
+      putenv(ctx->putenv_proxy);
     }
+#endif
+  } else {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    _putenv_s("HTTP_PROXY", "");
+#elif defined(_POSIX_C_SOURCE) || defined(__unix__) || defined(__APPLE__)
+    unsetenv("HTTP_PROXY");
 #endif
   }
 
-  if (ctx->config.proxy_username) {
-    char auth_buf[512];
-    const char *pw =
-        ctx->config.proxy_password ? ctx->config.proxy_password : "";
+  if (ctx->proxy_auth_val) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    sprintf_s(auth_buf, sizeof(auth_buf), "basic:*:%s:%s",
-              ctx->config.proxy_username, pw);
-    _putenv_s("HTTP_PROXY_AUTH", auth_buf);
+    _putenv_s("HTTP_PROXY_AUTH", ctx->proxy_auth_val);
 #elif defined(_POSIX_C_SOURCE) || defined(__unix__) || defined(__APPLE__)
-    sprintf(auth_buf, "basic:*:%s:%s", ctx->config.proxy_username, pw);
-    setenv("HTTP_PROXY_AUTH", auth_buf, 1);
+    setenv("HTTP_PROXY_AUTH", ctx->proxy_auth_val, 1);
 #else
-    sprintf(auth_buf, "HTTP_PROXY_AUTH=basic:*:%s:%s",
-            ctx->config.proxy_username, pw);
-    putenv(auth_buf);
+    if (ctx->putenv_proxy_auth) {
+      putenv(ctx->putenv_proxy_auth);
+    }
+#endif
+  } else {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    _putenv_s("HTTP_PROXY_AUTH", "");
+#elif defined(_POSIX_C_SOURCE) || defined(__unix__) || defined(__APPLE__)
+    unsetenv("HTTP_PROXY_AUTH");
 #endif
   }
 
@@ -447,29 +531,21 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
     }
     if (!upload_body) {
       LOG_DEBUG("http_fetch_send: Error ENOMEM (upload_body)");
-      {
-        enum c_abstract_http_error rch = fetch_free_url_wrap(u);
-        if (rch != C_ABSTRACT_HTTP_SUCCESS)
-          return rch;
-      }
+      fetchFreeURL(u);
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
 
     while (1) {
       char chunk_buf[1024];
-      int read_rc;
+      c_abstract_http_error_t read_rc;
 
       read_rc = req->read_chunk(req->read_chunk_user_data, chunk_buf,
                                 sizeof(chunk_buf), &out_read);
-      if (read_rc != 0) {
+      if (read_rc != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG("http_fetch_send: read_chunk aborted");
         free(upload_body);
-        {
-          enum c_abstract_http_error rch = fetch_free_url_wrap(u);
-          if (rch != C_ABSTRACT_HTTP_SUCCESS)
-            return rch;
-        }
-        return (enum c_abstract_http_error)read_rc;
+        fetchFreeURL(u);
+        return read_rc;
       }
       if (out_read == 0) {
         break;
@@ -489,11 +565,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
         if (!new_buf) {
           LOG_DEBUG("http_fetch_send: Error ENOMEM reallocating upload_body");
           free(upload_body);
-          {
-            enum c_abstract_http_error rch = fetch_free_url_wrap(u);
-            if (rch != C_ABSTRACT_HTTP_SUCCESS)
-              return rch;
-          }
+          fetchFreeURL(u);
           return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
         upload_body = new_buf;
@@ -507,28 +579,24 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
     body_ptr = (const char *)req->body;
   }
 
-  /* Flags e.g. 'd' for direct, etc. For now "" */
-  f = fetchReqHTTP(u, method_str, "", NULL, body_ptr);
-
   {
-    enum c_abstract_http_error rch = fetch_free_url_wrap(u);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS)
-      return rch;
+    const char *content_type = NULL;
+    const char *flags_str = ctx->config.verify_peer
+                                ? (ctx->config.proxy_url ? "" : "d")
+                                : (ctx->config.proxy_url ? "i" : "di");
+    if (http_headers_get(&req->headers, "Content-Type", &content_type) !=
+        C_ABSTRACT_HTTP_SUCCESS) {
+      content_type = NULL;
+    }
+    f = fetchReqHTTP(u, method_str, flags_str, content_type, body_ptr);
   }
+  fetchFreeURL(u);
 
   if (!f) {
-    enum c_abstract_http_error map_rc = map_fetch_error(fetchLastErrCode, &rc);
-    if (map_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      if (upload_body) {
-        free(upload_body);
-      }
-      return map_rc;
-    }
-    LOG_DEBUG("http_fetch_send: Error fetchReqHTTP failed, rc=%d", (int)rc);
     if (upload_body) {
       free(upload_body);
     }
-    return rc;
+    return fetch_map_err_code(fetchLastErrCode);
   }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -574,10 +642,10 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
 
   while ((bytes_read = fread(buf, 1, sizeof(buf), f)) > 0) {
     if (req->on_chunk) {
-      enum c_abstract_http_error chunk_rc =
+      c_abstract_http_error_t chunk_rc =
           req->on_chunk(req->on_chunk_user_data, buf, bytes_read);
       if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        enum c_abstract_http_error free_rc;
+        c_abstract_http_error_t free_rc;
         LOG_DEBUG("http_fetch_send: Error on_chunk failed with %d",
                   (int)chunk_rc);
         fclose(f);
@@ -622,7 +690,7 @@ enum c_abstract_http_error http_fetch_send(struct HttpTransportContext *ctx,
   }
 
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error free_rc;
+    c_abstract_http_error_t free_rc;
     LOG_DEBUG("http_fetch_send: Error returning %d", (int)rc);
     *res = NULL;
     free_rc = http_response_free(new_res);
@@ -650,7 +718,7 @@ struct fetch_multi_task {
   /** @brief Non-zero when caller supplied an external loop */
   int caller_loop;
   /** @brief First error observed */
-  enum c_abstract_http_error first_err;
+  c_abstract_http_error_t first_err;
 };
 
 /**
@@ -666,7 +734,7 @@ struct fetch_multi_task {
  * @param user_data Pointer to `struct fetch_multi_task`.
  * @return C_ABSTRACT_HTTP_SUCCESS or loop control status.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 fetch_multi_loop_cb(struct ModalityEventLoop *loop, int timer_id,
                     void *user_data) {
   struct fetch_multi_task *task = (struct fetch_multi_task *)user_data;
@@ -675,15 +743,24 @@ fetch_multi_loop_cb(struct ModalityEventLoop *loop, int timer_id,
 
   for (i = 0; i < task->multi->count; i++) {
     struct HttpResponse *res = NULL;
-    enum c_abstract_http_error rc =
+    c_abstract_http_error_t rc =
         http_fetch_send(task->ctx, task->multi->requests[i], &res);
-    task->futures[i]->response = res;
-    task->futures[i]->error_code = rc;
-    task->futures[i]->is_ready = 1;
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      task->futures[i]->response = res;
+      task->futures[i]->error_code = rc;
+      task->futures[i]->is_ready = 1;
       task->first_err = rc;
-      break;
+      if (task->caller_loop) {
+        c_abstract_http_error_t src = http_loop_stop(loop);
+        if (src != C_ABSTRACT_HTTP_SUCCESS) {
+          return src;
+        }
+      }
+      return rc;
     }
+    task->futures[i]->response = res;
+    task->futures[i]->error_code = C_ABSTRACT_HTTP_SUCCESS;
+    task->futures[i]->is_ready = 1;
   }
   if (task->caller_loop) {
     return http_loop_stop(loop);
@@ -691,16 +768,43 @@ fetch_multi_loop_cb(struct ModalityEventLoop *loop, int timer_id,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Tear down owned loop or reset caller loop stop flag and percolate
+ * error.
+ * @param owned_loop Newly created loop when caller passed NULL.
+ * @param caller_loop Caller-supplied loop or NULL.
+ * @param primary_rc Primary status to return when cleanup succeeds.
+ * @return Cleanup error if non-zero, otherwise @p primary_rc.
+ */
+NO_DISCARD static c_abstract_http_error_t
+fetch_multi_finish_loop(struct ModalityEventLoop *owned_loop,
+                        struct ModalityEventLoop *caller_loop,
+                        c_abstract_http_error_t primary_rc) {
+  if (owned_loop) {
+    c_abstract_http_error_t frc = http_loop_free(owned_loop);
+    if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+      return frc;
+    }
+  } else if (caller_loop) {
+    c_abstract_http_error_t urc =
+        abstract_http_event_loop_test_unstop(caller_loop);
+    if (urc != C_ABSTRACT_HTTP_SUCCESS) {
+      return urc;
+    }
+  }
+  return primary_rc;
+}
+
 /* Dispatch multiple HTTP requests using libfetch integrated with
  * ModalityEventLoop. */
-enum c_abstract_http_error http_fetch_send_multi(
+NO_DISCARD c_abstract_http_error_t http_fetch_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   struct ModalityEventLoop *owned_loop = NULL;
   struct ModalityEventLoop *active_loop;
   struct fetch_multi_task task;
   int timer_id = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!ctx || !multi || !futures) {
     LOG_DEBUG("http_fetch_send_multi: Error EINVAL");
@@ -726,26 +830,15 @@ enum c_abstract_http_error http_fetch_send_multi(
 
   rc = http_loop_add_timer(active_loop, 0, fetch_multi_loop_cb, &task,
                            &timer_id);
-  (void)timer_id;
-  if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-    rc = http_loop_run(active_loop);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return fetch_multi_finish_loop(owned_loop, loop, rc);
+  }
+  rc = http_loop_run(active_loop);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return fetch_multi_finish_loop(owned_loop, loop, rc);
   }
 
-  if (owned_loop) {
-    enum c_abstract_http_error frc = http_loop_free(owned_loop);
-    if (frc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = frc;
-    }
-  } else if (loop) {
-    enum c_abstract_http_error urc = abstract_http_event_loop_test_unstop(loop);
-    if (urc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = urc;
-    }
-  }
-
-  if (task.first_err != C_ABSTRACT_HTTP_SUCCESS) {
-    return task.first_err;
-  }
+  rc = fetch_multi_finish_loop(owned_loop, loop, task.first_err);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }

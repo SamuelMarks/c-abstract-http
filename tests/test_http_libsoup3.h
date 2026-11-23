@@ -28,10 +28,11 @@ extern "C" {
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_libsoup3_method_str(enum HttpMethod method,
                                          const char **out);
-extern enum c_abstract_http_error c_abstract_http_test_libsoup3_helpers(void);
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_libsoup3_helpers(void);
 #endif
 
 struct libsoup3_TestChunkState {
@@ -54,7 +55,7 @@ struct libsoup3_TestUploadState {
   int should_abort;
 };
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 libsoup3_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   struct libsoup3_TestChunkState *state;
   if (chunk) {
@@ -63,16 +64,18 @@ libsoup3_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   state = (struct libsoup3_TestChunkState *)user_data;
   state->call_count++;
   state->total_bytes += chunk_len;
+  if (state->abort_on_call < 0) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
   if (state->abort_on_call > 0 && state->call_count >= state->abort_on_call) {
     return (int)ECANCELED;
   }
   return 0;
 }
 
-static enum c_abstract_http_error libsoup3_mock_upload_cb(void *user_data,
-                                                          void *buf,
-                                                          size_t buf_len,
-                                                          size_t *out_read) {
+NO_DISCARD static c_abstract_http_error_t
+libsoup3_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
+                        size_t *out_read) {
   struct libsoup3_TestUploadState *state =
       (struct libsoup3_TestUploadState *)user_data;
   size_t remaining;
@@ -92,9 +95,9 @@ static enum c_abstract_http_error libsoup3_mock_upload_cb(void *user_data,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 setup_libsoup3_request(struct HttpRequest *req, int port) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   char *_ast_strdup_0 = NULL;
   char url[64];
 
@@ -110,7 +113,7 @@ setup_libsoup3_request(struct HttpRequest *req, int port) {
 
   rc = c_abstract_http_strdup(url, &_ast_strdup_0);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error free_rc = http_request_free(req);
+    c_abstract_http_error_t free_rc = http_request_free(req);
     if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
       return free_rc;
     }
@@ -342,7 +345,7 @@ TEST test_libsoup3_send_connection_failure(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_context_init(&ctx));
@@ -354,9 +357,9 @@ TEST test_libsoup3_send_connection_failure(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_libsoup3_request(&req, 59999));
 
   rc = http_libsoup3_send(ctx, &req, &res);
-  ASSERT(rc == (enum c_abstract_http_error)ECONNREFUSED ||
+  ASSERT(rc == (c_abstract_http_error_t)ECONNREFUSED ||
          rc == C_ABSTRACT_HTTP_ERR_TIMEOUT ||
-         rc == (enum c_abstract_http_error)EHOSTUNREACH ||
+         rc == (c_abstract_http_error_t)EHOSTUNREACH ||
          rc == C_ABSTRACT_HTTP_ERR_IO);
   ASSERT(res == NULL);
 
@@ -375,7 +378,7 @@ TEST test_libsoup3_send_success(void) {
   struct HttpConfig config;
   char *_ast_url = NULL;
   char *body_copy = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_context_init(&ctx));
@@ -419,7 +422,7 @@ TEST test_libsoup3_send_chunked_and_upload(void) {
   struct libsoup3_TestChunkState state;
   struct libsoup3_TestUploadState up_st;
   char *_ast_url = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_context_init(&ctx));
@@ -461,7 +464,7 @@ TEST test_libsoup3_send_chunked_and_upload(void) {
   req.on_chunk_user_data = &state;
 
   rc = http_libsoup3_send(ctx, &req, &res);
-  ASSERT_EQ((enum c_abstract_http_error)ECANCELED, rc);
+  ASSERT_EQ((c_abstract_http_error_t)ECANCELED, rc);
   ASSERT_EQ(NULL, res);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
@@ -541,7 +544,7 @@ TEST test_libsoup3_send_faults(void) {
 
   /* send fail: connection refused */
   g_mock_libsoup3_send_fail = 1;
-  ASSERT_EQ((enum c_abstract_http_error)ECONNREFUSED,
+  ASSERT_EQ((c_abstract_http_error_t)ECONNREFUSED,
             http_libsoup3_send(ctx, &req, &res));
 
   /* send fail: timeout */
@@ -623,7 +626,7 @@ TEST test_libsoup3_methods(void) {
     g_mock_alloc_count = 0;
     g_mock_alloc_fail = 1;
     {
-      enum c_abstract_http_error s_rc = setup_libsoup3_request(&req_test, 80);
+      c_abstract_http_error_t s_rc = setup_libsoup3_request(&req_test, 80);
       g_mock_alloc_fail = 0;
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, s_rc);
     }
@@ -727,18 +730,19 @@ TEST test_libsoup3_send_multi_and_proxy_tls(void) {
   {
     int k;
     for (k = 0; k < 25; ++k) {
-      enum c_abstract_http_error orc;
+      c_abstract_http_error_t orc;
       g_mock_alloc_count = k;
       g_mock_alloc_fail = 1;
       orc = http_libsoup3_config_apply(ctx, &cfg);
       g_mock_alloc_fail = 0;
-      (void)orc;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
 
       res = NULL;
       g_mock_alloc_count = k;
       g_mock_alloc_fail = 1;
       orc = http_libsoup3_send(ctx, &r1, &res);
       g_mock_alloc_fail = 0;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
       if (res) {
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
         free(res);
@@ -751,6 +755,7 @@ TEST test_libsoup3_send_multi_and_proxy_tls(void) {
       g_mock_alloc_fail = 1;
       orc = http_libsoup3_send_multi(ctx, NULL, &multi, futs);
       g_mock_alloc_fail = 0;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
       if (f1.response) {
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
         free(f1.response);
@@ -759,7 +764,6 @@ TEST test_libsoup3_send_multi_and_proxy_tls(void) {
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
         free(f2.response);
       }
-      (void)orc;
     }
     g_mock_alloc_count = 0;
     {
@@ -786,6 +790,120 @@ TEST test_libsoup3_send_multi_and_proxy_tls(void) {
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libsoup3_context_init(&c2));
       g_mock_libsoup3_session_new_fail = 0;
       g_mock_config_free_fail = 0;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_context_init(&c2));
+      g_mock_config_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libsoup3_context_free(c2));
+      g_mock_config_free_fail = 0;
+      c2 = NULL;
+
+      {
+        struct libsoup3_TestChunkState cst;
+        memset(&cst, 0, sizeof(cst));
+        cst.abort_on_call = -1;
+        r1.on_chunk = libsoup3_mock_chunk_cb;
+        r1.on_chunk_user_data = &cst;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+                  http_libsoup3_send(ctx, &r1, &res));
+        g_mock_response_free_fail = 1;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libsoup3_send(ctx, &r1, &res));
+        g_mock_response_free_fail = 0;
+        r1.on_chunk = NULL;
+      }
+
+      r1.url = (char *)"http://127.0.0.1:8080/defer-once";
+      r2.url = (char *)"http://127.0.0.1:8080/defer-once";
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_libsoup3_send_multi(ctx, NULL, &multi, futs));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+      r1.url = (char *)"http://127.0.0.1:8080/m1";
+      r2.url = (char *)"http://127.0.0.1:8080/m2";
+
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(1, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_libsoup3_send_multi(ctx, NULL, &multi, futs));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(2, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_libsoup3_send_multi(ctx, loop, &multi, futs));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(3, 1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_libsoup3_send_multi(ctx, loop, &multi, futs));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(4, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_libsoup3_send_multi(ctx, NULL, &multi, futs));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(0, 0));
+
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(5, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_libsoup3_send_multi(ctx, NULL, &multi, futs));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(0, 0));
+      /* Drain async_items queued on ctx->session */
+      r1.url = (char *)"http://127.0.0.1:8080/m1";
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_libsoup3_send_multi(ctx, NULL, &multi, futs));
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
     }
   }
 #endif

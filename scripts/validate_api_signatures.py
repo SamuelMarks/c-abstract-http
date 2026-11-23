@@ -38,10 +38,11 @@ def main():
 
     print("--> Checking API signatures for non error enum functions...")
     has_error = False
-    # Regex to catch API functions returning int instead of enum c_abstract_http_error
+    # Regex to catch API functions returning int or raw enum c_abstract_http_error instead of c_abstract_http_error_t
     regex = re.compile(
         r"^\s*(extern\s+)?int\s+(http_|c_abstract_http_)[a-zA-Z0-9_]*\s*\("
     )
+    raw_enum_regex = re.compile(r"\benum\s+c_abstract_http_error\b")
 
     for root, _, files in os.walk("include"):
         for file in files:
@@ -52,10 +53,16 @@ def main():
                         if regex.search(line):
                             print(f"{filepath}:{line_idx + 1}: {line.strip()}")
                             has_error = True
+                        if (
+                            raw_enum_regex.search(line)
+                            and "typedef enum" not in line
+                        ):
+                            print(f"{filepath}:{line_idx + 1}: {line.strip()}")
+                            has_error = True
 
     if has_error:
         print(
-            "ERROR: Found invalid API functions returning 'int' instead of 'enum c_abstract_http_error'."
+            "ERROR: Found invalid API signatures (must use 'c_abstract_http_error_t' with NO_DISCARD)."
         )
         sys.exit(1)
 

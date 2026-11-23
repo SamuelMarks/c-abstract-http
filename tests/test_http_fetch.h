@@ -29,10 +29,9 @@ extern "C" {
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern enum c_abstract_http_error
-c_abstract_http_test_fetch_map_error(int err,
-                                     enum c_abstract_http_error *out_err);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_fetch_map_error(int err, c_abstract_http_error_t *out_err);
+NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_fetch_method_str(enum HttpMethod method,
                                       const char **out_str);
 #endif
@@ -57,7 +56,7 @@ struct fetch_TestChunkState {
  * @param[in] chunk_len Length of received chunk.
  * @return 0 on success, non-zero to abort.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 fetch_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   struct fetch_TestChunkState *state;
   if (chunk) {
@@ -95,10 +94,9 @@ struct fetch_TestUploadState {
  * @param[out] out_read Pointer to receive number of bytes read.
  * @return 0 on success, non-zero to abort.
  */
-static enum c_abstract_http_error fetch_mock_upload_cb(void *user_data,
-                                                       void *buf,
-                                                       size_t buf_len,
-                                                       size_t *out_read) {
+NO_DISCARD static c_abstract_http_error_t
+fetch_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
+                     size_t *out_read) {
   struct fetch_TestUploadState *state;
   size_t remaining;
   size_t to_copy;
@@ -830,7 +828,7 @@ TEST test_fetch_send_multi(void) {
  */
 TEST test_fetch_mock_coverage(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  enum c_abstract_http_error err_out;
+  c_abstract_http_error_t err_out;
   const char *str_out;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             c_abstract_http_test_fetch_map_error(0, NULL));
@@ -903,8 +901,8 @@ TEST test_fetch_proxy_auth_timeouts_and_loop(void) {
             c_abstract_http_strdup("ppass", &cfg.proxy_password));
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  for (step = 0; step < 6; ++step) {
-    enum c_abstract_http_error arc;
+  for (step = 0; step < 12; ++step) {
+    c_abstract_http_error_t arc;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = step;
     arc = http_fetch_config_apply(ctx, &cfg);
@@ -943,6 +941,22 @@ TEST test_fetch_proxy_auth_timeouts_and_loop(void) {
   free(res);
   res = NULL;
 
+  cfg.verify_peer = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Content-Type", "text/plain"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  free(cfg.proxy_url);
+  cfg.proxy_url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   {
     int k;
@@ -953,12 +967,12 @@ TEST test_fetch_proxy_auth_timeouts_and_loop(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&m2, &req));
     mfs[0] = &mf;
     for (k = 0; k < 20; ++k) {
-      enum c_abstract_http_error orc;
+      c_abstract_http_error_t orc;
       g_mock_alloc_count = k;
       g_mock_alloc_fail = 1;
       orc = http_fetch_config_apply(ctx, &cfg);
       g_mock_alloc_fail = 0;
-      (void)orc;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
 
       res = NULL;
       g_mock_alloc_count = k;
@@ -976,26 +990,129 @@ TEST test_fetch_proxy_auth_timeouts_and_loop(void) {
       g_mock_alloc_fail = 1;
       orc = http_fetch_send_multi(ctx, NULL, &m2, mfs);
       g_mock_alloc_fail = 0;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
       if (mf.response) {
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf.response));
         free(mf.response);
       }
-      (void)orc;
     }
     g_mock_alloc_count = 0;
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&m2));
     {
       struct HttpTransportContext *c2 = NULL;
+      struct ModalityEventLoop *floop = NULL;
+      struct fetch_TestUploadState ust;
+      struct fetch_TestChunkState cst;
+
       g_mock_alloc_count = 1;
       g_mock_alloc_fail = 1;
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_fetch_context_init(&c2));
       g_mock_alloc_fail = 0;
       g_mock_alloc_count = 0;
 
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_context_init(&c2));
+      g_mock_config_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_fetch_context_free(c2));
+      g_mock_config_free_fail = 0;
+      c2 = NULL;
+
+      memset(&ust, 0, sizeof(ust));
+      ust.data = "abc";
+      ust.len = 3;
+      req.read_chunk = fetch_mock_upload_cb;
+      req.read_chunk_user_data = &ust;
       g_mock_headers_init_fail = 1;
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_fetch_send(ctx, &req, &res));
       g_mock_headers_init_fail = 0;
+
+      ust.pos = 0;
+      memset(&cst, 0, sizeof(cst));
+      cst.abort_on_call = 1;
+      req.on_chunk = fetch_mock_chunk_cb;
+      req.on_chunk_user_data = &cst;
+      g_mock_response_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_fetch_send(ctx, &req, &res));
+      g_mock_response_free_fail = 0;
+      req.on_chunk = NULL;
+      req.read_chunk = NULL;
+
+      g_mock_fetch_body_realloc_fail = 1;
+      g_mock_response_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_fetch_send(ctx, &req, &res));
+      g_mock_fetch_body_realloc_fail = 0;
+      g_mock_response_free_fail = 0;
+
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&floop));
+      {
+        c_abstract_http_error_t me = C_ABSTRACT_HTTP_ERR_IO;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_fetch_map_error(0, &me));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, me);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_fetch_map_error(1, &me));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT, me);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_fetch_map_error(5, &me));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, me);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_fetch_map_error(2, &me));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, me);
+      }
+      g_mock_fetch_req_fail = 1;
+      memset(&mf, 0, sizeof(mf));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_fetch_send_multi(ctx, floop, &m2, mfs));
+
+      memset(&mf, 0, sizeof(mf));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(3, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_fetch_send_multi(ctx, floop, &m2, mfs));
+      g_mock_fetch_req_fail = 0;
+
+      memset(&mf, 0, sizeof(mf));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(1, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_fetch_send_multi(ctx, NULL, &m2, mfs));
+      if (mf.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf.response));
+        free(mf.response);
+      }
+
+      memset(&mf, 0, sizeof(mf));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(2, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_fetch_send_multi(ctx, floop, &m2, mfs));
+      if (mf.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf.response));
+        free(mf.response);
+      }
+
+      memset(&mf, 0, sizeof(mf));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(4, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_fetch_send_multi(ctx, NULL, &m2, mfs));
+
+      memset(&mf, 0, sizeof(mf));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(5, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_fetch_send_multi(ctx, NULL, &m2, mfs));
+
+      memset(&mf, 0, sizeof(mf));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(3, 1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_fetch_send_multi(ctx, floop, &m2, mfs));
+      if (mf.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf.response));
+        free(mf.response);
+      }
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(floop));
     }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&m2));
   }
 #endif
 

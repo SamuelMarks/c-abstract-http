@@ -5,12 +5,12 @@
  */
 
 /* clang-format off */
-#include "../include/c_abstract_http/cmp_integration.h"
+#include <c_abstract_http/cmp_integration.h>
 #include "c_abstract_http/log.h"
 #include <errno.h>
 /* clang-format on */
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
   LOG_DEBUG("cmp_http_modality_adapter: Entering");
   if (!out_mod) {
@@ -47,11 +47,10 @@ cmp_http_modality_adapter(int cmp_mod, enum ExecutionModality *out_mod) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
-                       struct HttpConfig *http_config) {
+NO_DISCARD c_abstract_http_error_t cmp_http_inject_config(
+    const struct CmpAppConfig *cmp_config, struct HttpConfig *http_config) {
   enum ExecutionModality http_mod;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   LOG_DEBUG("cmp_http_inject_config: Entering");
   if (!cmp_config || !http_config) {
@@ -81,9 +80,8 @@ cmp_http_inject_config(const struct CmpAppConfig *cmp_config,
 }
 
 /** @brief Adapt HTTP progress updates to CMP UI progress binding */
-enum c_abstract_http_error cmp_http_progress_adapter(size_t current_bytes,
-                                                     size_t total_bytes,
-                                                     void *user_data) {
+NO_DISCARD c_abstract_http_error_t cmp_http_progress_adapter(
+    size_t current_bytes, size_t total_bytes, void *user_data) {
   struct CmpProgressBinding *binding = (struct CmpProgressBinding *)user_data;
   LOG_DEBUG("cmp_http_progress_adapter: Entering");
   if (!binding) {

@@ -6,9 +6,16 @@
 
 /* clang-format off */
 #include "crypto_utils.h"
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+#include <time.h>
+
+#if !defined(_WIN32) && !defined(__MSDOS__) && !defined(__DOS__) &&            \
+    !defined(DOS)
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 #if !defined(C_ABSTRACT_HTTP_TEST_OOM)
 #if defined(C_ABSTRACT_HTTP_USE_WOLFSSL)
@@ -32,6 +39,7 @@
 #include <mbedtls/pk.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/error.h>
+#include <mbedtls/version.h>
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -44,6 +52,7 @@
 #elif defined(C_ABSTRACT_HTTP_USE_GNUTLS)
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
+#include <gnutls/abstract.h>
 #include <gnutls/crypto.h>
 #define CAH_HAVE_GNUTLS_TLS 1
 #elif defined(C_ABSTRACT_HTTP_USE_COMMONCRYPTO) && defined(__APPLE__)
@@ -51,6 +60,11 @@
 #endif
 #endif
 /* clang-format on */
+
+#if defined(_WIN32)
+__declspec(dllimport) unsigned char __stdcall SystemFunction036(
+    void *RandomBuffer, unsigned long RandomBufferLength);
+#endif
 
 /* SHA-1 implementation based on RFC 3174 */
 /**
@@ -80,7 +94,7 @@ extern int g_mock_sha1_fail;
  * @param buffer 64-byte input message block.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or error enum on failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 math_sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
   uint32_t a, b, c, d, e;
   uint32_t w[80];
@@ -143,9 +157,13 @@ math_sha1_transform(uint32_t state[5], const uint8_t buffer[64]) {
 }
 
 /** @brief Initialize SHA-1 digest context */
-enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx) {
+NO_DISCARD c_abstract_http_error_t sha1_init(struct sha1_ctx *ctx) {
   if (!ctx)
     return C_ABSTRACT_HTTP_ERR_INVAL;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_sha1_fail == -99)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   ctx->state[0] = 0x67452301U;
   ctx->state[1] = 0xEFCDAB89U;
   ctx->state[2] = 0x98BADCFEU;
@@ -156,9 +174,10 @@ enum c_abstract_http_error sha1_init(struct sha1_ctx *ctx) {
 }
 
 /** @brief Update SHA-1 digest with input bytes */
-enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
-                                       const unsigned char *data, size_t len) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t sha1_update(struct sha1_ctx *ctx,
+                                               const unsigned char *data,
+                                               size_t len) {
+  c_abstract_http_error_t rc;
   size_t i, j;
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -200,9 +219,9 @@ enum c_abstract_http_error sha1_update(struct sha1_ctx *ctx,
 }
 
 /** @brief Finalize SHA-1 digest */
-enum c_abstract_http_error sha1_final(struct sha1_ctx *ctx,
-                                      unsigned char out_hash[20]) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t sha1_final(struct sha1_ctx *ctx,
+                                              unsigned char out_hash[20]) {
+  c_abstract_http_error_t rc;
   unsigned char finalcount[8];
   unsigned char c;
   int i;
@@ -258,7 +277,7 @@ static const uint32_t k_sha256[64] = {
  * @param buffer 64-byte input message block.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or error enum on failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 math_sha256_transform(uint32_t state[8], const uint8_t buffer[64]) {
   uint32_t w[64];
   uint32_t a, b, c, d, e, f, g, h;
@@ -323,7 +342,7 @@ math_sha256_transform(uint32_t state[8], const uint8_t buffer[64]) {
 }
 
 /** @brief Initialize SHA-256 digest context */
-enum c_abstract_http_error sha256_init(struct sha256_ctx *ctx) {
+NO_DISCARD c_abstract_http_error_t sha256_init(struct sha256_ctx *ctx) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_sha1_fail == -99) {
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -346,11 +365,12 @@ enum c_abstract_http_error sha256_init(struct sha256_ctx *ctx) {
 }
 
 /** @brief Update SHA-256 digest with input bytes */
-enum c_abstract_http_error
-sha256_update(struct sha256_ctx *ctx, const unsigned char *data, size_t len) {
+NO_DISCARD c_abstract_http_error_t sha256_update(struct sha256_ctx *ctx,
+                                                 const unsigned char *data,
+                                                 size_t len) {
   size_t i;
   size_t j;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_sha1_fail > 0) {
@@ -398,12 +418,12 @@ sha256_update(struct sha256_ctx *ctx, const unsigned char *data, size_t len) {
 }
 
 /** @brief Finalize SHA-256 digest */
-enum c_abstract_http_error sha256_final(struct sha256_ctx *ctx,
-                                        unsigned char out_hash[32]) {
+NO_DISCARD c_abstract_http_error_t sha256_final(struct sha256_ctx *ctx,
+                                                unsigned char out_hash[32]) {
   unsigned char finalcount[8];
   unsigned char c;
   int i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!ctx || !out_hash) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -439,11 +459,10 @@ enum c_abstract_http_error sha256_final(struct sha256_ctx *ctx,
 }
 
 /** @brief Compute one-shot SHA-256 digest via active provider or FIPS 180-4 */
-enum c_abstract_http_error
-c_abstract_http_sha256_oneshot(const unsigned char *data, size_t len,
-                               unsigned char out_hash[32]) {
+NO_DISCARD c_abstract_http_error_t c_abstract_http_sha256_oneshot(
+    const unsigned char *data, size_t len, unsigned char out_hash[32]) {
   struct sha256_ctx ctx;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!out_hash || (len > 0 && !data)) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -494,7 +513,7 @@ c_abstract_http_sha256_oneshot(const unsigned char *data, size_t len,
 }
 
 /** @brief Return compile-time cryptographic provider name */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 c_abstract_http_crypto_provider_name(const char **out_name) {
   if (!out_name) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -532,8 +551,9 @@ static const char b64_table[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /** @brief Base64-encode a byte buffer onto the heap */
-enum c_abstract_http_error base64_encode(const unsigned char *in, size_t in_len,
-                                         char **out_str, size_t *out_len) {
+NO_DISCARD c_abstract_http_error_t base64_encode(const unsigned char *in,
+                                                 size_t in_len, char **out_str,
+                                                 size_t *out_len) {
   size_t len;
   char *out;
   size_t i = 0;
@@ -583,9 +603,9 @@ static const int b64_index[256] = {
     37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51};
 
 /** @brief Decode a Base64 string into a newly allocated byte buffer */
-enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
-                                         unsigned char **out_data,
-                                         size_t *out_len) {
+NO_DISCARD c_abstract_http_error_t base64_decode(const char *in, size_t in_len,
+                                                 unsigned char **out_data,
+                                                 size_t *out_len) {
   size_t len;
   unsigned char *out;
   size_t i = 0;
@@ -607,15 +627,37 @@ enum c_abstract_http_error base64_decode(const char *in, size_t in_len,
     return C_ABSTRACT_HTTP_ERR_NOMEM;
 
   for (; i < in_len;) {
-    uint32_t a =
-        in[i] == '=' ? 0 & i++ : (uint32_t)b64_index[(unsigned char)in[i++]];
-    uint32_t b =
-        in[i] == '=' ? 0 & i++ : (uint32_t)b64_index[(unsigned char)in[i++]];
-    uint32_t c =
-        in[i] == '=' ? 0 & i++ : (uint32_t)b64_index[(unsigned char)in[i++]];
-    uint32_t d =
-        in[i] == '=' ? 0 & i++ : (uint32_t)b64_index[(unsigned char)in[i++]];
-    uint32_t triple = (a << 18) + (b << 12) + (c << 6) + d;
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
+    uint32_t d;
+    uint32_t triple;
+
+    if (in[i] == '=') {
+      a = 0;
+      i++;
+    } else {
+      a = (uint32_t)b64_index[(unsigned char)in[i++]];
+    }
+    if (in[i] == '=') {
+      b = 0;
+      i++;
+    } else {
+      b = (uint32_t)b64_index[(unsigned char)in[i++]];
+    }
+    if (in[i] == '=') {
+      c = 0;
+      i++;
+    } else {
+      c = (uint32_t)b64_index[(unsigned char)in[i++]];
+    }
+    if (in[i] == '=') {
+      d = 0;
+      i++;
+    } else {
+      d = (uint32_t)b64_index[(unsigned char)in[i++]];
+    }
+    triple = (a << 18) + (b << 12) + (c << 6) + d;
 
     if (j < len)
       out[j++] = (unsigned char)((triple >> 16) & 0xFF);
@@ -661,7 +703,7 @@ static unsigned char math_crypto_tolower(unsigned char ch) {
 }
 
 /** @brief Verify DER SPKI bytes against a SHA-256 Base64 or Hex pin */
-enum c_abstract_http_error c_abstract_http_verify_spki_pin_sha256(
+NO_DISCARD c_abstract_http_error_t c_abstract_http_verify_spki_pin_sha256(
     const unsigned char *spki_der, size_t spki_len, const char *expected_pin) {
   static const char hex_tbl[] = "0123456789abcdef";
   unsigned char digest[32];
@@ -672,7 +714,7 @@ enum c_abstract_http_error c_abstract_http_verify_spki_pin_sha256(
   const char *pin_body;
   size_t i;
   int matched = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!spki_der || spki_len == 0 || !expected_pin || expected_pin[0] == '\0') {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -768,7 +810,7 @@ static int math_tls_hostname_matches(const char *host, const char *pattern) {
 }
 
 /** @brief Validate TLS handshake config, X.509 credentials, and SPKI pin */
-enum c_abstract_http_error c_abstract_http_tls_verify_handshake_config(
+NO_DISCARD c_abstract_http_error_t c_abstract_http_tls_verify_handshake_config(
     const struct HttpConfig *config, const char *peer_host, const char *cert_cn,
     const unsigned char *spki_der, size_t spki_len) {
   if (!config || !peer_host || peer_host[0] == '\0') {
@@ -815,11 +857,11 @@ struct cah_ossl_tls_session {
   int handshake_done;
 };
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 cah_ossl_tls_open(void *provider_data, int sock_fd, const char *host,
                   const struct HttpConfig *config, void **out_session) {
   struct cah_ossl_tls_session *s;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)provider_data;
 
   s = (struct cah_ossl_tls_session *)calloc(1, sizeof(*s));
@@ -845,8 +887,9 @@ cah_ossl_tls_open(void *provider_data, int sock_fd, const char *host,
         return C_ABSTRACT_HTTP_ERR_ACCES;
       }
     } else if (config->verify_peer) {
-      int def_rc = SSL_CTX_set_default_verify_paths(s->ssl_ctx);
-      (void)def_rc;
+      if (SSL_CTX_set_default_verify_paths(s->ssl_ctx) != 1) {
+        LOG_DEBUG("cah_ossl_tls_open: SSL_CTX_set_default_verify_paths failed");
+      }
     }
 #if !defined(C_ABSTRACT_HTTP_USE_WOLFSSL)
     if (config->ca_buffer && config->ca_buffer_len > 0) {
@@ -856,14 +899,16 @@ cah_ossl_tls_open(void *provider_data, int sock_fd, const char *host,
       if (cbio && store) {
         X509 *cacert = PEM_read_bio_X509(cbio, NULL, 0, NULL);
         if (cacert) {
-          int add_rc = X509_STORE_add_cert(store, cacert);
-          (void)add_rc;
+          if (X509_STORE_add_cert(store, cacert) != 1) {
+            LOG_DEBUG("cah_ossl_tls_open: X509_STORE_add_cert failed");
+          }
           X509_free(cacert);
         }
       }
       if (cbio) {
-        int brc = BIO_free(cbio);
-        (void)brc;
+        if (BIO_free(cbio) != 1) {
+          LOG_DEBUG("cah_ossl_tls_open: BIO_free failed");
+        }
       }
     }
 #endif
@@ -902,12 +947,18 @@ cah_ossl_tls_open(void *provider_data, int sock_fd, const char *host,
     return C_ABSTRACT_HTTP_ERR_IO;
   }
   if (host) {
-    long sni_rc = SSL_set_tlsext_host_name(s->ssl, host);
-    (void)sni_rc;
+    if (SSL_set_tlsext_host_name(s->ssl, host) != 1) {
+      LOG_DEBUG("cah_ossl_tls_open: SSL_set_tlsext_host_name failed");
+    }
 #if !defined(C_ABSTRACT_HTTP_USE_WOLFSSL) && !defined(LIBRESSL_VERSION_NUMBER)
     if (config && config->verify_host) {
-      int hrc = SSL_set1_host(s->ssl, host);
-      (void)hrc;
+      if (SSL_set1_host(s->ssl, host) != 1) {
+        SSL_free(s->ssl);
+        free(s->cert_pin);
+        SSL_CTX_free(s->ssl_ctx);
+        free(s);
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
     }
 #endif
   }
@@ -915,8 +966,8 @@ cah_ossl_tls_open(void *provider_data, int sock_fd, const char *host,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error cah_ossl_tls_handshake(void *session,
-                                                         int *out_want) {
+NO_DISCARD static c_abstract_http_error_t
+cah_ossl_tls_handshake(void *session, int *out_want) {
   struct cah_ossl_tls_session *s = (struct cah_ossl_tls_session *)session;
   int rv;
   *out_want = 0;
@@ -929,7 +980,7 @@ static enum c_abstract_http_error cah_ossl_tls_handshake(void *session,
       X509 *peer = SSL_get_peer_certificate(s->ssl);
       unsigned char *spki_der = NULL;
       int spki_len;
-      enum c_abstract_http_error prc;
+      c_abstract_http_error_t prc;
       if (!peer) {
         return C_ABSTRACT_HTTP_ERR_ACCES;
       }
@@ -962,9 +1013,9 @@ static enum c_abstract_http_error cah_ossl_tls_handshake(void *session,
   return s->verify_peer ? C_ABSTRACT_HTTP_ERR_ACCES : C_ABSTRACT_HTTP_ERR_IO;
 }
 
-static enum c_abstract_http_error cah_ossl_tls_read(void *session, void *buf,
-                                                    size_t cap, size_t *out_n,
-                                                    int *out_want) {
+NO_DISCARD static c_abstract_http_error_t
+cah_ossl_tls_read(void *session, void *buf, size_t cap, size_t *out_n,
+                  int *out_want) {
   struct cah_ossl_tls_session *s = (struct cah_ossl_tls_session *)session;
   int rv = SSL_read(s->ssl, buf, (int)cap);
   *out_want = 0;
@@ -990,10 +1041,9 @@ static enum c_abstract_http_error cah_ossl_tls_read(void *session, void *buf,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
-static enum c_abstract_http_error cah_ossl_tls_write(void *session,
-                                                     const void *buf,
-                                                     size_t len, size_t *out_n,
-                                                     int *out_want) {
+NO_DISCARD static c_abstract_http_error_t
+cah_ossl_tls_write(void *session, const void *buf, size_t len, size_t *out_n,
+                   int *out_want) {
   struct cah_ossl_tls_session *s = (struct cah_ossl_tls_session *)session;
   int rv = SSL_write(s->ssl, buf, (int)len);
   *out_want = 0;
@@ -1016,14 +1066,15 @@ static enum c_abstract_http_error cah_ossl_tls_write(void *session,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
-static enum c_abstract_http_error cah_ossl_tls_close(void *session) {
+NO_DISCARD static c_abstract_http_error_t cah_ossl_tls_close(void *session) {
   struct cah_ossl_tls_session *s = (struct cah_ossl_tls_session *)session;
   if (!s) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
   if (s->ssl) {
-    int sd = SSL_shutdown(s->ssl);
-    (void)sd;
+    if (SSL_shutdown(s->ssl) < 0) {
+      LOG_DEBUG("cah_ossl_tls_close: SSL_shutdown incomplete");
+    }
     SSL_free(s->ssl);
   }
   if (s->ssl_ctx) {
@@ -1076,7 +1127,7 @@ static int cah_mbed_bio_recv(void *ctx, unsigned char *buf, size_t len) {
   return (int)rv;
 }
 
-static enum c_abstract_http_error cah_mbed_tls_close(void *session) {
+NO_DISCARD static c_abstract_http_error_t cah_mbed_tls_close(void *session) {
   struct cah_mbed_tls_session *s = (struct cah_mbed_tls_session *)session;
   if (!s) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -1093,11 +1144,11 @@ static enum c_abstract_http_error cah_mbed_tls_close(void *session) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 cah_mbed_tls_open(void *provider_data, int sock_fd, const char *host,
                   const struct HttpConfig *config, void **out_session) {
   struct cah_mbed_tls_session *s;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)provider_data;
 
   s = (struct cah_mbed_tls_session *)calloc(1, sizeof(*s));
@@ -1118,8 +1169,10 @@ cah_mbed_tls_open(void *provider_data, int sock_fd, const char *host,
       mbedtls_ssl_config_defaults(&s->conf, MBEDTLS_SSL_IS_CLIENT,
                                   MBEDTLS_SSL_TRANSPORT_STREAM,
                                   MBEDTLS_SSL_PRESET_DEFAULT) != 0) {
-    enum c_abstract_http_error cl = cah_mbed_tls_close(s);
-    (void)cl;
+    c_abstract_http_error_t cl = cah_mbed_tls_close(s);
+    if (cl != C_ABSTRACT_HTTP_SUCCESS) {
+      return cl;
+    }
     return C_ABSTRACT_HTTP_ERR_IO;
   }
   mbedtls_ssl_conf_rng(&s->conf, mbedtls_ctr_drbg_random, &s->ctr_drbg);
@@ -1131,8 +1184,10 @@ cah_mbed_tls_open(void *provider_data, int sock_fd, const char *host,
                                             : MBEDTLS_SSL_VERIFY_NONE);
     if (config->ca_path) {
       if (mbedtls_x509_crt_parse_file(&s->cacert, config->ca_path) != 0) {
-        enum c_abstract_http_error cl = cah_mbed_tls_close(s);
-        (void)cl;
+        c_abstract_http_error_t cl = cah_mbed_tls_close(s);
+        if (cl != C_ABSTRACT_HTTP_SUCCESS) {
+          return cl;
+        }
         return C_ABSTRACT_HTTP_ERR_ACCES;
       }
       mbedtls_ssl_conf_ca_chain(&s->conf, &s->cacert, NULL);
@@ -1143,24 +1198,56 @@ cah_mbed_tls_open(void *provider_data, int sock_fd, const char *host,
         mbedtls_ssl_conf_ca_chain(&s->conf, &s->cacert, NULL);
       }
     }
+    if (config->client_cert_path && config->client_key_path) {
+      int pk_rc;
+      if (mbedtls_x509_crt_parse_file(&s->clicert, config->client_cert_path) !=
+          0) {
+        c_abstract_http_error_t cl = cah_mbed_tls_close(s);
+        if (cl != C_ABSTRACT_HTTP_SUCCESS) {
+          return cl;
+        }
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+#if defined(MBEDTLS_VERSION_NUMBER) && (MBEDTLS_VERSION_NUMBER >= 0x03000000)
+      pk_rc =
+          mbedtls_pk_parse_keyfile(&s->clikey, config->client_key_path, NULL,
+                                   mbedtls_ctr_drbg_random, &s->ctr_drbg);
+#else
+      pk_rc =
+          mbedtls_pk_parse_keyfile(&s->clikey, config->client_key_path, NULL);
+#endif
+      if (pk_rc != 0 ||
+          mbedtls_ssl_conf_own_cert(&s->conf, &s->clicert, &s->clikey) != 0) {
+        c_abstract_http_error_t cl = cah_mbed_tls_close(s);
+        if (cl != C_ABSTRACT_HTTP_SUCCESS) {
+          return cl;
+        }
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+    }
     if (config->cert_pin_sha256) {
       rc = c_abstract_http_strdup(config->cert_pin_sha256, &s->cert_pin);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        enum c_abstract_http_error cl = cah_mbed_tls_close(s);
-        (void)cl;
+        c_abstract_http_error_t cl = cah_mbed_tls_close(s);
+        if (cl != C_ABSTRACT_HTTP_SUCCESS) {
+          return cl;
+        }
         return rc;
       }
     }
   }
 
   if (mbedtls_ssl_setup(&s->ssl, &s->conf) != 0) {
-    enum c_abstract_http_error cl = cah_mbed_tls_close(s);
-    (void)cl;
+    c_abstract_http_error_t cl = cah_mbed_tls_close(s);
+    if (cl != C_ABSTRACT_HTTP_SUCCESS) {
+      return cl;
+    }
     return C_ABSTRACT_HTTP_ERR_IO;
   }
   if (host) {
-    int hrc = mbedtls_ssl_set_hostname(&s->ssl, host);
-    (void)hrc;
+    if (mbedtls_ssl_set_hostname(&s->ssl, host) != 0) {
+      LOG_DEBUG("cah_mbed_tls_open: mbedtls_ssl_set_hostname failed");
+    }
   }
   mbedtls_ssl_set_bio(&s->ssl, &s->sock_fd, cah_mbed_bio_send,
                       cah_mbed_bio_recv, NULL);
@@ -1168,8 +1255,8 @@ cah_mbed_tls_open(void *provider_data, int sock_fd, const char *host,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error cah_mbed_tls_handshake(void *session,
-                                                         int *out_want) {
+NO_DISCARD static c_abstract_http_error_t
+cah_mbed_tls_handshake(void *session, int *out_want) {
   struct cah_mbed_tls_session *s = (struct cah_mbed_tls_session *)session;
   int rv;
   *out_want = 0;
@@ -1210,9 +1297,9 @@ static enum c_abstract_http_error cah_mbed_tls_handshake(void *session,
   return s->verify_peer ? C_ABSTRACT_HTTP_ERR_ACCES : C_ABSTRACT_HTTP_ERR_IO;
 }
 
-static enum c_abstract_http_error cah_mbed_tls_read(void *session, void *buf,
-                                                    size_t cap, size_t *out_n,
-                                                    int *out_want) {
+NO_DISCARD static c_abstract_http_error_t
+cah_mbed_tls_read(void *session, void *buf, size_t cap, size_t *out_n,
+                  int *out_want) {
   struct cah_mbed_tls_session *s = (struct cah_mbed_tls_session *)session;
   int rv = mbedtls_ssl_read(&s->ssl, (unsigned char *)buf, cap);
   *out_want = 0;
@@ -1235,10 +1322,9 @@ static enum c_abstract_http_error cah_mbed_tls_read(void *session, void *buf,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
-static enum c_abstract_http_error cah_mbed_tls_write(void *session,
-                                                     const void *buf,
-                                                     size_t len, size_t *out_n,
-                                                     int *out_want) {
+NO_DISCARD static c_abstract_http_error_t
+cah_mbed_tls_write(void *session, const void *buf, size_t len, size_t *out_n,
+                   int *out_want) {
   struct cah_mbed_tls_session *s = (struct cah_mbed_tls_session *)session;
   int rv = mbedtls_ssl_write(&s->ssl, (const unsigned char *)buf, len);
   *out_want = 0;
@@ -1276,7 +1362,7 @@ struct cah_gtls_session {
   int handshake_done;
 };
 
-static enum c_abstract_http_error cah_gtls_close(void *session) {
+NO_DISCARD static c_abstract_http_error_t cah_gtls_close(void *session) {
   struct cah_gtls_session *s = (struct cah_gtls_session *)session;
   if (!s) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -1288,12 +1374,11 @@ static enum c_abstract_http_error cah_gtls_close(void *session) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error cah_gtls_open(void *provider_data,
-                                                int sock_fd, const char *host,
-                                                const struct HttpConfig *config,
-                                                void **out_session) {
+NO_DISCARD static c_abstract_http_error_t
+cah_gtls_open(void *provider_data, int sock_fd, const char *host,
+              const struct HttpConfig *config, void **out_session) {
   struct cah_gtls_session *s;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)provider_data;
 
   s = (struct cah_gtls_session *)calloc(1, sizeof(*s));
@@ -1311,28 +1396,58 @@ static enum c_abstract_http_error cah_gtls_open(void *provider_data,
     if (config->ca_path) {
       if (gnutls_certificate_set_x509_trust_file(s->xcred, config->ca_path,
                                                  GNUTLS_X509_FMT_PEM) < 0) {
-        enum c_abstract_http_error cl = cah_gtls_close(s);
-        (void)cl;
+        c_abstract_http_error_t cl = cah_gtls_close(s);
+        if (cl != C_ABSTRACT_HTTP_SUCCESS) {
+          return cl;
+        }
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+    } else if (config->ca_buffer && config->ca_buffer_len > 0) {
+      gnutls_datum_t ca_mem;
+      ca_mem.data = (unsigned char *)(size_t)config->ca_buffer;
+      ca_mem.size = (unsigned int)config->ca_buffer_len;
+      if (gnutls_certificate_set_x509_trust_mem(s->xcred, &ca_mem,
+                                                GNUTLS_X509_FMT_PEM) < 0) {
+        c_abstract_http_error_t cl = cah_gtls_close(s);
+        if (cl != C_ABSTRACT_HTTP_SUCCESS) {
+          return cl;
+        }
         return C_ABSTRACT_HTTP_ERR_ACCES;
       }
     } else if (config->verify_peer) {
-      int trc = gnutls_certificate_set_x509_system_trust(s->xcred);
-      (void)trc;
+      if (gnutls_certificate_set_x509_system_trust(s->xcred) < 0) {
+        LOG_DEBUG(
+            "cah_gtls_open: gnutls_certificate_set_x509_system_trust failed");
+      }
+    }
+    if (config->client_cert_path && config->client_key_path) {
+      if (gnutls_certificate_set_x509_key_file(
+              s->xcred, config->client_cert_path, config->client_key_path,
+              GNUTLS_X509_FMT_PEM) < 0) {
+        c_abstract_http_error_t cl = cah_gtls_close(s);
+        if (cl != C_ABSTRACT_HTTP_SUCCESS) {
+          return cl;
+        }
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
     }
     if (config->cert_pin_sha256) {
       rc = c_abstract_http_strdup(config->cert_pin_sha256, &s->cert_pin);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        enum c_abstract_http_error cl = cah_gtls_close(s);
-        (void)cl;
+        c_abstract_http_error_t cl = cah_gtls_close(s);
+        if (cl != C_ABSTRACT_HTTP_SUCCESS) {
+          return cl;
+        }
         return rc;
       }
     }
   }
   gnutls_credentials_set(s->session, GNUTLS_CRD_CERTIFICATE, s->xcred);
   if (host) {
-    int snrc =
-        gnutls_server_name_set(s->session, GNUTLS_NAME_DNS, host, strlen(host));
-    (void)snrc;
+    if (gnutls_server_name_set(s->session, GNUTLS_NAME_DNS, host,
+                               strlen(host)) < 0) {
+      LOG_DEBUG("cah_gtls_open: gnutls_server_name_set failed");
+    }
     if (config && config->verify_peer) {
       gnutls_session_set_verify_cert(s->session,
                                      config->verify_host ? host : NULL, 0);
@@ -1343,8 +1458,8 @@ static enum c_abstract_http_error cah_gtls_open(void *provider_data,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error cah_gtls_handshake(void *session,
-                                                     int *out_want) {
+NO_DISCARD static c_abstract_http_error_t cah_gtls_handshake(void *session,
+                                                             int *out_want) {
   struct cah_gtls_session *s = (struct cah_gtls_session *)session;
   int rv;
   *out_want = 0;
@@ -1353,6 +1468,37 @@ static enum c_abstract_http_error cah_gtls_handshake(void *session,
   }
   rv = gnutls_handshake(s->session);
   if (rv == GNUTLS_E_SUCCESS) {
+    if (s->cert_pin) {
+      unsigned int list_size = 0;
+      const gnutls_datum_t *certs =
+          gnutls_certificate_get_peers(s->session, &list_size);
+      gnutls_x509_crt_t crt = NULL;
+      gnutls_pubkey_t pubkey = NULL;
+      gnutls_datum_t spki = {NULL, 0};
+      c_abstract_http_error_t pin_rc;
+      if (!certs || list_size == 0 || gnutls_x509_crt_init(&crt) < 0) {
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+      if (gnutls_x509_crt_import(crt, &certs[0], GNUTLS_X509_FMT_DER) < 0 ||
+          gnutls_pubkey_init(&pubkey) < 0) {
+        gnutls_x509_crt_deinit(crt);
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+      if (gnutls_pubkey_import_x509(pubkey, crt, 0) < 0 ||
+          gnutls_pubkey_export2(pubkey, GNUTLS_X509_FMT_DER, &spki) < 0) {
+        gnutls_pubkey_deinit(pubkey);
+        gnutls_x509_crt_deinit(crt);
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+      pin_rc = c_abstract_http_verify_spki_pin_sha256(
+          spki.data, (size_t)spki.size, s->cert_pin);
+      gnutls_free(spki.data);
+      gnutls_pubkey_deinit(pubkey);
+      gnutls_x509_crt_deinit(crt);
+      if (pin_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+    }
     s->handshake_done = 1;
     return C_ABSTRACT_HTTP_SUCCESS;
   }
@@ -1363,9 +1509,10 @@ static enum c_abstract_http_error cah_gtls_handshake(void *session,
   return s->verify_peer ? C_ABSTRACT_HTTP_ERR_ACCES : C_ABSTRACT_HTTP_ERR_IO;
 }
 
-static enum c_abstract_http_error cah_gtls_read(void *session, void *buf,
-                                                size_t cap, size_t *out_n,
-                                                int *out_want) {
+NO_DISCARD static c_abstract_http_error_t cah_gtls_read(void *session,
+                                                        void *buf, size_t cap,
+                                                        size_t *out_n,
+                                                        int *out_want) {
   struct cah_gtls_session *s = (struct cah_gtls_session *)session;
   long rv = (long)gnutls_record_recv(s->session, buf, cap);
   *out_want = 0;
@@ -1384,9 +1531,9 @@ static enum c_abstract_http_error cah_gtls_read(void *session, void *buf,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
-static enum c_abstract_http_error cah_gtls_write(void *session, const void *buf,
-                                                 size_t len, size_t *out_n,
-                                                 int *out_want) {
+NO_DISCARD static c_abstract_http_error_t
+cah_gtls_write(void *session, const void *buf, size_t len, size_t *out_n,
+               int *out_want) {
   struct cah_gtls_session *s = (struct cah_gtls_session *)session;
   long rv = (long)gnutls_record_send(s->session, buf, len);
   *out_want = 0;
@@ -1409,7 +1556,7 @@ static const struct HttpRawTlsHooks g_cah_default_tls_hooks = {
 #endif
 
 /** @brief Retrieve active compile-time TLS socket provider hooks */
-enum c_abstract_http_error c_abstract_http_get_default_tls_hooks(
+NO_DISCARD c_abstract_http_error_t c_abstract_http_get_default_tls_hooks(
     const struct HttpRawTlsHooks **out_hooks) {
   if (!out_hooks) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -1419,5 +1566,72 @@ enum c_abstract_http_error c_abstract_http_get_default_tls_hooks(
 #else
   *out_hooks = NULL;
 #endif
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/** @brief Fill a buffer with cryptographically unpredictable random bytes */
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_random_bytes(unsigned char *buf, size_t len) {
+  static abstract_http_uint64_t fallback_state = 0;
+  size_t i;
+
+  if (len == 0) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (!buf) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_sha1_fail == -502) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+
+#if defined(_WIN32)
+  if (SystemFunction036(buf, (unsigned long)len)) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#elif !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+  {
+    int fd;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (g_mock_sha1_fail == -500) {
+      fd = -1;
+    } else if (g_mock_sha1_fail == -501) {
+      fd = open("/dev/null", O_RDONLY);
+    } else
+#endif
+    {
+      fd = open("/dev/urandom", O_RDONLY);
+    }
+    if (fd >= 0) {
+      ssize_t r = read(fd, buf, len);
+      close(fd);
+      if (r == (ssize_t)len) {
+        return C_ABSTRACT_HTTP_SUCCESS;
+      }
+    }
+  }
+#endif
+
+  {
+    const abstract_http_uint64_t k_inc =
+        ((abstract_http_uint64_t)0x9E3779B9UL << 32) |
+        (abstract_http_uint64_t)0x7F4A7C15UL;
+    const abstract_http_uint64_t k_mul =
+        ((abstract_http_uint64_t)0x2545F491UL << 32) |
+        (abstract_http_uint64_t)0x4F6CDD1DUL;
+    fallback_state ^= ((abstract_http_uint64_t)time(NULL) << 16) ^
+                      (abstract_http_uint64_t)(size_t)buf ^ k_inc;
+    for (i = 0; i < len; ++i) {
+      abstract_http_uint64_t x = fallback_state + k_inc;
+      fallback_state = x;
+      x ^= x >> 12;
+      x ^= x << 25;
+      x ^= x >> 27;
+      buf[i] = (unsigned char)((x * k_mul) >> 56);
+    }
+  }
   return C_ABSTRACT_HTTP_SUCCESS;
 }

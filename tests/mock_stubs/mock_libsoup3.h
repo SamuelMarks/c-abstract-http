@@ -356,6 +356,14 @@ static void g_object_unref(void *obj) {
     } else if (kind == 2) {
       SoupMessage *m = (SoupMessage *)obj;
       size_t i;
+      if (g_mock_active_soup_session) {
+        for (i = 0; i < g_mock_active_soup_session->async_count; ++i) {
+          if (g_mock_active_soup_session->async_items[i].msg == m) {
+            g_mock_active_soup_session->async_items[i].active = 0;
+            g_mock_active_soup_session->async_items[i].msg = NULL;
+          }
+        }
+      }
       for (i = 0; i < m->headers.count; ++i) {
         free(m->headers.keys[i]);
         free(m->headers.values[i]);
@@ -467,6 +475,12 @@ static gboolean g_main_context_iteration(GMainContext *context,
     return FALSE;
   }
   for (i = 0; i < s->async_count; ++i) {
+    if (s->async_items[i].active == 1 && s->async_items[i].msg &&
+        s->async_items[i].msg->url &&
+        strstr(s->async_items[i].msg->url, "defer-once") != NULL) {
+      s->async_items[i].active = 2;
+      continue;
+    }
     if (s->async_items[i].active) {
       s->async_items[i].active = 0;
       dispatched = TRUE;
@@ -476,14 +490,24 @@ static gboolean g_main_context_iteration(GMainContext *context,
       }
     }
   }
-  s->async_count = 0;
+  {
+    int any_pending = 0;
+    for (i = 0; i < s->async_count; ++i) {
+      if (s->async_items[i].active) {
+        any_pending = 1;
+      }
+    }
+    if (!any_pending) {
+      s->async_count = 0;
+    }
+  }
   return dispatched;
 }
 
 static GBytes *soup_session_send_and_read(SoupSession *session,
                                           SoupMessage *msg, void *cancellable,
                                           GError **error) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)session;
   (void)cancellable;
   *error = NULL;
@@ -526,8 +550,8 @@ static GBytes *soup_session_send_and_read(SoupSession *session,
   return g_bytes_new("OK", 2);
 }
 
-enum c_abstract_http_error c_abstract_http_test_libsoup3_helpers(void);
-enum c_abstract_http_error c_abstract_http_test_libsoup3_helpers(void) {
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libsoup3_helpers(void);
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libsoup3_helpers(void) {
   gsize sz = 0;
   GBytes *b;
   SoupSession *sess;

@@ -47,13 +47,16 @@ struct libevent_TestUploadState {
 };
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_libevent_method_cmd(enum HttpMethod method, int *out_cmd);
-extern enum c_abstract_http_error c_abstract_http_test_libevent_evbuffer(void);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_libevent_evbuffer(void);
+NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_libevent_add_header_edge(void);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_libevent_chunked_cb(void);
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_libevent_resolve_null(void);
 #endif
 
 /**
@@ -63,9 +66,9 @@ c_abstract_http_test_libevent_chunked_cb(void);
  * @param[in] port Server port.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code otherwise.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 setup_libevent_request(struct HttpRequest *req, int port) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   char *_ast_strdup_0 = NULL;
   char url[64];
 
@@ -81,7 +84,7 @@ setup_libevent_request(struct HttpRequest *req, int port) {
 
   rc = c_abstract_http_strdup(url, &_ast_strdup_0);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error free_rc = http_request_free(req);
+    c_abstract_http_error_t free_rc = http_request_free(req);
     if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
       return free_rc;
     }
@@ -241,7 +244,7 @@ TEST test_libevent_send_connection_failure(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_global_init());
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_context_init(&ctx));
@@ -252,9 +255,9 @@ TEST test_libevent_send_connection_failure(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, setup_libevent_request(&req, 59999));
 
   rc = http_libevent_send(ctx, &req, &res);
-  ASSERT(rc == (enum c_abstract_http_error)ECONNREFUSED ||
+  ASSERT(rc == (c_abstract_http_error_t)ECONNREFUSED ||
          rc == C_ABSTRACT_HTTP_ERR_TIMEOUT ||
-         rc == (enum c_abstract_http_error)EHOSTUNREACH ||
+         rc == (c_abstract_http_error_t)EHOSTUNREACH ||
          rc == C_ABSTRACT_HTTP_ERR_IO);
   ASSERT(res == NULL);
 
@@ -267,7 +270,7 @@ TEST test_libevent_send_connection_failure(void) {
 
 /** @brief Documented */
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 libevent_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   struct libevent_TestChunkState *state;
   if (chunk) {
@@ -290,7 +293,7 @@ TEST test_libevent_send_chunked(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct libevent_TestChunkState state;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
@@ -336,7 +339,7 @@ TEST test_libevent_send_chunked_abort(void) {
   struct HttpResponse *res = NULL;
   struct HttpConfig config;
   struct libevent_TestChunkState state;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
@@ -356,7 +359,7 @@ TEST test_libevent_send_chunked_abort(void) {
   req.on_chunk_user_data = &state;
 
   rc = http_libevent_send(ctx, &req, &res);
-  ASSERT_EQ((enum c_abstract_http_error)ECANCELED, rc);
+  ASSERT_EQ((c_abstract_http_error_t)ECANCELED, rc);
   ASSERT(res == NULL);
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
@@ -367,10 +370,9 @@ TEST test_libevent_send_chunked_abort(void) {
   PASS();
 }
 
-static enum c_abstract_http_error libevent_mock_upload_cb(void *user_data,
-                                                          void *buf,
-                                                          size_t buf_len,
-                                                          size_t *out_read) {
+NO_DISCARD static c_abstract_http_error_t
+libevent_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
+                        size_t *out_read) {
   struct libevent_TestUploadState *state =
       (struct libevent_TestUploadState *)user_data;
   size_t remaining = state->len - state->pos;
@@ -393,7 +395,7 @@ TEST test_libevent_send_upload_chunked(void) {
   struct HttpConfig config;
   struct libevent_TestUploadState up_state;
   const char *payload = "UPLOAD_TEST_DATA";
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&server));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(server));
@@ -437,7 +439,7 @@ TEST test_libevent_send_direct_body_and_urls(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   char *_ast_url = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   const char *long_host_url =
       "http://"
       "very-long-host-name-exceeding-two-hundred-and-fifty-six-characters"
@@ -576,7 +578,7 @@ TEST test_libevent_send_fault_injections(void) {
 
   /* 4: Make req fail */
   g_mock_libevent_make_req_fail = 1;
-  ASSERT_EQ((enum c_abstract_http_error)ECONNREFUSED,
+  ASSERT_EQ((c_abstract_http_error_t)ECONNREFUSED,
             http_libevent_send(ctx, &req, &res));
   g_mock_libevent_make_req_fail = 0;
 
@@ -643,7 +645,7 @@ TEST test_libevent_send_fault_injections(void) {
 
   /* 10: Null res in dispatch */
   g_mock_libevent_empty_body = 2;
-  ASSERT_EQ((enum c_abstract_http_error)ECONNREFUSED,
+  ASSERT_EQ((c_abstract_http_error_t)ECONNREFUSED,
             http_libevent_send(ctx, &req, &res));
   g_mock_libevent_empty_body = 0;
 
@@ -692,7 +694,7 @@ TEST test_libevent_methods(void) {
     g_mock_alloc_count = 0;
     g_mock_alloc_fail = 1;
     {
-      enum c_abstract_http_error s_rc = setup_libevent_request(&req_test, 80);
+      c_abstract_http_error_t s_rc = setup_libevent_request(&req_test, 80);
       g_mock_alloc_fail = 0;
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, s_rc);
     }
@@ -701,7 +703,7 @@ TEST test_libevent_methods(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dummy_libevent_chunk_reader_err(void *user_data, void *buf, size_t max_bytes,
                                 size_t *out_read) {
   if (user_data || buf || max_bytes || out_read) {
@@ -711,7 +713,7 @@ dummy_libevent_chunk_reader_err(void *user_data, void *buf, size_t max_bytes,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dummy_libevent_chunk_reader(void *user_data, void *buf, size_t max_bytes,
                             size_t *out_read) {
   int *called;
@@ -736,7 +738,7 @@ TEST test_http_libevent_url_and_body_branches(void) {
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
   char long_url[512];
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   int dummy_chunk_state = 0;
 #endif
@@ -1069,7 +1071,7 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
     g_mock_libevent_conn_new_fail = 0;
 
     for (k = 0; k < 25; ++k) {
-      enum c_abstract_http_error orc;
+      c_abstract_http_error_t orc;
       res = NULL;
       r2.url = (char *)"http://127.0.0.1:80/redir-once";
       g_mock_alloc_count = k;
@@ -1089,6 +1091,7 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
       g_mock_alloc_fail = 1;
       orc = http_libevent_send_multi(ctx, NULL, &multi, futs);
       g_mock_alloc_fail = 0;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
       if (f1.response) {
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
         free(f1.response);
@@ -1097,11 +1100,11 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
         free(f2.response);
       }
-      (void)orc;
     }
     g_mock_alloc_count = 0;
     {
       struct HttpTransportContext *c2 = NULL;
+      c_abstract_http_error_t mrc;
       g_mock_alloc_count = 1;
       g_mock_alloc_fail = 1;
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libevent_context_init(&c2));
@@ -1126,7 +1129,8 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
       r2.url = (char *)"http://127.0.0.1:59999/err";
       memset(&f1, 0, sizeof(f1));
       memset(&f2, 0, sizeof(f2));
-      (void)http_libevent_send_multi(ctx, NULL, &multi, futs);
+      mrc = http_libevent_send_multi(ctx, NULL, &multi, futs);
+      ASSERT((int)mrc >= -2000 && (int)mrc <= 2000);
       if (f1.response) {
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
         free(f1.response);
@@ -1143,8 +1147,9 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
         res = NULL;
         g_mock_alloc_count = k;
         g_mock_alloc_fail = 1;
-        (void)http_libevent_send(ctx, &r1, &res);
+        mrc = http_libevent_send(ctx, &r1, &res);
         g_mock_alloc_fail = 0;
+        ASSERT((int)mrc >= -2000 && (int)mrc <= 2000);
         if (res) {
           ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
           free(res);
@@ -1161,6 +1166,328 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
       g_mock_response_free_fail = 1;
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libevent_send(ctx, &r2, &res));
       g_mock_response_free_fail = 0;
+
+      {
+        struct HttpRequest rp;
+        struct HttpFuture *bad_futs[2];
+        c_abstract_http_error_t xrc;
+
+        /* context_free config_free failure */
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_context_init(&c2));
+        g_mock_config_free_fail = 1;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libevent_context_free(c2));
+        g_mock_config_free_fail = 0;
+        c2 = NULL;
+
+        /* config_apply user_agent strdup OOM */
+        cfg.user_agent = (char *)"ua-test";
+        g_mock_alloc_count = 0;
+        g_mock_alloc_fail = 1;
+        xrc = http_libevent_config_apply(ctx, &cfg);
+        g_mock_alloc_fail = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, xrc);
+        cfg.user_agent = NULL;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_libevent_config_apply(ctx, &cfg));
+
+        /* Plain request: response_init fail, invalid method, proxy invalid &
+         * https */
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&rp));
+        rp.url = (char *)"http://127.0.0.1:80/plain";
+
+        g_mock_headers_init_fail = 1;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libevent_send(ctx, &rp, &res));
+        g_mock_headers_init_fail = 0;
+
+        rp.method = (enum HttpMethod)(-1);
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+                  http_libevent_send(ctx, &rp, &res));
+        rp.method = HTTP_GET;
+
+        cfg.proxy_url = (char *)"";
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_libevent_config_apply(ctx, &cfg));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+                  http_libevent_send(ctx, &rp, &res));
+
+        cfg.proxy_url = (char *)"https://127.0.0.1:8443/proxy-p";
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_libevent_config_apply(ctx, &cfg));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_send(ctx, &rp, &res));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+        cfg.proxy_url = NULL;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_libevent_config_apply(ctx, &cfg));
+
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+                  c_abstract_http_test_libevent_resolve_null());
+
+        cfg.follow_redirects = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_libevent_config_apply(ctx, &cfg));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_send(ctx, &rp, &res));
+        g_mock_response_free_fail = 1;
+        g_mock_headers_free_fail = 1;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_response_free(res));
+        g_mock_headers_free_fail = 0;
+        g_mock_response_free_fail = 0;
+        free(res);
+        res = NULL;
+        cfg.follow_redirects = 1;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_libevent_config_apply(ctx, &cfg));
+
+        /* OOM sweep on plain request + response_free_fail on in_hdrs OOM */
+        for (k = 0; k < 25; ++k) {
+          res = NULL;
+          g_mock_alloc_count = k;
+          g_mock_alloc_fail = 1;
+          xrc = http_libevent_send(ctx, &rp, &res);
+          g_mock_alloc_fail = 0;
+          g_mock_alloc_count = 0;
+          ASSERT((int)xrc >= -2000 && (int)xrc <= 2000);
+          if (res) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+            free(res);
+            res = NULL;
+          }
+
+          res = NULL;
+          g_mock_alloc_count = k;
+          g_mock_alloc_fail = 1;
+          g_mock_response_free_fail = 1;
+          xrc = http_libevent_send(ctx, &rp, &res);
+          g_mock_response_free_fail = 0;
+          g_mock_alloc_fail = 0;
+          g_mock_alloc_count = 0;
+          ASSERT((int)xrc >= -2000 && (int)xrc <= 2000);
+          if (res) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+            free(res);
+            res = NULL;
+          }
+        }
+
+        /* Multipart + request headers OOM + headers_free_fail */
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_headers_add(&r1.headers, "X-Part-Hdr", "1"));
+        for (k = 0; k < 10; ++k) {
+          res = NULL;
+          g_mock_alloc_count = k;
+          g_mock_alloc_fail = 1;
+          xrc = http_libevent_send(ctx, &r1, &res);
+          g_mock_alloc_fail = 0;
+          g_mock_alloc_count = 0;
+          ASSERT((int)xrc >= -2000 && (int)xrc <= 2000);
+          if (res) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+            free(res);
+            res = NULL;
+          }
+        }
+        g_mock_headers_free_fail = 1;
+        xrc = http_libevent_send(ctx, &r1, &res);
+        g_mock_headers_free_fail = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, xrc);
+        if (res) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+          free(res);
+          res = NULL;
+        }
+
+        /* Redirect branches: no Location, loop + response_free_fail, rel OOM +
+         * response_free_fail */
+        cfg.follow_redirects = 1;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_libevent_config_apply(ctx, &cfg));
+
+        rp.url = (char *)"http://127.0.0.1:80/redir-no-loc";
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_send(ctx, &rp, &res));
+        ASSERT_EQ(302, res->status_code);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+
+        rp.url = (char *)"http://127.0.0.1:80/redir-loop";
+        g_mock_response_free_fail = 11;
+        xrc = http_libevent_send(ctx, &rp, &res);
+        g_mock_response_free_fail = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, xrc);
+
+        rp.url = (char *)"http://127.0.0.1:80/redir-rel";
+        for (k = 0; k < 25; ++k) {
+          res = NULL;
+          g_mock_alloc_count = k;
+          g_mock_alloc_fail = 1;
+          xrc = http_libevent_send(ctx, &rp, &res);
+          g_mock_alloc_fail = 0;
+          g_mock_alloc_count = 0;
+          ASSERT((int)xrc >= -2000 && (int)xrc <= 2000);
+          if (res) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+            free(res);
+            res = NULL;
+          }
+        }
+        for (k = 0; k < 25; ++k) {
+          res = NULL;
+          g_mock_alloc_count = k;
+          g_mock_alloc_fail = 1;
+          g_mock_response_free_fail = 1;
+          xrc = http_libevent_send(ctx, &rp, &res);
+          g_mock_response_free_fail = 0;
+          g_mock_alloc_fail = 0;
+          g_mock_alloc_count = 0;
+          ASSERT((int)xrc >= -2000 && (int)xrc <= 2000);
+          if (res) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+            free(res);
+            res = NULL;
+          }
+        }
+
+        /* send_multi: NULL future, defer-once, null-done, in_hdrs OOM +
+         * response_free_fail, headers_free_fail, loop ops */
+        r2.url = (char *)"http://127.0.0.1:80/m2";
+        bad_futs[0] = NULL;
+        bad_futs[1] = &f2;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+                  http_libevent_send_multi(ctx, NULL, &multi, bad_futs));
+
+        r1.url = (char *)"http://127.0.0.1:80/defer-once";
+        r2.url = (char *)"http://127.0.0.1:80/null-done";
+        memset(&f1, 0, sizeof(f1));
+        memset(&f2, 0, sizeof(f2));
+        xrc = http_libevent_send_multi(ctx, NULL, &multi, futs);
+        ASSERT((int)xrc >= -2000 && (int)xrc <= 2000);
+        if (f1.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+          free(f1.response);
+        }
+        if (f2.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+          free(f2.response);
+        }
+
+        r1.url = (char *)"http://127.0.0.1:80/m1";
+        r2.url = (char *)"http://127.0.0.1:80/m2";
+        for (k = 0; k < 20; ++k) {
+          memset(&f1, 0, sizeof(f1));
+          memset(&f2, 0, sizeof(f2));
+          g_mock_alloc_count = k;
+          g_mock_alloc_fail = 1;
+          g_mock_response_free_fail = 1;
+          xrc = http_libevent_send_multi(ctx, NULL, &multi, futs);
+          g_mock_response_free_fail = 0;
+          g_mock_alloc_fail = 0;
+          g_mock_alloc_count = 0;
+          ASSERT((int)xrc >= -2000 && (int)xrc <= 2000);
+          if (f1.response) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+            free(f1.response);
+          }
+          if (f2.response) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+            free(f2.response);
+          }
+        }
+
+        memset(&f1, 0, sizeof(f1));
+        memset(&f2, 0, sizeof(f2));
+        g_mock_headers_free_fail = 1;
+        xrc = http_libevent_send_multi(ctx, NULL, &multi, futs);
+        g_mock_headers_free_fail = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, xrc);
+        if (f1.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+          free(f1.response);
+        }
+        if (f2.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+          free(f2.response);
+        }
+
+        memset(&f1, 0, sizeof(f1));
+        memset(&f2, 0, sizeof(f2));
+        g_mock_headers_free_fail = 1;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_loop_op_fail(1, 0));
+        xrc = http_libevent_send_multi(ctx, NULL, &multi, futs);
+        g_mock_headers_free_fail = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, xrc);
+        if (f1.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+          free(f1.response);
+        }
+        if (f2.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+          free(f2.response);
+        }
+
+        memset(&f1, 0, sizeof(f1));
+        memset(&f2, 0, sizeof(f2));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_loop_op_fail(1, 0));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                  http_libevent_send_multi(ctx, NULL, &multi, futs));
+        if (f1.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+          free(f1.response);
+        }
+        if (f2.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+          free(f2.response);
+        }
+
+        memset(&f1, 0, sizeof(f1));
+        memset(&f2, 0, sizeof(f2));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_loop_op_fail(2, 0));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                  http_libevent_send_multi(ctx, loop, &multi, futs));
+        if (f1.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+          free(f1.response);
+        }
+        if (f2.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+          free(f2.response);
+        }
+
+        memset(&f1, 0, sizeof(f1));
+        memset(&f2, 0, sizeof(f2));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_loop_op_fail(3, 1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                  http_libevent_send_multi(ctx, loop, &multi, futs));
+        if (f1.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+          free(f1.response);
+        }
+        if (f2.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+          free(f2.response);
+        }
+
+        memset(&f1, 0, sizeof(f1));
+        memset(&f2, 0, sizeof(f2));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_loop_op_fail(4, 0));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                  http_libevent_send_multi(ctx, NULL, &multi, futs));
+
+        memset(&f1, 0, sizeof(f1));
+        memset(&f2, 0, sizeof(f2));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_loop_op_fail(5, 0));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                  http_libevent_send_multi(ctx, NULL, &multi, futs));
+
+        rp.url = NULL;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&rp));
+      }
     }
   }
 #endif

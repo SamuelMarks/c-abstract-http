@@ -9,8 +9,6 @@ RUN apt-get update && apt-get install -y \
     git \
     pkg-config \
     libssl-dev \
-    sqlite3 \
-    libsqlite3-dev \
     valgrind \
     gdb \
     ninja-build \

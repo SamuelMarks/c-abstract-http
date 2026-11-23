@@ -22,7 +22,8 @@ extern "C" {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on completion.
  */
-extern enum c_abstract_http_error abstract_http_precondition_failed(void);
+NO_DISCARD extern c_abstract_http_error_t
+abstract_http_precondition_failed(void);
 
 /**
  * @brief Write string content to a file.
@@ -32,8 +33,8 @@ extern enum c_abstract_http_error abstract_http_precondition_failed(void);
  * @param[in] contents The data to write.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error enum on failure.
  */
-extern enum c_abstract_http_error write_to_file(const char *filename,
-                                                const char *contents);
+NO_DISCARD extern c_abstract_http_error_t write_to_file(const char *filename,
+                                                        const char *contents);
 
 #ifdef __cplusplus
 }

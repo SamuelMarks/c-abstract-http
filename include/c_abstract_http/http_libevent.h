@@ -1,14 +1,14 @@
 /**
  * @file http_libevent.h
- * @brief Liblibevent implementation of the Abstract Network Interface (ANI).
+ * @brief libevent implementation of the Abstract Network Interface (ANI).
  *
- * Provides functions to instantiate a transport context backed by liblibevent.
- * Handles the mapping between the generic `HttpClient`/`HttpRequest` structures
- * and the specific `libevent` handle options.
+ * Provides functions to instantiate a transport context backed by `libevent`
+ * (`evhttp`). Handles the mapping between the generic `HttpClient` and
+ * `HttpRequest` structures and `evhttp_connection` / `evhttp_request` state.
  *
  * Includes support for:
  * - Reference-counted global initialization.
- * - Configuration application (Timeouts, SSL, Proxy).
+ * - Configuration application (Timeouts, OpenSSL bufferevent TLS, Proxy).
  * - Comprehensive error code mapping.
  *
  * @author Samuel Marks
@@ -29,13 +29,10 @@ extern "C" {
 /**
  * @brief Initialize the global libevent environment safely.
  *
- * Uses an internal reference counter to ensure `libevent_global_init` is called
- * called exactly once on the first invocation, and `libevent_global_cleanup`
- * only on the last. This allows multiple independent clients to
- * initialize/cleanup without race conditions (assuming single-threaded startup
- * or external locking, as C89 lacks mutexes).
+ * Uses an internal reference counter to ensure global socket/library setup is
+ * performed once on the first invocation and torn down only on the last.
  *
- * @return 0 on success, EIO on failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libevent_global_init(void);
@@ -43,20 +40,18 @@ http_libevent_global_init(void);
 /**
  * @brief Decrement the global initialization reference count.
  *
- * If the count reaches zero, `libevent_global_cleanup` is invoked.
+ * Tears down global state when the reference count reaches zero.
  *
- * @return 0 on success.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libevent_global_cleanup(void);
 
 /**
  * @brief Create a new libevent-backed transport context.
- * Internal allocates a libevent handle for reuse.
  *
  * @param[out] ctx Double pointer to receive the allocated context.
- * @return 0 on success, ENOMEM on allocation failure, EIO on libevent init
- * failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or ENOMEM/EIO error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libevent_context_init(struct HttpTransportContext **ctx);
@@ -66,44 +61,38 @@ http_libevent_context_init(struct HttpTransportContext **ctx);
  * Cleans up the internal libevent handle and any cached configuration.
  *
  * @param[in] ctx The context to free. Safe to pass NULL.
- * @return 0 on success, or an error code.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libevent_context_free(struct HttpTransportContext *ctx);
 
 /**
- * @brief Apply configuration settings to the libevent handle.
+ * @brief Apply configuration settings to the libevent transport context.
  *
- * Maps abstract `HttpConfig` settings (timeout, verify peer, proxy, user-agent)
- * to specific `libevent_easy_setopt` calls. This should be called after
- * context_init and before sending requests if custom settings are required.
+ * Stores abstract `HttpConfig` settings (timeouts, TLS verification/pinning,
+ * proxy, user-agent, redirects) for subsequent `evhttp` connections.
  *
  * @param[in] ctx The transport context.
  * @param[in] config The configuration structure to apply.
- * @return 0 on success, EINVAL if inputs invalid, or EIO if setopt fails.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libevent_config_apply(struct HttpTransportContext *ctx,
                            const struct HttpConfig *config);
 
 /**
- * @brief The send implementation for liblibevent.
+ * @brief Synchronous send implementation for `libevent`.
  * Matches `http_send_fn` signature.
  *
- * Performs the HTTP request using the stored libevent handle.
- * 1. Resets reusable handle state (except sticky options like connection
- * cache).
- * 2. Sets Method, URL, Body, and Headers from `req`.
- * 3. Executes request (`libevent_easy_perform`).
- * 4. Captures Response Code and Body.
- * 5. Maps libevent errors to system `errno` codes.
+ * Dispatches an `evhttp_request` over an `event_base` connection (with optional
+ * OpenSSL `bufferevent` TLS wrapping, redirect following, and streaming).
  *
  * @param[in] ctx The transport context.
  * @param[in] req The request to send.
  * @param[out] res Double pointer to receive the newly allocated response
  * object.
- * @return 0 on success, or a mapped error code (e.g. ETIMEDOUT, ECONNREFUSED)
- * on failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or a mapped error code on
+ * failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libevent_send(struct HttpTransportContext *ctx,
@@ -122,11 +111,9 @@ http_libevent_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures populated with responses/errors.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-http_libevent_send_multi(struct HttpTransportContext *ctx,
-                         struct ModalityEventLoop *loop,
-                         const struct HttpMultiRequest *multi,
-                         struct HttpFuture **futures);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_libevent_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

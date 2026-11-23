@@ -40,7 +40,7 @@ static int g_libsoup3_init_count = 0;
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error http_libsoup3_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_libsoup3_global_init(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libsoup3_global_init_fail) {
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -55,7 +55,7 @@ enum c_abstract_http_error http_libsoup3_global_init(void) {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error http_libsoup3_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_libsoup3_global_cleanup(void) {
   if (g_libsoup3_init_count > 0) {
     g_libsoup3_init_count--;
   }
@@ -63,9 +63,9 @@ enum c_abstract_http_error http_libsoup3_global_cleanup(void) {
 }
 
 /* Initialize libsoup3 transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_libsoup3_context_init(struct HttpTransportContext **ctx) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   LOG_DEBUG("http_libsoup3_context_init: Entering");
   if (!ctx) {
@@ -106,7 +106,7 @@ http_libsoup3_context_init(struct HttpTransportContext **ctx) {
 
   (*ctx)->session = soup_session_new();
   if (!(*ctx)->session) {
-    enum c_abstract_http_error free_rc;
+    c_abstract_http_error_t free_rc;
     LOG_DEBUG("http_libsoup3_context_init: Error soup_session_new failed");
     free_rc = http_config_free(&(*ctx)->config);
     if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -125,16 +125,18 @@ http_libsoup3_context_init(struct HttpTransportContext **ctx) {
 }
 
 /* Free libsoup3 transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_libsoup3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libsoup3_context_free: Entering");
   if (ctx) {
-    enum c_abstract_http_error rch;
+    c_abstract_http_error_t rch;
     g_object_unref(ctx->session);
     ctx->session = NULL;
     rch = http_config_free(&ctx->config);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+      free(ctx);
       return rch;
+    }
     free(ctx);
   }
   LOG_DEBUG("http_libsoup3_context_free: Exiting");
@@ -142,10 +144,9 @@ http_libsoup3_context_free(struct HttpTransportContext *ctx) {
 }
 
 /* Apply configuration to libsoup3 context. */
-enum c_abstract_http_error
-http_libsoup3_config_apply(struct HttpTransportContext *ctx,
-                           const struct HttpConfig *config) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t http_libsoup3_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
 
   LOG_DEBUG("http_libsoup3_config_apply: Entering");
   if (!ctx || !ctx->session || !config) {
@@ -286,8 +287,8 @@ http_libsoup3_config_apply(struct HttpTransportContext *ctx,
  * @param[out] out Pointer to receive string pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-static enum c_abstract_http_error get_method_string(enum HttpMethod method,
-                                                    const char **out) {
+NO_DISCARD static c_abstract_http_error_t
+get_method_string(enum HttpMethod method, const char **out) {
   if (!out) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -329,9 +330,8 @@ static enum c_abstract_http_error get_method_string(enum HttpMethod method,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-enum c_abstract_http_error
-c_abstract_http_test_libsoup3_method_str(enum HttpMethod method,
-                                         const char **out);
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libsoup3_method_str(
+    enum HttpMethod method, const char **out);
 
 /**
  * @brief Expose get_method_string for testing.
@@ -340,9 +340,8 @@ c_abstract_http_test_libsoup3_method_str(enum HttpMethod method,
  * @param[out] out Output string pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
-c_abstract_http_test_libsoup3_method_str(enum HttpMethod method,
-                                         const char **out) {
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libsoup3_method_str(
+    enum HttpMethod method, const char **out) {
   return get_method_string(method, out);
 }
 #endif
@@ -354,7 +353,7 @@ c_abstract_http_test_libsoup3_method_str(enum HttpMethod method,
  * @param out_val Newly allocated header value string.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 soup_build_proxy_auth(const char *user, const char *pass, char **out_val) {
   const char *pw = pass ? pass : "";
   size_t ulen = strlen(user);
@@ -363,7 +362,7 @@ soup_build_proxy_auth(const char *user, const char *pass, char **out_val) {
   char *b64 = NULL;
   size_t b64_len = 0;
   char *hdr;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   raw = (char *)malloc(ulen + 1 + plen + 1);
   if (!raw) {
@@ -376,10 +375,11 @@ soup_build_proxy_auth(const char *user, const char *pass, char **out_val) {
 
   rc = base64_encode((const unsigned char *)raw, ulen + 1 + plen, &b64,
                      &b64_len);
-  free(raw);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(raw);
     return rc;
   }
+  free(raw);
   hdr = (char *)malloc(6 + b64_len + 1);
   if (!hdr) {
     free(b64);
@@ -399,7 +399,7 @@ soup_build_proxy_auth(const char *user, const char *pass, char **out_val) {
  * @param out_msg Output `SoupMessage` pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 soup_build_message(const struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, SoupMessage **out_msg) {
   SoupMessage *msg = NULL;
@@ -407,7 +407,7 @@ soup_build_message(const struct HttpTransportContext *ctx,
   GBytes *body_bytes = NULL;
   const char *method_str = NULL;
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (req->parts.count > 0 && !req->body) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -452,12 +452,13 @@ soup_build_message(const struct HttpTransportContext *ctx,
     size_t out_read;
     GByteArray *byte_array = g_byte_array_new();
     for (;;) {
-      enum c_abstract_http_error chunk_rc = req->read_chunk(
+      c_abstract_http_error_t chunk_rc = req->read_chunk(
           req->read_chunk_user_data, buf, sizeof(buf), &out_read);
       if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
         g_byte_array_free(byte_array, TRUE);
         g_object_unref(msg);
-        return C_ABSTRACT_HTTP_ERR_IO;
+        return (chunk_rc == C_ABSTRACT_HTTP_ERR_NOMEM) ? chunk_rc
+                                                       : C_ABSTRACT_HTTP_ERR_IO;
       }
       if (out_read == 0) {
         break;
@@ -482,14 +483,14 @@ soup_build_message(const struct HttpTransportContext *ctx,
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 soup_finalize_result(SoupMessage *msg, GBytes *resp_bytes, GError *error,
                      const struct HttpRequest *req, struct HttpResponse **res) {
   struct HttpResponse *new_res = NULL;
   gsize resp_len = 0;
   gconstpointer resp_data = NULL;
   char *response_body_copy = NULL;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
 
   if (error) {
     if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CONNECTION_REFUSED)) {
@@ -539,18 +540,24 @@ soup_finalize_result(SoupMessage *msg, GBytes *resp_bytes, GError *error,
   resp_data = g_bytes_get_data(resp_bytes, &resp_len);
 
   if (req->on_chunk) {
-    enum c_abstract_http_error chunk_rc =
+    c_abstract_http_error_t chunk_rc =
         req->on_chunk(req->on_chunk_user_data, resp_data, resp_len);
-    g_bytes_unref(resp_bytes);
-    g_object_unref(msg);
     if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error free_rc = http_response_free(new_res);
-      free(new_res);
+      c_abstract_http_error_t free_rc;
+      g_bytes_unref(resp_bytes);
+      g_object_unref(msg);
+      free_rc = http_response_free(new_res);
       if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(new_res);
         return free_rc;
       }
-      return C_ABSTRACT_HTTP_ERR_CANCELED;
+      free(new_res);
+      return (chunk_rc == C_ABSTRACT_HTTP_ERR_NOMEM)
+                 ? chunk_rc
+                 : C_ABSTRACT_HTTP_ERR_CANCELED;
     }
+    g_bytes_unref(resp_bytes);
+    g_object_unref(msg);
     new_res->body = NULL;
     new_res->body_len = 0;
     *res = new_res;
@@ -566,7 +573,7 @@ soup_finalize_result(SoupMessage *msg, GBytes *resp_bytes, GError *error,
     response_body_copy = (char *)malloc(resp_len + 1);
   }
   if (!response_body_copy) {
-    enum c_abstract_http_error free_rc = http_response_free(new_res);
+    c_abstract_http_error_t free_rc = http_response_free(new_res);
     free(new_res);
     g_bytes_unref(resp_bytes);
     g_object_unref(msg);
@@ -585,13 +592,13 @@ soup_finalize_result(SoupMessage *msg, GBytes *resp_bytes, GError *error,
 }
 
 /* Send an HTTP request using libsoup3. */
-enum c_abstract_http_error http_libsoup3_send(struct HttpTransportContext *ctx,
-                                              const struct HttpRequest *req,
-                                              struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_libsoup3_send(struct HttpTransportContext *ctx,
+                   const struct HttpRequest *req, struct HttpResponse **res) {
   SoupMessage *msg = NULL;
   GBytes *resp_bytes = NULL;
   GError *error = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
   if (!ctx || !ctx->session || !req || !res) {
@@ -616,7 +623,7 @@ struct soup_multi_batch {
   /** @brief Number of still-pending async operations */
   size_t remaining;
   /** @brief First error encountered */
-  enum c_abstract_http_error first_err;
+  c_abstract_http_error_t first_err;
 };
 
 /** @brief Per-request state for `soup_session_send_and_read_async` */
@@ -637,28 +644,51 @@ struct soup_multi_slot {
  * @param async_res GLib async result token.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 soup_async_ready_impl(struct soup_multi_slot *slot, GAsyncResult *async_res) {
   GError *error = NULL;
   GBytes *resp_bytes = soup_session_send_and_read_finish(slot->batch->session,
                                                          async_res, &error);
   struct HttpResponse *res = NULL;
-  enum c_abstract_http_error rc =
-      soup_finalize_result(slot->msg, resp_bytes, error, slot->req, &res);
+  c_abstract_http_error_t rc;
+
+  rc = soup_finalize_result(slot->msg, resp_bytes, error, slot->req, &res);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    slot->msg = NULL;
+    slot->future->response = NULL;
+    slot->future->error_code = rc;
+    slot->future->is_ready = 1;
+    if (slot->batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+      slot->batch->first_err = rc;
+    }
+    if (slot->batch->remaining > 0) {
+      slot->batch->remaining--;
+    }
+    return rc;
+  }
 
   slot->msg = NULL;
   slot->future->response = res;
-  slot->future->error_code = rc;
+  slot->future->error_code = C_ABSTRACT_HTTP_SUCCESS;
   slot->future->is_ready = 1;
-  if (rc != C_ABSTRACT_HTTP_SUCCESS &&
-      slot->batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
-    slot->batch->first_err = rc;
-  }
   if (slot->batch->remaining > 0) {
     slot->batch->remaining--;
   }
-  return rc;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+/**
+ * @brief Dispatch an enum-returning libsoup3 helper inside a
+ * GAsyncReadyCallback.
+ * @param expr Expression returning `c_abstract_http_error_t`.
+ */
+#define SOUP_VOID_CB_DISPATCH(expr)                                            \
+  do {                                                                         \
+    c_abstract_http_error_t _cb_rc = (expr);                                   \
+    if (_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
+      LOG_DEBUG("soup_async_ready_cb: error %d", (int)_cb_rc);                 \
+    }                                                                          \
+  } while (0)
 
 /**
  * @brief GLib `GAsyncReadyCallback` trampoline for
@@ -670,12 +700,8 @@ soup_async_ready_impl(struct soup_multi_slot *slot, GAsyncResult *async_res) {
 static void soup_async_ready_cb(void *source_object, GAsyncResult *res,
                                 void *user_data) {
   struct soup_multi_slot *slot = (struct soup_multi_slot *)user_data;
-  enum c_abstract_http_error rc;
   (void)source_object;
-  rc = soup_async_ready_impl(slot, res);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("soup_async_ready_cb: error %d", (int)rc);
-  }
+  SOUP_VOID_CB_DISPATCH(soup_async_ready_impl(slot, res));
 }
 
 /**
@@ -685,7 +711,7 @@ static void soup_async_ready_cb(void *source_object, GAsyncResult *res,
  * @param user_data Pointer to `struct soup_multi_batch`.
  * @return C_ABSTRACT_HTTP_SUCCESS or loop control error.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 soup_pump_gmain_cb(struct ModalityEventLoop *loop, int timer_id,
                    void *user_data) {
   struct soup_multi_batch *batch = (struct soup_multi_batch *)user_data;
@@ -705,9 +731,54 @@ soup_pump_gmain_cb(struct ModalityEventLoop *loop, int timer_id,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Release per-slot SoupMessage objects, tear down or reset loop, and
+ * percolate status.
+ * @param slots Slot array to release.
+ * @param count Number of slots.
+ * @param owned_loop Newly created loop when caller passed NULL.
+ * @param caller_loop Caller-supplied loop or NULL.
+ * @param do_wakeup Non-zero when caller loop should be woken.
+ * @param primary_rc Primary status enum to return if cleanup succeeds.
+ * @return Primary error or cleanup error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t soup_multi_cleanup_and_return(
+    struct soup_multi_slot *slots, size_t count,
+    struct ModalityEventLoop *owned_loop, struct ModalityEventLoop *caller_loop,
+    int do_wakeup, c_abstract_http_error_t primary_rc) {
+  size_t i;
+  for (i = 0; i < count; ++i) {
+    if (slots[i].msg) {
+      g_object_unref(slots[i].msg);
+    }
+  }
+  free(slots);
+
+  if (owned_loop) {
+    c_abstract_http_error_t lrc = http_loop_free(owned_loop);
+    if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
+      return (primary_rc != C_ABSTRACT_HTTP_SUCCESS) ? primary_rc : lrc;
+    }
+  } else if (caller_loop && do_wakeup) {
+    c_abstract_http_error_t urc =
+        abstract_http_event_loop_test_unstop(caller_loop);
+    if (urc != C_ABSTRACT_HTTP_SUCCESS) {
+      return (primary_rc != C_ABSTRACT_HTTP_SUCCESS) ? primary_rc : urc;
+    }
+    {
+      c_abstract_http_error_t wrc = http_loop_wakeup(caller_loop);
+      if (wrc != C_ABSTRACT_HTTP_SUCCESS) {
+        return (primary_rc != C_ABSTRACT_HTTP_SUCCESS) ? primary_rc : wrc;
+      }
+    }
+  }
+
+  return primary_rc;
+}
+
 /* Dispatch concurrent requests via soup_session_send_and_read_async +
  * GMainContext. */
-enum c_abstract_http_error http_libsoup3_send_multi(
+NO_DISCARD c_abstract_http_error_t http_libsoup3_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   struct ModalityEventLoop *owned_loop = NULL;
@@ -716,7 +787,7 @@ enum c_abstract_http_error http_libsoup3_send_multi(
   struct soup_multi_slot *slots;
   size_t i;
   int timer_id = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   cah_cppcheck_mut_ptr((void *)ctx);
 
   if (!ctx || !ctx->session || !multi || !futures) {
@@ -760,12 +831,12 @@ enum c_abstract_http_error http_libsoup3_send_multi(
       slots[i].future->response = NULL;
       slots[i].future->error_code = rc;
       slots[i].future->is_ready = 1;
-      batch.remaining--;
-      if (batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
-        batch.first_err = rc;
-      }
-      continue;
+      return soup_multi_cleanup_and_return(slots, i + 1, owned_loop, loop, 0,
+                                           rc);
     }
+  }
+
+  for (i = 0; i < multi->count; ++i) {
     soup_session_send_and_read_async(ctx->session, slots[i].msg,
                                      G_PRIORITY_DEFAULT, NULL,
                                      soup_async_ready_cb, &slots[i]);
@@ -774,41 +845,18 @@ enum c_abstract_http_error http_libsoup3_send_multi(
   if (batch.remaining > 0) {
     rc = http_loop_add_timer(active_loop, 0, soup_pump_gmain_cb, &batch,
                              &timer_id);
-    (void)timer_id;
-    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = http_loop_run(active_loop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return soup_multi_cleanup_and_return(slots, multi->count, owned_loop,
+                                           loop, 1, rc);
     }
-    if (rc != C_ABSTRACT_HTTP_SUCCESS &&
-        batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = rc;
-    }
-  }
-
-  for (i = 0; i < multi->count; ++i) {
-    if (slots[i].msg) {
-      g_object_unref(slots[i].msg);
-    }
-  }
-  free(slots);
-
-  if (owned_loop) {
-    enum c_abstract_http_error lrc = http_loop_free(owned_loop);
-    if (lrc != C_ABSTRACT_HTTP_SUCCESS &&
-        batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = lrc;
-    }
-  } else if (loop) {
-    enum c_abstract_http_error urc = abstract_http_event_loop_test_unstop(loop);
-    enum c_abstract_http_error wrc = http_loop_wakeup(loop);
-    if (urc != C_ABSTRACT_HTTP_SUCCESS &&
-        batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = urc;
-    }
-    if (wrc != C_ABSTRACT_HTTP_SUCCESS &&
-        batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = wrc;
+    rc = http_loop_run(active_loop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return soup_multi_cleanup_and_return(
+          slots, multi->count, owned_loop, loop, 1,
+          batch.first_err != C_ABSTRACT_HTTP_SUCCESS ? batch.first_err : rc);
     }
   }
 
-  return batch.first_err;
+  return soup_multi_cleanup_and_return(slots, multi->count, owned_loop, loop, 1,
+                                       batch.first_err);
 }

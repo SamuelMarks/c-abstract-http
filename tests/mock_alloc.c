@@ -102,7 +102,7 @@ static void mock_fd_set_win(SOCKET fd, fd_set *set) {
 
 #define ABSTRACT_HTTP_DEF_MOCK_INT_VAR(name, init_val)                         \
   int g_mock_##name = (init_val);                                              \
-  enum c_abstract_http_error abstract_http_mock_get_g_mock_##name(             \
+  NO_DISCARD c_abstract_http_error_t abstract_http_mock_get_g_mock_##name(     \
       int **out_ptr) {                                                         \
     if (!out_ptr) {                                                            \
       return C_ABSTRACT_HTTP_ERR_INVAL;                                        \
@@ -338,7 +338,7 @@ ABSTRACT_HTTP_DEF_MOCK_INT_VAR(http_types_strdup_fail, 0)
 
 const char *g_mock_recv_data = NULL;
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_get_g_mock_recv_data(const char ***out_ptr) {
   if (!out_ptr) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -569,7 +569,7 @@ abstract_http_int64_t c_abstract_http_mock_math_get_current_time_ms(void) {
   return now;
 }
 
-enum c_abstract_http_error dummy_cb_thread(void *arg) {
+NO_DISCARD c_abstract_http_error_t dummy_cb_thread(void *arg) {
   (void)arg;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -579,8 +579,8 @@ void *dummy_cb_pthread(void *arg) {
   return NULL;
 }
 
-enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
-                                                       char **out) {
+NO_DISCARD c_abstract_http_error_t c_abstract_http_mock_strdup(const char *s,
+                                                               char **out) {
   if (g_mock_alloc_fail && g_mock_alloc_count-- == 0) {
     if (out)
       *out = NULL;

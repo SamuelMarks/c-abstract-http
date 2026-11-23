@@ -25,8 +25,8 @@ extern "C" {
  * @return C_ABSTRACT_HTTP_SUCCESS on completion, C_ABSTRACT_HTTP_ERR_INVAL if
  * arguments invalid.
  */
-extern enum c_abstract_http_error test_fuzz_sse_run(const uint8_t *data,
-                                                    size_t size, int *out_rc);
+NO_DISCARD extern c_abstract_http_error_t
+test_fuzz_sse_run(const uint8_t *data, size_t size, int *out_rc);
 
 #ifdef __cplusplus
 }

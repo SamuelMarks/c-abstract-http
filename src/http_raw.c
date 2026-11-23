@@ -150,7 +150,7 @@ extern int g_mock_raw_res_alloc_fail;
 #define RAW_MAX_REDIRECTS 10
 
 /** @brief Initialize global raw socket state */
-enum c_abstract_http_error http_raw_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_raw_global_init(void) {
 #if defined(_WIN32)
   WSADATA wsaData;
   if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -165,7 +165,7 @@ enum c_abstract_http_error http_raw_global_init(void) {
 }
 
 /** @brief Clean up global raw socket state */
-enum c_abstract_http_error http_raw_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_raw_global_cleanup(void) {
 #if defined(_WIN32)
   WSACleanup();
 #endif
@@ -180,10 +180,10 @@ struct RawCtx {
   struct HttpRawTlsHooks tls_hooks; /**< Custom TLS session hook table */
 };
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_raw_context_init(struct HttpTransportContext **ctx) {
   struct RawCtx *c;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   LOG_DEBUG("http_raw_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_raw_context_init: Error EINVAL");
@@ -209,12 +209,12 @@ http_raw_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_raw_context_free(struct HttpTransportContext *ctx) {
   struct RawCtx *c = (struct RawCtx *)ctx;
   LOG_DEBUG("http_raw_context_free: Entering");
   if (c) {
-    enum c_abstract_http_error rc = http_config_free(&c->config);
+    c_abstract_http_error_t rc = http_config_free(&c->config);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
     free(c);
@@ -223,9 +223,8 @@ http_raw_context_free(struct HttpTransportContext *ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-http_raw_set_tls_hooks(struct HttpTransportContext *ctx,
-                       const struct HttpRawTlsHooks *hooks) {
+NO_DISCARD c_abstract_http_error_t http_raw_set_tls_hooks(
+    struct HttpTransportContext *ctx, const struct HttpRawTlsHooks *hooks) {
   struct RawCtx *c = (struct RawCtx *)ctx;
   if (!c) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -250,8 +249,8 @@ http_raw_set_tls_hooks(struct HttpTransportContext *ctx,
  * @param src Optional replacement string.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error raw_copy_opt_str(char **dst,
-                                                   const char *src) {
+NO_DISCARD static c_abstract_http_error_t raw_copy_opt_str(char **dst,
+                                                           const char *src) {
   if (!src) {
     free(*dst);
     *dst = NULL;
@@ -265,11 +264,10 @@ static enum c_abstract_http_error raw_copy_opt_str(char **dst,
   return c_abstract_http_strdup(src, dst);
 }
 
-enum c_abstract_http_error
-http_raw_config_apply(struct HttpTransportContext *ctx,
-                      const struct HttpConfig *config) {
+NO_DISCARD c_abstract_http_error_t http_raw_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
   struct RawCtx *c = (struct RawCtx *)ctx;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!c || !config) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -364,9 +362,10 @@ http_raw_config_apply(struct HttpTransportContext *ctx,
  * @param out_https Output pointer set to 1 for https://, 0 for http://.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code otherwise.
  */
-static enum c_abstract_http_error parse_url(const char *url, char **host,
-                                            int *port, char **path,
-                                            int *out_https) {
+NO_DISCARD static c_abstract_http_error_t parse_url(const char *url,
+                                                    char **host, int *port,
+                                                    char **path,
+                                                    int *out_https) {
   const char *p;
   const char *port_start;
   const char *path_start;
@@ -443,14 +442,14 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
 
 #if defined(CAH_DOS_NO_WATT32)
 /** @brief Send an HTTP request over raw sockets on DOS without Watt-32 */
-enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
-                                         const struct HttpRequest *req,
-                                         struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_raw_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+              struct HttpResponse **res) {
   char *host = NULL;
   int port = 80;
   char *path = NULL;
   int is_https = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)ctx;
   if (!req || !res) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -466,7 +465,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
 
 /** @brief Send multiple HTTP requests over raw sockets on DOS without Watt-32
  */
-enum c_abstract_http_error http_raw_send_multi(
+NO_DISCARD c_abstract_http_error_t http_raw_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *reqs, struct HttpFuture **future) {
   size_t i;
@@ -476,13 +475,16 @@ enum c_abstract_http_error http_raw_send_multi(
   }
   for (i = 0; i < reqs->count; ++i) {
     struct HttpResponse *res = NULL;
-    enum c_abstract_http_error rc = http_raw_send(ctx, reqs->requests[i], &res);
-    future[i]->response = res;
-    future[i]->error_code = rc;
-    future[i]->is_ready = 1;
+    c_abstract_http_error_t rc = http_raw_send(ctx, reqs->requests[i], &res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      future[i]->response = NULL;
+      future[i]->error_code = rc;
+      future[i]->is_ready = 1;
       return rc;
     }
+    future[i]->response = res;
+    future[i]->error_code = C_ABSTRACT_HTTP_SUCCESS;
+    future[i]->is_ready = 1;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -562,7 +564,8 @@ static int math_raw_strcasestr_has(const char *haystack, const char *needle) {
  * @param sock Socket descriptor.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code otherwise.
  */
-static enum c_abstract_http_error make_socket_nonblocking(raw_socket_t sock) {
+NO_DISCARD static c_abstract_http_error_t
+make_socket_nonblocking(raw_socket_t sock) {
 #if defined(_WIN32)
   u_long mode = 1;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -605,7 +608,8 @@ static enum c_abstract_http_error make_socket_nonblocking(raw_socket_t sock) {
  * @param sock Socket descriptor.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code otherwise.
  */
-static enum c_abstract_http_error make_socket_blocking(raw_socket_t sock) {
+NO_DISCARD static c_abstract_http_error_t
+make_socket_blocking(raw_socket_t sock) {
 #if defined(_WIN32)
   u_long mode = 0;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -648,7 +652,7 @@ static enum c_abstract_http_error make_socket_blocking(raw_socket_t sock) {
  * @param r Target response structure.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_response_init_checked(struct HttpResponse *r) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_raw_response_init_fail)
@@ -664,7 +668,7 @@ raw_response_init_checked(struct HttpResponse *r) {
  * @param value Header value.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_headers_add_checked(struct HttpHeaders *headers, const char *key,
                         const char *value) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -680,9 +684,18 @@ raw_headers_add_checked(struct HttpHeaders *headers, const char *key,
  * @param out_hooks Output pointer receiving TLS hook table or NULL.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_resolve_tls_hooks(const struct RawCtx *c,
                       const struct HttpRawTlsHooks **out_hooks) {
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_send_fail == 2) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  if (g_mock_raw_send_fail == 3) {
+    *out_hooks = NULL;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#endif
   if (c && c->has_custom_tls) {
     *out_hooks = &c->tls_hooks;
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -715,8 +728,8 @@ static long math_raw_timeout_ms(const struct RawCtx *c, long specific_ms) {
  * @return C_ABSTRACT_HTTP_SUCCESS on readiness, C_ABSTRACT_HTTP_ERR_IO on
  * error.
  */
-static enum c_abstract_http_error raw_wait_socket(raw_socket_t sock, int want,
-                                                  long timeout_ms) {
+NO_DISCARD static c_abstract_http_error_t
+raw_wait_socket(raw_socket_t sock, int want, long timeout_ms) {
   fd_set fdset;
   struct timeval tv;
   int res_sel;
@@ -744,7 +757,7 @@ static enum c_abstract_http_error raw_wait_socket(raw_socket_t sock, int want,
  * @param out_addr Populated sockaddr_in output.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_resolve_addr(const char *host, int port, struct sockaddr_in *out_addr) {
 #if defined(__MSDOS__) || defined(__DOS__) || defined(DOS) ||                  \
     (defined(_MSC_VER) && _MSC_VER < 1400)
@@ -797,29 +810,44 @@ raw_resolve_addr(const char *host, int port, struct sockaddr_in *out_addr) {
 /**
  * @brief Convert enum HttpMethod to wire token string.
  * @param m Method enum.
- * @return Static wire method string.
+ * @param out_str Output pointer receiving static wire method string.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-static const char *math_raw_method_str(enum HttpMethod m) {
+NO_DISCARD static c_abstract_http_error_t raw_method_str(enum HttpMethod m,
+                                                         const char **out_str) {
+  if ((int)m < 0) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
   switch ((int)m) {
   case HTTP_POST:
-    return "POST";
+    *out_str = "POST";
+    break;
   case HTTP_PUT:
-    return "PUT";
+    *out_str = "PUT";
+    break;
   case HTTP_DELETE:
-    return "DELETE";
+    *out_str = "DELETE";
+    break;
   case HTTP_PATCH:
-    return "PATCH";
+    *out_str = "PATCH";
+    break;
   case HTTP_HEAD:
-    return "HEAD";
+    *out_str = "HEAD";
+    break;
   case HTTP_OPTIONS:
-    return "OPTIONS";
+    *out_str = "OPTIONS";
+    break;
   case HTTP_TRACE:
-    return "TRACE";
+    *out_str = "TRACE";
+    break;
   case HTTP_CONNECT:
-    return "CONNECT";
+    *out_str = "CONNECT";
+    break;
   default:
-    return "GET";
+    *out_str = "GET";
+    break;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -831,7 +859,7 @@ Basic ...
  * @param out_line Newly allocated header line.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_build_proxy_auth_line(const char *user, const char *pass, char **out_line) {
   const char *pw = pass ? pass : "";
   size_t ulen = strlen(user);
@@ -841,7 +869,7 @@ raw_build_proxy_auth_line(const char *user, const char *pass, char **out_line) {
   size_t b64_len = 0;
   char *line;
   size_t prefix_len = strlen("Proxy-Authorization: Basic ");
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   creds = (char *)malloc(ulen + 1 + plen + 1);
   if (!creds) {
@@ -854,10 +882,11 @@ raw_build_proxy_auth_line(const char *user, const char *pass, char **out_line) {
 
   rc = base64_encode((const unsigned char *)creds, ulen + 1 + plen, &b64,
                      &b64_len);
-  free(creds);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(creds);
     return rc;
   }
+  free(creds);
 
   line = (char *)malloc(prefix_len + b64_len + 3);
   if (!line) {
@@ -881,12 +910,17 @@ raw_build_proxy_auth_line(const char *user, const char *pass, char **out_line) {
  * @param fail_mode `g_mock_raw_realloc_fail` mode value to match (1 or 2).
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error raw_ensure_req_cap(char **buf, size_t *cap,
-                                                     size_t used, size_t add,
-                                                     int fail_mode) {
+NO_DISCARD static c_abstract_http_error_t
+raw_ensure_req_cap(char **buf, size_t *cap, size_t used, size_t add,
+                   int fail_mode) {
   char *new_buf;
   size_t new_cap;
   (void)fail_mode;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_realloc_fail >= 10 && --g_mock_raw_realloc_fail == 9) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+#endif
   if (used + add < *cap) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
@@ -920,21 +954,26 @@ static enum c_abstract_http_error raw_ensure_req_cap(char **buf, size_t *cap,
  * @param out_len Output byte length of @p out_buf.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
                        const char *host, const char *path,
                        int use_proxy_abs_uri, char **out_buf, size_t *out_len) {
   size_t req_cap = 1024;
   size_t req_len = 0;
   char *request_buf;
-  const char *method_str = math_raw_method_str(req->method);
+  const char *method_str = NULL;
   const char *target = use_proxy_abs_uri ? req->url : path;
   const char *ver_str = "HTTP/1.1";
   int has_ua = 0;
   int has_cl = 0;
   size_t i;
   size_t start_need;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
+
+  rc = raw_method_str(req->method, &method_str);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
   if (c && (c->config.version_mask & (unsigned int)HTTP_VERSION_1_0) &&
       !(c->config.version_mask & (unsigned int)HTTP_VERSION_1_1)) {
@@ -1158,16 +1197,16 @@ raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
  * @param timeout_ms Write poll timeout in milliseconds.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_io_write_all(raw_socket_t sock, const struct HttpRawTlsHooks *tls_hooks,
                  void *tls_sess, const char *buf, size_t len, long timeout_ms) {
   const char *p = buf;
   size_t rem = len;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   while (rem > 0) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-    if (g_mock_raw_send_fail) {
+    if (g_mock_raw_send_fail == 1) {
       return C_ABSTRACT_HTTP_ERR_IO;
     }
 #endif
@@ -1258,11 +1297,7 @@ static int math_raw_response_complete(const char *buf, size_t len,
   while (line && line < hdr_end) {
     const char *ls = line + 2;
     const char *le = strstr(ls, "\r\n");
-    const char *colon;
-    if (!le || ls >= hdr_end) {
-      break;
-    }
-    colon = (const char *)memchr(ls, ':', (size_t)(le - ls));
+    const char *colon = (const char *)memchr(ls, ':', (size_t)(le - ls));
     if (colon) {
       size_t klen = (size_t)(colon - ls);
       const char *vs = colon + 1;
@@ -1346,7 +1381,7 @@ static int math_raw_response_complete(const char *buf, size_t len,
  * @param res Output response structure.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_decode_chunked_body(const char *src, size_t src_len,
                         const struct HttpRequest *req,
                         struct HttpResponse *res) {
@@ -1354,7 +1389,7 @@ raw_decode_chunked_body(const char *src, size_t src_len,
   char *out = NULL;
   size_t out_len = 0;
   size_t out_cap = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   while (off < src_len) {
     size_t chunk_sz = 0;
@@ -1437,12 +1472,12 @@ raw_decode_chunked_body(const char *src, size_t src_len,
  * @param res Initialized target response structure.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_parse_wire_response(char *body, size_t body_len,
                         const struct HttpRequest *req,
                         struct HttpResponse *res) {
   char *header_end;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (body_len == 0) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -1545,7 +1580,7 @@ raw_parse_wire_response(char *body, size_t body_len,
  * @param port Origin TCP port.
  * @return C_ABSTRACT_HTTP_SUCCESS on HTTP 200 tunnel establishment, or error.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_proxy_connect_tunnel(const struct RawCtx *c, raw_socket_t sock,
                          const char *host, int port) {
   char *pauth = NULL;
@@ -1554,7 +1589,7 @@ raw_proxy_connect_tunnel(const struct RawCtx *c, raw_socket_t sock,
   size_t rlen = 0;
   long w_to = math_raw_timeout_ms(c, c ? c->config.write_timeout_ms : 0);
   long r_to = math_raw_timeout_ms(c, c ? c->config.read_timeout_ms : 0);
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (c && c->config.proxy_username) {
     rc = raw_build_proxy_auth_line(c->config.proxy_username,
@@ -1615,20 +1650,23 @@ raw_proxy_connect_tunnel(const struct RawCtx *c, raw_socket_t sock,
  * @param primary_rc Primary operation status to return if TLS close succeeds.
  * @return Cleanup error if TLS close failed, otherwise @p primary_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_close_conn(raw_socket_t sock, const struct HttpRawTlsHooks *tls_hooks,
-               void *tls_sess, enum c_abstract_http_error primary_rc) {
-  enum c_abstract_http_error crc = C_ABSTRACT_HTTP_SUCCESS;
+               void *tls_sess, c_abstract_http_error_t primary_rc) {
+  c_abstract_http_error_t crc = C_ABSTRACT_HTTP_SUCCESS;
   if (tls_hooks && tls_sess) {
     crc = tls_hooks->close(tls_sess);
+    if (crc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (sock != RAW_INVALID_SOCKET) {
+        RAW_CLOSESOCKET(sock);
+      }
+      return (primary_rc != C_ABSTRACT_HTTP_SUCCESS) ? primary_rc : crc;
+    }
   }
   if (sock != RAW_INVALID_SOCKET) {
     RAW_CLOSESOCKET(sock);
   }
-  if (primary_rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return primary_rc;
-  }
-  return crc;
+  return primary_rc;
 }
 
 /**
@@ -1639,7 +1677,7 @@ raw_close_conn(raw_socket_t sock, const struct HttpRawTlsHooks *tls_hooks,
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
                     struct HttpResponse **res) {
   raw_socket_t sock = RAW_INVALID_SOCKET;
@@ -1660,8 +1698,8 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
   char *request_buf = NULL;
   size_t req_len = 0;
   char recv_buf[8192];
-  enum c_abstract_http_error rc;
-  enum c_abstract_http_error rc_send = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc;
+  c_abstract_http_error_t rc_send = C_ABSTRACT_HTTP_SUCCESS;
   size_t body_len = 0;
   char *body = NULL;
   size_t body_cap = 0;
@@ -1687,22 +1725,28 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
       return C_ABSTRACT_HTTP_ERR_NOTSUP;
     }
     rc = raw_resolve_tls_hooks(rctx, &tls_hooks);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS || !tls_hooks) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       free(host);
       free(path);
-      return rc != C_ABSTRACT_HTTP_SUCCESS ? rc : C_ABSTRACT_HTTP_ERR_NOTSUP;
+      return rc;
+    }
+    if (!tls_hooks) {
+      free(host);
+      free(path);
+      return C_ABSTRACT_HTTP_ERR_NOTSUP;
     }
   }
 
   if (rctx && rctx->config.proxy_url) {
     rc = parse_url(rctx->config.proxy_url, &proxy_host, &proxy_port,
                    &proxy_path, &proxy_https);
-    free(proxy_path);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(proxy_path);
       free(host);
       free(path);
       return rc;
     }
+    free(proxy_path);
     dial_host = proxy_host;
     dial_port = proxy_port;
     use_proxy_abs_uri = !is_https;
@@ -1836,18 +1880,21 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
 
   rc = raw_build_wire_request(rctx, req, host, path, use_proxy_abs_uri,
                               &request_buf, &req_len);
-  free(host);
-  free(path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(host);
+    free(path);
     return raw_close_conn(sock, tls_hooks, tls_sess, rc);
   }
+  free(host);
+  free(path);
 
   rc_send = raw_io_write_all(sock, tls_hooks, tls_sess, request_buf, req_len,
                              write_to);
-  free(request_buf);
   if (rc_send != C_ABSTRACT_HTTP_SUCCESS) {
+    free(request_buf);
     return raw_close_conn(sock, tls_hooks, tls_sess, rc_send);
   }
+  free(request_buf);
 
   *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -1875,7 +1922,7 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
 #endif
     body = (char *)malloc(body_cap);
   if (!body) {
-    enum c_abstract_http_error rch = http_response_free(*res);
+    c_abstract_http_error_t rch = http_response_free(*res);
     if (rch != C_ABSTRACT_HTTP_SUCCESS) {
       free(*res);
       *res = NULL;
@@ -1894,14 +1941,32 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
       rc = tls_hooks->read(tls_sess, recv_buf, sizeof(recv_buf), &nr_bytes,
                            &want);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        rc_send = rc;
-        break;
+        c_abstract_http_error_t rch;
+        free(body);
+        rch = http_response_free(*res);
+        if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+          free(*res);
+          *res = NULL;
+          return raw_close_conn(sock, tls_hooks, tls_sess, rch);
+        }
+        free(*res);
+        *res = NULL;
+        return raw_close_conn(sock, tls_hooks, tls_sess, rc);
       }
       if (want != 0) {
         rc = raw_wait_socket(sock, want, read_to);
         if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-          rc_send = rc;
-          break;
+          c_abstract_http_error_t rch;
+          free(body);
+          rch = http_response_free(*res);
+          if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+            free(*res);
+            *res = NULL;
+            return raw_close_conn(sock, tls_hooks, tls_sess, rch);
+          }
+          free(*res);
+          *res = NULL;
+          return raw_close_conn(sock, tls_hooks, tls_sess, rc);
         }
         continue;
       }
@@ -1912,8 +1977,17 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
       int r_rc;
       rc = raw_wait_socket(sock, 1, read_to);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        rc_send = rc;
-        break;
+        c_abstract_http_error_t rch;
+        free(body);
+        rch = http_response_free(*res);
+        if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+          free(*res);
+          *res = NULL;
+          return raw_close_conn(sock, tls_hooks, tls_sess, rch);
+        }
+        free(*res);
+        *res = NULL;
+        return raw_close_conn(sock, tls_hooks, tls_sess, rc);
       }
       r_rc = (int)recv(sock, recv_buf, sizeof(recv_buf), 0);
       if (r_rc < 0) {
@@ -1962,7 +2036,7 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
 
   rc = raw_close_conn(sock, tls_hooks, tls_sess, rc_send);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error rch = http_response_free(*res);
+    c_abstract_http_error_t rch = http_response_free(*res);
     free(body);
     if (rch != C_ABSTRACT_HTTP_SUCCESS) {
       free(*res);
@@ -1975,9 +2049,10 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
   }
 
   rc = raw_parse_wire_response(body, body_len, req, *res);
-  free(body);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error rch = http_response_free(*res);
+    c_abstract_http_error_t rch;
+    free(body);
+    rch = http_response_free(*res);
     if (rch != C_ABSTRACT_HTTP_SUCCESS) {
       free(*res);
       *res = NULL;
@@ -1987,6 +2062,7 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
     *res = NULL;
     return rc;
   }
+  free(body);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -1999,12 +2075,12 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
  * @param out_eff Effective request pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_prepare_effective_req(const struct HttpRequest *req,
                           struct HttpRequest *flat_req, int *out_flattened,
                           const struct HttpRequest **out_eff) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   *out_flattened = 0;
   *out_eff = req;
@@ -2030,7 +2106,7 @@ raw_prepare_effective_req(const struct HttpRequest *req,
     rc = http_headers_add(&flat_req->headers, req->headers.headers[i].key,
                           req->headers.headers[i].value);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error frc = http_headers_free(&flat_req->headers);
+      c_abstract_http_error_t frc = http_headers_free(&flat_req->headers);
       if (frc != C_ABSTRACT_HTTP_SUCCESS) {
         return frc;
       }
@@ -2039,7 +2115,7 @@ raw_prepare_effective_req(const struct HttpRequest *req,
   }
   rc = http_request_flatten_parts(flat_req);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error frc;
+    c_abstract_http_error_t frc;
     free(flat_req->body);
     flat_req->body = NULL;
     frc = http_headers_free(&flat_req->headers);
@@ -2059,7 +2135,7 @@ raw_prepare_effective_req(const struct HttpRequest *req,
  * @param flattened Non-zero when @p flat_req owns allocated memory.
  * @return C_ABSTRACT_HTTP_SUCCESS or cleanup error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_cleanup_effective_req(struct HttpRequest *flat_req, int flattened) {
   if (!flattened) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -2076,16 +2152,16 @@ raw_cleanup_effective_req(struct HttpRequest *flat_req, int flattened) {
  * @param out_url Newly allocated resolved URL string.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error raw_resolve_redirect_url(const char *cur_url,
-                                                           const char *location,
-                                                           char **out_url) {
+NO_DISCARD static c_abstract_http_error_t
+raw_resolve_redirect_url(const char *cur_url, const char *location,
+                         char **out_url) {
   char *host = NULL;
   int port = 80;
   char *path = NULL;
   int is_https = 0;
   size_t need;
   char *buf;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (strncmp(location, "http://", 7) == 0 ||
       strncmp(location, "https://", 8) == 0) {
@@ -2125,6 +2201,7 @@ static enum c_abstract_http_error raw_resolve_redirect_url(const char *cur_url,
 static int math_raw_should_redirect(const struct RawCtx *rctx,
                                     const struct HttpResponse *res,
                                     const char **out_loc) {
+  size_t i;
   const char *loc = NULL;
   if (!rctx || !rctx->config.follow_redirects || !res) {
     return 0;
@@ -2134,9 +2211,12 @@ static int math_raw_should_redirect(const struct RawCtx *rctx,
       res->status_code != 308) {
     return 0;
   }
-  if (http_headers_get(&res->headers, "Location", &loc) !=
-      C_ABSTRACT_HTTP_SUCCESS) {
-    return 0;
+  for (i = 0; i < res->headers.count; ++i) {
+    if (res->headers.headers[i].key &&
+        math_raw_strcasecmp(res->headers.headers[i].key, "Location") == 0) {
+      loc = res->headers.headers[i].value;
+      break;
+    }
   }
   if (!loc || loc[0] == '\0') {
     return 0;
@@ -2145,10 +2225,42 @@ static int math_raw_should_redirect(const struct RawCtx *rctx,
   return 1;
 }
 
+/**
+ * @brief Release redirect and flattened request buffers at end of
+ * `http_raw_send`.
+ * @param redir_url Heap redirect URL or NULL.
+ * @param flat_req Flattened scratch request.
+ * @param flattened Non-zero when `flat_req` owns heap resources.
+ * @param res In/out response pointer (freed if cleanup fails).
+ * @param primary_rc Primary status to return when cleanup succeeds.
+ * @return Final `c_abstract_http_error_t`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_finish_send(char *redir_url, struct HttpRequest *flat_req, int flattened,
+                struct HttpResponse **res, c_abstract_http_error_t primary_rc) {
+  c_abstract_http_error_t cl_rc;
+  free(redir_url);
+  cl_rc = raw_cleanup_effective_req(flat_req, flattened);
+  if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (*res) {
+      c_abstract_http_error_t frc = http_response_free(*res);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(*res);
+        *res = NULL;
+        return frc;
+      }
+      free(*res);
+      *res = NULL;
+    }
+    return primary_rc != C_ABSTRACT_HTTP_SUCCESS ? primary_rc : cl_rc;
+  }
+  return primary_rc;
+}
+
 /** @brief Send an HTTP request over raw sockets */
-enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
-                                         const struct HttpRequest *req,
-                                         struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_raw_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+              struct HttpResponse **res) {
   struct RawCtx *rctx = (struct RawCtx *)ctx;
   struct HttpRequest flat_req;
   const struct HttpRequest *eff_req = NULL;
@@ -2156,7 +2268,7 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   char *redir_url = NULL;
   int flattened = 0;
   int hop;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   LOG_DEBUG("http_raw_send: Entering");
   if (!req || !res) {
@@ -2173,38 +2285,51 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
   for (hop = 0; hop <= RAW_MAX_REDIRECTS; ++hop) {
     const char *loc = NULL;
     char *next_url = NULL;
+    c_abstract_http_error_t frc;
     int status;
 
     rc = raw_send_single_hop(rctx, &hop_req, res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      break;
+      return raw_finish_send(redir_url, &flat_req, flattened, res, rc);
     }
     if (!math_raw_should_redirect(rctx, *res, &loc)) {
       break;
     }
     if (hop == RAW_MAX_REDIRECTS) {
-      enum c_abstract_http_error frc = http_response_free(*res);
+      frc = http_response_free(*res);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(*res);
+        *res = NULL;
+        return raw_finish_send(redir_url, &flat_req, flattened, res, frc);
+      }
       free(*res);
       *res = NULL;
-      rc = (frc != C_ABSTRACT_HTTP_SUCCESS) ? frc : C_ABSTRACT_HTTP_ERR_LOOP;
-      break;
+      return raw_finish_send(redir_url, &flat_req, flattened, res,
+                             C_ABSTRACT_HTTP_ERR_LOOP);
     }
 
     status = (*res)->status_code;
     rc = raw_resolve_redirect_url(hop_req.url, loc, &next_url);
-    {
-      enum c_abstract_http_error frc = http_response_free(*res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      frc = http_response_free(*res);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(*res);
+        *res = NULL;
+        return raw_finish_send(redir_url, &flat_req, flattened, res, frc);
+      }
       free(*res);
       *res = NULL;
-      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(next_url);
-        rc = frc;
-        break;
-      }
+      return raw_finish_send(redir_url, &flat_req, flattened, res, rc);
     }
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      break;
+    frc = http_response_free(*res);
+    if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(*res);
+      *res = NULL;
+      free(next_url);
+      return raw_finish_send(redir_url, &flat_req, flattened, res, frc);
     }
+    free(*res);
+    *res = NULL;
 
     free(redir_url);
     redir_url = next_url;
@@ -2218,23 +2343,8 @@ enum c_abstract_http_error http_raw_send(struct HttpTransportContext *ctx,
     }
   }
 
-  free(redir_url);
-  {
-    enum c_abstract_http_error cl_rc =
-        raw_cleanup_effective_req(&flat_req, flattened);
-    if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      if (*res) {
-        enum c_abstract_http_error frc = http_response_free(*res);
-        free(*res);
-        *res = NULL;
-        if (frc != C_ABSTRACT_HTTP_SUCCESS) {
-          return frc;
-        }
-      }
-      return cl_rc;
-    }
-  }
-  return rc;
+  return raw_finish_send(redir_url, &flat_req, flattened, res,
+                         C_ABSTRACT_HTTP_SUCCESS);
 }
 
 /** @brief Non-blocking state-machine phases for `http_raw_send_multi` */
@@ -2305,39 +2415,39 @@ struct RawMultiBatch {
   /** @brief Number of still-in-flight slots */
   size_t remaining;
   /** @brief First encountered error across slots */
-  enum c_abstract_http_error first_err;
+  c_abstract_http_error_t first_err;
 };
 
-static enum c_abstract_http_error raw_sm_start_hop(struct RawMultiSlot *slot);
+NO_DISCARD static c_abstract_http_error_t
+raw_sm_start_hop(struct RawMultiSlot *slot);
 
 /**
- * @brief Tear down socket, TLS session, and loop registrations for a slot.
+ * @brief Free socket, TLS session, and I/O buffers on a state-machine slot.
  * @param slot Target state-machine slot.
- * @return C_ABSTRACT_HTTP_SUCCESS or cleanup error.
+ * @param prev_err Error code to return if TLS close succeeds.
+ * @return First error encountered or `prev_err`.
  */
-static enum c_abstract_http_error
-raw_sm_teardown_io(struct RawMultiSlot *slot) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  if (slot->timer_id > 0) {
-    enum c_abstract_http_error trc =
-        http_loop_cancel_timer(slot->batch->loop, slot->timer_id);
-    if (trc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = trc;
-    }
-    slot->timer_id = 0;
-  }
-  if (slot->fd_registered && slot->sock != RAW_INVALID_SOCKET) {
-    enum c_abstract_http_error frc =
-        http_loop_remove_fd(slot->batch->loop, (int)slot->sock);
-    if (frc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = frc;
-    }
-    slot->fd_registered = 0;
-  }
+NO_DISCARD static c_abstract_http_error_t
+raw_sm_release_slot_buffers(struct RawMultiSlot *slot,
+                            c_abstract_http_error_t prev_err) {
+  c_abstract_http_error_t crc = C_ABSTRACT_HTTP_SUCCESS;
   if (slot->tls_hooks && slot->tls_sess) {
-    enum c_abstract_http_error crc = slot->tls_hooks->close(slot->tls_sess);
-    if (crc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = crc;
+    crc = slot->tls_hooks->close(slot->tls_sess);
+    if (crc != C_ABSTRACT_HTTP_SUCCESS) {
+      slot->tls_sess = NULL;
+      if (slot->sock != RAW_INVALID_SOCKET) {
+        RAW_CLOSESOCKET(slot->sock);
+        slot->sock = RAW_INVALID_SOCKET;
+      }
+      free(slot->tx_buf);
+      slot->tx_buf = NULL;
+      slot->tx_len = 0;
+      slot->tx_off = 0;
+      free(slot->rx_buf);
+      slot->rx_buf = NULL;
+      slot->rx_len = 0;
+      slot->rx_cap = 0;
+      return prev_err != C_ABSTRACT_HTTP_SUCCESS ? prev_err : crc;
     }
     slot->tls_sess = NULL;
   }
@@ -2353,23 +2463,54 @@ raw_sm_teardown_io(struct RawMultiSlot *slot) {
   slot->rx_buf = NULL;
   slot->rx_len = 0;
   slot->rx_cap = 0;
-  return rc;
+  return prev_err;
 }
 
 /**
- * @brief Complete a state-machine slot with a final response or error.
+ * @brief Tear down socket, TLS session, and loop registrations for a slot.
+ * @param slot Target state-machine slot.
+ * @return C_ABSTRACT_HTTP_SUCCESS or cleanup error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_sm_teardown_io(struct RawMultiSlot *slot) {
+  if (slot->timer_id > 0) {
+    int tid = slot->timer_id;
+    c_abstract_http_error_t trc;
+    slot->timer_id = 0;
+    trc = http_loop_cancel_timer(slot->batch->loop, tid);
+    if (trc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (slot->fd_registered && slot->sock != RAW_INVALID_SOCKET) {
+        c_abstract_http_error_t frc;
+        slot->fd_registered = 0;
+        frc = http_loop_remove_fd(slot->batch->loop, (int)slot->sock);
+        if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+          return raw_sm_release_slot_buffers(slot, frc);
+        }
+      }
+      return raw_sm_release_slot_buffers(slot, trc);
+    }
+  }
+  if (slot->fd_registered && slot->sock != RAW_INVALID_SOCKET) {
+    c_abstract_http_error_t frc;
+    slot->fd_registered = 0;
+    frc = http_loop_remove_fd(slot->batch->loop, (int)slot->sock);
+    if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+      return raw_sm_release_slot_buffers(slot, frc);
+    }
+  }
+  return raw_sm_release_slot_buffers(slot, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Settle future fields, decrement batch counter, and return status.
  * @param slot Target slot.
  * @param res Completed response (NULL on failure).
  * @param status Final error code for this slot.
  * @return C_ABSTRACT_HTTP_SUCCESS or loop stop error.
  */
-static enum c_abstract_http_error
-raw_sm_finish_slot(struct RawMultiSlot *slot, struct HttpResponse *res,
-                   enum c_abstract_http_error status) {
-  enum c_abstract_http_error td_rc = raw_sm_teardown_io(slot);
-  if (status == C_ABSTRACT_HTTP_SUCCESS && td_rc != C_ABSTRACT_HTTP_SUCCESS) {
-    status = td_rc;
-  }
+NO_DISCARD static c_abstract_http_error_t
+raw_sm_settle_slot_state(struct RawMultiSlot *slot, struct HttpResponse *res,
+                         c_abstract_http_error_t status) {
   slot->phase = RAW_SM_DONE;
   slot->future->response = res;
   slot->future->error_code = status;
@@ -2388,13 +2529,37 @@ raw_sm_finish_slot(struct RawMultiSlot *slot, struct HttpResponse *res,
 }
 
 /**
+ * @brief Complete a state-machine slot with a final response or error.
+ * @param slot Target slot.
+ * @param res Completed response (NULL on failure).
+ * @param status Final error code for this slot.
+ * @return C_ABSTRACT_HTTP_SUCCESS or loop stop error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_sm_finish_slot(struct RawMultiSlot *slot, struct HttpResponse *res,
+                   c_abstract_http_error_t status) {
+  c_abstract_http_error_t td_rc = raw_sm_teardown_io(slot);
+  if (td_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    c_abstract_http_error_t eff_err =
+        (status != C_ABSTRACT_HTTP_SUCCESS) ? status : td_rc;
+    c_abstract_http_error_t st_rc =
+        raw_sm_settle_slot_state(slot, res, eff_err);
+    if (st_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return st_rc;
+    }
+    return td_rc;
+  }
+  return raw_sm_settle_slot_state(slot, res, status);
+}
+
+/**
  * @brief Timeout callback for an in-flight non-blocking raw socket slot.
  * @param loop Active event loop.
  * @param timer_id Fired timer ID.
  * @param user_data Slot pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or loop stop error.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_sm_timer_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   struct RawMultiSlot *slot = (struct RawMultiSlot *)user_data;
   (void)loop;
@@ -2409,11 +2574,11 @@ raw_sm_timer_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
  * @param slot Completed read slot.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 raw_sm_complete_response(struct RawMultiSlot *slot) {
   struct HttpResponse *res;
   const char *loc = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   res = (struct HttpResponse *)calloc(1, sizeof(*res));
   if (!res) {
@@ -2427,34 +2592,45 @@ raw_sm_complete_response(struct RawMultiSlot *slot) {
 
   rc = raw_parse_wire_response(slot->rx_buf, slot->rx_len, &slot->hop_req, res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error frc = http_response_free(res);
+    c_abstract_http_error_t frc = http_response_free(res);
+    if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(res);
+      return raw_sm_finish_slot(slot, NULL, frc);
+    }
     free(res);
-    return raw_sm_finish_slot(slot, NULL,
-                              frc != C_ABSTRACT_HTTP_SUCCESS ? frc : rc);
+    return raw_sm_finish_slot(slot, NULL, rc);
   }
 
   if (math_raw_should_redirect(slot->batch->rctx, res, &loc)) {
     char *next_url = NULL;
+    c_abstract_http_error_t frc;
     int status = res->status_code;
     if (slot->hop_count >= RAW_MAX_REDIRECTS) {
-      enum c_abstract_http_error frc = http_response_free(res);
-      free(res);
-      return raw_sm_finish_slot(
-          slot, NULL,
-          frc != C_ABSTRACT_HTTP_SUCCESS ? frc : C_ABSTRACT_HTTP_ERR_LOOP);
-    }
-    rc = raw_resolve_redirect_url(slot->hop_req.url, loc, &next_url);
-    {
-      enum c_abstract_http_error frc = http_response_free(res);
-      free(res);
+      frc = http_response_free(res);
       if (frc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(next_url);
+        free(res);
         return raw_sm_finish_slot(slot, NULL, frc);
       }
+      free(res);
+      return raw_sm_finish_slot(slot, NULL, C_ABSTRACT_HTTP_ERR_LOOP);
     }
+    rc = raw_resolve_redirect_url(slot->hop_req.url, loc, &next_url);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      frc = http_response_free(res);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(res);
+        return raw_sm_finish_slot(slot, NULL, frc);
+      }
+      free(res);
       return raw_sm_finish_slot(slot, NULL, rc);
     }
+    frc = http_response_free(res);
+    if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(res);
+      free(next_url);
+      return raw_sm_finish_slot(slot, NULL, frc);
+    }
+    free(res);
     rc = raw_sm_teardown_io(slot);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       free(next_url);
@@ -2486,11 +2662,11 @@ raw_sm_complete_response(struct RawMultiSlot *slot) {
  * @param user_data Slot pointer (`struct RawMultiSlot *`).
  * @return C_ABSTRACT_HTTP_SUCCESS or loop error.
  */
-static enum c_abstract_http_error raw_sm_io_cb(struct ModalityEventLoop *loop,
-                                               int fd, int events,
-                                               void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+raw_sm_io_cb(struct ModalityEventLoop *loop, int fd, int events,
+             void *user_data) {
   struct RawMultiSlot *slot = (struct RawMultiSlot *)user_data;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)fd;
 
   if ((events & HTTP_LOOP_ERROR) &&
@@ -2651,7 +2827,8 @@ static enum c_abstract_http_error raw_sm_io_cb(struct ModalityEventLoop *loop,
  * @param slot Target state-machine slot.
  * @return C_ABSTRACT_HTTP_SUCCESS or loop error.
  */
-static enum c_abstract_http_error raw_sm_start_hop(struct RawMultiSlot *slot) {
+NO_DISCARD static c_abstract_http_error_t
+raw_sm_start_hop(struct RawMultiSlot *slot) {
   struct RawCtx *rctx = slot->batch->rctx;
   char *host = NULL;
   int port = 80;
@@ -2666,7 +2843,7 @@ static enum c_abstract_http_error raw_sm_start_hop(struct RawMultiSlot *slot) {
   struct sockaddr_in addr;
   int conn_res;
   long to_ms = math_raw_timeout_ms(rctx, rctx ? rctx->config.timeout_ms : 0);
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = parse_url(slot->hop_req.url, &host, &port, &path, &slot->is_https);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -2675,12 +2852,15 @@ static enum c_abstract_http_error raw_sm_start_hop(struct RawMultiSlot *slot) {
 
   if (slot->is_https) {
     rc = raw_resolve_tls_hooks(rctx, &slot->tls_hooks);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS || !slot->tls_hooks) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       free(host);
       free(path);
-      return raw_sm_finish_slot(
-          slot, NULL,
-          rc != C_ABSTRACT_HTTP_SUCCESS ? rc : C_ABSTRACT_HTTP_ERR_NOTSUP);
+      return raw_sm_finish_slot(slot, NULL, rc);
+    }
+    if (!slot->tls_hooks) {
+      free(host);
+      free(path);
+      return raw_sm_finish_slot(slot, NULL, C_ABSTRACT_HTTP_ERR_NOTSUP);
     }
   } else {
     slot->tls_hooks = NULL;
@@ -2689,12 +2869,13 @@ static enum c_abstract_http_error raw_sm_start_hop(struct RawMultiSlot *slot) {
   if (rctx && rctx->config.proxy_url && !slot->is_https) {
     rc = parse_url(rctx->config.proxy_url, &proxy_host, &proxy_port,
                    &proxy_path, &proxy_https);
-    free(proxy_path);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(proxy_path);
       free(host);
       free(path);
       return raw_sm_finish_slot(slot, NULL, rc);
     }
+    free(proxy_path);
     dial_host = proxy_host;
     dial_port = proxy_port;
     use_proxy_abs_uri = 1;
@@ -2704,22 +2885,31 @@ static enum c_abstract_http_error raw_sm_start_hop(struct RawMultiSlot *slot) {
   }
 
   rc = raw_resolve_addr(dial_host, dial_port, &addr);
-  free(proxy_host);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(proxy_host);
     free(host);
     free(path);
     return raw_sm_finish_slot(slot, NULL, rc);
   }
+  free(proxy_host);
 
   rc = raw_build_wire_request(rctx, &slot->hop_req, host, path,
                               use_proxy_abs_uri, &slot->tx_buf, &slot->tx_len);
-  free(path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(path);
     free(host);
     return raw_sm_finish_slot(slot, NULL, rc);
   }
+  free(path);
 
-  slot->sock = socket(AF_INET, SOCK_STREAM, 0);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_connect_fail == 2) {
+    slot->sock = RAW_INVALID_SOCKET;
+  } else
+#endif
+  {
+    slot->sock = socket(AF_INET, SOCK_STREAM, 0);
+  }
   if (slot->sock == RAW_INVALID_SOCKET) {
     free(host);
     return raw_sm_finish_slot(slot, NULL, C_ABSTRACT_HTTP_ERR_IO);
@@ -2730,7 +2920,17 @@ static enum c_abstract_http_error raw_sm_start_hop(struct RawMultiSlot *slot) {
     return raw_sm_finish_slot(slot, NULL, rc);
   }
 
-  conn_res = connect(slot->sock, (struct sockaddr *)&addr, sizeof(addr));
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_connect_fail == 1) {
+#if !defined(_WIN32)
+    errno = ECONNREFUSED;
+#endif
+    conn_res = -1;
+  } else
+#endif
+  {
+    conn_res = connect(slot->sock, (struct sockaddr *)&addr, sizeof(addr));
+  }
   if (conn_res < 0) {
 #if defined(_WIN32)
     if (WSAGetLastError() != WSAEWOULDBLOCK)
@@ -2770,9 +2970,101 @@ static enum c_abstract_http_error raw_sm_start_hop(struct RawMultiSlot *slot) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Arm one slot in `http_raw_send_multi`.
+ * @param slot Initialized slot entry.
+ * @return C_ABSTRACT_HTTP_SUCCESS or slot error code.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_arm_multi_slot(struct RawMultiSlot *slot) {
+  const struct HttpRequest *eff = NULL;
+  c_abstract_http_error_t rc;
+
+  if (!slot->orig_req || !slot->future) {
+    if (slot->future) {
+      return raw_sm_finish_slot(slot, NULL, C_ABSTRACT_HTTP_ERR_INVAL);
+    }
+    slot->batch->remaining--;
+    slot->batch->first_err = C_ABSTRACT_HTTP_ERR_INVAL;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  rc = raw_prepare_effective_req(slot->orig_req, &slot->flat_req,
+                                 &slot->flattened, &eff);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return raw_sm_finish_slot(slot, NULL, rc);
+  }
+  slot->hop_req = *eff;
+  return raw_sm_start_hop(slot);
+}
+
+/**
+ * @brief Tear down all slots and event loop at end of `http_raw_send_multi`.
+ * @param slots Slot array to release.
+ * @param count Number of slots.
+ * @param owned_loop Internally owned loop or NULL.
+ * @param caller_loop Caller-provided loop or NULL.
+ * @param primary_rc Primary batch status.
+ * @return Final `c_abstract_http_error_t`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_finish_multi_cleanup(struct RawMultiSlot *slots, size_t count,
+                         struct ModalityEventLoop *owned_loop,
+                         struct ModalityEventLoop *caller_loop,
+                         c_abstract_http_error_t primary_rc) {
+  size_t i;
+  c_abstract_http_error_t cleanup_rc;
+
+  for (i = 0; i < count; ++i) {
+    c_abstract_http_error_t td_rc = raw_sm_teardown_io(&slots[i]);
+    if (td_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(slots[i].redir_url);
+      free(slots);
+      if (owned_loop) {
+        c_abstract_http_error_t lrc = http_loop_free(owned_loop);
+        if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
+          return lrc;
+        }
+      }
+      return td_rc;
+    }
+    cleanup_rc =
+        raw_cleanup_effective_req(&slots[i].flat_req, slots[i].flattened);
+    if (cleanup_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(slots[i].redir_url);
+      free(slots);
+      if (owned_loop) {
+        c_abstract_http_error_t lrc = http_loop_free(owned_loop);
+        if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
+          return lrc;
+        }
+      }
+      return cleanup_rc;
+    }
+    free(slots[i].redir_url);
+  }
+  free(slots);
+
+  if (owned_loop) {
+    cleanup_rc = http_loop_free(owned_loop);
+    if (cleanup_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return cleanup_rc;
+    }
+  } else if (caller_loop) {
+    cleanup_rc = abstract_http_event_loop_test_unstop(caller_loop);
+    if (cleanup_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return cleanup_rc;
+    }
+    cleanup_rc = http_loop_wakeup(caller_loop);
+    if (cleanup_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return cleanup_rc;
+    }
+  }
+  return primary_rc;
+}
+
 /** @brief Multiplex multiple HTTP requests non-blockingly on ModalityEventLoop
  */
-enum c_abstract_http_error http_raw_send_multi(
+NO_DISCARD c_abstract_http_error_t http_raw_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *reqs, struct HttpFuture **future) {
   struct RawCtx *rctx = (struct RawCtx *)ctx;
@@ -2781,7 +3073,7 @@ enum c_abstract_http_error http_raw_send_multi(
   struct RawMultiBatch batch;
   struct RawMultiSlot *slots;
   size_t i;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
 
   LOG_DEBUG("http_raw_send_multi: Entering");
   if (!ctx || !reqs || !future) {
@@ -2808,7 +3100,7 @@ enum c_abstract_http_error http_raw_send_multi(
   slots = (struct RawMultiSlot *)calloc(reqs->count, sizeof(*slots));
   if (!slots) {
     if (owned_loop) {
-      enum c_abstract_http_error lrc = http_loop_free(owned_loop);
+      c_abstract_http_error_t lrc = http_loop_free(owned_loop);
       if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
         return lrc;
       }
@@ -2824,80 +3116,754 @@ enum c_abstract_http_error http_raw_send_multi(
   batch.first_err = C_ABSTRACT_HTTP_SUCCESS;
 
   for (i = 0; i < reqs->count; ++i) {
-    const struct HttpRequest *eff = NULL;
     slots[i].batch = &batch;
     slots[i].orig_req = reqs->requests[i];
     slots[i].future = future[i];
     slots[i].sock = RAW_INVALID_SOCKET;
-    if (!slots[i].orig_req || !slots[i].future) {
-      if (slots[i].future) {
-        rc = raw_sm_finish_slot(&slots[i], NULL, C_ABSTRACT_HTTP_ERR_INVAL);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-          batch.first_err = rc;
-        }
-      } else {
-        batch.remaining--;
-        batch.first_err = C_ABSTRACT_HTTP_ERR_INVAL;
-      }
-      continue;
-    }
-    rc = raw_prepare_effective_req(slots[i].orig_req, &slots[i].flat_req,
-                                   &slots[i].flattened, &eff);
+    rc = raw_arm_multi_slot(&slots[i]);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error frc = raw_sm_finish_slot(&slots[i], NULL, rc);
-      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
-        batch.first_err = frc;
-      }
-      continue;
-    }
-    slots[i].hop_req = *eff;
-    rc = raw_sm_start_hop(&slots[i]);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = rc;
+      return raw_finish_multi_cleanup(
+          slots, reqs->count, owned_loop, loop,
+          batch.first_err != C_ABSTRACT_HTTP_SUCCESS ? batch.first_err : rc);
     }
   }
 
   if (batch.remaining > 0) {
     rc = http_loop_run(active_loop);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = rc;
-    }
-  }
-
-  for (i = 0; i < reqs->count; ++i) {
-    enum c_abstract_http_error td_rc = raw_sm_teardown_io(&slots[i]);
-    enum c_abstract_http_error cl_rc =
-        raw_cleanup_effective_req(&slots[i].flat_req, slots[i].flattened);
-    free(slots[i].redir_url);
-    if (td_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = td_rc;
-    }
-    if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = cl_rc;
-    }
-  }
-  free(slots);
-
-  if (owned_loop) {
-    enum c_abstract_http_error lrc = http_loop_free(owned_loop);
-    if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = lrc;
-    }
-  } else if (loop) {
-    enum c_abstract_http_error u_rc =
-        abstract_http_event_loop_test_unstop(loop);
-    enum c_abstract_http_error w_rc = http_loop_wakeup(loop);
-    if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = u_rc;
-    }
-    if (w_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = w_rc;
+      return raw_finish_multi_cleanup(
+          slots, reqs->count, owned_loop, loop,
+          batch.first_err != C_ABSTRACT_HTTP_SUCCESS ? batch.first_err : rc);
     }
   }
 
   LOG_DEBUG("http_raw_send_multi: Exiting");
-  return batch.first_err;
+  return raw_finish_multi_cleanup(slots, reqs->count, owned_loop, loop,
+                                  batch.first_err);
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief State for mock TLS hooks inside `c_abstract_http_test_raw_edges` */
+struct RawEdgeTlsState {
+  int mode;       /**< Selected TLS simulation mode */
+  int call_count; /**< Invocation counter */
+};
+
+/**
+ * @brief Mock TLS open hook for raw state-machine edge tests.
+ * @param pdata Provider state pointer.
+ * @param fd Socket descriptor.
+ * @param host Target hostname.
+ * @param cfg HTTP configuration.
+ * @param out_sess Output session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_edge_tls_open(void *pdata, int fd, const char *host,
+                  const struct HttpConfig *cfg, void **out_sess) {
+  struct RawEdgeTlsState *st = (struct RawEdgeTlsState *)pdata;
+  (void)fd;
+  (void)host;
+  (void)cfg;
+  if (st->mode == 1) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  *out_sess = st;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Mock TLS handshake hook for raw state-machine edge tests.
+ * @param sess Session pointer.
+ * @param out_want Output readiness direction (`0`, `1`, or `2`).
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_edge_tls_handshake(void *sess, int *out_want) {
+  struct RawEdgeTlsState *st = (struct RawEdgeTlsState *)sess;
+  st->call_count++;
+  *out_want = 0;
+  if (st->mode == 2) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  if (st->mode == 3) {
+    *out_want = 1;
+  } else if (st->mode == 4) {
+    *out_want = 2;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Mock TLS write hook for raw state-machine edge tests.
+ * @param sess Session pointer.
+ * @param buf Buffer to write.
+ * @param len Byte count.
+ * @param out_written Output bytes written.
+ * @param out_want Output readiness direction.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_edge_tls_write(void *sess, const void *buf, size_t len, size_t *out_written,
+                   int *out_want) {
+  struct RawEdgeTlsState *st = (struct RawEdgeTlsState *)sess;
+  (void)buf;
+  *out_written = 0;
+  *out_want = 0;
+  if (st->mode == 5) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (st->mode == 6) {
+    *out_want = 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (st->mode == 7) {
+    *out_want = 2;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (st->mode == 8) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  *out_written = len;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Mock TLS read hook for raw state-machine edge tests.
+ * @param sess Session pointer.
+ * @param buf Destination buffer.
+ * @param cap Buffer capacity.
+ * @param out_read Output bytes read.
+ * @param out_want Output readiness direction.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_edge_tls_read(void *sess, void *buf, size_t cap, size_t *out_read,
+                  int *out_want) {
+  struct RawEdgeTlsState *st = (struct RawEdgeTlsState *)sess;
+  const char resp[] = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK";
+  *out_read = 0;
+  *out_want = 0;
+  if (st->mode == 9) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (st->mode == 10) {
+    *out_want = 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (st->mode == 11) {
+    *out_want = 2;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (st->mode == 12) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (st->mode == 13 && cap >= 4096) {
+    st->call_count++;
+    if (st->call_count <= 3) {
+      memset(buf, 'A', 4000);
+      *out_read = 4000;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  memcpy(buf, resp, sizeof(resp) - 1);
+  *out_read = sizeof(resp) - 1;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Mock TLS close hook for raw state-machine edge tests.
+ * @param sess Session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
+NO_DISCARD static c_abstract_http_error_t raw_edge_tls_close(void *sess) {
+  struct RawEdgeTlsState *st = (struct RawEdgeTlsState *)sess;
+  if (st && st->mode == 14) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Streaming upload callback for raw wire builder edge tests.
+ * @param ud Pointer to `int *` counter.
+ * @param buf Destination buffer.
+ * @param cap Capacity.
+ * @param out_read Output bytes produced.
+ * @return C_ABSTRACT_HTTP_SUCCESS or simulated error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_edge_read_chunk_cb(void *ud, void *buf, size_t cap, size_t *out_read) {
+  int *cnt = (int *)ud;
+  (void)cap;
+  (*cnt)++;
+  if (*cnt == -9) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (*cnt == 1) {
+    memcpy(buf, "chunk", 5);
+    *out_read = 5;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  *out_read = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Free heap char buffer pointer and percolate primary error code.
+ * @param ptr Address of heap char pointer to free and zero.
+ * @param rc Status code to percolate.
+ * @return `rc`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_edge_free_ret(char **ptr, c_abstract_http_error_t rc) {
+  free(*ptr);
+  *ptr = NULL;
+  return rc;
+}
+
+/**
+ * @brief Free heap void buffer pointer and percolate primary error code.
+ * @param ptr Address of heap void pointer to free and zero.
+ * @param rc Status code to percolate.
+ * @return `rc`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_edge_free_void(void **ptr, c_abstract_http_error_t rc) {
+  free(*ptr);
+  *ptr = NULL;
+  return rc;
+}
+
+/**
+ * @brief Reset integer fault-injection flag and percolate status code.
+ * @param flag Pointer to integer flag to zero.
+ * @param rc Status code to percolate.
+ * @return `rc`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_edge_reset_ret(int *flag, c_abstract_http_error_t rc) {
+  *flag = 0;
+  return rc;
+}
+
+/**
+ * @brief Close optional POSIX descriptors, free loop, and percolate status.
+ * @param loop Optional event loop to destroy.
+ * @param p0 First descriptor (`-1` if unused).
+ * @param p1 Second descriptor (`-1` if unused).
+ * @param primary_rc Primary status code.
+ * @return Loop cleanup error or `primary_rc`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_edge_close_fds_loop(struct ModalityEventLoop *loop, int p0, int p1,
+                        c_abstract_http_error_t primary_rc) {
+#if defined(_WIN32)
+  (void)p0;
+  (void)p1;
+#else
+  if (p0 >= 0) {
+    close(p0);
+  }
+  if (p1 >= 0) {
+    close(p1);
+  }
+#endif
+  if (loop) {
+    c_abstract_http_error_t lrc = http_loop_free(loop);
+    if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
+      return lrc;
+    }
+  }
+  return primary_rc;
+}
+
+/**
+ * @brief Clean up slot, future response, pipes, and loop at end of an edge
+ * step.
+ * @param slot State-machine slot.
+ * @param fut Target future.
+ * @param loop Event loop to destroy.
+ * @param p0 Optional pipe read fd (`-1` if unused/owned by slot).
+ * @param p1 Optional pipe write fd (`-1` if unused).
+ * @param primary_rc Status from the tested step.
+ * @return Cleanup error or `primary_rc`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_edge_finish_step(struct RawMultiSlot *slot, struct HttpFuture *fut,
+                     struct ModalityEventLoop *loop, int p0, int p1,
+                     c_abstract_http_error_t primary_rc) {
+  c_abstract_http_error_t crc;
+  free(slot->redir_url);
+  slot->redir_url = NULL;
+  if (fut && fut->response) {
+    c_abstract_http_error_t rfr = http_response_free(fut->response);
+    free(fut->response);
+    fut->response = NULL;
+    if (rfr != C_ABSTRACT_HTTP_SUCCESS) {
+      return raw_edge_close_fds_loop(loop, p0, p1, rfr);
+    }
+  }
+  crc = raw_sm_teardown_io(slot);
+  if (crc != C_ABSTRACT_HTTP_SUCCESS) {
+    return raw_edge_close_fds_loop(loop, p0, p1, crc);
+  }
+  return raw_edge_close_fds_loop(loop, p0, p1, primary_rc);
+}
+
+/**
+ * @brief Exercise internal raw wire-builder, chunked-decoder, and state-machine
+ * edge paths for 100% branch and line coverage.
+ * @param step Sub-case selector (`0..59`).
+ * @return Status of selected sub-case.
+ */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_raw_edges(int step);
+
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_raw_edges(int step) {
+  struct RawEdgeTlsState tls_st;
+  struct HttpRawTlsHooks hooks;
+  struct RawCtx rctx;
+  struct ModalityEventLoop *loop = NULL;
+  struct RawMultiBatch batch;
+  struct RawMultiSlot slot;
+  struct HttpFuture fut;
+  struct HttpRequest req;
+  struct HttpResponse res;
+  struct HttpResponse *res_ptr = NULL;
+  char *out_buf = NULL;
+  size_t out_len = 0;
+  char s_https_url[] = "https://127.0.0.1:1/";
+  char s_http_url[] = "http://127.0.0.1:1/";
+  char s_up_url[] = "http://example.com/upload";
+  char s_bad_url[] = "://bad";
+  char s_start_url[] = "http://127.0.0.1:1/start";
+  char s_k0[] = "X-Custom";
+  char s_v0[] = "v";
+  char s_k1[] = "Content-Length";
+  char s_v1[] = "5";
+  char s_ua[] = "custom-ua";
+  char s_pu[] = "pu";
+  char s_pp[] = "pp";
+  char s_body[] = "12345";
+  c_abstract_http_error_t rc;
+
+  memset(&tls_st, 0, sizeof(tls_st));
+  memset(&hooks, 0, sizeof(hooks));
+  hooks.provider_data = &tls_st;
+  hooks.open = raw_edge_tls_open;
+  hooks.handshake = raw_edge_tls_handshake;
+  hooks.write = raw_edge_tls_write;
+  hooks.read = raw_edge_tls_read;
+  hooks.close = raw_edge_tls_close;
+
+  memset(&rctx, 0, sizeof(rctx));
+  rctx.has_custom_tls = 1;
+  rctx.tls_hooks = hooks;
+  rctx.config.follow_redirects = 1;
+
+  if (step == 0) {
+    char big_chunk[260];
+    const char tr_resp[] = "HTTP/1.1 200 OK\r\ntransfer-encoding: "
+                           "chunked\r\n\r\n5\r\nHello\r\n0\r\nX-T: 1\r\n\r\n";
+    const char tr_inc[] =
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n0\r\nX-T: 1\r\n";
+    const char no_hdr[] = "HTTP/1.1 200 OK\r\n\r\n";
+    const char short_te[] = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chu\r\n\r\n";
+    out_len = (size_t)(math_raw_strcasestr_has("chu", "chunked") +
+                       math_raw_response_complete(
+                           short_te, sizeof(short_te) - 1, HTTP_GET) +
+                       math_raw_response_complete(no_hdr, sizeof(no_hdr) - 1,
+                                                  HTTP_GET) +
+                       math_raw_response_complete(tr_inc, sizeof(tr_inc) - 1,
+                                                  HTTP_GET) +
+                       math_raw_response_complete(tr_resp, sizeof(tr_resp) - 1,
+                                                  HTTP_GET));
+    memset(&req, 0, sizeof(req));
+    memset(&res, 0, sizeof(res));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(big_chunk, sizeof(big_chunk), "5\r\nHello\r\n96\r\n");
+#else
+    sprintf(big_chunk, "5\r\nHello\r\n96\r\n");
+#endif
+    out_len = strlen(big_chunk);
+    memset(big_chunk + out_len, 'Z', 150);
+    memcpy(big_chunk + out_len + 150, "\r\n0\r\n\r\n", 7);
+    return raw_edge_free_void(
+        &res.body,
+        raw_decode_chunked_body(big_chunk, out_len + 157, &req, &res));
+  }
+
+  if (step == 1) {
+    memset(&req, 0, sizeof(req));
+    req.method = (enum HttpMethod)(-1);
+    req.url = s_http_url;
+    return raw_build_wire_request(&rctx, &req, "example.com", "/", 0, &out_buf,
+                                  &out_len);
+  }
+
+  if ((step >= 2 && step <= 6) || step == 53) {
+    int cnt = (step == 53) ? -10 : 0;
+    struct HttpHeader hdrs[2];
+    memset(&req, 0, sizeof(req));
+    req.method = (step == 6) ? HTTP_GET : HTTP_POST;
+    req.url = s_up_url;
+    hdrs[0].key = s_k0;
+    hdrs[0].value = s_v0;
+    hdrs[1].key = s_k1;
+    hdrs[1].value = s_v1;
+    req.headers.headers = hdrs;
+    req.headers.count = (step == 4 || step == 5) ? 2 : 1;
+    rctx.config.user_agent = s_ua;
+    rctx.config.proxy_username = s_pu;
+    rctx.config.proxy_password = s_pp;
+    if (step == 5) {
+      req.body = s_body;
+      req.body_len = 5;
+    } else if (step != 6) {
+      req.read_chunk = raw_edge_read_chunk_cb;
+      req.read_chunk_user_data = &cnt;
+      req.expected_body_len = (step == 3) ? 5 : 0;
+    }
+    return raw_edge_free_ret(
+        &out_buf, raw_build_wire_request(&rctx, &req, "example.com", "/upload",
+                                         1, &out_buf, &out_len));
+  }
+
+  if (step == 7 || step == 34) {
+    tls_st.mode = (step == 7) ? 8 : 6;
+    return raw_io_write_all(0, &hooks, &tls_st, "GET", 3, 1);
+  }
+
+  if (step == 8 || step == 35) {
+    return raw_edge_free_ret(
+        &out_buf,
+        raw_resolve_redirect_url((step == 8) ? "://bad" : "http://ex.com/a",
+                                 "/rel", &out_buf));
+  }
+
+  if (step == 36) {
+#if !defined(_WIN32)
+    int sv[2] = {-1, -1};
+    out_len = (size_t)socketpair(AF_UNIX, SOCK_STREAM, 0, sv);
+    return raw_edge_close_fds_loop(
+        NULL, sv[0], sv[1],
+        raw_proxy_connect_tunnel(&rctx, sv[0], "ex.com", 443));
+#else
+    return C_ABSTRACT_HTTP_SUCCESS;
+#endif
+  }
+
+  if (step == 37 || step == 38) {
+    memset(&req, 0, sizeof(req));
+    req.url = s_https_url;
+    rctx.has_custom_tls = 0;
+    g_mock_raw_send_fail = (step == 37) ? 2 : 3;
+    return raw_edge_reset_ret(&g_mock_raw_send_fail,
+                              raw_send_single_hop(&rctx, &req, &res_ptr));
+  }
+
+  if (step == 39) {
+    struct HttpRequest freq;
+    memset(&freq, 0, sizeof(freq));
+    res_ptr = (struct HttpResponse *)calloc(1, sizeof(*res_ptr));
+    return raw_finish_send(NULL, &freq, 1, &res_ptr, C_ABSTRACT_HTTP_SUCCESS);
+  }
+
+  rc = http_loop_init(&loop);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  if (step == 40) {
+    struct RawMultiSlot *ms = (struct RawMultiSlot *)calloc(1, sizeof(*ms));
+    memset(&batch, 0, sizeof(batch));
+    batch.loop = loop;
+    ms[0].batch = &batch;
+    ms[0].sock = RAW_INVALID_SOCKET;
+    ms[0].timer_id = 9999;
+    return raw_finish_multi_cleanup(ms, 1, loop, NULL, C_ABSTRACT_HTTP_SUCCESS);
+  }
+
+  memset(&batch, 0, sizeof(batch));
+  memset(&slot, 0, sizeof(slot));
+  memset(&fut, 0, sizeof(fut));
+  batch.rctx = &rctx;
+  batch.loop = loop;
+  batch.remaining = 1;
+  batch.caller_loop = 1;
+  slot.batch = &batch;
+  slot.future = &fut;
+  slot.sock = RAW_INVALID_SOCKET;
+
+  if (step == 59) {
+    slot.timer_id = 9999;
+    return raw_edge_finish_step(&slot, &fut, loop, -1, -1,
+                                C_ABSTRACT_HTTP_SUCCESS);
+  }
+
+  if (step >= 9 && step <= 12) {
+    int pipe_fds[2] = {-1, -1};
+    int saved_fd = -1;
+#if !defined(_WIN32)
+    if (pipe(pipe_fds) == 0) {
+      rc = http_loop_add_fd(loop, pipe_fds[0], HTTP_LOOP_READ, raw_sm_io_cb,
+                            &slot);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return raw_edge_finish_step(&slot, &fut, loop, pipe_fds[0], pipe_fds[1],
+                                    rc);
+      }
+      slot.sock = pipe_fds[0];
+      slot.fd_registered = 1;
+      pipe_fds[0] = -1;
+    }
+#endif
+    rc = http_loop_add_timer(loop, 500, raw_sm_timer_cb, &slot, &slot.timer_id);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return raw_edge_finish_step(&slot, &fut, loop, pipe_fds[0], pipe_fds[1],
+                                  rc);
+    }
+    if (step == 9 || step == 10) {
+      if (step == 9) {
+        tls_st.mode = 14;
+        slot.tls_hooks = &hooks;
+        slot.tls_sess = &tls_st;
+      }
+      return raw_edge_finish_step(
+          &slot, &fut, loop, pipe_fds[0], pipe_fds[1],
+          raw_sm_finish_slot(&slot, NULL, C_ABSTRACT_HTTP_SUCCESS));
+    }
+    saved_fd = (int)slot.sock;
+    slot.timer_id = (step == 11) ? 0 : 9999;
+    return raw_edge_finish_step(
+        &slot, &fut, loop, saved_fd, pipe_fds[1],
+        (step == 11) ? raw_sm_finish_slot(&slot, NULL, C_ABSTRACT_HTTP_SUCCESS)
+                     : raw_sm_teardown_io(&slot));
+  }
+
+  if (step >= 13 && step <= 17) {
+    char ok_redir[] = "HTTP/1.1 302 Found\r\nLocation: /next\r\n\r\n";
+    char bad_wire[] =
+        "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nZZ\r\n";
+    slot.hop_req.url = (step == 16) ? s_bad_url : s_start_url;
+    slot.hop_req.method = HTTP_POST;
+    if (step == 13) {
+      slot.rx_buf = (char *)malloc(sizeof(bad_wire));
+      if (slot.rx_buf) {
+        memcpy(slot.rx_buf, bad_wire, sizeof(bad_wire));
+        slot.rx_len = sizeof(bad_wire) - 1;
+      }
+    } else {
+      slot.rx_buf = (char *)malloc(sizeof(ok_redir));
+      if (slot.rx_buf) {
+        memcpy(slot.rx_buf, ok_redir, sizeof(ok_redir));
+        slot.rx_len = sizeof(ok_redir) - 1;
+      }
+      if (step == 14) {
+        slot.hop_count = RAW_MAX_REDIRECTS;
+      } else if (step == 17) {
+        slot.timer_id = 9999;
+      }
+    }
+    return raw_edge_finish_step(&slot, &fut, loop, -1, -1,
+                                raw_sm_complete_response(&slot));
+  }
+
+  if (step >= 18 && step <= 30) {
+    slot.tls_hooks = &hooks;
+    slot.tls_sess = &tls_st;
+    slot.hop_req.url = s_https_url;
+    slot.hop_req.method = HTTP_GET;
+    slot.tx_buf = (char *)malloc(8);
+    if (slot.tx_buf) {
+      memcpy(slot.tx_buf, "GET /", 6);
+      slot.tx_len = 5;
+    }
+    if (step == 18) {
+      slot.phase = RAW_SM_CONNECTING;
+      return raw_edge_finish_step(
+          &slot, &fut, loop, -1, -1,
+          raw_sm_io_cb(loop, -1, HTTP_LOOP_ERROR, &slot));
+    }
+    if (step >= 19 && step <= 22) {
+      slot.phase = RAW_SM_TLS_HANDSHAKE;
+      tls_st.mode = (step == 19) ? 2 : (step == 20) ? 3 : (step == 21) ? 4 : 0;
+      return raw_edge_finish_step(
+          &slot, &fut, loop, -1, -1,
+          raw_sm_io_cb(loop, -1, HTTP_LOOP_WRITE, &slot));
+    }
+    if (step >= 23 && step <= 26) {
+      slot.phase = RAW_SM_WRITE_REQ;
+      tls_st.mode = (step == 23) ? 5 : (step == 24) ? 6 : (step == 25) ? 7 : 8;
+      return raw_edge_finish_step(
+          &slot, &fut, loop, -1, -1,
+          raw_sm_io_cb(loop, -1, HTTP_LOOP_WRITE, &slot));
+    }
+    slot.phase = RAW_SM_READ_RESP;
+    tls_st.mode = (step == 27)   ? 9
+                  : (step == 28) ? 10
+                  : (step == 29) ? 11
+                  : (step == 30) ? 13
+                                 : 12;
+    return raw_edge_finish_step(&slot, &fut, loop, -1, -1,
+                                raw_sm_io_cb(loop, -1, HTTP_LOOP_READ, &slot));
+  }
+
+  if ((step >= 41 && step <= 48) || (step >= 54 && step <= 57)) {
+    struct HttpPart pt;
+    memset(&req, 0, sizeof(req));
+    memset(&pt, 0, sizeof(pt));
+    req.url = (step <= 43 || step == 56) ? s_https_url : s_http_url;
+    if (step == 57) {
+      pt.name = s_pu;
+      pt.data = s_body;
+      pt.data_len = 5;
+      req.parts.parts = &pt;
+      req.parts.count = 1;
+    }
+    slot.orig_req = &req;
+    slot.hop_req = req;
+    if (step == 41 || step == 42) {
+      rctx.has_custom_tls = 0;
+      g_mock_raw_send_fail = (step == 41) ? 2 : 3;
+      return raw_edge_finish_step(
+          &slot, &fut, loop, -1, -1,
+          raw_edge_reset_ret(&g_mock_raw_send_fail, raw_sm_start_hop(&slot)));
+    }
+    if (step == 43 || step == 56) {
+      tls_st.mode = (step == 43) ? 1 : 0;
+      return raw_edge_finish_step(&slot, &fut, loop, -1, -1,
+                                  raw_sm_start_hop(&slot));
+    }
+    if (step == 44) {
+      rctx.config.proxy_url = s_bad_url;
+      return raw_edge_finish_step(&slot, &fut, loop, -1, -1,
+                                  raw_sm_start_hop(&slot));
+    }
+    if (step == 45) {
+      g_mock_raw_nonblocking_fail = 1;
+      return raw_edge_finish_step(
+          &slot, &fut, loop, -1, -1,
+          raw_edge_reset_ret(&g_mock_raw_nonblocking_fail,
+                             raw_sm_start_hop(&slot)));
+    }
+    if (step == 46 || step == 54) {
+      g_mock_raw_connect_fail = (step == 46) ? 1 : 2;
+      return raw_edge_finish_step(&slot, &fut, loop, -1, -1,
+                                  raw_edge_reset_ret(&g_mock_raw_connect_fail,
+                                                     raw_sm_start_hop(&slot)));
+    }
+    if (step == 55) {
+      return raw_edge_finish_step(&slot, &fut, loop, -1, -1,
+                                  raw_sm_start_hop(&slot));
+    }
+    if (step == 47) {
+      slot.future = NULL;
+      return raw_edge_finish_step(&slot, NULL, loop, -1, -1,
+                                  raw_arm_multi_slot(&slot));
+    }
+    if (step == 57) {
+      return raw_edge_finish_step(&slot, &fut, loop, -1, -1,
+                                  raw_arm_multi_slot(&slot));
+    }
+    slot.orig_req = NULL;
+    return raw_edge_finish_step(&slot, &fut, loop, -1, -1,
+                                raw_arm_multi_slot(&slot));
+  }
+
+  if ((step >= 49 && step <= 52) || step == 58) {
+#if !defined(_WIN32)
+    int sv[2] = {-1, -1};
+    char fill[8192];
+    out_len = (size_t)socketpair(AF_UNIX, SOCK_STREAM, 0, sv);
+    rc = make_socket_nonblocking(sv[0]);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return raw_edge_finish_step(&slot, &fut, loop, sv[0], sv[1], rc);
+    }
+    slot.sock = sv[0];
+    slot.hop_req.url = s_http_url;
+    slot.hop_req.method = HTTP_GET;
+    slot.tx_buf = (char *)malloc(8);
+    if (slot.tx_buf) {
+      memcpy(slot.tx_buf, "GET /", 6);
+      slot.tx_len = 5;
+    }
+    if (step == 49) {
+      slot.phase = RAW_SM_WRITE_REQ;
+      return raw_edge_finish_step(
+          &slot, &fut, loop, -1, sv[1],
+          raw_sm_io_cb(loop, sv[0], HTTP_LOOP_WRITE, &slot));
+    }
+    if (step == 58) {
+      memset(fill, 'F', sizeof(fill));
+      while (send(sv[0], fill, sizeof(fill), 0) > 0) {
+      }
+      slot.phase = RAW_SM_WRITE_REQ;
+      return raw_edge_finish_step(
+          &slot, &fut, loop, -1, sv[1],
+          raw_sm_io_cb(loop, sv[0], HTTP_LOOP_WRITE, &slot));
+    }
+    if (step == 50) {
+      close(sv[0]);
+      close(sv[1]);
+      slot.sock = -1;
+      slot.phase = RAW_SM_WRITE_REQ;
+      return raw_edge_finish_step(
+          &slot, &fut, loop, -1, -1,
+          raw_sm_io_cb(loop, -1, HTTP_LOOP_WRITE, &slot));
+    }
+    if (step == 51) {
+      close(sv[0]);
+      close(sv[1]);
+      slot.sock = -1;
+      slot.phase = RAW_SM_READ_RESP;
+      return raw_edge_finish_step(
+          &slot, &fut, loop, -1, -1,
+          raw_sm_io_cb(loop, -1, HTTP_LOOP_READ, &slot));
+    }
+    close(sv[1]);
+    slot.phase = RAW_SM_READ_RESP;
+    return raw_edge_finish_step(
+        &slot, &fut, loop, -1, -1,
+        raw_sm_io_cb(loop, sv[0], HTTP_LOOP_READ, &slot));
+#else
+    return raw_edge_finish_step(&slot, &fut, loop, -1, -1,
+                                C_ABSTRACT_HTTP_SUCCESS);
+#endif
+  }
+
+  {
+    int pipe_fds[2] = {-1, -1};
+#if !defined(_WIN32)
+    if (pipe(pipe_fds) == 0) {
+      rc = http_loop_add_fd(loop, pipe_fds[0], HTTP_LOOP_WRITE, raw_sm_io_cb,
+                            &slot);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return raw_edge_finish_step(&slot, &fut, loop, pipe_fds[0], pipe_fds[1],
+                                    rc);
+      }
+      slot.sock = pipe_fds[0];
+      slot.fd_registered = 1;
+      pipe_fds[0] = -1;
+    }
+#endif
+    slot.tls_hooks = &hooks;
+    slot.tls_sess = &tls_st;
+    slot.hop_req.url = s_https_url;
+    slot.hop_req.method = HTTP_GET;
+    slot.tx_buf = (char *)malloc(8);
+    if (slot.tx_buf) {
+      memcpy(slot.tx_buf, "GET /", 6);
+      slot.tx_len = 5;
+    }
+    slot.phase = (step == 31) ? RAW_SM_TLS_HANDSHAKE : RAW_SM_READ_RESP;
+    tls_st.mode = (step == 32) ? 12 : 0;
+    return raw_edge_finish_step(
+        &slot, &fut, loop, pipe_fds[0], pipe_fds[1],
+        raw_sm_io_cb(loop, (int)slot.sock, HTTP_LOOP_WRITE, &slot));
+  }
+}
+#endif
 
 #endif /* !defined(CAH_DOS_NO_WATT32) */
 #endif

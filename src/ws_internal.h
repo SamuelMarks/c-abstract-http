@@ -56,6 +56,9 @@ struct ws_parser_ctx {
   unsigned char *reassembly_buffer; /**< Buffer for fragmented messages */
   size_t reassembly_capacity;       /**< Capacity of the reassembly buffer */
   size_t reassembly_offset;         /**< Current offset in reassembly buffer */
+  int in_fragment; /**< Non-zero while reassembling a fragmented message */
+  enum c_abstract_http_ws_opcode
+      fragment_opcode; /**< Initial opcode of active fragmented message */
 
   c_abstract_http_ws_on_message on_message; /**< User callback for messages */
   c_abstract_http_ws_on_error on_error;     /**< User callback for errors */
@@ -121,7 +124,7 @@ C_ABSTRACT_HTTP_API uint64_t math_ws_ntohll(uint64_t netqword);
  * @param out_key The array to store the masking key.
  * @return 0 on success.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 ws_generate_mask_key(unsigned char out_key[4]);
 
 /**
@@ -131,9 +134,8 @@ ws_generate_mask_key(unsigned char out_key[4]);
  * @param mask_key The 4-byte masking key.
  * @return 0 on success.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-ws_apply_mask(unsigned char *payload, size_t len,
-              const unsigned char mask_key[4]);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t ws_apply_mask(
+    unsigned char *payload, size_t len, const unsigned char mask_key[4]);
 
 /**
  * @brief Pack a small WebSocket frame header (payload <= 125).
@@ -145,10 +147,9 @@ ws_apply_mask(unsigned char *payload, size_t len,
  * @param out_len Pointer to store the number of bytes written.
  * @return 0 on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-ws_pack_header_small(unsigned char *buf, int fin,
-                     enum c_abstract_http_ws_opcode opcode, int mask,
-                     size_t len, size_t *out_len);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t ws_pack_header_small(
+    unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode,
+    int mask, size_t len, size_t *out_len);
 
 /**
  * @brief Pack a medium WebSocket frame header (126 <= payload <= 65535).
@@ -160,10 +161,9 @@ ws_pack_header_small(unsigned char *buf, int fin,
  * @param out_len Pointer to store the number of bytes written.
  * @return 0 on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-ws_pack_header_medium(unsigned char *buf, int fin,
-                      enum c_abstract_http_ws_opcode opcode, int mask,
-                      size_t len, size_t *out_len);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t ws_pack_header_medium(
+    unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode,
+    int mask, size_t len, size_t *out_len);
 
 /**
  * @brief Pack a large WebSocket frame header (payload > 65535).
@@ -175,10 +175,9 @@ ws_pack_header_medium(unsigned char *buf, int fin,
  * @param out_len Pointer to store the number of bytes written.
  * @return 0 on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-ws_pack_header_large(unsigned char *buf, int fin,
-                     enum c_abstract_http_ws_opcode opcode, int mask,
-                     size_t len, size_t *out_len);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t ws_pack_header_large(
+    unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode,
+    int mask, size_t len, size_t *out_len);
 
 /**
  * @brief Internal async task context for WebSocket reading.
@@ -207,7 +206,7 @@ struct c_abstract_http_ws_async_ctx {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, negative error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 ws_parser_init(struct ws_parser_ctx *ctx, c_abstract_http_ws_on_message on_msg,
                c_abstract_http_ws_on_error on_err,
                c_abstract_http_ws_on_close on_cls, void *user_data);
@@ -217,7 +216,7 @@ ws_parser_init(struct ws_parser_ctx *ctx, c_abstract_http_ws_on_message on_msg,
  * @param ctx The parser context to destroy.
  * @return 0 on success, negative error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 ws_parser_destroy(struct ws_parser_ctx *ctx);
 
 /**
@@ -227,9 +226,8 @@ ws_parser_destroy(struct ws_parser_ctx *ctx);
  * @param len The length of the chunk.
  * @return 0 on success, negative error code on protocol violation.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
-               size_t len);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t ws_parser_feed(
+    struct ws_parser_ctx *ctx, const unsigned char *chunk, size_t len);
 
 /**
  * @brief Generate a random 24-character Base64 encoded client key.
@@ -237,7 +235,7 @@ ws_parser_feed(struct ws_parser_ctx *ctx, const unsigned char *chunk,
  * null-terminator).
  * @return 0 on success, negative error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 ws_generate_key(char out_key[25]);
 
 /**
@@ -248,7 +246,7 @@ ws_generate_key(char out_key[25]);
  * null-terminator).
  * @return 0 on success, negative error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 ws_sign_key(const char *client_key, char out_accept[29]);
 
 /**
@@ -258,7 +256,7 @@ ws_sign_key(const char *client_key, char out_accept[29]);
  * @param server_accept The server's response.
  * @return 0 on success, negative error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 ws_verify_accept(const char *client_key, const char *server_accept);
 
 #ifdef __cplusplus

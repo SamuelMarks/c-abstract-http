@@ -37,7 +37,7 @@ struct c_abstract_http_sse_async_ctx {
  * @param arg Opaque pointer to struct c_abstract_http_sse_async_ctx.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_sse_async_task(void *arg);
 
 /**
@@ -75,7 +75,7 @@ struct sse_parser_ctx {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, negative error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error sse_parser_init(
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t sse_parser_init(
     struct sse_parser_ctx *ctx, const struct c_abstract_http_sse_config *config,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
     c_abstract_http_sse_on_close on_cls, void *user_data);
@@ -85,7 +85,7 @@ NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error sse_parser_init(
  * @param ctx The parser context to destroy.
  * @return 0 on success, negative error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 sse_parser_destroy(struct sse_parser_ctx *ctx);
 
 /**
@@ -95,7 +95,7 @@ sse_parser_destroy(struct sse_parser_ctx *ctx);
  * @param len The length of the chunk.
  * @return 0 on success, negative error code on protocol violation.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 sse_parser_feed(struct sse_parser_ctx *ctx, const char *chunk, size_t len);
 
 #ifdef __cplusplus

@@ -40,7 +40,7 @@ struct sha256_ctx {
  * @param ctx The context to initialize.
  * @return 0 on success.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 sha1_init(struct sha1_ctx *ctx);
 
 /**
@@ -50,7 +50,7 @@ sha1_init(struct sha1_ctx *ctx);
  * @param len The length of the data.
  * @return 0 on success.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 sha1_update(struct sha1_ctx *ctx, const unsigned char *data, size_t len);
 
 /**
@@ -59,7 +59,7 @@ sha1_update(struct sha1_ctx *ctx, const unsigned char *data, size_t len);
  * @param out_hash The 20-byte array to store the resulting hash.
  * @return 0 on success.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 sha1_final(struct sha1_ctx *ctx, unsigned char out_hash[20]);
 
 /**
@@ -67,7 +67,7 @@ sha1_final(struct sha1_ctx *ctx, unsigned char out_hash[20]);
  * @param ctx The context to initialize.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 sha256_init(struct sha256_ctx *ctx);
 
 /**
@@ -77,7 +77,7 @@ sha256_init(struct sha256_ctx *ctx);
  * @param len Byte length of @p data.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 sha256_update(struct sha256_ctx *ctx, const unsigned char *data, size_t len);
 
 /**
@@ -86,7 +86,7 @@ sha256_update(struct sha256_ctx *ctx, const unsigned char *data, size_t len);
  * @param out_hash 32-byte output digest buffer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 sha256_final(struct sha256_ctx *ctx, unsigned char out_hash[32]);
 
 /**
@@ -96,7 +96,7 @@ sha256_final(struct sha256_ctx *ctx, unsigned char out_hash[32]);
  * @param out_hash 32-byte output digest buffer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_sha256_oneshot(const unsigned char *data, size_t len,
                                unsigned char out_hash[32]);
 
@@ -105,7 +105,7 @@ c_abstract_http_sha256_oneshot(const unsigned char *data, size_t len,
  * @param out_name Output pointer receiving static provider identifier string.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_crypto_provider_name(const char **out_name);
 
 /**
@@ -121,7 +121,7 @@ c_abstract_http_crypto_provider_name(const char **out_name);
  * @return C_ABSTRACT_HTTP_SUCCESS on match, C_ABSTRACT_HTTP_ERR_ACCES on pin
  * mismatch, or error code on invalid arguments / allocation failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_verify_spki_pin_sha256(const unsigned char *spki_der,
                                        size_t spki_len,
                                        const char *expected_pin);
@@ -138,7 +138,7 @@ c_abstract_http_verify_spki_pin_sha256(const unsigned char *spki_der,
  * @return C_ABSTRACT_HTTP_SUCCESS when valid, C_ABSTRACT_HTTP_ERR_ACCES on
  * verification/pin failure, or C_ABSTRACT_HTTP_ERR_INVAL on invalid config.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_tls_verify_handshake_config(const struct HttpConfig *config,
                                             const char *peer_host,
                                             const char *cert_cn,
@@ -148,16 +148,30 @@ c_abstract_http_tls_verify_handshake_config(const struct HttpConfig *config,
 /**
  * @brief Retrieve the active compile-time CMake TLS socket provider hooks.
  *
- * Returns non-NULL hooks when compiled with an external TLS provider
+ * Returns non-NULL hooks when compiled with a built-in socket TLS provider
  * (`C_ABSTRACT_HTTP_USE_OPENSSL`, `LIBRESSL`, `BORINGSSL`, `WOLFSSL`,
- * `MBEDTLS`, `GNUTLS`, `S2N`, `BEARSSL`, `BOTAN`, `WINCRYPT`, `COMMONCRYPTO`),
- * or NULL when no built-in TLS socket provider is linked.
+ * `MBEDTLS`, or `GNUTLS`), or NULL when no built-in TLS socket provider is
+ * linked.
  *
  * @param out_hooks Output pointer receiving static TLS hook table or NULL.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_get_default_tls_hooks(const struct HttpRawTlsHooks **out_hooks);
+
+/**
+ * @brief Fill a buffer with cryptographically unpredictable random bytes.
+ *
+ * Uses OS entropy (`RtlGenRandom` on Windows, `/dev/urandom` on POSIX) with a
+ * non-global xorshift64* fallback on restricted/DOS targets. Never calls
+ * `srand()` or `rand()`.
+ *
+ * @param buf Destination byte buffer (may be NULL only when @p len is 0).
+ * @param len Number of random bytes to generate.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or C_ABSTRACT_HTTP_ERR_INVAL.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_random_bytes(unsigned char *buf, size_t len);
 
 /**
  * @brief Base64 encode data.
@@ -167,9 +181,8 @@ c_abstract_http_get_default_tls_hooks(const struct HttpRawTlsHooks **out_hooks);
  * @param out_len Pointer to store the length of the string.
  * @return 0 on success, ENOMEM on allocation failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-base64_encode(const unsigned char *in, size_t in_len, char **out_str,
-              size_t *out_len);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t base64_encode(
+    const unsigned char *in, size_t in_len, char **out_str, size_t *out_len);
 
 /**
  * @brief Base64 decode a string.
@@ -179,9 +192,8 @@ base64_encode(const unsigned char *in, size_t in_len, char **out_str,
  * @param out_len Pointer to store the length of the data.
  * @return 0 on success, ENOMEM on allocation failure, EINVAL on invalid input.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-base64_decode(const char *in, size_t in_len, unsigned char **out_data,
-              size_t *out_len);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t base64_decode(
+    const char *in, size_t in_len, unsigned char **out_data, size_t *out_len);
 
 /**
  * @brief Compare two strings in constant time.

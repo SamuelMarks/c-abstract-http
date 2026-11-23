@@ -113,15 +113,15 @@ abstract_http_cond_free(struct AbstractHttpCond *cond);
  * @param[in] arg User-provided argument.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-typedef enum c_abstract_http_error (*abstract_http_thread_task_cb)(void *arg);
+typedef c_abstract_http_error_t (*abstract_http_thread_task_cb)(void *arg);
 
 /**
  * @brief Hooks for integrating with an external thread pool.
  */
 struct AbstractHttpThreadPoolHooks {
   void *external_context; /**< Context passed to hooks */
-  enum c_abstract_http_error (*push)(void *ctx, abstract_http_thread_task_cb cb,
-                                     void *arg); /**< Hook for pushing a task */
+  c_abstract_http_error_t (*push)(void *ctx, abstract_http_thread_task_cb cb,
+                                  void *arg); /**< Hook for pushing a task */
 };
 
 /**
@@ -162,7 +162,7 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
  * @param[in] pool The thread pool.
  * @return 0 on success.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool);
 
 #ifdef __cplusplus

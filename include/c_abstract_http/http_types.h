@@ -53,16 +53,20 @@ extern "C" {
 #else
 #if !defined(inline)
 #if defined(_MSC_VER)
+/** @brief C89 inline compatibility macro for MSVC */
 #define inline __inline
 #elif defined(__GNUC__) || defined(__clang__)
+/** @brief C89 inline compatibility macro for GCC/Clang */
 #define inline __inline__
 #endif
 #endif
 #if defined(__GNUC__) || defined(__clang__)
 #ifndef _Bool
+/** @brief C89 boolean compatibility macro */
 #define _Bool int
 #endif
 #ifndef __forceinline
+/** @brief Force-inline compatibility macro */
 #define __forceinline __inline__
 #endif
 #endif
@@ -105,14 +109,16 @@ extern "C" {
 #define cah_cppcheck_mut_ptr(x) ((void)(x))
 
 #ifndef C_ABSTRACT_HTTP_NUM_FORMAT
-#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#if (defined(_MSC_VER) && !defined(__INTEL_COMPILER)) ||                       \
+    (defined(_WIN32) &&                                                        \
+     (!defined(__USE_MINGW_ANSI_STDIO) || !__USE_MINGW_ANSI_STDIO))
 /** @brief Portable 64-bit signed integer printf format specifier */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%I64d"
-#elif defined(__LP64__) || defined(_LP64) || defined(__x86_64__) ||            \
-    defined(__aarch64__)
+#elif defined(__LP64__) || defined(_LP64)
 /** @brief Portable 64-bit signed integer printf format specifier */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%ld"
-#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+#elif (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) ||          \
+    defined(_WIN64)
 /** @brief Portable 64-bit signed integer printf format specifier */
 #define C_ABSTRACT_HTTP_NUM_FORMAT "%lld"
 #else
@@ -196,7 +202,7 @@ typedef enum c_abstract_http_error {
  * @param[out] out_s Output pointer receiving newly allocated string.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_strdup(const char *s, char **out_s);
 /**
  * @brief OOM-mockable string duplication helper used in test builds.
@@ -204,7 +210,7 @@ c_abstract_http_strdup(const char *s, char **out_s);
  * @param[out] out_s Output pointer receiving newly allocated string.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-NO_DISCARD extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_mock_strdup(const char *s, char **out_s);
 
 /**
@@ -278,9 +284,9 @@ struct HttpParts {
  * @param len Length of the received data chunk.
  * @return 0 to continue reading, non-zero to abort the request.
  */
-typedef enum c_abstract_http_error (*http_on_chunk_fn)(void *user_data,
-                                                       const void *chunk,
-                                                       size_t len);
+typedef c_abstract_http_error_t (*http_on_chunk_fn)(void *user_data,
+                                                    const void *chunk,
+                                                    size_t len);
 
 /**
  * @brief Callback function signature for providing request body chunks
@@ -292,10 +298,9 @@ typedef enum c_abstract_http_error (*http_on_chunk_fn)(void *user_data,
  * 0 to indicate EOF.
  * @return 0 on success, non-zero to abort the request.
  */
-typedef enum c_abstract_http_error (*http_read_chunk_fn)(void *user_data,
-                                                         void *buf,
-                                                         size_t buf_len,
-                                                         size_t *out_len);
+typedef c_abstract_http_error_t (*http_read_chunk_fn)(void *user_data,
+                                                      void *buf, size_t buf_len,
+                                                      size_t *out_len);
 
 /**
  * @brief Represents an outgoing HTTP request.
@@ -541,8 +546,9 @@ http_client_send(struct HttpClient *client, struct HttpRequest *req,
  * @param[in] user_data User context.
  * @return 0 to continue, non-zero to abort all transfers.
  */
-typedef enum c_abstract_http_error (*http_multi_progress_cb)(
-    size_t current_bytes, size_t total_bytes, void *user_data);
+typedef c_abstract_http_error_t (*http_multi_progress_cb)(size_t current_bytes,
+                                                          size_t total_bytes,
+                                                          void *user_data);
 
 /**
  * @brief Dispatch multiple requests concurrently based on the client's

@@ -30,7 +30,7 @@ TEST test_transport_factory(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, transport_factory_cleanup_client(NULL));
 #if defined(C_ABSTRACT_HTTP_USE_APPLE)
   {
-    enum c_abstract_http_error rc_tmp;
+    c_abstract_http_error_t rc_tmp;
     g_mock_config_free_fail = 1;
     rc_tmp = transport_factory_cleanup_client(&client);
     g_mock_config_free_fail = 0;
@@ -48,7 +48,7 @@ TEST test_transport_factory(void) {
   g_mock_alloc_count = 0;
   g_mock_alloc_fail = 1;
   {
-    enum c_abstract_http_error rc = transport_factory_init_client(&client);
+    c_abstract_http_error_t rc = transport_factory_init_client(&client);
 #if defined(_WIN32)
     if (rc != C_ABSTRACT_HTTP_ERR_IO && rc != C_ABSTRACT_HTTP_ERR_NOTSUP) {
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);

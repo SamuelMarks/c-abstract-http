@@ -43,7 +43,7 @@ struct MockServerRequest {
  *
  * @return A handle to the server, or NULL on failure.
  */
-extern enum c_abstract_http_error mock_server_init(MockServerPtr *out);
+NO_DISCARD extern c_abstract_http_error_t mock_server_init(MockServerPtr *out);
 
 /**
  * @brief Destroy a mock server instance.
@@ -52,7 +52,8 @@ extern enum c_abstract_http_error mock_server_init(MockServerPtr *out);
  *
  * @param[in] server The server handle.
  */
-extern enum c_abstract_http_error mock_server_destroy(MockServerPtr server);
+NO_DISCARD extern c_abstract_http_error_t
+mock_server_destroy(MockServerPtr server);
 
 /**
  * @brief Start the server thread listening on loopback.
@@ -62,7 +63,8 @@ extern enum c_abstract_http_error mock_server_destroy(MockServerPtr server);
  * @param[in] server The server handle.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-extern enum c_abstract_http_error mock_server_start(MockServerPtr server);
+NO_DISCARD extern c_abstract_http_error_t
+mock_server_start(MockServerPtr server);
 
 /**
  * @brief Get the port number the server is listening on.
@@ -83,7 +85,7 @@ extern int math_mock_server_get_port(MockServerPtr server);
  *                     Caller must free contents.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 mock_server_wait_for_request(MockServerPtr server,
                              struct MockServerRequest *out_req);
 
@@ -92,23 +94,23 @@ mock_server_wait_for_request(MockServerPtr server,
  *
  * @param[in] req The request structure to clean.
  */
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 mock_server_request_cleanup(struct MockServerRequest *req);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_mock_server_force_request(MockServerPtr server, const char *data);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_mock_server_has_request(MockServerPtr server, int *out_has);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_mock_server_clear_request(MockServerPtr server);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_mock_server_force_fd(MockServerPtr server, int fd);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_mock_server_signal_ready(MockServerPtr server);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_mock_server_run_thread_once(MockServerPtr server);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_mock_server_force_running(MockServerPtr server, int running);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_mock_server_force_port(MockServerPtr server, int port);
 
 #ifdef __cplusplus

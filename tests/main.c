@@ -139,14 +139,25 @@ int main(int argc, char **argv) {
                SEM_NOOPENFILEERRORBOX);
 #endif
 #if defined(_MSC_VER)
-  if (!GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version")) {
-    _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-    _CrtSetReportFile(_CRT_WARN, (_HFILE)(size_t)2);
-    _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-    _CrtSetReportFile(_CRT_ASSERT, (_HFILE)(size_t)2);
-    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE | _CRTDBG_MODE_DEBUG);
-    _CrtSetReportFile(_CRT_ERROR, (_HFILE)(size_t)2);
-    _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+  {
+    int is_wine_dll_crt = 0;
+#if defined(_DLL)
+    HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+    if (ntdll && GetProcAddress(ntdll, "wine_get_version") != NULL) {
+      is_wine_dll_crt = 1;
+    }
+#endif
+    if (!is_wine_dll_crt) {
+#if defined(_DEBUG)
+      _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
+      _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
+      _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+      _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+      _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+      _CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
+#endif
+      _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    }
   }
 #endif
   GREATEST_MAIN_BEGIN();

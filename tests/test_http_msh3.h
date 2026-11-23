@@ -38,9 +38,10 @@ struct msh3_chunk_test_state {
   int abort_call;
 };
 
-static enum c_abstract_http_error msh3_test_read_cb(void *user_data, void *buf,
-                                                    size_t max_len,
-                                                    size_t *out_read) {
+NO_DISCARD static c_abstract_http_error_t msh3_test_read_cb(void *user_data,
+                                                            void *buf,
+                                                            size_t max_len,
+                                                            size_t *out_read) {
   struct msh3_chunk_test_state *st = (struct msh3_chunk_test_state *)user_data;
   if (st->abort_call > 0 && st->calls + 1 >= st->abort_call) {
     return C_ABSTRACT_HTTP_ERR_CANCELED;
@@ -58,7 +59,7 @@ static enum c_abstract_http_error msh3_test_read_cb(void *user_data, void *buf,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_test_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   struct msh3_chunk_test_state *st = (struct msh3_chunk_test_state *)user_data;
   (void)chunk;
@@ -70,7 +71,7 @@ msh3_test_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error msh3_mock_wakeup_fail(void *ctx) {
+NO_DISCARD static c_abstract_http_error_t msh3_mock_wakeup_fail(void *ctx) {
   (void)ctx;
   return C_ABSTRACT_HTTP_ERR_IO;
 }
@@ -82,10 +83,10 @@ static enum c_abstract_http_error msh3_mock_wakeup_fail(void *ctx) {
  * @param[in] url_str URL string to copy into request.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_msh3_setup_request(struct HttpRequest *req, const char *url_str) {
   char *u = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = http_request_init(req);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -94,7 +95,7 @@ test_msh3_setup_request(struct HttpRequest *req, const char *url_str) {
 
   rc = c_abstract_http_strdup(url_str, &u);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error free_rc = http_request_free(req);
+    c_abstract_http_error_t free_rc = http_request_free(req);
     if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
       return free_rc;
     }
@@ -107,7 +108,7 @@ test_msh3_setup_request(struct HttpRequest *req, const char *url_str) {
 /** @brief Test MsH3 helper error returns */
 TEST test_msh3_setup_request_coverage(void) {
   struct HttpRequest req;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)req;
 
   rc = test_msh3_setup_request(NULL, "http://localhost/");
@@ -125,7 +126,7 @@ TEST test_msh3_setup_request_coverage(void) {
 
 /** @brief Test MsH3 global lifecycle and reference counting */
 TEST test_msh3_global_lifecycle(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = http_msh3_global_cleanup();
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
@@ -227,7 +228,7 @@ TEST test_msh3_global_lifecycle(void) {
 TEST test_msh3_context_lifecycle(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpConfig cfg;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = http_msh3_global_init();
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -278,7 +279,7 @@ TEST test_msh3_context_lifecycle(void) {
 TEST test_msh3_config_application(void) {
   struct HttpConfig config;
   struct HttpTransportContext *ctx = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = http_msh3_global_init();
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
@@ -336,7 +337,7 @@ TEST test_msh3_send_invalid_arguments(void) {
   struct HttpTransportContext *ctx = NULL;
   struct HttpResponse *res = NULL;
   struct HttpRequest req;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   size_t i;
 
   rc = http_msh3_global_init();
@@ -770,7 +771,7 @@ TEST test_msh3_fault_injection_and_multi(void) {
 
   /* Systematic OOM sweep across send + multipart send */
   for (step = 0; step <= 40; ++step) {
-    enum c_abstract_http_error oom_rc;
+    c_abstract_http_error_t oom_rc;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = step;
     oom_rc = http_msh3_send(ctx, &req, &res);
@@ -795,7 +796,7 @@ TEST test_msh3_fault_injection_and_multi(void) {
         C_ABSTRACT_HTTP_SUCCESS,
         http_request_add_part(&mp_req, "f", "a.txt", "text/plain", "data", 4));
     for (step = 0; step <= 30; ++step) {
-      enum c_abstract_http_error oom_rc;
+      c_abstract_http_error_t oom_rc;
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = step;
       oom_rc = http_msh3_send(ctx, &mp_req, &res);

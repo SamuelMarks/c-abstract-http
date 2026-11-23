@@ -16,9 +16,14 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #else
+#include <netdb.h>
 #include <netinet/in.h>
+#include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
 #endif
 
 #include <c_abstract_http/http_picoquic.h>
@@ -27,10 +32,12 @@
 #include "c_abstract_http/log.h"
 #include "crypto_utils.h"
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
+    !defined(C_ABSTRACT_HTTP_HAVE_REAL_PICOQUIC)
 #include "mock_stubs/mock_picoquic.h"
 #else
 #include <picoquic.h>
+#include <picoquic_utils.h>
 #endif
 /* clang-format on */
 
@@ -72,7 +79,7 @@ struct pq_stream_state {
   /** @brief Completion flag */
   int fin;
   /** @brief Transport error flag */
-  enum c_abstract_http_error err;
+  c_abstract_http_error_t err;
 };
 
 /**
@@ -82,8 +89,8 @@ struct pq_stream_state {
  * @param n Byte count to append.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error pq_buf_append(struct pq_h3_buf *b,
-                                                const void *src, size_t n) {
+NO_DISCARD static c_abstract_http_error_t
+pq_buf_append(struct pq_h3_buf *b, const void *src, size_t n) {
   if (n == 0) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
@@ -116,9 +123,9 @@ static enum c_abstract_http_error pq_buf_append(struct pq_h3_buf *b,
  * @param val Non-negative integer value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error pq_write_varint(struct pq_h3_buf *b,
-                                                  size_t val) {
-  uint8_t tmp[4];
+NO_DISCARD static c_abstract_http_error_t pq_write_varint(struct pq_h3_buf *b,
+                                                          size_t val) {
+  uint8_t tmp[8];
   if (val < 64) {
     tmp[0] = (uint8_t)val;
     return pq_buf_append(b, tmp, 1);
@@ -128,11 +135,25 @@ static enum c_abstract_http_error pq_write_varint(struct pq_h3_buf *b,
     tmp[1] = (uint8_t)(val & 0xFFU);
     return pq_buf_append(b, tmp, 2);
   }
-  tmp[0] = (uint8_t)(0x80U | ((val >> 24) & 0x3FU));
-  tmp[1] = (uint8_t)((val >> 16) & 0xFFU);
-  tmp[2] = (uint8_t)((val >> 8) & 0xFFU);
-  tmp[3] = (uint8_t)(val & 0xFFU);
-  return pq_buf_append(b, tmp, 4);
+  if (val < 1073741824UL) {
+    tmp[0] = (uint8_t)(0x80U | ((val >> 24) & 0x3FU));
+    tmp[1] = (uint8_t)((val >> 16) & 0xFFU);
+    tmp[2] = (uint8_t)((val >> 8) & 0xFFU);
+    tmp[3] = (uint8_t)(val & 0xFFU);
+    return pq_buf_append(b, tmp, 4);
+  }
+  {
+    abstract_http_uint64_t v64 = (abstract_http_uint64_t)val;
+    tmp[0] = (uint8_t)(0xC0U | ((v64 >> 56) & 0x3FU));
+    tmp[1] = (uint8_t)((v64 >> 48) & 0xFFU);
+    tmp[2] = (uint8_t)((v64 >> 40) & 0xFFU);
+    tmp[3] = (uint8_t)((v64 >> 32) & 0xFFU);
+    tmp[4] = (uint8_t)((v64 >> 24) & 0xFFU);
+    tmp[5] = (uint8_t)((v64 >> 16) & 0xFFU);
+    tmp[6] = (uint8_t)((v64 >> 8) & 0xFFU);
+    tmp[7] = (uint8_t)(v64 & 0xFFU);
+    return pq_buf_append(b, tmp, 8);
+  }
 }
 
 /**
@@ -143,8 +164,8 @@ static enum c_abstract_http_error pq_write_varint(struct pq_h3_buf *b,
  * @param out_val Decoded integer output.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
  */
-static enum c_abstract_http_error pq_read_varint(const uint8_t *src, size_t len,
-                                                 size_t *off, size_t *out_val) {
+NO_DISCARD static c_abstract_http_error_t
+pq_read_varint(const uint8_t *src, size_t len, size_t *off, size_t *out_val) {
   uint8_t fb;
   unsigned int prefix;
   if (*off >= len) {
@@ -174,7 +195,22 @@ static enum c_abstract_http_error pq_read_varint(const uint8_t *src, size_t len,
     *off += 4;
     return C_ABSTRACT_HTTP_SUCCESS;
   }
-  return C_ABSTRACT_HTTP_ERR_IO;
+  if (*off + 8 > len) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  {
+    abstract_http_uint64_t v64 = ((abstract_http_uint64_t)(fb & 0x3FU) << 56) |
+                                 ((abstract_http_uint64_t)src[*off + 1] << 48) |
+                                 ((abstract_http_uint64_t)src[*off + 2] << 40) |
+                                 ((abstract_http_uint64_t)src[*off + 3] << 32) |
+                                 ((abstract_http_uint64_t)src[*off + 4] << 24) |
+                                 ((abstract_http_uint64_t)src[*off + 5] << 16) |
+                                 ((abstract_http_uint64_t)src[*off + 6] << 8) |
+                                 (abstract_http_uint64_t)src[*off + 7];
+    *out_val = (size_t)v64;
+    *off += 8;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
 }
 
 /**
@@ -184,9 +220,9 @@ static enum c_abstract_http_error pq_read_varint(const uint8_t *src, size_t len,
  * @param val Header field value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_write_qpack_field(struct pq_h3_buf *b, const char *name, const char *val) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   uint8_t marker = 0x20U;
   size_t nlen = strlen(name);
   size_t vlen = strlen(val);
@@ -216,8 +252,8 @@ pq_write_qpack_field(struct pq_h3_buf *b, const char *name, const char *val) {
  * @param out Output string pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-static enum c_abstract_http_error pq_method_str(enum HttpMethod method,
-                                                const char **out) {
+NO_DISCARD static c_abstract_http_error_t pq_method_str(enum HttpMethod method,
+                                                        const char **out) {
   switch ((int)method) {
   case HTTP_GET:
     *out = "GET";
@@ -261,7 +297,7 @@ static enum c_abstract_http_error pq_method_str(enum HttpMethod method,
  * @param out_path Newly allocated path string.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code on invalid URL / OOM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_parse_url(const char *url, char **out_scheme, char **out_host,
              unsigned short *out_port, char **out_path) {
   const char *p;
@@ -270,7 +306,7 @@ pq_parse_url(const char *url, char **out_scheme, char **out_host,
   size_t scheme_len;
   size_t host_len;
   unsigned short default_port = 443;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!url) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -383,7 +419,7 @@ static int math_pq_strcasecmp(const char *a, const char *b) {
  * @param out_hdr Newly allocated "Basic <base64>" string.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
   const char *pw = pass ? pass : "";
   size_t ulen = strlen(user);
@@ -392,7 +428,7 @@ pq_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
   char *b64 = NULL;
   size_t b64_len = 0;
   char *hdr;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   raw = (char *)malloc(ulen + 1 + plen + 1);
   if (!raw) {
@@ -433,7 +469,7 @@ pq_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
  * @param out_stream Output buffer receiving encoded HTTP/3 stream bytes.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_serialize_request(const struct HttpTransportContext *ctx,
                      const struct HttpRequest *req, const char *scheme,
                      const char *host, const char *path,
@@ -444,7 +480,7 @@ pq_serialize_request(const struct HttpTransportContext *ctx,
   uint8_t prefix[2];
   size_t i;
   int has_ua = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   memset(&hdr_payload, 0, sizeof(hdr_payload));
   memset(&body_payload, 0, sizeof(body_payload));
@@ -650,15 +686,15 @@ pq_serialize_request(const struct HttpTransportContext *ctx,
  * @param header_val Raw Set-Cookie header value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error pq_store_set_cookie(struct HttpCookieJar *jar,
-                                                      const char *header_val) {
+NO_DISCARD static c_abstract_http_error_t
+pq_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
   const char *eq;
   const char *semi;
   size_t nlen;
   size_t vlen;
   char *cname;
   char *cval;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   eq = strchr(header_val, '=');
   if (!eq || eq == header_val) {
@@ -702,12 +738,12 @@ static enum c_abstract_http_error pq_store_set_cookie(struct HttpCookieJar *jar,
  * @param res Output response structure.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_decode_response(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, const uint8_t *buf,
                    size_t len, struct HttpResponse *res) {
   size_t off = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   while (off < len) {
     size_t ftype = 0;
@@ -827,10 +863,10 @@ pq_decode_response(struct HttpTransportContext *ctx,
  * @param fin_or_event Picoquic stream event code.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_stream_cb_impl(struct pq_stream_state *st, const uint8_t *bytes,
                   size_t length, picoquic_call_back_event_t fin_or_event) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   if (fin_or_event == picoquic_callback_close ||
       fin_or_event == picoquic_callback_application_close) {
     st->err = C_ABSTRACT_HTTP_ERR_IO;
@@ -866,7 +902,7 @@ static int pq_stream_cb(picoquic_cnx_t *cnx, uint64_t stream_id, uint8_t *bytes,
                         size_t length, picoquic_call_back_event_t fin_or_event,
                         void *callback_ctx, void *stream_ctx) {
   struct pq_stream_state *st = (struct pq_stream_state *)callback_ctx;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)cnx;
   (void)stream_id;
   (void)stream_ctx;
@@ -877,24 +913,24 @@ static int pq_stream_cb(picoquic_cnx_t *cnx, uint64_t stream_id, uint8_t *bytes,
   return 0;
 }
 
-enum c_abstract_http_error http_picoquic_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_picoquic_global_init(void) {
   if (g_picoquic_init_count++ == 0) {
     /* Reference-counted global QUIC initialization */
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error http_picoquic_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_picoquic_global_cleanup(void) {
   if (g_picoquic_init_count > 0 && --g_picoquic_init_count == 0) {
     /* Reference-counted global QUIC teardown */
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_picoquic_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   uint8_t reset_seed[16];
 
   memset(reset_seed, 0, sizeof(reset_seed));
@@ -926,7 +962,7 @@ http_picoquic_context_init(struct HttpTransportContext **ctx) {
   c->quic = picoquic_create(8, NULL, NULL, NULL, "h3", NULL, NULL, NULL, NULL,
                             reset_seed, 0, NULL, NULL, NULL, 0);
   if (!c->quic) {
-    enum c_abstract_http_error free_rc = http_config_free(&c->config);
+    c_abstract_http_error_t free_rc = http_config_free(&c->config);
     if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
       free(c);
       return free_rc;
@@ -946,9 +982,9 @@ http_picoquic_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_picoquic_context_free(struct HttpTransportContext *ctx) {
-  enum c_abstract_http_error rch;
+  c_abstract_http_error_t rch;
   LOG_DEBUG("http_picoquic_context_free: Entering");
   if (!ctx) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -979,7 +1015,8 @@ http_picoquic_context_free(struct HttpTransportContext *ctx) {
  * @param src Optional source string to duplicate.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error pq_replace_str(char **dst, const char *src) {
+NO_DISCARD static c_abstract_http_error_t pq_replace_str(char **dst,
+                                                         const char *src) {
   free(*dst);
   *dst = NULL;
   if (!src) {
@@ -988,10 +1025,9 @@ static enum c_abstract_http_error pq_replace_str(char **dst, const char *src) {
   return c_abstract_http_strdup(src, dst);
 }
 
-enum c_abstract_http_error
-http_picoquic_config_apply(struct HttpTransportContext *ctx,
-                           const struct HttpConfig *config) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t http_picoquic_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
   LOG_DEBUG("http_picoquic_config_apply: Entering");
   if (!ctx || !config) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -1073,12 +1109,12 @@ http_picoquic_config_apply(struct HttpTransportContext *ctx,
  * @param out_eff Output pointer to the effective request to transmit.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_prepare_effective_request(const struct HttpRequest *req,
                              struct HttpRequest *flat_req, int *out_flattened,
                              const struct HttpRequest **out_eff) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   *out_flattened = 0;
   *out_eff = req;
@@ -1105,7 +1141,7 @@ pq_prepare_effective_request(const struct HttpRequest *req,
     rc = http_headers_add(&flat_req->headers, req->headers.headers[i].key,
                           req->headers.headers[i].value);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error frc;
+      c_abstract_http_error_t frc;
       frc = http_headers_free(&flat_req->headers);
       if (frc != C_ABSTRACT_HTTP_SUCCESS) {
         return frc;
@@ -1115,7 +1151,7 @@ pq_prepare_effective_request(const struct HttpRequest *req,
   }
   rc = http_request_flatten_parts(flat_req);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error frc;
+    c_abstract_http_error_t frc;
     free(flat_req->body);
     flat_req->body = NULL;
     frc = http_headers_free(&flat_req->headers);
@@ -1135,7 +1171,7 @@ pq_prepare_effective_request(const struct HttpRequest *req,
  * @param flattened Non-zero when @p flat_req owns allocated headers/body.
  * @return C_ABSTRACT_HTTP_SUCCESS or cleanup error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
   if (!flattened) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -1151,11 +1187,11 @@ pq_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
  * @param orig_rc Fallback error code if response cleanup succeeds.
  * @return Cleanup error code if cleanup failed, otherwise @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_cleanup_failed_res(struct HttpResponse **res,
-                      enum c_abstract_http_error orig_rc) {
+                      c_abstract_http_error_t orig_rc) {
   struct HttpResponse *tmp;
-  enum c_abstract_http_error free_rc;
+  c_abstract_http_error_t free_rc;
   if (!*res) {
     return orig_rc;
   }
@@ -1178,11 +1214,10 @@ pq_cleanup_failed_res(struct HttpResponse **res,
  * @param orig_rc Primary status from fallback send.
  * @return Cleanup error if context cleanup fails, otherwise @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_raw_ctx_cleanup(struct HttpTransportContext *raw_ctx,
-                   struct HttpResponse **res,
-                   enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error frc;
+                   struct HttpResponse **res, c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t frc;
   frc = http_raw_context_free(raw_ctx);
   if (frc != C_ABSTRACT_HTTP_SUCCESS) {
     return pq_cleanup_failed_res(res, frc);
@@ -1197,11 +1232,11 @@ pq_raw_ctx_cleanup(struct HttpTransportContext *raw_ctx,
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or fallback error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_fallback_tcp(const struct HttpConfig *cfg, const struct HttpRequest *eff_req,
                 struct HttpResponse **res) {
   struct HttpTransportContext *raw_ctx = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = http_raw_context_init(&raw_ctx);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1238,7 +1273,7 @@ static unsigned short math_pq_htons(unsigned short hostshort) {
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_send_quic_once(struct HttpTransportContext *ctx,
                   const struct HttpRequest *req, struct HttpResponse **res) {
   char *scheme = NULL;
@@ -1251,7 +1286,7 @@ pq_send_quic_once(struct HttpTransportContext *ctx,
   struct pq_stream_state st;
   struct sockaddr_in server_address;
   picoquic_cnx_t *cnx = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = pq_parse_url(req->url, &scheme, &host, &port, &path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1299,6 +1334,133 @@ pq_send_quic_once(struct HttpTransportContext *ctx,
   conn_port = ctx->proxy_host ? ctx->proxy_port : port;
 
   memset(&st, 0, sizeof(st));
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_PICOQUIC)
+  {
+    struct addrinfo hints;
+    struct addrinfo *ai = NULL;
+    struct sockaddr_storage local_ss;
+    socklen_t local_len = (socklen_t)sizeof(local_ss);
+    char port_str[16];
+    int sfd;
+    uint64_t now_us;
+    uint64_t deadline_us;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    sprintf(port_str, "%u", (unsigned int)conn_port);
+    if (getaddrinfo(conn_host, port_str, &hints, &ai) != 0 || !ai) {
+      free(host);
+      free(tx_stream.data);
+      return pq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_HOSTUNREACH);
+    }
+    sfd = (int)socket(ai->ai_family, SOCK_DGRAM, 0);
+    if (sfd < 0) {
+      freeaddrinfo(ai);
+      free(host);
+      free(tx_stream.data);
+      return pq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    memset(&local_ss, 0, sizeof(local_ss));
+    local_ss.ss_family = ai->ai_family;
+    (void)bind(sfd, (struct sockaddr *)&local_ss, (socklen_t)ai->ai_addrlen);
+    (void)getsockname(sfd, (struct sockaddr *)&local_ss, &local_len);
+
+    now_us = picoquic_current_time();
+    cnx = picoquic_create_client_cnx(ctx->quic, ai->ai_addr, now_us, 0,
+                                     conn_host, "h3", pq_stream_cb, &st);
+    free(host);
+    if (!cnx) {
+#if defined(_WIN32)
+      closesocket(sfd);
+#else
+      close(sfd);
+#endif
+      freeaddrinfo(ai);
+      free(tx_stream.data);
+      return pq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_CONNREFUSED);
+    }
+    if (picoquic_start_client_cnx(cnx) != 0 ||
+        picoquic_add_to_stream(cnx, 0, tx_stream.data, tx_stream.len, 1) != 0) {
+      picoquic_delete_cnx(cnx);
+#if defined(_WIN32)
+      closesocket(sfd);
+#else
+      close(sfd);
+#endif
+      freeaddrinfo(ai);
+      free(tx_stream.data);
+      return pq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    free(tx_stream.data);
+
+    deadline_us =
+        now_us +
+        ((uint64_t)(ctx->timeout_ms > 0 ? ctx->timeout_ms : 15000U) * 1000U);
+    while (!st.done && st.err == C_ABSTRACT_HTTP_SUCCESS &&
+           now_us < deadline_us) {
+      uint8_t send_buf[1536];
+      size_t send_len = 0;
+      struct sockaddr_storage peer_to;
+      struct sockaddr_storage local_from;
+      int if_idx = 0;
+      int64_t delay_us;
+      fd_set rfds;
+      struct timeval tv;
+      int sel;
+
+      now_us = picoquic_current_time();
+      while (picoquic_prepare_next_packet(
+                 ctx->quic, now_us, send_buf, sizeof(send_buf), &send_len,
+                 &peer_to, &local_from, &if_idx, NULL, NULL) == 0 &&
+             send_len > 0) {
+        (void)sendto(sfd, (const char *)send_buf, (int)send_len, 0,
+                     (struct sockaddr *)&peer_to,
+                     peer_to.ss_family == AF_INET6
+                         ? (int)sizeof(struct sockaddr_in6)
+                         : (int)sizeof(struct sockaddr_in));
+        send_len = 0;
+      }
+      if (st.done || st.err != C_ABSTRACT_HTTP_SUCCESS) {
+        break;
+      }
+      delay_us = picoquic_get_next_wake_delay(ctx->quic, now_us, 50000);
+      if (delay_us < 1000) {
+        delay_us = 1000;
+      }
+      FD_ZERO(&rfds);
+      FD_SET(sfd, &rfds);
+      tv.tv_sec = (long)(delay_us / 1000000);
+      tv.tv_usec = (int)(delay_us % 1000000);
+      sel = select(sfd + 1, &rfds, NULL, NULL, &tv);
+      now_us = picoquic_current_time();
+      if (sel > 0 && FD_ISSET(sfd, &rfds)) {
+        uint8_t rbuf[1536];
+        struct sockaddr_storage peer_from;
+        socklen_t from_len = (socklen_t)sizeof(peer_from);
+        long nr = (long)recvfrom(sfd, (char *)rbuf, sizeof(rbuf), 0,
+                                 (struct sockaddr *)&peer_from, &from_len);
+        if (nr > 0) {
+          (void)picoquic_incoming_packet(
+              ctx->quic, rbuf, (size_t)nr, (struct sockaddr *)&peer_from,
+              (struct sockaddr *)&local_ss, 0, 0, now_us);
+        }
+      }
+    }
+    if (!st.done && st.err == C_ABSTRACT_HTTP_SUCCESS) {
+      st.err = C_ABSTRACT_HTTP_ERR_TIMEOUT;
+    }
+    picoquic_close(cnx, 0);
+    picoquic_delete_cnx(cnx);
+#if defined(_WIN32)
+    closesocket(sfd);
+#else
+    close(sfd);
+#endif
+    freeaddrinfo(ai);
+  }
+#else
   memset(&server_address, 0, sizeof(server_address));
   server_address.sin_family = AF_INET;
   server_address.sin_port = math_pq_htons(conn_port);
@@ -1325,13 +1487,11 @@ pq_send_quic_once(struct HttpTransportContext *ctx,
   }
   free(tx_stream.data);
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
-    !defined(C_ABSTRACT_HTTP_HAVE_REAL_PICOQUIC)
   picoquic_MockDriveLoopback(cnx);
-#endif
 
   picoquic_close(cnx, 0);
   picoquic_delete_cnx(cnx);
+#endif
 
   if (st.err != C_ABSTRACT_HTTP_SUCCESS) {
     free(st.rx.data);
@@ -1357,10 +1517,10 @@ pq_send_quic_once(struct HttpTransportContext *ctx,
  * @param orig_rc Primary send result.
  * @return Final status enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_finish_send(struct HttpRequest *flat_req, int flattened,
-               struct HttpResponse **res, enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error cl_rc;
+               struct HttpResponse **res, c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t cl_rc;
   cl_rc = pq_cleanup_effective_request(flat_req, flattened);
   if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
     return pq_cleanup_failed_res(res, cl_rc);
@@ -1368,13 +1528,13 @@ pq_finish_send(struct HttpRequest *flat_req, int flattened,
   return orig_rc;
 }
 
-enum c_abstract_http_error http_picoquic_send(struct HttpTransportContext *ctx,
-                                              const struct HttpRequest *req,
-                                              struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_picoquic_send(struct HttpTransportContext *ctx,
+                   const struct HttpRequest *req, struct HttpResponse **res) {
   struct HttpRequest flat_req;
   const struct HttpRequest *eff_req = NULL;
   int flattened = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
   if (!ctx || !req || !res || !ctx->is_configured || !ctx->quic) {
@@ -1390,7 +1550,7 @@ enum c_abstract_http_error http_picoquic_send(struct HttpTransportContext *ctx,
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (ctx->config.http3_fallback && (rc == C_ABSTRACT_HTTP_ERR_CONNREFUSED ||
                                        rc == C_ABSTRACT_HTTP_ERR_IO)) {
-      enum c_abstract_http_error fb_rc;
+      c_abstract_http_error_t fb_rc;
       fb_rc = pq_fallback_tcp(&ctx->config, eff_req, res);
       if (fb_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return pq_finish_send(&flat_req, flattened, res, fb_rc);
@@ -1403,11 +1563,11 @@ enum c_abstract_http_error http_picoquic_send(struct HttpTransportContext *ctx,
   return pq_finish_send(&flat_req, flattened, res, C_ABSTRACT_HTTP_SUCCESS);
 }
 
-enum c_abstract_http_error http_picoquic_send_multi(
+NO_DISCARD c_abstract_http_error_t http_picoquic_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   cah_cppcheck_mut_ptr((void *)ctx);
 
   if (!ctx || !multi || !futures) {
@@ -1436,3 +1596,29 @@ enum c_abstract_http_error http_picoquic_send_multi(
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Internal test hook verifying 8-byte RFC 9000 varint round-trip.
+ * @return C_ABSTRACT_HTTP_SUCCESS on exact round-trip match.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_picoquic_test_varint8(void);
+NO_DISCARD c_abstract_http_error_t c_abstract_http_picoquic_test_varint8(void) {
+  struct pq_h3_buf b;
+  size_t off = 0;
+  size_t dec = 0;
+  c_abstract_http_error_t rc;
+  memset(&b, 0, sizeof(b));
+  rc = pq_write_varint(&b, (size_t)1073741824UL);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = pq_read_varint(b.data, b.len, &off, &dec);
+  free(b.data);
+  return (rc == C_ABSTRACT_HTTP_SUCCESS && off == 8 &&
+          dec == (size_t)1073741824UL)
+             ? C_ABSTRACT_HTTP_SUCCESS
+             : C_ABSTRACT_HTTP_ERR_INVAL;
+}
+#endif

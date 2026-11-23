@@ -530,7 +530,38 @@ TEST test_sha1_mock_failures(void) {
 }
 #endif
 
+TEST test_random_bytes(void) {
+  unsigned char b1[32];
+  unsigned char b2[32];
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_random_bytes(NULL, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_random_bytes(NULL, 8));
+  memset(b1, 0, sizeof(b1));
+  memset(b2, 0, sizeof(b2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_random_bytes(b1, sizeof(b1)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_random_bytes(b2, sizeof(b2)));
+  ASSERT(memcmp(b1, b2, sizeof(b1)) != 0);
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(_WIN32)
+  g_mock_sha1_fail = -500;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_random_bytes(b1, sizeof(b1)));
+  g_mock_sha1_fail = -501;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_random_bytes(b2, sizeof(b2)));
+  g_mock_sha1_fail = -502;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_random_bytes(b2, sizeof(b2)));
+  g_mock_sha1_fail = 0;
+  ASSERT(memcmp(b1, b2, sizeof(b1)) != 0);
+#endif
+  PASS();
+}
+
 SUITE(crypto_suite) {
+  RUN_TEST(test_random_bytes);
   RUN_TEST(test_sha1_large_string);
   RUN_TEST(test_crypto_errors);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

@@ -24,11 +24,11 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 
 static struct AbstractHttpTlsKey *tls_key = NULL;
 
-static enum c_abstract_http_error test_tls_task_cb(void *arg) {
+NO_DISCARD static c_abstract_http_error_t test_tls_task_cb(void *arg) {
   int *result = (int *)arg;
   int thread_local_val;
   void *out_val = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!result)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -66,14 +66,14 @@ static enum c_abstract_http_error test_tls_task_cb(void *arg) {
      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_push(pool, test_tls_task_cb, &results[i]));
    }
 
-   { enum c_abstract_http_error rc_test = abstract_http_thread_pool_free(pool); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
+   { c_abstract_http_error_t rc_test = abstract_http_thread_pool_free(pool); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
 
    ASSERT_EQ(10, results[0]);
    ASSERT_EQ(20, results[1]);
    ASSERT_EQ(30, results[2]);
    ASSERT_EQ(40, results[3]);
 
-   { enum c_abstract_http_error rc_test = abstract_http_tls_key_delete(tls_key); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
+   { c_abstract_http_error_t rc_test = abstract_http_tls_key_delete(tls_key); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
    tls_key = NULL;
    PASS();
  }
@@ -83,7 +83,7 @@ static enum c_abstract_http_error test_tls_task_cb(void *arg) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_tls_oom(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct AbstractHttpTlsKey *key = NULL;
 
   g_mock_alloc_fail = 1;

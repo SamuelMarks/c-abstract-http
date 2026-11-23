@@ -32,7 +32,7 @@ struct pq_chunk_state {
   int abort_call;
 };
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_test_read_cb(void *user_data, void *buf, size_t max_len, size_t *out_read) {
   struct pq_chunk_state *st = (struct pq_chunk_state *)user_data;
   if (st->abort_call > 0 && st->calls + 1 >= st->abort_call) {
@@ -51,7 +51,7 @@ pq_test_read_cb(void *user_data, void *buf, size_t max_len, size_t *out_read) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pq_test_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   struct pq_chunk_state *st = (struct pq_chunk_state *)user_data;
   (void)chunk;
@@ -63,7 +63,7 @@ pq_test_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error pq_mock_wakeup_fail(void *ctx) {
+NO_DISCARD static c_abstract_http_error_t pq_mock_wakeup_fail(void *ctx) {
   (void)ctx;
   return C_ABSTRACT_HTTP_ERR_IO;
 }
@@ -115,7 +115,7 @@ TEST test_picoquic_context_lifecycle(void) {
   {
     int i;
     for (i = 0; i < 4; ++i) {
-      enum c_abstract_http_error rc;
+      c_abstract_http_error_t rc;
       ctx = NULL;
       g_mock_alloc_count = i;
       g_mock_alloc_fail = 1;
@@ -405,7 +405,7 @@ TEST test_picoquic_h3_loopback_and_branches(void) {
     g_mock_headers_init_fail = 0;
 
     for (i = 0; i < 130; ++i) {
-      enum c_abstract_http_error rc;
+      c_abstract_http_error_t rc;
       res = NULL;
       g_mock_alloc_count = i;
       g_mock_alloc_fail = 1;
@@ -425,7 +425,7 @@ TEST test_picoquic_h3_loopback_and_branches(void) {
       req.read_chunk = pq_test_read_cb;
       req.read_chunk_user_data = &up_st;
       for (i = 0; i < 60; ++i) {
-        enum c_abstract_http_error rc;
+        c_abstract_http_error_t rc;
         memset(&up_st, 0, sizeof(up_st));
         res = NULL;
         g_mock_alloc_count = i;
@@ -573,7 +573,7 @@ TEST test_picoquic_fallback_proxy_and_parts(void) {
             c_abstract_http_strdup("secret", &cfg.proxy_password));
 
   for (step = 0; step <= 20; ++step) {
-    enum c_abstract_http_error apply_rc;
+    c_abstract_http_error_t apply_rc;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = step;
     apply_rc = http_picoquic_config_apply(ctx, &cfg);
@@ -607,7 +607,7 @@ TEST test_picoquic_fallback_proxy_and_parts(void) {
 
   /* OOM sweep across serialize with user_agent + MASQUE proxy auth */
   for (step = 0; step <= 65; ++step) {
-    enum c_abstract_http_error oom_rc;
+    c_abstract_http_error_t oom_rc;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = step;
     oom_rc = http_picoquic_send(ctx, &req, &res);
@@ -663,7 +663,7 @@ TEST test_picoquic_fallback_proxy_and_parts(void) {
   res = NULL;
 
   for (step = 0; step <= 25; ++step) {
-    enum c_abstract_http_error oom_rc;
+    c_abstract_http_error_t oom_rc;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = step;
     oom_rc = http_picoquic_send(ctx, &req, &res);
@@ -733,7 +733,7 @@ TEST test_picoquic_fallback_proxy_and_parts(void) {
     {
       /* Direct alloc_fail after QUIC attempt: test exact fallback init OOM */
       for (step = 0; step <= 80; ++step) {
-        enum c_abstract_http_error frc;
+        c_abstract_http_error_t frc;
         g_mock_alloc_fail = 1;
         g_mock_alloc_count = step;
         frc = http_picoquic_send(ctx, &req, &res);
@@ -783,6 +783,15 @@ TEST test_picoquic_fallback_proxy_and_parts(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_global_cleanup());
+  {
+    extern c_abstract_http_error_t c_abstract_http_picoquic_test_varint8(void);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_picoquic_test_varint8());
+    g_mock_alloc_count = 0;
+    g_mock_alloc_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+              c_abstract_http_picoquic_test_varint8());
+    g_mock_alloc_fail = 0;
+  }
   PASS();
 }
 #endif

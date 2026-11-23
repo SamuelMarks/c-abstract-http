@@ -26,10 +26,9 @@
 #include <string.h>
 /* clang-format on */
 
-enum c_abstract_http_error
-c_abstract_http_sse_init(struct HttpRequest *req,
-                         const struct c_abstract_http_sse_config *config) {
-  enum c_abstract_http_error res;
+NO_DISCARD c_abstract_http_error_t c_abstract_http_sse_init(
+    struct HttpRequest *req, const struct c_abstract_http_sse_config *config) {
+  c_abstract_http_error_t res;
 
   LOG_DEBUG("c_abstract_http_sse_init: Entering");
   if (!req) {
@@ -82,7 +81,8 @@ c_abstract_http_sse_init(struct HttpRequest *req,
  * @param out Output pointer receiving allocated string copy.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error sse_strdup(const char *s, char **out) {
+NO_DISCARD static c_abstract_http_error_t sse_strdup(const char *s,
+                                                     char **out) {
   size_t len;
   char *copy;
   len = strlen(s);
@@ -97,11 +97,11 @@ static enum c_abstract_http_error sse_strdup(const char *s, char **out) {
 }
 
 /** @brief Initialize an SSE stream parser context */
-enum c_abstract_http_error sse_parser_init(
+NO_DISCARD c_abstract_http_error_t sse_parser_init(
     struct sse_parser_ctx *ctx, const struct c_abstract_http_sse_config *config,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
     c_abstract_http_sse_on_close on_cls, void *user_data) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   LOG_DEBUG("sse_parser_init: Entering");
   if (!ctx) {
     LOG_DEBUG("sse_parser_init: Error EINVAL");
@@ -163,7 +163,8 @@ extern int g_mock_cond_free_fail; /* just repurposing a mock flag for test */
 #endif
 
 /** @brief Destroy an SSE stream parser context */
-enum c_abstract_http_error sse_parser_destroy(struct sse_parser_ctx *ctx) {
+NO_DISCARD c_abstract_http_error_t
+sse_parser_destroy(struct sse_parser_ctx *ctx) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_cond_free_fail) {
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -186,9 +187,9 @@ enum c_abstract_http_error sse_parser_destroy(struct sse_parser_ctx *ctx) {
  * @param len Length of line in bytes.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
-  enum c_abstract_http_error dup_rc;
+  c_abstract_http_error_t dup_rc;
   const char *colon;
   size_t field_len;
   const char *value;
@@ -206,7 +207,7 @@ sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
       ctx->data_offset--;
 
       if (ctx->on_event) {
-        enum c_abstract_http_error ev_rc;
+        c_abstract_http_error_t ev_rc;
         struct c_abstract_http_sse_event ev;
         ev.id = ctx->last_event_id;
         ev.event = ctx->current_event;
@@ -270,7 +271,7 @@ sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
         new_cap *= 2;
       if (new_cap > C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE) {
         if (ctx->on_error) {
-          enum c_abstract_http_error err_rc =
+          c_abstract_http_error_t err_rc =
               ctx->on_error(C_ABSTRACT_HTTP_ERR_MSGSIZE, ctx->user_data);
           if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
             return err_rc;
@@ -293,15 +294,16 @@ sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
     ctx->current_data[ctx->data_offset++] = '\n';
     ctx->current_data[ctx->data_offset] = '\0';
   } else if (field_len == 2 && memcmp(line, "id", 2) == 0) {
-    /* If value contains NULL, skip. We'll simplify to just setting it. */
-    free(ctx->last_event_id);
-    ctx->last_event_id = (char *)malloc(value_len + 1);
-    if (ctx->last_event_id) {
-      memcpy(ctx->last_event_id, value, value_len);
-      ctx->last_event_id[value_len] = '\0';
-    } else {
-      LOG_DEBUG("sse_process_line: Error ENOMEM for last_event_id");
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    if (memchr(value, '\0', value_len) == NULL) {
+      free(ctx->last_event_id);
+      ctx->last_event_id = (char *)malloc(value_len + 1);
+      if (ctx->last_event_id) {
+        memcpy(ctx->last_event_id, value, value_len);
+        ctx->last_event_id[value_len] = '\0';
+      } else {
+        LOG_DEBUG("sse_process_line: Error ENOMEM for last_event_id");
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
+      }
     }
   } else if (field_len == 5 && memcmp(line, "retry", 5) == 0) {
     char num_buf[32];
@@ -315,11 +317,12 @@ sse_process_line(struct sse_parser_ctx *ctx, const char *line, size_t len) {
 }
 
 /** @brief Feed a raw data chunk into the SSE parser */
-enum c_abstract_http_error sse_parser_feed(struct sse_parser_ctx *ctx,
-                                           const char *chunk, size_t len) {
+NO_DISCARD c_abstract_http_error_t sse_parser_feed(struct sse_parser_ctx *ctx,
+                                                   const char *chunk,
+                                                   size_t len) {
   size_t i;
   char c;
-  enum c_abstract_http_error p_rc;
+  c_abstract_http_error_t p_rc;
 
   for (i = 0; i < len; ++i) {
     c = chunk[i];
@@ -368,7 +371,7 @@ enum c_abstract_http_error sse_parser_feed(struct sse_parser_ctx *ctx,
         size_t new_cap = ctx->line_capacity * 2;
         if (new_cap > C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE) {
           if (ctx->on_error) {
-            enum c_abstract_http_error err_rc =
+            c_abstract_http_error_t err_rc =
                 ctx->on_error(ENOMEM, ctx->user_data);
             if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
               return err_rc;
@@ -412,14 +415,14 @@ C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void);
  * @param last_id Non-empty Last-Event-ID string.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on allocation failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 sse_update_last_event_id(struct HttpRequest *req, const char *last_id) {
   size_t i;
   for (i = 0; i < req->headers.count; ++i) {
     if (req->headers.headers[i].key &&
         strcmp(req->headers.headers[i].key, "Last-Event-ID") == 0) {
       char *dup_val = NULL;
-      enum c_abstract_http_error rc = sse_strdup(last_id, &dup_val);
+      c_abstract_http_error_t rc = sse_strdup(last_id, &dup_val);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         return rc;
       }
@@ -440,17 +443,17 @@ sse_update_last_event_id(struct HttpRequest *req, const char *last_id) {
  * @param status Status code to report and return.
  * @return Cleanup/callback error if non-zero, otherwise @p status.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 sse_fail_sync_loop(struct sse_parser_ctx *parser,
                    c_abstract_http_sse_on_error on_err, void *user_data,
-                   enum c_abstract_http_error status) {
-  enum c_abstract_http_error rch;
+                   c_abstract_http_error_t status) {
+  c_abstract_http_error_t rch;
   rch = sse_parser_destroy(parser);
   if (rch != C_ABSTRACT_HTTP_SUCCESS) {
     return rch;
   }
   if (on_err) {
-    enum c_abstract_http_error err_rc;
+    c_abstract_http_error_t err_rc;
     err_rc = on_err(status, user_data);
     if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
       return err_rc;
@@ -460,12 +463,12 @@ sse_fail_sync_loop(struct sse_parser_ctx *parser,
 }
 
 /** @brief Execute a synchronous SSE read loop */
-enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
+NO_DISCARD c_abstract_http_error_t c_abstract_http_sse_sync_read_loop(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
     c_abstract_http_sse_on_close on_close, void *user_data,
     volatile int *exit_flag) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpResponse *res = NULL;
   struct sse_parser_ctx parser;
   size_t max_reconnects;
@@ -488,7 +491,7 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
   rc = c_abstract_http_sse_init(req, NULL);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (on_err) {
-      enum c_abstract_http_error err_rc = on_err(rc, user_data);
+      c_abstract_http_error_t err_rc = on_err(rc, user_data);
       if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return err_rc;
       }
@@ -499,7 +502,7 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
   rc = sse_parser_init(&parser, NULL, on_evt, on_err, on_close, user_data);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (on_err) {
-      enum c_abstract_http_error err_rc = on_err(rc, user_data);
+      c_abstract_http_error_t err_rc = on_err(rc, user_data);
       if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return err_rc;
       }
@@ -548,12 +551,12 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
     if (res->body && res->body_len > 0) {
       rc = sse_parser_feed(&parser, (const char *)res->body, res->body_len);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        enum c_abstract_http_error cb_err = C_ABSTRACT_HTTP_SUCCESS;
+        c_abstract_http_error_t cb_err = C_ABSTRACT_HTTP_SUCCESS;
         if (on_err) {
           cb_err = on_err(rc, user_data);
           if (cb_err != C_ABSTRACT_HTTP_SUCCESS) {
-            enum c_abstract_http_error rch;
-            enum c_abstract_http_error rc_tmp;
+            c_abstract_http_error_t rch;
+            c_abstract_http_error_t rc_tmp;
             rch = sse_parser_destroy(&parser);
             if (rch != C_ABSTRACT_HTTP_SUCCESS) {
               free(res);
@@ -569,7 +572,7 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
           }
         }
         {
-          enum c_abstract_http_error rch;
+          c_abstract_http_error_t rch;
           rch = sse_parser_destroy(&parser);
           if (rch != C_ABSTRACT_HTTP_SUCCESS) {
             free(res);
@@ -577,7 +580,7 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
           }
         }
         {
-          enum c_abstract_http_error rc_tmp;
+          c_abstract_http_error_t rc_tmp;
           rc_tmp = http_response_free(res);
           if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
             free(res);
@@ -590,10 +593,10 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
     }
 
     {
-      enum c_abstract_http_error rc_tmp;
+      c_abstract_http_error_t rc_tmp;
       rc_tmp = http_response_free(res);
       if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
-        enum c_abstract_http_error rch;
+        c_abstract_http_error_t rch;
         rch = sse_parser_destroy(&parser);
         if (rch != C_ABSTRACT_HTTP_SUCCESS) {
           free(res);
@@ -612,14 +615,14 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
   }
 
   {
-    enum c_abstract_http_error rch = sse_parser_destroy(&parser);
+    c_abstract_http_error_t rch = sse_parser_destroy(&parser);
     if (rch != C_ABSTRACT_HTTP_SUCCESS) {
       return rch;
     }
   }
 
   if (on_close) {
-    enum c_abstract_http_error cls_rc = on_close(user_data);
+    c_abstract_http_error_t cls_rc = on_close(user_data);
     if (cls_rc != C_ABSTRACT_HTTP_SUCCESS) {
       return cls_rc;
     }
@@ -629,8 +632,8 @@ enum c_abstract_http_error c_abstract_http_sse_sync_read_loop(
 }
 
 /* Background task worker for asynchronous SSE read loop */
-enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg) {
-  enum c_abstract_http_error err;
+NO_DISCARD c_abstract_http_error_t c_abstract_http_sse_async_task(void *arg) {
+  c_abstract_http_error_t err;
   struct c_abstract_http_sse_async_ctx *ctx =
       (struct c_abstract_http_sse_async_ctx *)arg;
   volatile int exit_flag = 0;
@@ -641,7 +644,7 @@ enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg) {
                                            ctx->user_data, &exit_flag);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
     if (ctx->on_err) {
-      enum c_abstract_http_error err_rc = ctx->on_err(err, ctx->user_data);
+      c_abstract_http_error_t err_rc = ctx->on_err(err, ctx->user_data);
       if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
         free(ctx);
         return err_rc;
@@ -655,11 +658,11 @@ enum c_abstract_http_error c_abstract_http_sse_async_task(void *arg) {
 }
 
 /* Register an asynchronous SSE stream reader */
-enum c_abstract_http_error c_abstract_http_sse_async_register(
+NO_DISCARD c_abstract_http_error_t c_abstract_http_sse_async_register(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_sse_on_event on_evt, c_abstract_http_sse_on_error on_err,
     c_abstract_http_sse_on_close on_close, void *user_data) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct c_abstract_http_sse_async_ctx *ctx;
 
   if (!client || !req) {
@@ -702,7 +705,7 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
 
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       if (on_err) {
-        enum c_abstract_http_error err_rc = on_err(rc, user_data);
+        c_abstract_http_error_t err_rc = on_err(rc, user_data);
         if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
           return err_rc;
         }
@@ -714,10 +717,11 @@ enum c_abstract_http_error c_abstract_http_sse_async_register(
 }
 
 /** @brief Free SSE stream resources attached to an HTTP request */
-enum c_abstract_http_error c_abstract_http_sse_free(struct HttpRequest *req) {
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_sse_free(struct HttpRequest *req) {
   if (req && req->sse_ctx) {
     struct sse_parser_ctx *pctx = (struct sse_parser_ctx *)req->sse_ctx;
-    enum c_abstract_http_error rch = sse_parser_destroy(pctx);
+    c_abstract_http_error_t rch = sse_parser_destroy(pctx);
     if (rch != C_ABSTRACT_HTTP_SUCCESS) {
       return rch;
     }

@@ -54,7 +54,7 @@ static int libevent_global_init_count = 0;
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error http_libevent_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_libevent_global_init(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libevent_global_init_fail) {
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -75,7 +75,7 @@ enum c_abstract_http_error http_libevent_global_init(void) {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error http_libevent_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_libevent_global_cleanup(void) {
   if (libevent_global_init_count > 0) {
     libevent_global_init_count--;
 #ifdef _WIN32
@@ -88,9 +88,9 @@ enum c_abstract_http_error http_libevent_global_cleanup(void) {
 }
 
 /* Create a new libevent-backed transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_libevent_context_init(struct HttpTransportContext **ctx) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   LOG_DEBUG("http_libevent_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_libevent_context_init: Error EINVAL");
@@ -133,13 +133,15 @@ http_libevent_context_init(struct HttpTransportContext **ctx) {
 }
 
 /* Free the transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_libevent_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_libevent_context_free: Entering");
   if (ctx) {
-    enum c_abstract_http_error rch = http_config_free(&ctx->config);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+    c_abstract_http_error_t rch = http_config_free(&ctx->config);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+      free(ctx);
       return rch;
+    }
     free(ctx);
   }
   LOG_DEBUG("http_libevent_context_free: Exiting");
@@ -147,10 +149,9 @@ http_libevent_context_free(struct HttpTransportContext *ctx) {
 }
 
 /* Apply configuration settings to the transport context. */
-enum c_abstract_http_error
-http_libevent_config_apply(struct HttpTransportContext *ctx,
-                           const struct HttpConfig *config) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t http_libevent_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
   if (!ctx || !config) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -255,9 +256,9 @@ http_libevent_config_apply(struct HttpTransportContext *ctx,
  * @param[out] out_cmd Pointer to receive libevent method command.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-static enum c_abstract_http_error get_method_cmd(enum HttpMethod method,
-                                                 int *out_cmd) {
-  if (!out_cmd) {
+NO_DISCARD static c_abstract_http_error_t get_method_cmd(enum HttpMethod method,
+                                                         int *out_cmd) {
+  if (!out_cmd || (int)method < 0) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   switch (method) {
@@ -296,23 +297,14 @@ static enum c_abstract_http_error get_method_cmd(enum HttpMethod method,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-/**
- * @brief No-op chunked callback used in libevent mock tests.
- * @param req Mock evhttp request.
- * @param arg User context pointer.
- */
-static void dummy_libevent_chunk_cb(struct evhttp_request *req, void *arg) {
-  (void)req;
-  (void)arg;
-}
-
 /** @brief Test helper for libevent method command mapping */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 c_abstract_http_test_libevent_method_cmd(enum HttpMethod method, int *out_cmd);
 /** @brief Test helper for libevent evbuffer operations */
-enum c_abstract_http_error c_abstract_http_test_libevent_evbuffer(void);
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libevent_evbuffer(void);
 /** @brief Test helper for libevent header edge cases */
-enum c_abstract_http_error c_abstract_http_test_libevent_add_header_edge(void);
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_libevent_add_header_edge(void);
 
 /**
  * @brief Expose get_method_cmd for testing.
@@ -321,7 +313,7 @@ enum c_abstract_http_error c_abstract_http_test_libevent_add_header_edge(void);
  * @param[out] out_cmd Output command.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 c_abstract_http_test_libevent_method_cmd(enum HttpMethod method, int *out_cmd) {
   return get_method_cmd(method, out_cmd);
 }
@@ -331,7 +323,8 @@ c_abstract_http_test_libevent_method_cmd(enum HttpMethod method, int *out_cmd) {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-enum c_abstract_http_error c_abstract_http_test_libevent_evbuffer(void) {
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_libevent_evbuffer(void) {
   struct evbuffer buf;
   struct evbuffer buf2;
   char out[16];
@@ -415,7 +408,7 @@ enum c_abstract_http_error c_abstract_http_test_libevent_evbuffer(void) {
     base_test.req = &req_test;
     base_test.conn = NULL;
     base_test.loop_break = 1;
-    req_test.chunk_cb = dummy_libevent_chunk_cb;
+    req_test.chunk_cb = NULL;
     event_base_dispatch(&base_test);
 
     base_test.conn = &conn_test;
@@ -436,7 +429,8 @@ enum c_abstract_http_error c_abstract_http_test_libevent_evbuffer(void) {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-enum c_abstract_http_error c_abstract_http_test_libevent_add_header_edge(void) {
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_libevent_add_header_edge(void) {
   struct evkeyvalq q;
   size_t i;
   memset(&q, 0, sizeof(q));
@@ -481,9 +475,9 @@ struct libevent_state {
  * @param state Active libevent request state.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 http_request_done_init_res(struct libevent_state *state) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libevent_res_init_fail) {
     free(*state->res);
@@ -506,35 +500,37 @@ http_request_done_init_res(struct libevent_state *state) {
 
 /**
  * @brief Execute an enum-returning helper inside a void libevent callback.
- * @param expr Expression returning enum c_abstract_http_error.
+ * @param expr Expression returning c_abstract_http_error_t.
  */
 #define LIBEVENT_VOID_CB_DISPATCH(expr)                                        \
   do {                                                                         \
-    enum c_abstract_http_error _ev_rc = (expr);                                \
+    c_abstract_http_error_t _ev_rc = (expr);                                   \
     if (_ev_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
       LOG_DEBUG("libevent callback returned %d", (int)_ev_rc);                 \
     }                                                                          \
   } while (0)
 
 /**
- * @brief libevent completion callback invoked when an HTTP request finishes.
+ * @brief Populate response status, headers, and body on request completion.
  * @param req_ev Completed evhttp_request pointer (or NULL on failure).
- * @param arg Pointer to struct libevent_state.
+ * @param state Active libevent request state.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static void http_request_done(struct evhttp_request *req_ev, void *arg) {
-  struct libevent_state *state;
-  state = (struct libevent_state *)arg;
+NO_DISCARD static c_abstract_http_error_t
+http_request_done_impl(struct evhttp_request *req_ev,
+                       struct libevent_state *state) {
+  c_abstract_http_error_t rc;
   state->done = 1;
 
   if (state->error_code != 0) {
     LOG_DEBUG("http_request_done: Aborted with error %d", state->error_code);
-    return;
+    return (c_abstract_http_error_t)state->error_code;
   }
 
   if (!req_ev) {
     LOG_DEBUG("http_request_done: Request failed (req_ev NULL)");
     state->error_code = ECONNREFUSED;
-    return;
+    return (c_abstract_http_error_t)ECONNREFUSED;
   }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -548,12 +544,12 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
   if (!*state->res) {
     LOG_DEBUG("http_request_done: Error ENOMEM allocating response");
     state->error_code = (int)C_ABSTRACT_HTTP_ERR_NOMEM;
-    return;
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  LIBEVENT_VOID_CB_DISPATCH(http_request_done_init_res(state));
-  if (state->error_code != 0) {
-    return;
+  rc = http_request_done_init_res(state);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
   }
 
   (*state->res)->status_code = evhttp_request_get_response_code(req_ev);
@@ -565,12 +561,12 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
     if (in_hdrs) {
       size_t hi;
       for (hi = 0; hi < in_hdrs->count; ++hi) {
-        enum c_abstract_http_error hrc =
+        c_abstract_http_error_t hrc =
             http_headers_add(&(*state->res)->headers, in_hdrs->entries[hi].key,
                              in_hdrs->entries[hi].val);
         if (hrc != C_ABSTRACT_HTTP_SUCCESS) {
           state->error_code = (int)hrc;
-          return;
+          return hrc;
         }
       }
     }
@@ -578,11 +574,11 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
     if (in_hdrs) {
       struct evkeyval *kv;
       for (kv = in_hdrs->tqh_first; kv; kv = kv->next.tqe_next) {
-        enum c_abstract_http_error hrc =
+        c_abstract_http_error_t hrc =
             http_headers_add(&(*state->res)->headers, kv->key, kv->value);
         if (hrc != C_ABSTRACT_HTTP_SUCCESS) {
           state->error_code = (int)hrc;
-          return;
+          return hrc;
         }
       }
     }
@@ -610,9 +606,21 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
       } else {
         LOG_DEBUG("http_request_done: Error ENOMEM allocating body");
         state->error_code = (int)C_ABSTRACT_HTTP_ERR_NOMEM;
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
       }
     }
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief libevent completion callback invoked when an HTTP request finishes.
+ * @param req_ev Completed evhttp_request pointer (or NULL on failure).
+ * @param arg Pointer to struct libevent_state.
+ */
+static void http_request_done(struct evhttp_request *req_ev, void *arg) {
+  struct libevent_state *state = (struct libevent_state *)arg;
+  LIBEVENT_VOID_CB_DISPATCH(http_request_done_impl(req_ev, state));
 }
 
 /**
@@ -621,7 +629,7 @@ static void http_request_done(struct evhttp_request *req_ev, void *arg) {
  * @param state Active libevent request state.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 http_chunked_cb_impl(struct evhttp_request *req_ev,
                      struct libevent_state *state) {
   struct evbuffer *evb = evhttp_request_get_input_buffer(req_ev);
@@ -629,7 +637,7 @@ http_chunked_cb_impl(struct evhttp_request *req_ev,
 
   if (len > 0 && state->req->on_chunk) {
     char *buf;
-    enum c_abstract_http_error cb_rc;
+    c_abstract_http_error_t cb_rc;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_libevent_body_alloc_fail) {
       buf = NULL;
@@ -672,9 +680,11 @@ static void http_chunked_cb(struct evhttp_request *req_ev, void *arg) {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-enum c_abstract_http_error c_abstract_http_test_libevent_chunked_cb(void);
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_libevent_chunked_cb(void);
 
-enum c_abstract_http_error c_abstract_http_test_libevent_chunked_cb(void) {
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_libevent_chunked_cb(void) {
   struct libevent_state dummy_st;
   struct HttpRequest dummy_req;
   struct evhttp_request dummy_req_ev;
@@ -732,14 +742,14 @@ static int math_ev_strcasecmp(const char *a, const char *b) {
  * @param out_https Set to 1 if `https://`, 0 otherwise.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ev_parse_url_parts(const char *url, char *host, size_t host_cap, int *out_port,
                    const char **out_path, int *out_https) {
   const char *p;
   const char *colon;
   const char *slash;
 
-  if (!url) {
+  if (!url || url[0] == '\0') {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   memset(host, 0, host_cap);
@@ -793,7 +803,7 @@ ev_parse_url_parts(const char *url, char *host, size_t host_cap, int *out_port,
  * @param out_val Newly allocated header string.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ev_build_proxy_auth(const char *user, const char *pass, char **out_val) {
   const char *pw = pass ? pass : "";
   size_t ulen = strlen(user);
@@ -802,7 +812,7 @@ ev_build_proxy_auth(const char *user, const char *pass, char **out_val) {
   char *b64 = NULL;
   size_t b64_len = 0;
   char *hdr;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   raw = (char *)malloc(ulen + 1 + plen + 1);
   if (!raw) {
@@ -814,10 +824,11 @@ ev_build_proxy_auth(const char *user, const char *pass, char **out_val) {
   raw[ulen + 1 + plen] = '\0';
   rc = base64_encode((const unsigned char *)raw, ulen + 1 + plen, &b64,
                      &b64_len);
-  free(raw);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(raw);
     return rc;
   }
+  free(raw);
   hdr = (char *)malloc(6 + b64_len + 1);
   if (!hdr) {
     free(b64);
@@ -841,7 +852,7 @@ ev_build_proxy_auth(const char *user, const char *pass, char **out_val) {
  * @param out_conn Output connection handle.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ev_open_connection(const struct HttpTransportContext *ctx,
                    struct event_base *base, const char *dial_host,
                    int dial_port, int is_https, const char *sni_host,
@@ -887,8 +898,9 @@ ev_open_connection(const struct HttpTransportContext *ctx,
         return C_ABSTRACT_HTTP_ERR_IO;
       }
       if (sni_host && sni_host[0] != '\0') {
-        long sni_rc = SSL_set_tlsext_host_name(ssl, sni_host);
-        (void)sni_rc;
+        if (SSL_set_tlsext_host_name(ssl, sni_host) != 1) {
+          LOG_DEBUG("ev_open_connection: SSL_set_tlsext_host_name failed");
+        }
       }
       bev = bufferevent_openssl_socket_new(
           base, -1, ssl, BUFFEREVENT_SSL_CONNECTING, BEV_OPT_CLOSE_ON_FREE);
@@ -933,7 +945,7 @@ ev_open_connection(const struct HttpTransportContext *ctx,
  * @param out_req_ev Output `evhttp_request` pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error ev_submit_request_on_base(
+NO_DISCARD static c_abstract_http_error_t ev_submit_request_on_base(
     const struct HttpTransportContext *ctx, struct event_base *base,
     const struct HttpRequest *req, struct libevent_state *state,
     struct evhttp_request **out_req_ev) {
@@ -952,7 +964,7 @@ static enum c_abstract_http_error ev_submit_request_on_base(
   struct evkeyvalq *output_headers;
   int method_cmd = 0;
   int has_ua = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc =
       ev_parse_url_parts(req->url, host, sizeof(host), &port, &path, &is_https);
@@ -964,10 +976,11 @@ static enum c_abstract_http_error ev_submit_request_on_base(
     rc = ev_parse_url_parts(ctx->config.proxy_url, proxy_host,
                             sizeof(proxy_host), &proxy_port, &proxy_path,
                             &proxy_https);
-    (void)proxy_path;
-    (void)proxy_https;
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
+    }
+    if (proxy_https && proxy_path) {
+      LOG_DEBUG("ev_submit_request_on_base: proxy %s", proxy_host);
     }
     dial_host = proxy_host;
     dial_port = proxy_port;
@@ -1049,7 +1062,7 @@ static enum c_abstract_http_error ev_submit_request_on_base(
     char buf[4096];
     size_t read_bytes = 0;
     for (;;) {
-      enum c_abstract_http_error r = req->read_chunk(
+      c_abstract_http_error_t r = req->read_chunk(
           req->read_chunk_user_data, buf, sizeof(buf), &read_bytes);
       if (r != C_ABSTRACT_HTTP_SUCCESS) {
         evhttp_request_free(req_ev);
@@ -1079,7 +1092,7 @@ static enum c_abstract_http_error ev_submit_request_on_base(
 #endif
     evhttp_connection_free(state->conn);
     state->conn = NULL;
-    return (enum c_abstract_http_error)ECONNREFUSED;
+    return (c_abstract_http_error_t)ECONNREFUSED;
   }
 
   *out_req_ev = req_ev;
@@ -1095,12 +1108,12 @@ static enum c_abstract_http_error ev_submit_request_on_base(
  * @param out_eff Output pointer to effective request.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ev_prepare_effective_req(const struct HttpRequest *req,
                          struct HttpRequest *flat_req, int *out_flattened,
                          const struct HttpRequest **out_eff) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   *out_flattened = 0;
   *out_eff = req;
@@ -1126,13 +1139,13 @@ ev_prepare_effective_req(const struct HttpRequest *req,
     rc = http_headers_add(&flat_req->headers, req->headers.headers[i].key,
                           req->headers.headers[i].value);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error frc = http_headers_free(&flat_req->headers);
+      c_abstract_http_error_t frc = http_headers_free(&flat_req->headers);
       return frc != C_ABSTRACT_HTTP_SUCCESS ? frc : rc;
     }
   }
   rc = http_request_flatten_parts(flat_req);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error frc;
+    c_abstract_http_error_t frc;
     free(flat_req->body);
     flat_req->body = NULL;
     frc = http_headers_free(&flat_req->headers);
@@ -1150,7 +1163,7 @@ ev_prepare_effective_req(const struct HttpRequest *req,
  * @param out_url Newly allocated target URL.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ev_resolve_redirect_url(const char *cur_url, const char *loc, char **out_url) {
   char host[256];
   int port = 80;
@@ -1158,7 +1171,7 @@ ev_resolve_redirect_url(const char *cur_url, const char *loc, char **out_url) {
   int is_https = 0;
   size_t need;
   char *buf;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (strncmp(loc, "http://", 7) == 0 || strncmp(loc, "https://", 8) == 0) {
     return c_abstract_http_strdup(loc, out_url);
@@ -1183,6 +1196,21 @@ ev_resolve_redirect_url(const char *cur_url, const char *loc, char **out_url) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Test helper invoking `ev_resolve_redirect_url` with NULL current URL.
+ * @return C_ABSTRACT_HTTP_ERR_INVAL.
+ */
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_libevent_resolve_null(void);
+
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_libevent_resolve_null(void) {
+  char *out = NULL;
+  return ev_resolve_redirect_url(NULL, "/rel", &out);
+}
+#endif
+
 /**
  * @brief Execute one single-hop libevent HTTP transaction.
  * @param ctx Transport context.
@@ -1190,13 +1218,13 @@ ev_resolve_redirect_url(const char *cur_url, const char *loc, char **out_url) {
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ev_send_single_hop(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, struct HttpResponse **res) {
   struct libevent_state state;
   struct event_base *base;
   struct evhttp_request *req_ev = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   memset(&state, 0, sizeof(state));
   state.req = req;
@@ -1216,9 +1244,9 @@ ev_send_single_hop(struct HttpTransportContext *ctx,
   event_base_dispatch(base);
 
   if (state.error_code != 0) {
-    rc = (enum c_abstract_http_error)state.error_code;
+    rc = (c_abstract_http_error_t)state.error_code;
     if (*res) {
-      enum c_abstract_http_error frc = http_response_free(*res);
+      c_abstract_http_error_t frc = http_response_free(*res);
       free(*res);
       *res = NULL;
       if (frc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1226,7 +1254,7 @@ ev_send_single_hop(struct HttpTransportContext *ctx,
       }
     }
   } else if (!*res) {
-    rc = (enum c_abstract_http_error)ECONNREFUSED;
+    rc = (c_abstract_http_error_t)ECONNREFUSED;
   } else {
     rc = C_ABSTRACT_HTTP_SUCCESS;
   }
@@ -1239,17 +1267,76 @@ ev_send_single_hop(struct HttpTransportContext *ctx,
   return rc;
 }
 
+/**
+ * @brief Check whether a response triggers an HTTP redirect hop.
+ * @param ctx Transport context.
+ * @param res Received response.
+ * @param out_loc Output pointer receiving Location value when redirecting.
+ * @return 1 if redirect should be followed, 0 otherwise.
+ */
+static int math_ev_should_redirect(const struct HttpTransportContext *ctx,
+                                   const struct HttpResponse *res,
+                                   const char **out_loc) {
+  size_t i;
+  const char *loc = NULL;
+  if (!ctx || !ctx->config.follow_redirects || !res) {
+    return 0;
+  }
+  if (res->status_code != 301 && res->status_code != 302 &&
+      res->status_code != 303 && res->status_code != 307 &&
+      res->status_code != 308) {
+    return 0;
+  }
+  for (i = 0; i < res->headers.count; ++i) {
+    if (res->headers.headers[i].key &&
+        math_ev_strcasecmp(res->headers.headers[i].key, "Location") == 0) {
+      loc = res->headers.headers[i].value;
+      break;
+    }
+  }
+  if (!loc || loc[0] == '\0') {
+    return 0;
+  }
+  *out_loc = loc;
+  return 1;
+}
+
+/**
+ * @brief Clean up redirect and flattened request buffers at end of
+ * `http_libevent_send`.
+ * @param redir_url Heap redirect URL or NULL.
+ * @param flat_req Flattened scratch request.
+ * @param flattened Non-zero when `flat_req` owns heap resources.
+ * @param primary_rc Primary send status to return when cleanup succeeds.
+ * @return Cleanup error if cleanup fails and `primary_rc` succeeded, else
+ * `primary_rc`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+ev_finish_send_cleanup(char *redir_url, struct HttpRequest *flat_req,
+                       int flattened, c_abstract_http_error_t primary_rc) {
+  free(redir_url);
+  if (flattened) {
+    c_abstract_http_error_t cl_rc;
+    free(flat_req->body);
+    cl_rc = http_headers_free(&flat_req->headers);
+    if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return primary_rc != C_ABSTRACT_HTTP_SUCCESS ? primary_rc : cl_rc;
+    }
+  }
+  return primary_rc;
+}
+
 /* Send an HTTP request using libevent (with parts flattening & redirects). */
-enum c_abstract_http_error http_libevent_send(struct HttpTransportContext *ctx,
-                                              const struct HttpRequest *req,
-                                              struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_libevent_send(struct HttpTransportContext *ctx,
+                   const struct HttpRequest *req, struct HttpResponse **res) {
   struct HttpRequest flat_req;
   const struct HttpRequest *eff_req = NULL;
   struct HttpRequest hop_req;
   char *redir_url = NULL;
   int flattened = 0;
   int hop;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
   if (!ctx || !req || !res) {
@@ -1266,44 +1353,50 @@ enum c_abstract_http_error http_libevent_send(struct HttpTransportContext *ctx,
   for (hop = 0; hop <= LIBEVENT_MAX_REDIRECTS; ++hop) {
     const char *loc = NULL;
     char *next_url = NULL;
+    c_abstract_http_error_t frc;
     int status;
 
     rc = ev_send_single_hop(ctx, &hop_req, res);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS || !*res ||
-        !ctx->config.follow_redirects) {
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return ev_finish_send_cleanup(redir_url, &flat_req, flattened, rc);
+    }
+    if (!math_ev_should_redirect(ctx, *res, &loc)) {
       break;
     }
     status = (*res)->status_code;
-    if (status != 301 && status != 302 && status != 303 && status != 307 &&
-        status != 308) {
-      break;
-    }
-    if (http_headers_get(&(*res)->headers, "Location", &loc) !=
-            C_ABSTRACT_HTTP_SUCCESS ||
-        !loc || loc[0] == '\0') {
-      break;
-    }
     if (hop == LIBEVENT_MAX_REDIRECTS) {
-      enum c_abstract_http_error frc = http_response_free(*res);
+      frc = http_response_free(*res);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(*res);
+        *res = NULL;
+        return ev_finish_send_cleanup(redir_url, &flat_req, flattened, frc);
+      }
       free(*res);
       *res = NULL;
-      rc = frc != C_ABSTRACT_HTTP_SUCCESS ? frc : C_ABSTRACT_HTTP_ERR_LOOP;
-      break;
+      return ev_finish_send_cleanup(redir_url, &flat_req, flattened,
+                                    C_ABSTRACT_HTTP_ERR_LOOP);
     }
     rc = ev_resolve_redirect_url(hop_req.url, loc, &next_url);
-    {
-      enum c_abstract_http_error frc = http_response_free(*res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      frc = http_response_free(*res);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(*res);
+        *res = NULL;
+        return ev_finish_send_cleanup(redir_url, &flat_req, flattened, frc);
+      }
       free(*res);
       *res = NULL;
-      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(next_url);
-        rc = frc;
-        break;
-      }
+      return ev_finish_send_cleanup(redir_url, &flat_req, flattened, rc);
     }
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      break;
+    frc = http_response_free(*res);
+    if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(*res);
+      *res = NULL;
+      free(next_url);
+      return ev_finish_send_cleanup(redir_url, &flat_req, flattened, frc);
     }
+    free(*res);
+    *res = NULL;
     free(redir_url);
     redir_url = next_url;
     hop_req.url = redir_url;
@@ -1316,16 +1409,8 @@ enum c_abstract_http_error http_libevent_send(struct HttpTransportContext *ctx,
     }
   }
 
-  free(redir_url);
-  if (flattened) {
-    enum c_abstract_http_error cl_rc;
-    free(flat_req.body);
-    cl_rc = http_headers_free(&flat_req.headers);
-    if (cl_rc != C_ABSTRACT_HTTP_SUCCESS && rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = cl_rc;
-    }
-  }
-  return rc;
+  return ev_finish_send_cleanup(redir_url, &flat_req, flattened,
+                                C_ABSTRACT_HTTP_SUCCESS);
 }
 
 /** @brief Per-slot state for concurrent `http_libevent_send_multi` */
@@ -1341,13 +1426,55 @@ struct ev_multi_slot {
 
 /** @brief Batch coordinator bridging `event_base_loop(EVLOOP_NONBLOCK)` */
 struct ev_multi_batch {
-  struct event_base *base;     /**< Shared libevent base */
-  struct ev_multi_slot *slots; /**< Array of per-request slots */
-  size_t count;                /**< Total slot count */
-  int caller_loop;             /**< Non-zero when caller owns loop */
-  enum c_abstract_http_error
-      first_err; /**< First error observed across batch */
+  struct event_base *base;           /**< Shared libevent base */
+  struct ev_multi_slot *slots;       /**< Array of per-request slots */
+  size_t count;                      /**< Total slot count */
+  int caller_loop;                   /**< Non-zero when caller owns loop */
+  c_abstract_http_error_t first_err; /**< First error observed across batch */
 };
+
+/**
+ * @brief Settle one completed or failed libevent batch slot.
+ * @param batch Parent batch state.
+ * @param sl Slot to settle.
+ * @return Slot error code (`C_ABSTRACT_HTTP_SUCCESS` on success).
+ */
+NO_DISCARD static c_abstract_http_error_t
+ev_settle_multi_slot(struct ev_multi_batch *batch, struct ev_multi_slot *sl) {
+  c_abstract_http_error_t rc;
+  sl->settled = 1;
+  if (sl->st.error_code != 0) {
+    rc = (c_abstract_http_error_t)sl->st.error_code;
+    if (sl->res) {
+      c_abstract_http_error_t frc = http_response_free(sl->res);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(sl->res);
+        sl->res = NULL;
+        sl->future->response = NULL;
+        sl->future->error_code = frc;
+        sl->future->is_ready = 1;
+        if (batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+          batch->first_err = frc;
+        }
+        return frc;
+      }
+      free(sl->res);
+      sl->res = NULL;
+    }
+  } else if (!sl->res) {
+    rc = (c_abstract_http_error_t)ECONNREFUSED;
+  } else {
+    rc = C_ABSTRACT_HTTP_SUCCESS;
+  }
+  sl->future->response = sl->res;
+  sl->future->error_code = rc;
+  sl->future->is_ready = 1;
+  if (rc != C_ABSTRACT_HTTP_SUCCESS &&
+      batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+    batch->first_err = rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 /**
  * @brief `ModalityEventLoop` callback driving
@@ -1357,7 +1484,7 @@ struct ev_multi_batch {
  * @param user_data Pointer to `struct ev_multi_batch`.
  * @return C_ABSTRACT_HTTP_SUCCESS or loop control error.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ev_pump_nonblock_cb(struct ModalityEventLoop *loop, int timer_id,
                     void *user_data) {
   struct ev_multi_batch *batch = (struct ev_multi_batch *)user_data;
@@ -1367,7 +1494,6 @@ ev_pump_nonblock_cb(struct ModalityEventLoop *loop, int timer_id,
   (void)timer_id;
 
   lrc = event_base_loop(batch->base, EVLOOP_NONBLOCK);
-  (void)lrc;
 
   for (i = 0; i < batch->count; ++i) {
     struct ev_multi_slot *sl = &batch->slots[i];
@@ -1375,29 +1501,9 @@ ev_pump_nonblock_cb(struct ModalityEventLoop *loop, int timer_id,
       continue;
     }
     if (sl->st.done || lrc != 0) {
-      enum c_abstract_http_error rc;
-      sl->settled = 1;
-      if (sl->st.error_code != 0) {
-        rc = (enum c_abstract_http_error)sl->st.error_code;
-        if (sl->res) {
-          enum c_abstract_http_error frc = http_response_free(sl->res);
-          free(sl->res);
-          sl->res = NULL;
-          if (frc != C_ABSTRACT_HTTP_SUCCESS) {
-            rc = frc;
-          }
-        }
-      } else if (!sl->res) {
-        rc = (enum c_abstract_http_error)ECONNREFUSED;
-      } else {
-        rc = C_ABSTRACT_HTTP_SUCCESS;
-      }
-      sl->future->response = sl->res;
-      sl->future->error_code = rc;
-      sl->future->is_ready = 1;
-      if (rc != C_ABSTRACT_HTTP_SUCCESS &&
-          batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
-        batch->first_err = rc;
+      c_abstract_http_error_t src_rc = ev_settle_multi_slot(batch, sl);
+      if (src_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return src_rc;
       }
     } else {
       pending++;
@@ -1414,9 +1520,138 @@ ev_pump_nonblock_cb(struct ModalityEventLoop *loop, int timer_id,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Prepare and submit a single slot onto `base` for `send_multi`.
+ * @param ctx Transport context.
+ * @param batch Batch coordinator.
+ * @param req Input HTTP request.
+ * @param slot Target slot structure.
+ * @param out_active Incremented when the slot is armed asynchronously.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD static c_abstract_http_error_t
+ev_arm_multi_slot(struct HttpTransportContext *ctx,
+                  struct ev_multi_batch *batch, const struct HttpRequest *req,
+                  struct ev_multi_slot *slot, size_t *out_active) {
+  const struct HttpRequest *eff_req = NULL;
+  c_abstract_http_error_t rc;
+
+  if (!slot->future) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  rc = ev_prepare_effective_req(req, &slot->flat_req, &slot->flattened,
+                                &eff_req);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    slot->settled = 1;
+    slot->future->response = NULL;
+    slot->future->error_code = rc;
+    slot->future->is_ready = 1;
+    if (batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+      batch->first_err = rc;
+    }
+    return !slot->future ? rc : C_ABSTRACT_HTTP_SUCCESS;
+  }
+  slot->st.req = eff_req;
+  slot->st.res = &slot->res;
+  rc = ev_submit_request_on_base(ctx, batch->base, eff_req, &slot->st,
+                                 &slot->req_ev);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    slot->settled = 1;
+    slot->future->response = NULL;
+    slot->future->error_code = rc;
+    slot->future->is_ready = 1;
+    if (batch->first_err == C_ABSTRACT_HTTP_SUCCESS) {
+      batch->first_err = rc;
+    }
+    return !slot->future ? rc : C_ABSTRACT_HTTP_SUCCESS;
+  }
+  (*out_active)++;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Arm timer and run `active_loop` for `http_libevent_send_multi`.
+ * @param active_loop Event loop to drive.
+ * @param batch Active batch state.
+ * @return C_ABSTRACT_HTTP_SUCCESS or loop error code.
+ */
+NO_DISCARD static c_abstract_http_error_t
+ev_drive_multi_loop(struct ModalityEventLoop *active_loop,
+                    struct ev_multi_batch *batch) {
+  int timer_id = 0;
+  c_abstract_http_error_t rc;
+
+  rc = http_loop_add_timer(active_loop, 0, ev_pump_nonblock_cb, batch,
+                           &timer_id);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  return http_loop_run(active_loop);
+}
+
+/**
+ * @brief Tear down `http_libevent_send_multi` resources and finalize loop.
+ * @param slots Slot array to release.
+ * @param count Number of slots.
+ * @param base Shared `event_base`.
+ * @param owned_loop Internally owned loop or NULL.
+ * @param caller_loop Caller-supplied loop or NULL.
+ * @param primary_rc Primary batch status.
+ * @return Final `c_abstract_http_error_t`.
+ */
+NO_DISCARD static c_abstract_http_error_t ev_finish_multi_cleanup(
+    struct ev_multi_slot *slots, size_t count, struct event_base *base,
+    struct ModalityEventLoop *owned_loop, struct ModalityEventLoop *caller_loop,
+    c_abstract_http_error_t primary_rc) {
+  size_t i;
+  c_abstract_http_error_t cleanup_err = C_ABSTRACT_HTTP_SUCCESS;
+
+  for (i = 0; i < count; ++i) {
+#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBEVENT)
+    evhttp_request_free(slots[i].req_ev);
+#endif
+    evhttp_connection_free(slots[i].st.conn);
+    if (slots[i].flattened) {
+      c_abstract_http_error_t hrc;
+      free(slots[i].flat_req.body);
+      hrc = http_headers_free(&slots[i].flat_req.headers);
+      if (hrc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(slots);
+        event_base_free(base);
+        if (owned_loop) {
+          c_abstract_http_error_t lrc = http_loop_free(owned_loop);
+          if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
+            return lrc;
+          }
+        }
+        return hrc;
+      }
+    }
+  }
+  free(slots);
+  event_base_free(base);
+
+  if (owned_loop) {
+    cleanup_err = http_loop_free(owned_loop);
+    if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
+      return cleanup_err;
+    }
+  } else if (caller_loop) {
+    cleanup_err = abstract_http_event_loop_test_unstop(caller_loop);
+    if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
+      return cleanup_err;
+    }
+    cleanup_err = http_loop_wakeup(caller_loop);
+    if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
+      return cleanup_err;
+    }
+  }
+  return primary_rc;
+}
+
 /* Multiplex multiple requests via event_base_loop(EVLOOP_NONBLOCK) on
  * ModalityEventLoop. */
-enum c_abstract_http_error http_libevent_send_multi(
+NO_DISCARD c_abstract_http_error_t http_libevent_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   struct ModalityEventLoop *owned_loop = NULL;
@@ -1426,8 +1661,7 @@ enum c_abstract_http_error http_libevent_send_multi(
   struct ev_multi_slot *slots;
   size_t i;
   size_t active_slots = 0;
-  int timer_id = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   cah_cppcheck_mut_ptr((void *)ctx);
 
   if (!ctx || !multi || !futures) {
@@ -1471,74 +1705,24 @@ enum c_abstract_http_error http_libevent_send_multi(
   batch.first_err = C_ABSTRACT_HTTP_SUCCESS;
 
   for (i = 0; i < multi->count; ++i) {
-    const struct HttpRequest *eff_req = NULL;
     slots[i].future = futures[i];
-    rc = ev_prepare_effective_req(multi->requests[i], &slots[i].flat_req,
-                                  &slots[i].flattened, &eff_req);
-    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-      slots[i].st.req = eff_req;
-      slots[i].st.res = &slots[i].res;
-      rc = ev_submit_request_on_base(ctx, base, eff_req, &slots[i].st,
-                                     &slots[i].req_ev);
-    }
+    rc = ev_arm_multi_slot(ctx, &batch, multi->requests[i], &slots[i],
+                           &active_slots);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      slots[i].settled = 1;
-      slots[i].future->response = NULL;
-      slots[i].future->error_code = rc;
-      slots[i].future->is_ready = 1;
-      if (batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
-        batch.first_err = rc;
-      }
-    } else {
-      active_slots++;
+      return ev_finish_multi_cleanup(slots, multi->count, base, owned_loop,
+                                     loop, rc);
     }
   }
 
   if (active_slots > 0) {
-    rc = http_loop_add_timer(active_loop, 0, ev_pump_nonblock_cb, &batch,
-                             &timer_id);
-    (void)timer_id;
-    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
-      rc = http_loop_run(active_loop);
-    }
-    if (rc != C_ABSTRACT_HTTP_SUCCESS &&
-        batch.first_err == C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = rc;
+    rc = ev_drive_multi_loop(active_loop, &batch);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return ev_finish_multi_cleanup(
+          slots, multi->count, base, owned_loop, loop,
+          batch.first_err != C_ABSTRACT_HTTP_SUCCESS ? batch.first_err : rc);
     }
   }
 
-  for (i = 0; i < multi->count; ++i) {
-#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBEVENT)
-    evhttp_request_free(slots[i].req_ev);
-#endif
-    evhttp_connection_free(slots[i].st.conn);
-    if (slots[i].flattened) {
-      enum c_abstract_http_error hrc;
-      free(slots[i].flat_req.body);
-      hrc = http_headers_free(&slots[i].flat_req.headers);
-      if (hrc != C_ABSTRACT_HTTP_SUCCESS) {
-        batch.first_err = hrc;
-      }
-    }
-  }
-  free(slots);
-  event_base_free(base);
-
-  if (owned_loop) {
-    enum c_abstract_http_error lrc = http_loop_free(owned_loop);
-    if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = lrc;
-    }
-  } else if (loop) {
-    enum c_abstract_http_error urc = abstract_http_event_loop_test_unstop(loop);
-    enum c_abstract_http_error wrc = http_loop_wakeup(loop);
-    if (urc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = urc;
-    }
-    if (wrc != C_ABSTRACT_HTTP_SUCCESS) {
-      batch.first_err = wrc;
-    }
-  }
-
-  return batch.first_err;
+  return ev_finish_multi_cleanup(slots, multi->count, base, owned_loop, loop,
+                                 batch.first_err);
 }

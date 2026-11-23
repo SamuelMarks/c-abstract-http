@@ -43,9 +43,18 @@ extern "C" {
 /** @brief SIZE_T_FMT macro */
 #define SIZE_T_FMT "Iu"
 
+#elif defined(_WIN64) &&                                                       \
+    (!defined(__USE_MINGW_ANSI_STDIO) || !__USE_MINGW_ANSI_STDIO)
+/** @brief SIZE_T_FMT macro */
+#define SIZE_T_FMT "I64u"
+
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
 /** @brief SIZE_T_FMT macro */
 #define SIZE_T_FMT "zu"
+
+#elif defined(_WIN64)
+/** @brief SIZE_T_FMT macro */
+#define SIZE_T_FMT "llu"
 
 #elif defined(__LP64__) || defined(_LP64)
 /** @brief SIZE_T_FMT macro */

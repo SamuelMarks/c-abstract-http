@@ -19,6 +19,7 @@
 #if defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1600)
 #include <c_abstract_http/win_compat_sym.h>
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
@@ -91,39 +92,86 @@
 #endif
 
 /**
- * @brief Convert an ASCII string into a wide-character buffer.
- * @param s Source NUL-terminated ASCII string.
+ * @brief Convert a UTF-8 string into a UTF-16 wide-character buffer.
+ * @param s Source NUL-terminated UTF-8 string.
  * @param ws Destination wide-character buffer.
  * @param buf_cap Capacity of @p ws in wchar_t elements.
  * @param out_len Receives written wide-character count.
  */
 static void ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
                           size_t *out_len) {
-  size_t i = 0;
-  while (s[i] != '\0' && i + 1 < buf_cap) {
-    ws[i] = (wchar_t)(unsigned char)s[i];
-    i++;
+  size_t si = 0;
+  size_t wi = 0;
+  while (s[si] != '\0' && wi + 1 < buf_cap) {
+    unsigned char b0 = (unsigned char)s[si];
+    if (b0 < 0x80U) {
+      ws[wi++] = (wchar_t)b0;
+      si += 1;
+    } else if ((b0 & 0xE0U) == 0xC0U &&
+               ((unsigned char)s[si + 1] & 0xC0U) == 0x80U) {
+      unsigned long cp = (((unsigned long)(b0 & 0x1FU)) << 6) |
+                         (unsigned long)((unsigned char)s[si + 1] & 0x3FU);
+      ws[wi++] = (wchar_t)cp;
+      si += 2;
+    } else if ((b0 & 0xF0U) == 0xE0U &&
+               ((unsigned char)s[si + 1] & 0xC0U) == 0x80U &&
+               ((unsigned char)s[si + 2] & 0xC0U) == 0x80U) {
+      unsigned long cp =
+          (((unsigned long)(b0 & 0x0FU)) << 12) |
+          (((unsigned long)((unsigned char)s[si + 1] & 0x3FU)) << 6) |
+          (unsigned long)((unsigned char)s[si + 2] & 0x3FU);
+      ws[wi++] = (wchar_t)cp;
+      si += 3;
+    } else if ((b0 & 0xF8U) == 0xF0U &&
+               ((unsigned char)s[si + 1] & 0xC0U) == 0x80U &&
+               ((unsigned char)s[si + 2] & 0xC0U) == 0x80U &&
+               ((unsigned char)s[si + 3] & 0xC0U) == 0x80U &&
+               wi + 2 < buf_cap) {
+      unsigned long cp =
+          (((unsigned long)(b0 & 0x07U)) << 18) |
+          (((unsigned long)((unsigned char)s[si + 1] & 0x3FU)) << 12) |
+          (((unsigned long)((unsigned char)s[si + 2] & 0x3FU)) << 6) |
+          (unsigned long)((unsigned char)s[si + 3] & 0x3FU);
+      cp -= 0x10000UL;
+      ws[wi++] = (wchar_t)(0xD800UL + ((cp >> 10) & 0x3FFUL));
+      ws[wi++] = (wchar_t)(0xDC00UL + (cp & 0x3FFUL));
+      si += 4;
+    } else {
+      ws[wi++] = (wchar_t)b0;
+      si += 1;
+    }
   }
-  ws[i] = L'\0';
-  *out_len = i;
+  ws[wi] = L'\0';
+  *out_len = wi;
 }
 
 /**
- * @brief Convert a wide-character string into an 8-bit ASCII buffer.
+ * @brief Convert a UTF-16 wide-character string into a UTF-8 buffer.
  * @param ws Source NUL-terminated wide string.
  * @param s Destination char buffer.
  * @param buf_cap Capacity of @p s in bytes.
- * @param out_len Receives written character count.
+ * @param out_len Receives written byte count.
  */
 static void wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
                           size_t *out_len) {
-  size_t i = 0;
-  while (ws[i] != L'\0' && i + 1 < buf_cap) {
-    s[i] = (char)(ws[i] & 0xFF);
-    i++;
+  size_t wi = 0;
+  size_t si = 0;
+  while (ws[wi] != L'\0' && si + 4 < buf_cap) {
+    unsigned long cp = (unsigned long)ws[wi] & 0xFFFFUL;
+    if (cp < 0x80UL) {
+      s[si++] = (char)cp;
+    } else if (cp < 0x800UL) {
+      s[si++] = (char)(0xC0UL | (cp >> 6));
+      s[si++] = (char)(0x80UL | (cp & 0x3FUL));
+    } else {
+      s[si++] = (char)(0xE0UL | (cp >> 12));
+      s[si++] = (char)(0x80UL | ((cp >> 6) & 0x3FUL));
+      s[si++] = (char)(0x80UL | (cp & 0x3FUL));
+    }
+    wi++;
   }
-  s[i] = '\0';
-  *out_len = i;
+  s[si] = '\0';
+  *out_len = si;
 }
 
 /** @brief Internal struct HttpTransportContext */
@@ -188,7 +236,7 @@ static void method_to_wide(enum HttpMethod method, const wchar_t **out) {
  * @param h In/out handle pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
  */
-static enum c_abstract_http_error safe_close_handle(HINTERNET *h) {
+NO_DISCARD static c_abstract_http_error_t safe_close_handle(HINTERNET *h) {
   if (*h) {
     if (!WinHttpCloseHandle(*h)) {
       *h = NULL;
@@ -205,7 +253,7 @@ static enum c_abstract_http_error safe_close_handle(HINTERNET *h) {
  * @param out Receives newly allocated wide header block (or NULL if empty).
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
   size_t i;
   size_t total_wide_chars = 0;
@@ -255,7 +303,7 @@ headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error http_winhttp_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_winhttp_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -264,15 +312,15 @@ enum c_abstract_http_error http_winhttp_global_init(void) {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error http_winhttp_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_winhttp_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /* Create and initialize a new WinHTTP transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_winhttp_context_init(struct HttpTransportContext **ctx) {
   HINTERNET hSession;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   LOG_DEBUG("http_winhttp_context_init: Entering");
   if (!ctx) {
@@ -322,16 +370,18 @@ http_winhttp_context_init(struct HttpTransportContext **ctx) {
 }
 
 /* Free the WinHTTP transport context and release associated resources. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_winhttp_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_winhttp_context_free: Entering");
   if (ctx) {
-    enum c_abstract_http_error rch;
+    c_abstract_http_error_t rch;
     WinHttpCloseHandle(ctx->hSession);
     ctx->hSession = NULL;
     rch = http_config_free(&ctx->config);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+      free(ctx);
       return rch;
+    }
     free(ctx);
   }
   LOG_DEBUG("http_winhttp_context_free: Exiting");
@@ -339,9 +389,8 @@ http_winhttp_context_free(struct HttpTransportContext *ctx) {
 }
 
 /* Apply configuration settings to an active WinHTTP context. */
-enum c_abstract_http_error
-http_winhttp_config_apply(struct HttpTransportContext *ctx,
-                          const struct HttpConfig *config) {
+NO_DISCARD c_abstract_http_error_t http_winhttp_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
   LOG_DEBUG("http_winhttp_config_apply: Entering");
   if (!ctx) {
     LOG_DEBUG("http_winhttp_config_apply: Error EINVAL");
@@ -351,6 +400,11 @@ http_winhttp_config_apply(struct HttpTransportContext *ctx,
     LOG_DEBUG("http_winhttp_config_apply: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
+
+  ctx->config.timeout_ms = config->timeout_ms;
+  ctx->config.connect_timeout_ms = config->connect_timeout_ms;
+  ctx->config.read_timeout_ms = config->read_timeout_ms;
+  ctx->config.write_timeout_ms = config->write_timeout_ms;
 
   if (config->timeout_ms > 0 || config->connect_timeout_ms > 0 ||
       config->read_timeout_ms > 0 || config->write_timeout_ms > 0) {
@@ -462,8 +516,7 @@ http_winhttp_config_apply(struct HttpTransportContext *ctx,
   /* HTTP/2 & HTTP/3 protocol flags + http3_fallback */
   ctx->config.version_mask = config->version_mask;
   ctx->config.http3_fallback = config->http3_fallback;
-  if (config->version_mask != 0 &&
-      config->version_mask != (unsigned int)HTTP_VERSION_DEFAULT) {
+  if (config->version_mask != (unsigned int)HTTP_VERSION_DEFAULT) {
     DWORD proto_flags = 0;
     if (config->version_mask & HTTP_VERSION_2) {
       proto_flags |= WINHTTP_PROTOCOL_FLAG_HTTP2;
@@ -513,9 +566,9 @@ http_winhttp_config_apply(struct HttpTransportContext *ctx,
 }
 
 /* Send an HTTP request synchronously using WinHTTP. */
-enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
-                                             const struct HttpRequest *req,
-                                             struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_winhttp_send(struct HttpTransportContext *ctx,
+                  const struct HttpRequest *req, struct HttpResponse **res) {
   HINTERNET hConnect = NULL, hRequest = NULL;
   URL_COMPONENTS urlComp;
   wchar_t *wUrl = NULL;
@@ -532,7 +585,7 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
   char *totalBody = NULL;
   size_t totalSize = 0;
   DWORD dwDownloaded = 0;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
 
   LOG_DEBUG("http_winhttp_send: Entering");
   if (!ctx || !ctx->hSession || !req || !res || !req->url) {
@@ -806,7 +859,7 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
           } else
 #endif
           {
-            enum c_abstract_http_error cookie_rc =
+            c_abstract_http_error_t cookie_rc =
                 http_cookie_jar_set(ctx->cookie_jar, name, val);
             if (cookie_rc != C_ABSTRACT_HTTP_SUCCESS) {
               LOG_DEBUG("http_winhttp_send: http_cookie_jar_set failed with %d",
@@ -820,7 +873,7 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
               free(totalBody);
               if (*res) {
                 struct HttpResponse *tmp_r = *res;
-                enum c_abstract_http_error fr_rc;
+                c_abstract_http_error_t fr_rc;
                 *res = NULL;
                 fr_rc = http_response_free(tmp_r);
                 if (fr_rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -848,8 +901,8 @@ enum c_abstract_http_error http_winhttp_send(struct HttpTransportContext *ctx,
   totalBody = NULL;
 
 cleanup: {
-  enum c_abstract_http_error close_req_rc;
-  enum c_abstract_http_error close_conn_rc;
+  c_abstract_http_error_t close_req_rc;
+  c_abstract_http_error_t close_conn_rc;
   close_req_rc = safe_close_handle(&hRequest);
   if (close_req_rc != C_ABSTRACT_HTTP_SUCCESS) {
     close_conn_rc = safe_close_handle(&hConnect);
@@ -921,14 +974,16 @@ struct WinHttpAsyncSlot {
  * @brief Finalize an asynchronous WinHTTP slot, populate future, and wake loop.
  * @param slot Active async slot (freed once settled).
  * @param err Terminal error code (`C_ABSTRACT_HTTP_SUCCESS` on completion).
+ * @return C_ABSTRACT_HTTP_SUCCESS or wakeup/init error code.
  */
-static void winhttp_async_complete(struct WinHttpAsyncSlot *slot,
-                                   enum c_abstract_http_error err) {
+NO_DISCARD static c_abstract_http_error_t
+winhttp_async_complete(struct WinHttpAsyncSlot *slot,
+                       c_abstract_http_error_t err) {
   struct HttpResponse *res = NULL;
-  enum c_abstract_http_error final_rc = err;
+  c_abstract_http_error_t final_rc = err;
 
   if (!slot || slot->finished) {
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   slot->finished = 1;
 
@@ -937,16 +992,39 @@ static void winhttp_async_complete(struct WinHttpAsyncSlot *slot,
     if (!res) {
       final_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     } else {
-      final_rc = http_response_init(res);
-      if (final_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      c_abstract_http_error_t irc = http_response_init(res);
+      if (irc != C_ABSTRACT_HTTP_SUCCESS) {
         free(res);
         res = NULL;
-      } else {
-        res->status_code = (int)slot->status_code;
-        res->body = slot->body;
-        res->body_len = slot->body_len;
-        slot->body = NULL;
+        if (slot->hRequest) {
+          WinHttpSetStatusCallback(slot->hRequest, NULL, 0, 0);
+          WinHttpCloseHandle(slot->hRequest);
+        }
+        if (slot->hConnect) {
+          WinHttpCloseHandle(slot->hConnect);
+        }
+        if (slot->hAsyncSession) {
+          WinHttpCloseHandle(slot->hAsyncSession);
+        }
+        free(slot->wHeaders);
+        free(slot->body);
+        slot->future->response = NULL;
+        slot->future->error_code = irc;
+        slot->future->is_ready = 1;
+        if (slot->loop) {
+          c_abstract_http_error_t wrc = http_loop_wakeup(slot->loop);
+          if (wrc != C_ABSTRACT_HTTP_SUCCESS) {
+            free(slot);
+            return wrc;
+          }
+        }
+        free(slot);
+        return irc;
       }
+      res->status_code = (int)slot->status_code;
+      res->body = slot->body;
+      res->body_len = slot->body_len;
+      slot->body = NULL;
     }
   }
 
@@ -973,13 +1051,130 @@ static void winhttp_async_complete(struct WinHttpAsyncSlot *slot,
   slot->future->is_ready = 1;
 
   if (slot->loop) {
-    enum c_abstract_http_error wrc = http_loop_wakeup(slot->loop);
+    c_abstract_http_error_t wrc = http_loop_wakeup(slot->loop);
     if (wrc != C_ABSTRACT_HTTP_SUCCESS) {
-      LOG_DEBUG("winhttp_async_complete: http_loop_wakeup returned %d",
-                (int)wrc);
+      free(slot);
+      return wrc;
     }
   }
   free(slot);
+  return final_rc;
+}
+
+/**
+ * @brief Dispatch an enum-returning WinHTTP helper inside a void Win32
+ * callback.
+ * @param expr Expression returning `c_abstract_http_error_t`.
+ */
+#define WINHTTP_VOID_CB_DISPATCH(expr)                                         \
+  do {                                                                         \
+    c_abstract_http_error_t _cb_rc = (expr);                                   \
+    if (_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
+      LOG_DEBUG("winhttp_status_callback: error %d", (int)_cb_rc);             \
+    }                                                                          \
+  } while (0)
+
+/**
+ * @brief Internal enum-returning WinHTTP async callback implementation.
+ * @param hInternet Request handle.
+ * @param slot Active async slot.
+ * @param dwInternetStatus WinHTTP callback status code.
+ * @param lpvStatusInformation Status-specific payload pointer.
+ * @param dwStatusInformationLength Byte length of payload or bytes transferred.
+ * @return C_ABSTRACT_HTTP_SUCCESS or slot error code.
+ */
+NO_DISCARD static c_abstract_http_error_t winhttp_status_callback_impl(
+    HINTERNET hInternet, struct WinHttpAsyncSlot *slot, DWORD dwInternetStatus,
+    LPVOID lpvStatusInformation, DWORD dwStatusInformationLength) {
+  switch (dwInternetStatus) {
+  case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
+  case WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE: {
+    if (slot->req->read_chunk) {
+      size_t out_read = 0;
+      c_abstract_http_error_t rrc =
+          slot->req->read_chunk(slot->req->read_chunk_user_data, slot->read_buf,
+                                sizeof(slot->read_buf), &out_read);
+      if (rrc != C_ABSTRACT_HTTP_SUCCESS) {
+        return winhttp_async_complete(slot, rrc);
+      }
+      if (out_read > 0) {
+        if (!WinHttpWriteData(hInternet, slot->read_buf, (DWORD)out_read,
+                              NULL)) {
+          return winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
+        }
+        return C_ABSTRACT_HTTP_SUCCESS;
+      }
+    }
+    if (!WinHttpReceiveResponse(hInternet, NULL)) {
+      return winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE: {
+    DWORD dwSize = sizeof(slot->status_code);
+    if (!WinHttpQueryHeaders(
+            hInternet, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            WINHTTP_HEADER_NAME_BY_INDEX, &slot->status_code, &dwSize,
+            WINHTTP_NO_HEADER_INDEX)) {
+      return winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    if (!WinHttpQueryDataAvailable(hInternet, NULL)) {
+      return winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  case WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE: {
+    DWORD avail = lpvStatusInformation ? *(DWORD *)lpvStatusInformation : 0;
+    if (avail == 0) {
+      return winhttp_async_complete(slot, C_ABSTRACT_HTTP_SUCCESS);
+    }
+    if (avail > sizeof(slot->read_buf)) {
+      avail = (DWORD)sizeof(slot->read_buf);
+    }
+    if (!WinHttpReadData(hInternet, slot->read_buf, avail, NULL)) {
+      return winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  case WINHTTP_CALLBACK_STATUS_READ_COMPLETE: {
+    if (dwStatusInformationLength == 0) {
+      return winhttp_async_complete(slot, C_ABSTRACT_HTTP_SUCCESS);
+    }
+    if (slot->req->on_chunk) {
+      c_abstract_http_error_t crc =
+          slot->req->on_chunk(slot->req->on_chunk_user_data,
+                              lpvStatusInformation, dwStatusInformationLength);
+      if (crc != C_ABSTRACT_HTTP_SUCCESS) {
+        return winhttp_async_complete(slot, crc);
+      }
+    } else {
+      char *nb = (char *)realloc(
+          slot->body, slot->body_len + (size_t)dwStatusInformationLength + 1);
+      if (!nb) {
+        return winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_NOMEM);
+      }
+      slot->body = nb;
+      memcpy(slot->body + slot->body_len, lpvStatusInformation,
+             dwStatusInformationLength);
+      slot->body_len += (size_t)dwStatusInformationLength;
+      slot->body[slot->body_len] = '\0';
+    }
+    if (!WinHttpQueryDataAvailable(hInternet, NULL)) {
+      return winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR: {
+    return winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
+  }
+
+  default:
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
 }
 
 /**
@@ -1000,100 +1195,9 @@ static void CALLBACK winhttp_status_callback(HINTERNET hInternet,
   if (!slot || slot->finished) {
     return;
   }
-
-  switch (dwInternetStatus) {
-  case WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE:
-  case WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE:
-    if (slot->req->read_chunk) {
-      size_t out_read = 0;
-      enum c_abstract_http_error rrc =
-          slot->req->read_chunk(slot->req->read_chunk_user_data, slot->read_buf,
-                                sizeof(slot->read_buf), &out_read);
-      if (rrc != C_ABSTRACT_HTTP_SUCCESS) {
-        winhttp_async_complete(slot, rrc);
-        return;
-      }
-      if (out_read > 0) {
-        if (!WinHttpWriteData(hInternet, slot->read_buf, (DWORD)out_read,
-                              NULL)) {
-          winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
-        }
-        return;
-      }
-    }
-    if (!WinHttpReceiveResponse(hInternet, NULL)) {
-      winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
-    }
-    break;
-
-  case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE: {
-    DWORD dwSize = sizeof(slot->status_code);
-    if (!WinHttpQueryHeaders(
-            hInternet, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-            WINHTTP_HEADER_NAME_BY_INDEX, &slot->status_code, &dwSize,
-            WINHTTP_NO_HEADER_INDEX)) {
-      winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
-      return;
-    }
-    if (!WinHttpQueryDataAvailable(hInternet, NULL)) {
-      winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
-    }
-    break;
-  }
-
-  case WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE: {
-    DWORD avail = lpvStatusInformation ? *(DWORD *)lpvStatusInformation : 0;
-    if (avail == 0) {
-      winhttp_async_complete(slot, C_ABSTRACT_HTTP_SUCCESS);
-      return;
-    }
-    if (avail > sizeof(slot->read_buf)) {
-      avail = (DWORD)sizeof(slot->read_buf);
-    }
-    if (!WinHttpReadData(hInternet, slot->read_buf, avail, NULL)) {
-      winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
-    }
-    break;
-  }
-
-  case WINHTTP_CALLBACK_STATUS_READ_COMPLETE:
-    if (dwStatusInformationLength == 0) {
-      winhttp_async_complete(slot, C_ABSTRACT_HTTP_SUCCESS);
-      return;
-    }
-    if (slot->req->on_chunk) {
-      enum c_abstract_http_error crc =
-          slot->req->on_chunk(slot->req->on_chunk_user_data,
-                              lpvStatusInformation, dwStatusInformationLength);
-      if (crc != C_ABSTRACT_HTTP_SUCCESS) {
-        winhttp_async_complete(slot, crc);
-        return;
-      }
-    } else {
-      char *nb = (char *)realloc(
-          slot->body, slot->body_len + (size_t)dwStatusInformationLength + 1);
-      if (!nb) {
-        winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_NOMEM);
-        return;
-      }
-      slot->body = nb;
-      memcpy(slot->body + slot->body_len, lpvStatusInformation,
-             dwStatusInformationLength);
-      slot->body_len += (size_t)dwStatusInformationLength;
-      slot->body[slot->body_len] = '\0';
-    }
-    if (!WinHttpQueryDataAvailable(hInternet, NULL)) {
-      winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
-    }
-    break;
-
-  case WINHTTP_CALLBACK_STATUS_REQUEST_ERROR:
-    winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
-    break;
-
-  default:
-    break;
-  }
+  WINHTTP_VOID_CB_DISPATCH(winhttp_status_callback_impl(
+      hInternet, slot, dwInternetStatus, lpvStatusInformation,
+      dwStatusInformationLength));
 }
 
 /**
@@ -1105,7 +1209,7 @@ static void CALLBACK winhttp_status_callback(HINTERNET hInternet,
  * @param future Output future structure.
  * @return C_ABSTRACT_HTTP_SUCCESS on submission, or error code.
  */
-static enum c_abstract_http_error winhttp_submit_async_slot(
+NO_DISCARD static c_abstract_http_error_t winhttp_submit_async_slot(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpRequest *req, struct HttpFuture *future) {
   struct WinHttpAsyncSlot *slot;
@@ -1116,7 +1220,7 @@ static enum c_abstract_http_error winhttp_submit_async_slot(
   const wchar_t *wmethod = NULL;
   size_t wLen = 0;
   size_t cap;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!req || !req->url) {
     future->response = NULL;
@@ -1135,11 +1239,36 @@ static enum c_abstract_http_error winhttp_submit_async_slot(
   slot->future = future;
 
   slot->hAsyncSession = WinHttpOpen(
-      L"c_abstract_http/1.0", WINHTTP_ACCESS_TYPE_NO_PROXY,
+      L"c_abstract_http/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
       WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, WINHTTP_FLAG_ASYNC);
   if (!slot->hAsyncSession) {
     free(slot);
     return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (ctx->config.timeout_ms > 0 || ctx->config.connect_timeout_ms > 0 ||
+      ctx->config.read_timeout_ms > 0 || ctx->config.write_timeout_ms > 0) {
+    int cto = ctx->config.connect_timeout_ms > 0
+                  ? (int)ctx->config.connect_timeout_ms
+                  : (int)ctx->config.timeout_ms;
+    int sto = ctx->config.write_timeout_ms > 0
+                  ? (int)ctx->config.write_timeout_ms
+                  : (int)ctx->config.timeout_ms;
+    int rto = ctx->config.read_timeout_ms > 0 ? (int)ctx->config.read_timeout_ms
+                                              : (int)ctx->config.timeout_ms;
+    WinHttpSetTimeouts(slot->hAsyncSession, 0, cto, sto, rto);
+  }
+  if (ctx->config.version_mask != (unsigned int)HTTP_VERSION_DEFAULT) {
+    DWORD proto_flags = 0;
+    if (ctx->config.version_mask & HTTP_VERSION_2) {
+      proto_flags |= WINHTTP_PROTOCOL_FLAG_HTTP2;
+    }
+    if (ctx->config.version_mask & HTTP_VERSION_3) {
+      proto_flags |= WINHTTP_PROTOCOL_FLAG_HTTP3;
+    }
+    if (proto_flags != 0) {
+      WinHttpSetOption(slot->hAsyncSession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL,
+                       &proto_flags, sizeof(proto_flags));
+    }
   }
 
   cap = strlen(req->url) + 1;
@@ -1244,15 +1373,14 @@ static enum c_abstract_http_error winhttp_submit_async_slot(
           req->read_chunk ? (DWORD)req->expected_body_len
                           : (DWORD)req->body_len,
           (DWORD_PTR)slot)) {
-    winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
-    return C_ABSTRACT_HTTP_ERR_IO;
+    return winhttp_async_complete(slot, C_ABSTRACT_HTTP_ERR_IO);
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /* Send multiple HTTP requests asynchronously via WINHTTP_STATUS_CALLBACK +
  * ModalityEventLoop. */
-enum c_abstract_http_error http_winhttp_send_multi(
+NO_DISCARD c_abstract_http_error_t http_winhttp_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
@@ -1263,7 +1391,7 @@ enum c_abstract_http_error http_winhttp_send_multi(
   }
 
   for (i = 0; i < multi->count; ++i) {
-    enum c_abstract_http_error rc =
+    c_abstract_http_error_t rc =
         winhttp_submit_async_slot(ctx, loop, multi->requests[i], futures[i]);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
@@ -1272,3 +1400,24 @@ enum c_abstract_http_error http_winhttp_send_multi(
   LOG_DEBUG("http_winhttp_send_multi: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Exercise `winhttp_async_complete` NULL/finished guards for unit tests.
+ * @param mode 0 to test NULL slot, non-zero to test already-finished slot.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_winhttp_slot_guard(int mode);
+
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_winhttp_slot_guard(int mode) {
+  struct WinHttpAsyncSlot dummy;
+  if (mode == 0) {
+    return winhttp_async_complete(NULL, C_ABSTRACT_HTTP_SUCCESS);
+  }
+  memset(&dummy, 0, sizeof(dummy));
+  dummy.finished = 1;
+  return winhttp_async_complete(&dummy, C_ABSTRACT_HTTP_SUCCESS);
+}
+#endif

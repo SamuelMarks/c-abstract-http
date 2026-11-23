@@ -52,7 +52,7 @@ extern "C" {
 
 #define ABSTRACT_HTTP_DECL_MOCK_INT_VAR(name)                                  \
   extern int g_mock_##name;                                                    \
-  NO_DISCARD enum c_abstract_http_error abstract_http_mock_get_g_mock_##name(  \
+  NO_DISCARD c_abstract_http_error_t abstract_http_mock_get_g_mock_##name(     \
       int **out_ptr);
 
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(sha1_fail)
@@ -281,7 +281,7 @@ ABSTRACT_HTTP_DECL_MOCK_INT_VAR(parser_destroy_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(http_types_strdup_fail)
 
 extern const char *g_mock_recv_data;
-NO_DISCARD enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_get_g_mock_recv_data(const char ***out_ptr);
 
 #if defined(_MSC_VER) && (_MSC_VER < 1900)
@@ -300,8 +300,8 @@ ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void *
 c_abstract_http_mock_realloc(void *ptr, size_t size);
 ABSTRACT_HTTP_MOCK_ALLOC_NOALIAS void c_abstract_http_mock_free(void *ptr);
 
-NO_DISCARD enum c_abstract_http_error c_abstract_http_mock_strdup(const char *s,
-                                                                  char **out);
+NO_DISCARD c_abstract_http_error_t c_abstract_http_mock_strdup(const char *s,
+                                                               char **out);
 
 size_t c_abstract_http_mock_fwrite(const void *ptr, size_t size, size_t nmemb,
                                    FILE *stream);
@@ -367,16 +367,18 @@ extern int c_abstract_http_mock_execv(const char *path, char *const argv[]);
 
 abstract_http_int64_t c_abstract_http_mock_math_get_current_time_ms(void);
 
-enum c_abstract_http_error dummy_cb_thread(void *arg);
+NO_DISCARD c_abstract_http_error_t dummy_cb_thread(void *arg);
 void *dummy_cb_pthread(void *arg);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_set_ws_send_mode(int mode);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_set_oauth2_redirect_env(const char *val);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_set_native_mux_fail(int v);
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_set_loop_op_fail(int op, int countdown);
 #endif
 
 #ifdef __cplusplus

@@ -33,9 +33,10 @@ struct ngh3_chunk_state {
   int abort_call;
 };
 
-static enum c_abstract_http_error ngh3_test_read_cb(void *user_data, void *buf,
-                                                    size_t max_len,
-                                                    size_t *out_read) {
+NO_DISCARD static c_abstract_http_error_t ngh3_test_read_cb(void *user_data,
+                                                            void *buf,
+                                                            size_t max_len,
+                                                            size_t *out_read) {
   struct ngh3_chunk_state *st = (struct ngh3_chunk_state *)user_data;
   if (st->abort_call > 0 && st->calls + 1 >= st->abort_call) {
     return C_ABSTRACT_HTTP_ERR_CANCELED;
@@ -53,7 +54,7 @@ static enum c_abstract_http_error ngh3_test_read_cb(void *user_data, void *buf,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_test_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   struct ngh3_chunk_state *st = (struct ngh3_chunk_state *)user_data;
   (void)chunk;
@@ -65,7 +66,7 @@ ngh3_test_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error ngh3_mock_wakeup_fail(void *ctx) {
+NO_DISCARD static c_abstract_http_error_t ngh3_mock_wakeup_fail(void *ctx) {
   (void)ctx;
   return C_ABSTRACT_HTTP_ERR_IO;
 }
@@ -111,7 +112,7 @@ TEST test_nghttp3_global_and_context_lifecycle(void) {
   {
     int i;
     for (i = 0; i < 4; ++i) {
-      enum c_abstract_http_error rc;
+      c_abstract_http_error_t rc;
       ctx = NULL;
       g_mock_alloc_count = i;
       g_mock_alloc_fail = 1;
@@ -326,7 +327,7 @@ TEST test_nghttp3_h3_loopback_and_branches(void) {
               http_headers_add(&req.headers, "x-hdr", "1"));
 
     for (i = 0; i < 110; ++i) {
-      enum c_abstract_http_error rc;
+      c_abstract_http_error_t rc;
       res = NULL;
       g_mock_alloc_count = i;
       g_mock_alloc_fail = 1;
@@ -480,7 +481,7 @@ TEST test_nghttp3_fallback_proxy_and_parts(void) {
             c_abstract_http_strdup("secret", &cfg.proxy_password));
 
   for (step = 0; step <= 20; ++step) {
-    enum c_abstract_http_error apply_rc;
+    c_abstract_http_error_t apply_rc;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = step;
     apply_rc = http_nghttp3_config_apply(ctx, &cfg);
@@ -504,7 +505,7 @@ TEST test_nghttp3_fallback_proxy_and_parts(void) {
   res = NULL;
 
   for (step = 0; step <= 65; ++step) {
-    enum c_abstract_http_error oom_rc;
+    c_abstract_http_error_t oom_rc;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = step;
     oom_rc = http_nghttp3_send(ctx, &req, &res);
@@ -565,7 +566,7 @@ TEST test_nghttp3_fallback_proxy_and_parts(void) {
   res = NULL;
 
   for (step = 0; step <= 25; ++step) {
-    enum c_abstract_http_error oom_rc;
+    c_abstract_http_error_t oom_rc;
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = step;
     oom_rc = http_nghttp3_send(ctx, &req, &res);
@@ -630,7 +631,7 @@ TEST test_nghttp3_fallback_proxy_and_parts(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_config_apply(ctx, &cfg));
 
     for (step = 0; step <= 80; ++step) {
-      enum c_abstract_http_error frc;
+      c_abstract_http_error_t frc;
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = step;
       frc = http_nghttp3_send(ctx, &req, &res);

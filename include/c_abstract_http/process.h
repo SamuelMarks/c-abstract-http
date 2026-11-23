@@ -38,16 +38,16 @@ struct AbstractHttpIpcPipe {
  * framework.
  */
 struct AbstractHttpProcessHooks {
-  enum c_abstract_http_error (*spawn)(
+  c_abstract_http_error_t (*spawn)(
       struct AbstractHttpProcess **proc, struct AbstractHttpIpcPipe *p2c,
       struct AbstractHttpIpcPipe *c2p); /**< Hook for spawning a process */
-  enum c_abstract_http_error (*wait_and_free)(
+  c_abstract_http_error_t (*wait_and_free)(
       struct AbstractHttpProcess *proc,
       int *exit_code); /**< Hook for waiting and freeing a process */
-  enum c_abstract_http_error (*ipc_write)(
-      void *handle, const void *data, size_t len); /**< Hook for IPC write */
-  enum c_abstract_http_error (*ipc_read)(void *handle, void *data,
-                                         size_t len); /**< Hook for IPC read */
+  c_abstract_http_error_t (*ipc_write)(void *handle, const void *data,
+                                       size_t len); /**< Hook for IPC write */
+  c_abstract_http_error_t (*ipc_read)(void *handle, void *data,
+                                      size_t len); /**< Hook for IPC read */
 };
 
 /**
@@ -71,7 +71,7 @@ abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *ipc_pipe);
  * @param[in] ipc_pipe The pipe to close.
  * @return 0 on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *ipc_pipe);
 
 /**

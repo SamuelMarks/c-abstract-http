@@ -37,7 +37,7 @@ struct test_sse_ctx {
   char last_data[16384];
 };
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_sse_on_event(const struct c_abstract_http_sse_event *ev, void *user_data) {
   struct test_sse_ctx *ctx = (struct test_sse_ctx *)user_data;
   ctx->event_count++;
@@ -70,14 +70,14 @@ test_sse_on_event(const struct c_abstract_http_sse_event *ev, void *user_data) {
   return 0;
 }
 
-static enum c_abstract_http_error test_sse_on_error(int error_code,
-                                                    void *user_data) {
+NO_DISCARD static c_abstract_http_error_t test_sse_on_error(int error_code,
+                                                            void *user_data) {
   struct test_sse_ctx *ctx = (struct test_sse_ctx *)user_data;
   ctx->error_code = error_code;
   return 0;
 }
 
-static enum c_abstract_http_error test_sse_on_close(void *user_data) {
+NO_DISCARD static c_abstract_http_error_t test_sse_on_close(void *user_data) {
   struct test_sse_ctx *ctx = (struct test_sse_ctx *)user_data;
   ctx->close_called = 1;
   return 0;
@@ -265,7 +265,7 @@ TEST test_sse_sync_loop_null(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_send_success(struct HttpTransportContext *ctx,
                   const struct HttpRequest *req,
                   struct HttpResponse **res_out) {
@@ -283,7 +283,7 @@ mock_send_success(struct HttpTransportContext *ctx,
   return 0;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_send_fail(struct HttpTransportContext *ctx, const struct HttpRequest *req,
                struct HttpResponse **res_out) {
   (void)ctx;
@@ -293,7 +293,7 @@ mock_send_fail(struct HttpTransportContext *ctx, const struct HttpRequest *req,
 }
 
 static int mock_on_event_called = 0;
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_on_event_cb(const struct c_abstract_http_sse_event *ev, void *user_data) {
   (void)ev;
   (void)user_data;
@@ -335,7 +335,7 @@ TEST test_sse_sync_loop_fail(void) {
 }
 
 TEST test_sse_max_line_size(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   char *huge_line;
   size_t huge_len = 32768 + 100;
@@ -433,7 +433,7 @@ TEST test_sse_parser_init_null(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_push_fail(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
   (void)ctx;
   (void)cb;
@@ -477,7 +477,7 @@ TEST test_sse_async_register_thread_pool(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_oom_branches(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpRequest req = {0};
   struct c_abstract_http_sse_config config = {0};
   int i;
@@ -522,7 +522,7 @@ TEST test_sse_oom_branches(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_oom(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: hello\n\n";
@@ -543,7 +543,7 @@ TEST test_sse_parser_feed_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_id_oom(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "id: 99\n\n";
@@ -564,7 +564,7 @@ TEST test_sse_parser_feed_id_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_event_oom(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "event: custom\n\n";
@@ -630,7 +630,7 @@ TEST test_sse_parser_feed_data_capacity(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_data_capacity_oom(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[8192];
@@ -749,7 +749,7 @@ TEST test_sse_parser_no_colon(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_dispatch_oom(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   const char *chunk = "data: hi\n\n";
@@ -772,7 +772,7 @@ TEST test_sse_parser_dispatch_oom(void) {
 }
 #endif
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_sse_mock_send_err(struct HttpTransportContext *ctx,
                        const struct HttpRequest *req,
                        struct HttpResponse **res_out) {
@@ -782,7 +782,7 @@ test_sse_mock_send_err(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_ERR_NOMEM;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_sse_mock_send_empty(struct HttpTransportContext *ctx,
                          const struct HttpRequest *req,
                          struct HttpResponse **res_out) {
@@ -798,7 +798,7 @@ test_sse_mock_send_empty(struct HttpTransportContext *ctx,
   return 0;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_sse_mock_send_null_res(struct HttpTransportContext *ctx,
                             const struct HttpRequest *req,
                             struct HttpResponse **res_out) {
@@ -808,7 +808,7 @@ test_sse_mock_send_null_res(struct HttpTransportContext *ctx,
   return 0;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_sse_mock_send_null_body(struct HttpTransportContext *ctx,
                              const struct HttpRequest *req,
                              struct HttpResponse **res_out) {
@@ -890,7 +890,7 @@ TEST test_sse_sync_loop_errors(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_push_success(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
   (void)ctx;
   return cb(arg);
@@ -919,7 +919,7 @@ TEST test_sse_async_register_success(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_realloc_oom(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[8192];
@@ -954,7 +954,7 @@ TEST test_sse_parser_feed_realloc_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[2048];
@@ -977,7 +977,7 @@ TEST test_sse_parser_feed_line_buffer_realloc_oom(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_sse_parser_feed_current_data_oom(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[8192] = {0};
@@ -1030,7 +1030,7 @@ TEST test_sse_parser_feed_current_data_capacity_limit(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_send_success_huge_body(struct HttpTransportContext *ctx,
                             const struct HttpRequest *req,
                             struct HttpResponse **res_out) {
@@ -1065,7 +1065,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
   int i;
 
   for (i = 0; i < 10; i++) {
-    enum c_abstract_http_error sse_rc;
+    c_abstract_http_error_t sse_rc;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = test_sse_mock_send_empty;
     g_mock_alloc_fail = 1;
@@ -1080,7 +1080,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
   }
 
   for (i = 0; i < 10; i++) {
-    enum c_abstract_http_error sse_rc;
+    c_abstract_http_error_t sse_rc;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = test_sse_mock_send_empty;
     g_mock_alloc_fail = 1;
@@ -1096,7 +1096,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
   }
 
   for (i = 0; i < 15; i++) {
-    enum c_abstract_http_error sse_rc;
+    c_abstract_http_error_t sse_rc;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = mock_send_success_huge_body;
     g_mock_alloc_fail = 1;
@@ -1111,7 +1111,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
   }
 
   for (i = 0; i < 15; i++) {
-    enum c_abstract_http_error sse_rc;
+    c_abstract_http_error_t sse_rc;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     client.send = mock_send_success_huge_body;
     g_mock_alloc_fail = 1;
@@ -1131,7 +1131,7 @@ TEST test_sse_sync_loop_oom_branches(void) {
 #endif
 
 TEST test_sse_parser_feed_data_capacity_limit_real(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[50000] = {0};
@@ -1162,7 +1162,7 @@ TEST test_sse_parser_feed_data_capacity_limit_real(void) {
 }
 
 TEST test_sse_parser_feed_current_data_limit_real(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[50000] = {0};
@@ -1202,7 +1202,7 @@ TEST test_sse_async_task_null(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_send_err_for_task(struct HttpTransportContext *ctx,
                        const struct HttpRequest *req,
                        struct HttpResponse **res_out) {
@@ -1251,7 +1251,7 @@ TEST test_sse_async_task_error(void) {
 }
 
 TEST test_sse_parser_feed_huge_single_line(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct sse_parser_ctx parser;
   struct test_sse_ctx ctx = {0};
   char chunk[15000] = {0};
@@ -1374,7 +1374,7 @@ TEST test_sse_mock_free_failures(void) {
 }
 #endif
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_sse_on_event_abort(const struct c_abstract_http_sse_event *ev,
                         void *user_data) {
   (void)ev;
@@ -1382,24 +1382,25 @@ test_sse_on_event_abort(const struct c_abstract_http_sse_event *ev,
   return C_ABSTRACT_HTTP_ERR_CANCELED;
 }
 
-static enum c_abstract_http_error test_sse_on_error_abort(int error_code,
-                                                          void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+test_sse_on_error_abort(int error_code, void *user_data) {
   (void)error_code;
   (void)user_data;
   return C_ABSTRACT_HTTP_ERR_CANCELED;
 }
 
-static enum c_abstract_http_error test_sse_on_close_abort(void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+test_sse_on_close_abort(void *user_data) {
   (void)user_data;
   return C_ABSTRACT_HTTP_ERR_CANCELED;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_sse_mock_send_valid_event(struct HttpTransportContext *ctx,
                                const struct HttpRequest *req,
                                struct HttpResponse **res) {
   const char *payload = "data: hello\n\n";
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)ctx;
   (void)req;
   *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
@@ -1414,7 +1415,7 @@ test_sse_mock_send_valid_event(struct HttpTransportContext *ctx,
   (*res)->status_code = 200;
   (*res)->body = malloc(strlen(payload) + 1);
   if (!(*res)->body) {
-    enum c_abstract_http_error fr_rc = http_response_free(*res);
+    c_abstract_http_error_t fr_rc = http_response_free(*res);
     free(*res);
     *res = NULL;
     if (fr_rc != C_ABSTRACT_HTTP_SUCCESS)
@@ -1513,7 +1514,7 @@ TEST test_sse_callback_error_percolation(void) {
     int ac;
     for (ac = 0; ac < 20; ++ac) {
       struct HttpRequest req_fresh;
-      enum c_abstract_http_error lrc;
+      c_abstract_http_error_t lrc;
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req_fresh));
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = ac;
@@ -1592,7 +1593,7 @@ static char g_sse_seen_last_id_3[32];
 static volatile int g_sse_stop_on_evt_flag = 0;
 static int g_sse_stop_mode = 0;
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_sse_reconn_on_evt(const struct c_abstract_http_sse_event *evt,
                        void *user_data) {
   struct test_sse_ctx *tctx = (struct test_sse_ctx *)user_data;
@@ -1605,7 +1606,7 @@ test_sse_reconn_on_evt(const struct c_abstract_http_sse_event *evt,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_sse_reconn_send(struct HttpTransportContext *ctx,
                      const struct HttpRequest *req,
                      struct HttpResponse **res_out) {
@@ -1647,7 +1648,7 @@ test_sse_reconn_send(struct HttpTransportContext *ctx,
     size_t plen = strlen(payload);
     r->body = malloc(plen + 1);
     if (!r->body) {
-      enum c_abstract_http_error fr = http_response_free(r);
+      c_abstract_http_error_t fr = http_response_free(r);
       free(r);
       return fr != C_ABSTRACT_HTTP_SUCCESS ? fr : C_ABSTRACT_HTTP_ERR_NOMEM;
     }
@@ -1708,7 +1709,7 @@ TEST test_sse_auto_reconnect(void) {
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = k;
       {
-        enum c_abstract_http_error orc = c_abstract_http_sse_sync_read_loop(
+        c_abstract_http_error_t orc = c_abstract_http_sse_sync_read_loop(
             &client, &oreq, test_sse_reconn_on_evt,
             (k == 11) ? test_sse_on_error_abort : test_sse_on_error,
             test_sse_on_close, &tctx, NULL);
@@ -1731,7 +1732,7 @@ TEST test_sse_auto_reconnect(void) {
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = k;
       {
-        enum c_abstract_http_error orc = c_abstract_http_sse_sync_read_loop(
+        c_abstract_http_error_t orc = c_abstract_http_sse_sync_read_loop(
             &client, &oreq, test_sse_reconn_on_evt, test_sse_on_error_abort,
             NULL, &tctx, NULL);
         ASSERT(orc != C_ABSTRACT_HTTP_SUCCESS);
@@ -1757,7 +1758,23 @@ TEST test_sse_auto_reconnect(void) {
   PASS();
 }
 
+TEST test_sse_id_embedded_nul(void) {
+  struct sse_parser_ctx nul_parser;
+  struct test_sse_ctx nul_ctx = {0};
+  const char nul_chunk[] =
+      "id: ok\ndata: first\n\nid: bad\0id\ndata: second\n\n";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_init(&nul_parser, NULL, test_sse_on_event,
+                            test_sse_on_error, test_sse_on_close, &nul_ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            sse_parser_feed(&nul_parser, nul_chunk, sizeof(nul_chunk) - 1));
+  ASSERT_STR_EQ("ok", nul_ctx.last_id);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, sse_parser_destroy(&nul_parser));
+  PASS();
+}
+
 SUITE(sse_suite) {
+  RUN_TEST(test_sse_id_embedded_nul);
   RUN_TEST(test_sse_auto_reconnect);
   RUN_TEST(test_sse_free_helper);
   RUN_TEST(test_sse_callback_error_percolation);

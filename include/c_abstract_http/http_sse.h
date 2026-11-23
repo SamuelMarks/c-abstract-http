@@ -19,16 +19,14 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* SSE public API definitions will go here */
-
 /**
  * @brief SSE connection state.
  */
 enum c_abstract_http_sse_state {
-  C_ABSTRACT_HTTP_SSE_STATE_CONNECTING = 0,
-  C_ABSTRACT_HTTP_SSE_STATE_CONNECTED,
-  C_ABSTRACT_HTTP_SSE_STATE_RECONNECTING,
-  C_ABSTRACT_HTTP_SSE_STATE_CLOSED
+  C_ABSTRACT_HTTP_SSE_STATE_CONNECTING = 0, /**< Initial connection pending */
+  C_ABSTRACT_HTTP_SSE_STATE_CONNECTED,      /**< Stream connected and active */
+  C_ABSTRACT_HTTP_SSE_STATE_RECONNECTING,   /**< Waiting to reconnect */
+  C_ABSTRACT_HTTP_SSE_STATE_CLOSED          /**< Stream permanently closed */
 };
 
 /**
@@ -56,7 +54,7 @@ struct c_abstract_http_sse_config {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef enum c_abstract_http_error (*c_abstract_http_sse_on_event)(
+typedef c_abstract_http_error_t (*c_abstract_http_sse_on_event)(
     const struct c_abstract_http_sse_event *ev, void *user_data);
 
 /**
@@ -66,7 +64,7 @@ typedef enum c_abstract_http_error (*c_abstract_http_sse_on_event)(
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef enum c_abstract_http_error (*c_abstract_http_sse_on_error)(
+typedef c_abstract_http_error_t (*c_abstract_http_sse_on_error)(
     int error_code, void *user_data);
 
 /**
@@ -75,7 +73,7 @@ typedef enum c_abstract_http_error (*c_abstract_http_sse_on_error)(
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef enum c_abstract_http_error (*c_abstract_http_sse_on_close)(
+typedef c_abstract_http_error_t (*c_abstract_http_sse_on_close)(
     void *user_data);
 
 /**
@@ -133,7 +131,7 @@ c_abstract_http_sse_async_register(struct HttpClient *client,
  * @param req The HTTP request containing the SSE context.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_sse_free(struct HttpRequest *req);
 
 #ifdef __cplusplus

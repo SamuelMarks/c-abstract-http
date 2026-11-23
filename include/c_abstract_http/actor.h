@@ -56,31 +56,31 @@ struct AbstractHttpMessage {
  * @param[in] msg The message received.
  * @return 0 on success.
  */
-typedef enum c_abstract_http_error (*abstract_http_actor_handler_cb)(
+typedef c_abstract_http_error_t (*abstract_http_actor_handler_cb)(
     struct AbstractHttpActor *actor, struct AbstractHttpMessage *msg);
 
 /**
  * @brief External hooks for actor management.
  */
 struct AbstractHttpActorHooks {
-  enum c_abstract_http_error (*bus_init)(
+  c_abstract_http_error_t (*bus_init)(
       struct AbstractHttpMessageBus **bus); /**< Hook for bus initialization */
-  enum c_abstract_http_error (*bus_free)(
+  c_abstract_http_error_t (*bus_free)(
       struct AbstractHttpMessageBus *bus); /**< Hook for bus destruction */
-  enum c_abstract_http_error (*bus_process)(
+  c_abstract_http_error_t (*bus_process)(
       struct AbstractHttpMessageBus *bus,
       int *out_processed); /**< Hook to process messages */
-  enum c_abstract_http_error (*actor_spawn)(
+  c_abstract_http_error_t (*actor_spawn)(
       struct AbstractHttpMessageBus *bus, const char *name,
       abstract_http_actor_handler_cb handler, void *state,
       struct AbstractHttpActor **actor); /**< Hook for spawning actors */
-  enum c_abstract_http_error (*actor_send)(
+  c_abstract_http_error_t (*actor_send)(
       struct AbstractHttpMessageBus *bus,
       const struct AbstractHttpMessage *msg); /**< Hook for sending messages */
-  enum c_abstract_http_error (*actor_get_state)(
+  c_abstract_http_error_t (*actor_get_state)(
       struct AbstractHttpActor *actor,
       void **state); /**< Hook for retrieving state */
-  enum c_abstract_http_error (*actor_get_name)(
+  c_abstract_http_error_t (*actor_get_name)(
       const struct AbstractHttpActor *actor,
       const char **name); /**< Hook for retrieving name */
 };
@@ -106,7 +106,7 @@ abstract_http_message_bus_init(struct AbstractHttpMessageBus **bus);
  * @param[in] bus The bus handle.
  * @return 0 on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus);
 
 /**

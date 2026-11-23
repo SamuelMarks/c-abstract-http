@@ -1,14 +1,13 @@
 /**
  * @file http_libuv.h
- * @brief Liblibuv implementation of the Abstract Network Interface (ANI).
+ * @brief libuv implementation of the Abstract Network Interface (ANI).
  *
- * Provides functions to instantiate a transport context backed by liblibuv.
- * Handles the mapping between the generic `HttpClient`/`HttpRequest` structures
- * and the specific `libuv` handle options.
+ * Provides functions to instantiate a transport context backed by `libuv`
+ * (`uv_tcp_t` + HTTP/1.1 framing and optional OpenSSL/mbedTLS memory BIOs).
  *
  * Includes support for:
  * - Reference-counted global initialization.
- * - Configuration application (Timeouts, SSL, Proxy).
+ * - Configuration application (Timeouts, TLS BIO verification/pinning, Proxy).
  * - Comprehensive error code mapping.
  *
  * @author Samuel Marks
@@ -29,13 +28,10 @@ extern "C" {
 /**
  * @brief Initialize the global libuv environment safely.
  *
- * Uses an internal reference counter to ensure `libuv_global_init` is called
- * called exactly once on the first invocation, and `libuv_global_cleanup` only
- * on the last. This allows multiple independent clients to initialize/cleanup
- * without race conditions (assuming single-threaded startup or external
- * locking, as C89 lacks mutexes).
+ * Uses an internal reference counter to ensure global initialization runs once
+ * on the first invocation and tears down only on the last.
  *
- * @return 0 on success, EIO on failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libuv_global_init(void);
@@ -43,66 +39,59 @@ http_libuv_global_init(void);
 /**
  * @brief Decrement the global initialization reference count.
  *
- * If the count reaches zero, `libuv_global_cleanup` is invoked.
+ * Tears down global state when the reference count reaches zero.
  *
- * @return 0 on success.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libuv_global_cleanup(void);
 
 /**
  * @brief Create a new libuv-backed transport context.
- * Internal allocates a libuv handle for reuse.
  *
  * @param[out] ctx Double pointer to receive the allocated context.
- * @return 0 on success, ENOMEM on allocation failure, EIO on libuv init
- * failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or ENOMEM/EIO error code.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libuv_context_init(struct HttpTransportContext **ctx);
 
 /**
  * @brief Free the transport context.
- * Cleans up the internal libuv handle and any cached configuration.
+ * Cleans up the internal libuv loop/context and any cached configuration.
  *
  * @param[in] ctx The context to free. Safe to pass NULL.
- * @return 0 on success, or an error code.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libuv_context_free(struct HttpTransportContext *ctx);
 
 /**
- * @brief Apply configuration settings to the libuv handle.
+ * @brief Apply configuration settings to the libuv transport context.
  *
- * Maps abstract `HttpConfig` settings (timeout, verify peer, proxy, user-agent)
- * to specific `libuv_easy_setopt` calls. This should be called after
- * context_init and before sending requests if custom settings are required.
+ * Stores abstract `HttpConfig` settings (timeouts, TLS verification/pinning,
+ * proxy, user-agent, redirects) for subsequent `uv_tcp_t` requests.
  *
  * @param[in] ctx The transport context.
  * @param[in] config The configuration structure to apply.
- * @return 0 on success, EINVAL if inputs invalid, or EIO if setopt fails.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code on failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_libuv_config_apply(
     struct HttpTransportContext *ctx, const struct HttpConfig *config);
 
 /**
- * @brief The send implementation for liblibuv.
+ * @brief Synchronous send implementation for `libuv`.
  * Matches `http_send_fn` signature.
  *
- * Performs the HTTP request using the stored libuv handle.
- * 1. Resets reusable handle state (except sticky options like connection
- * cache).
- * 2. Sets Method, URL, Body, and Headers from `req`.
- * 3. Executes request (`libuv_easy_perform`).
- * 4. Captures Response Code and Body.
- * 5. Maps libuv errors to system `errno` codes.
+ * Executes an HTTP/1.1 request over `uv_tcp_t` (with optional TLS memory-BIO
+ * wrapping, HTTP proxy / `CONNECT` tunneling, redirect following, and chunked
+ * streaming).
  *
  * @param[in] ctx The transport context.
  * @param[in] req The request to send.
  * @param[out] res Double pointer to receive the newly allocated response
  * object.
- * @return 0 on success, or a mapped error code (e.g. ETIMEDOUT, ECONNREFUSED)
- * on failure.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or a mapped error code on
+ * failure.
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libuv_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
@@ -120,7 +109,7 @@ http_libuv_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
  * @param[out] futures Array of futures populated with responses/errors.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error http_libuv_send_multi(
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_libuv_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 

@@ -43,6 +43,8 @@
 #else
 #include <c_abstract_http/http_winhttp.h>
 #endif
+#elif defined(__APPLE__) && defined(__clang__)
+#include <c_abstract_http/http_apple.h>
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <c_abstract_http/http_raw.h>
 #else
@@ -57,7 +59,7 @@
  * @brief Initialize global transport state.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-enum c_abstract_http_error transport_global_init(void) {
+NO_DISCARD c_abstract_http_error_t transport_global_init(void) {
 #if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
   return http_picoquic_global_init();
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
@@ -92,6 +94,8 @@ enum c_abstract_http_error transport_global_init(void) {
 #else
   return http_winhttp_global_init();
 #endif
+#elif defined(__APPLE__) && defined(__clang__)
+  return http_apple_global_init();
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   return http_raw_global_init();
 #else
@@ -103,7 +107,7 @@ enum c_abstract_http_error transport_global_init(void) {
  * @brief Cleanup global transport state.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-enum c_abstract_http_error transport_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t transport_global_cleanup(void) {
 #if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
   return http_picoquic_global_cleanup();
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
@@ -138,6 +142,8 @@ enum c_abstract_http_error transport_global_cleanup(void) {
 #else
   return http_winhttp_global_cleanup();
 #endif
+#elif defined(__APPLE__) && defined(__clang__)
+  return http_apple_global_cleanup();
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   return http_raw_global_cleanup();
 #else
@@ -146,9 +152,9 @@ enum c_abstract_http_error transport_global_cleanup(void) {
 }
 
 /* Initialize a client with the active transport backend. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 transport_factory_init_client(struct HttpClient *client) {
-  enum c_abstract_http_error err;
+  c_abstract_http_error_t err;
 
   if (!client) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -262,6 +268,7 @@ transport_factory_init_client(struct HttpClient *client) {
     return err;
   }
   client->send = http_wininet_send;
+  client->send_multi = http_wininet_send_multi;
 #else
   err = http_winhttp_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
@@ -270,6 +277,13 @@ transport_factory_init_client(struct HttpClient *client) {
   client->send = http_winhttp_send;
   client->send_multi = http_winhttp_send_multi;
 #endif
+#elif defined(__APPLE__) && defined(__clang__)
+  err = http_apple_context_init(&client->transport);
+  if (err != C_ABSTRACT_HTTP_SUCCESS) {
+    return err;
+  }
+  client->send = http_apple_send;
+  client->send_multi = http_apple_send_multi;
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   err = http_raw_context_init(&client->transport);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
@@ -289,7 +303,7 @@ transport_factory_init_client(struct HttpClient *client) {
 }
 
 /* Cleanup a client's active transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 transport_factory_cleanup_client(struct HttpClient *client) {
   if (!client || !client->transport) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -297,119 +311,117 @@ transport_factory_cleanup_client(struct HttpClient *client) {
 
 #if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
   {
-    enum c_abstract_http_error rc =
-        http_picoquic_context_free(client->transport);
+    c_abstract_http_error_t rc = http_picoquic_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
   {
-    enum c_abstract_http_error rc = http_msh3_context_free(client->transport);
+    c_abstract_http_error_t rc = http_msh3_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
   {
-    enum c_abstract_http_error rc = http_xquic_context_free(client->transport);
+    c_abstract_http_error_t rc = http_xquic_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
   {
-    enum c_abstract_http_error rc = http_lsquic_context_free(client->transport);
+    c_abstract_http_error_t rc = http_lsquic_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
   {
-    enum c_abstract_http_error rc =
-        http_nghttp3_context_free(client->transport);
+    c_abstract_http_error_t rc = http_nghttp3_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
   {
-    enum c_abstract_http_error rc =
-        http_libsoup3_context_free(client->transport);
+    c_abstract_http_error_t rc = http_libsoup3_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
   {
-    enum c_abstract_http_error rc = http_libuv_context_free(client->transport);
+    c_abstract_http_error_t rc = http_libuv_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
   {
-    enum c_abstract_http_error rc =
-        http_libevent_context_free(client->transport);
+    c_abstract_http_error_t rc = http_libevent_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
   {
-    enum c_abstract_http_error rc = http_fetch_context_free(client->transport);
+    c_abstract_http_error_t rc = http_fetch_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
   {
-    enum c_abstract_http_error rc = http_raw_context_free(client->transport);
+    c_abstract_http_error_t rc = http_raw_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_WININET)
   {
-    enum c_abstract_http_error rc =
-        http_wininet_context_free(client->transport);
+    c_abstract_http_error_t rc = http_wininet_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_WINHTTP)
   {
-    enum c_abstract_http_error rc =
-        http_winhttp_context_free(client->transport);
+    c_abstract_http_error_t rc = http_winhttp_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_APPLE)
   {
-    enum c_abstract_http_error rc = http_apple_context_free(client->transport);
+    c_abstract_http_error_t rc = http_apple_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(C_ABSTRACT_HTTP_USE_WASM) || defined(__EMSCRIPTEN__)
   {
-    enum c_abstract_http_error rc = http_wasm_context_free(client->transport);
+    c_abstract_http_error_t rc = http_wasm_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #if defined(_MSC_VER) && _MSC_VER < 1600
   {
-    enum c_abstract_http_error rc =
-        http_wininet_context_free(client->transport);
+    c_abstract_http_error_t rc = http_wininet_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #else
   {
-    enum c_abstract_http_error rc =
-        http_winhttp_context_free(client->transport);
+    c_abstract_http_error_t rc = http_winhttp_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #endif
+#elif defined(__APPLE__) && defined(__clang__)
+  {
+    c_abstract_http_error_t rc = http_apple_context_free(client->transport);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+      return rc;
+  }
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   {
-    enum c_abstract_http_error rc = http_raw_context_free(client->transport);
+    c_abstract_http_error_t rc = http_raw_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }
 #else
   {
-    enum c_abstract_http_error rc = http_curl_context_free(client->transport);
+    c_abstract_http_error_t rc = http_curl_context_free(client->transport);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
   }

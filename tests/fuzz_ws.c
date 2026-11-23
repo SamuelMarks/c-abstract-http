@@ -21,7 +21,7 @@
  * @param[in] user_data Opaque pointer to user data.
  * @return 0 on success.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dummy_on_msg(const struct c_abstract_http_ws_event *ev, void *user_data) {
   (void)ev;
   (void)user_data;
@@ -35,8 +35,8 @@ dummy_on_msg(const struct c_abstract_http_ws_event *ev, void *user_data) {
  * @param[in] user_data Opaque pointer to user data.
  * @return 0 on success.
  */
-static enum c_abstract_http_error dummy_on_err(int error_code,
-                                               void *user_data) {
+NO_DISCARD static c_abstract_http_error_t dummy_on_err(int error_code,
+                                                       void *user_data) {
   (void)error_code;
   (void)user_data;
   return 0;
@@ -49,8 +49,8 @@ static enum c_abstract_http_error dummy_on_err(int error_code,
  * @param[in] user_data Opaque pointer to user data.
  * @return 0 on success.
  */
-static enum c_abstract_http_error dummy_on_close(int status_code,
-                                                 void *user_data) {
+NO_DISCARD static c_abstract_http_error_t dummy_on_close(int status_code,
+                                                         void *user_data) {
   (void)status_code;
   (void)user_data;
   return 0;
@@ -65,10 +65,10 @@ static enum c_abstract_http_error dummy_on_close(int status_code,
  * @return C_ABSTRACT_HTTP_SUCCESS on completion, C_ABSTRACT_HTTP_ERR_INVAL if
  * invalid.
  */
-enum c_abstract_http_error test_fuzz_ws_run(const uint8_t *data, size_t size,
-                                            int *out_rc) {
+NO_DISCARD c_abstract_http_error_t test_fuzz_ws_run(const uint8_t *data,
+                                                    size_t size, int *out_rc) {
   struct ws_parser_ctx ctx;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (out_rc != NULL) {
     *out_rc = 0;
@@ -107,7 +107,7 @@ enum c_abstract_http_error test_fuzz_ws_run(const uint8_t *data, size_t size,
  */
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   int rc = 0;
-  enum c_abstract_http_error err = test_fuzz_ws_run(data, size, &rc);
+  c_abstract_http_error_t err = test_fuzz_ws_run(data, size, &rc);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
     return (int)err;
   }
@@ -125,8 +125,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
  * @param[out] out_rc Optional pointer to receive parser exit code.
  * @return C_ABSTRACT_HTTP_SUCCESS on completion.
  */
-enum c_abstract_http_error test_fuzz_ws_run(const uint8_t *data, size_t size,
-                                            int *out_rc) {
+NO_DISCARD c_abstract_http_error_t test_fuzz_ws_run(const uint8_t *data,
+                                                    size_t size, int *out_rc) {
   if (data || size) {
     /* pass */
   }

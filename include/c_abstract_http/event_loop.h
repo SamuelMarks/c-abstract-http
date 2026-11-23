@@ -52,8 +52,9 @@ enum HttpLoopBackend {
  * @param[in] user_data User context pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-typedef enum c_abstract_http_error (*http_loop_cb)(
-    struct ModalityEventLoop *loop, int fd, int events, void *user_data);
+typedef c_abstract_http_error_t (*http_loop_cb)(struct ModalityEventLoop *loop,
+                                                int fd, int events,
+                                                void *user_data);
 
 /**
  * @brief Callback for timeout events.
@@ -62,8 +63,8 @@ typedef enum c_abstract_http_error (*http_loop_cb)(
  * @param[in] user_data User context pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-typedef enum c_abstract_http_error (*http_timer_cb)(
-    struct ModalityEventLoop *loop, int timer_id, void *user_data);
+typedef c_abstract_http_error_t (*http_timer_cb)(struct ModalityEventLoop *loop,
+                                                 int timer_id, void *user_data);
 
 /**
  * @brief Hooks for integrating with an external framework's event loop (e.g.,
@@ -73,23 +74,23 @@ struct HttpLoopHooks {
   void *external_context; /**< Context passed to hooks */
 
   /* Polling Hooks */
-  enum c_abstract_http_error (*add_fd)(
+  c_abstract_http_error_t (*add_fd)(
       void *ctx, int fd, int events, http_loop_cb cb,
       void *user_data); /**< Register file descriptor */
-  enum c_abstract_http_error (*mod_fd)(
+  c_abstract_http_error_t (*mod_fd)(
       void *ctx, int fd, int events); /**< Modify file descriptor events */
-  enum c_abstract_http_error (*remove_fd)(
-      void *ctx, int fd); /**< Remove file descriptor */
+  c_abstract_http_error_t (*remove_fd)(void *ctx,
+                                       int fd); /**< Remove file descriptor */
 
   /* Timer Hooks */
-  enum c_abstract_http_error (*add_timer)(
+  c_abstract_http_error_t (*add_timer)(
       void *ctx, long timeout_ms, http_timer_cb cb, void *user_data,
       int *out_timer_id); /**< Register a timer */
-  enum c_abstract_http_error (*cancel_timer)(
-      void *ctx, int timer_id); /**< Cancel a timer */
+  c_abstract_http_error_t (*cancel_timer)(void *ctx,
+                                          int timer_id); /**< Cancel a timer */
 
   /* Wakeup Hook */
-  enum c_abstract_http_error (*wakeup)(
+  c_abstract_http_error_t (*wakeup)(
       void *ctx); /**< Wake up the event loop thread */
 };
 
@@ -135,7 +136,7 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_loop_init_external(
  * @param[in] loop The event loop context.
  * @return 0 on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_loop_free(struct ModalityEventLoop *loop);
 
 /**

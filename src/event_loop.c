@@ -241,8 +241,8 @@ extern int g_mock_timer_heap_swap_fail;
  * @param b Second timer node.
  * @return C_ABSTRACT_HTTP_SUCCESS or simulated error enum.
  */
-static enum c_abstract_http_error timer_heap_swap(struct TimerNode *a,
-                                                  struct TimerNode *b) {
+NO_DISCARD static c_abstract_http_error_t timer_heap_swap(struct TimerNode *a,
+                                                          struct TimerNode *b) {
   struct TimerNode temp = *a;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_timer_heap_swap_fail) {
@@ -262,9 +262,9 @@ static enum c_abstract_http_error timer_heap_swap(struct TimerNode *a,
  * @param idx Index of inserted node.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static enum c_abstract_http_error timer_heap_up(struct ModalityEventLoop *loop,
-                                                size_t idx) {
-  enum c_abstract_http_error rc;
+NO_DISCARD static c_abstract_http_error_t
+timer_heap_up(struct ModalityEventLoop *loop, size_t idx) {
+  c_abstract_http_error_t rc;
   while (idx > 0) {
     size_t parent = (idx - 1) / 2;
     if (loop->timers[idx].expiration >= loop->timers[parent].expiration) {
@@ -284,9 +284,9 @@ static enum c_abstract_http_error timer_heap_up(struct ModalityEventLoop *loop,
  * @param idx Index of node to sift down.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   for (;;) {
     size_t left = 2 * idx + 1;
     size_t right = 2 * idx + 2;
@@ -320,6 +320,10 @@ extern int g_mock_select_fail;
 extern int g_mock_select_error_fds;
 /** @brief Fault-injection flag for native multiplexer init failure */
 static int g_mock_native_mux_fail = 0;
+/** @brief Fault-injection operation code for event-loop op failures */
+static int g_mock_loop_op_fail = 0;
+/** @brief Countdown before `g_mock_loop_op_fail` triggers */
+static int g_mock_loop_op_countdown = 0;
 
 /**
  * @brief Configure test-only native multiplexer (`epoll`/`kqueue`/`IOCP`)
@@ -327,13 +331,47 @@ static int g_mock_native_mux_fail = 0;
  * @param v Non-zero to force native multiplexer init failure.
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_test_set_native_mux_fail(int v);
 
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_test_set_native_mux_fail(int v) {
   g_mock_native_mux_fail = v;
   return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Configure one-shot event-loop operation fault injection for tests.
+ * @param op Operation code (0=off, 1=free, 2=unstop, 3=wakeup, 4=add_timer,
+ * 5=run, 6=cancel_timer, 7=remove_fd).
+ * @param countdown Number of successful calls before triggering (`0` = next).
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_test_set_loop_op_fail(int op, int countdown);
+
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_test_set_loop_op_fail(int op, int countdown) {
+  g_mock_loop_op_fail = op;
+  g_mock_loop_op_countdown = countdown;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Check whether a one-shot event-loop fault-injection op should fire.
+ * @param op Operation code to match.
+ * @return 1 if fault should fire on this call, 0 otherwise.
+ */
+static int math_loop_should_fail_op(int op) {
+  if (g_mock_loop_op_fail != op) {
+    return 0;
+  }
+  if (g_mock_loop_op_countdown > 0) {
+    g_mock_loop_op_countdown--;
+    return 0;
+  }
+  g_mock_loop_op_fail = 0;
+  return 1;
 }
 #endif
 
@@ -393,8 +431,8 @@ static int math_resolve_loop_backend(enum HttpLoopBackend requested) {
  * @param events `HttpLoopEvent` bitmask.
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-static enum c_abstract_http_error epoll_sync_fd(struct ModalityEventLoop *loop,
-                                                int op, int fd, int events) {
+NO_DISCARD static c_abstract_http_error_t
+epoll_sync_fd(struct ModalityEventLoop *loop, int op, int fd, int events) {
   struct epoll_event ev;
   if (loop->backend != HTTP_LOOP_BACKEND_EPOLL || loop->epoll_fd < 0 ||
       loop->fallback_to_select) {
@@ -427,9 +465,9 @@ static enum c_abstract_http_error epoll_sync_fd(struct ModalityEventLoop *loop,
  * @param new_events New `HttpLoopEvent` bitmask (`0` on remove).
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-static enum c_abstract_http_error kqueue_sync_fd(struct ModalityEventLoop *loop,
-                                                 int fd, int old_events,
-                                                 int new_events) {
+NO_DISCARD static c_abstract_http_error_t
+kqueue_sync_fd(struct ModalityEventLoop *loop, int fd, int old_events,
+               int new_events) {
   struct kevent changes[2];
   struct timespec zero_ts;
   int n = 0;
@@ -437,6 +475,12 @@ static enum c_abstract_http_error kqueue_sync_fd(struct ModalityEventLoop *loop,
   int new_r = (new_events & (HTTP_LOOP_READ | HTTP_LOOP_ERROR)) ? 1 : 0;
   int old_w = (old_events & HTTP_LOOP_WRITE) ? 1 : 0;
   int new_w = (new_events & HTTP_LOOP_WRITE) ? 1 : 0;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (math_loop_should_fail_op(9)) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
 
   if (loop->backend != HTTP_LOOP_BACKEND_KQUEUE || loop->kq_fd < 0 ||
       loop->fallback_to_select) {
@@ -470,9 +514,8 @@ static enum c_abstract_http_error kqueue_sync_fd(struct ModalityEventLoop *loop,
 }
 #endif
 
-enum c_abstract_http_error
-http_loop_init_external(struct ModalityEventLoop **loop,
-                        const struct HttpLoopHooks *hooks) {
+NO_DISCARD c_abstract_http_error_t http_loop_init_external(
+    struct ModalityEventLoop **loop, const struct HttpLoopHooks *hooks) {
   struct ModalityEventLoop *l;
   if (!loop || !hooks) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -493,9 +536,8 @@ http_loop_init_external(struct ModalityEventLoop **loop,
 }
 
 /** @brief Query active I/O backend of an event loop */
-enum c_abstract_http_error
-http_loop_get_backend(const struct ModalityEventLoop *loop,
-                      enum HttpLoopBackend *out_backend) {
+NO_DISCARD c_abstract_http_error_t http_loop_get_backend(
+    const struct ModalityEventLoop *loop, enum HttpLoopBackend *out_backend) {
   if (!loop || !out_backend) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -505,9 +547,8 @@ http_loop_get_backend(const struct ModalityEventLoop *loop,
 }
 
 /** @brief Initialize a new event loop instance with an explicit backend */
-enum c_abstract_http_error
-http_loop_init_with_backend(struct ModalityEventLoop **loop,
-                            enum HttpLoopBackend backend) {
+NO_DISCARD c_abstract_http_error_t http_loop_init_with_backend(
+    struct ModalityEventLoop **loop, enum HttpLoopBackend backend) {
   struct ModalityEventLoop *l;
   int resolved;
   LOG_DEBUG("http_loop_init_with_backend: Entering");
@@ -663,12 +704,14 @@ http_loop_init_with_backend(struct ModalityEventLoop **loop,
 }
 
 /** @brief Initialize a new event loop instance */
-enum c_abstract_http_error http_loop_init(struct ModalityEventLoop **loop) {
+NO_DISCARD c_abstract_http_error_t
+http_loop_init(struct ModalityEventLoop **loop) {
   return http_loop_init_with_backend(loop, HTTP_LOOP_BACKEND_AUTO);
 }
 
 /** @brief Free an event loop instance */
-enum c_abstract_http_error http_loop_free(struct ModalityEventLoop *loop) {
+NO_DISCARD c_abstract_http_error_t
+http_loop_free(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_free: Entering");
   if (!loop) {
     LOG_DEBUG("http_loop_free: Exiting early (loop is NULL)");
@@ -707,16 +750,27 @@ enum c_abstract_http_error http_loop_free(struct ModalityEventLoop *loop) {
   }
   free(loop);
   LOG_DEBUG("http_loop_free: Exiting");
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (math_loop_should_fail_op(1)) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /** @brief Wake up an event loop waiting for events */
-enum c_abstract_http_error http_loop_wakeup(struct ModalityEventLoop *loop) {
+NO_DISCARD c_abstract_http_error_t
+http_loop_wakeup(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_wakeup: Entering");
   if (!loop) {
     LOG_DEBUG("http_loop_wakeup: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (math_loop_should_fail_op(3)) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
 
   if (loop->has_hooks) {
     if (loop->hooks.wakeup) {
@@ -752,9 +806,9 @@ enum c_abstract_http_error http_loop_wakeup(struct ModalityEventLoop *loop) {
 }
 
 /** @brief Add a file descriptor to the event loop */
-enum c_abstract_http_error http_loop_add_fd(struct ModalityEventLoop *loop,
-                                            int fd, int events, http_loop_cb cb,
-                                            void *user_data) {
+NO_DISCARD c_abstract_http_error_t
+http_loop_add_fd(struct ModalityEventLoop *loop, int fd, int events,
+                 http_loop_cb cb, void *user_data) {
   size_t i;
   LOG_DEBUG("http_loop_add_fd: Entering");
   if (!loop || fd < 0) {
@@ -807,6 +861,13 @@ enum c_abstract_http_error http_loop_add_fd(struct ModalityEventLoop *loop,
   loop->fds[i].user_data = user_data;
   loop->fds[i].active = 1;
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (math_loop_should_fail_op(8)) {
+    loop->fds[i].active = 0;
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+
 #if defined(CAH_HAVE_EPOLL)
   return epoll_sync_fd(loop, EPOLL_CTL_ADD, fd, events);
 #elif defined(CAH_HAVE_KQUEUE)
@@ -818,8 +879,8 @@ enum c_abstract_http_error http_loop_add_fd(struct ModalityEventLoop *loop,
 }
 
 /** @brief Modify watched events for a file descriptor in the event loop */
-enum c_abstract_http_error http_loop_mod_fd(struct ModalityEventLoop *loop,
-                                            int fd, int events) {
+NO_DISCARD c_abstract_http_error_t
+http_loop_mod_fd(struct ModalityEventLoop *loop, int fd, int events) {
   size_t i;
   LOG_DEBUG("http_loop_mod_fd: Entering");
   if (!loop || fd < 0) {
@@ -857,8 +918,8 @@ enum c_abstract_http_error http_loop_mod_fd(struct ModalityEventLoop *loop,
 }
 
 /** @brief Remove a file descriptor from the event loop */
-enum c_abstract_http_error http_loop_remove_fd(struct ModalityEventLoop *loop,
-                                               int fd) {
+NO_DISCARD c_abstract_http_error_t
+http_loop_remove_fd(struct ModalityEventLoop *loop, int fd) {
   size_t i;
   LOG_DEBUG("http_loop_remove_fd: Entering");
   if (!loop || fd < 0) {
@@ -883,29 +944,49 @@ enum c_abstract_http_error http_loop_remove_fd(struct ModalityEventLoop *loop,
       loop->fds[i].active = 0;
       loop->fds[i].pending_revents = 0;
 #if defined(CAH_HAVE_EPOLL)
-      return epoll_sync_fd(loop, EPOLL_CTL_DEL, fd, 0);
+      {
+        c_abstract_http_error_t src_rc =
+            epoll_sync_fd(loop, EPOLL_CTL_DEL, fd, 0);
+        if (src_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return src_rc;
+        }
+      }
 #elif defined(CAH_HAVE_KQUEUE)
-      return kqueue_sync_fd(loop, fd, old_ev, 0);
-#else
+      {
+        c_abstract_http_error_t src_rc = kqueue_sync_fd(loop, fd, old_ev, 0);
+        if (src_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return src_rc;
+        }
+      }
+#endif
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+      if (math_loop_should_fail_op(7)) {
+        return C_ABSTRACT_HTTP_ERR_IO;
+      }
+#endif
       LOG_DEBUG("http_loop_remove_fd: Success");
       return C_ABSTRACT_HTTP_SUCCESS;
-#endif
     }
   }
   LOG_DEBUG("http_loop_remove_fd: Error ENOENT");
   return C_ABSTRACT_HTTP_ERR_INVAL;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
                     http_timer_cb cb, void *user_data, int *out_timer_id) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   int id;
   LOG_DEBUG("http_loop_add_timer: Entering");
   if (!loop || !cb) {
     LOG_DEBUG("http_loop_add_timer: Error EINVAL");
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (math_loop_should_fail_op(4)) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
 
   if (loop->has_hooks) {
     if (loop->hooks.add_timer) {
@@ -949,7 +1030,7 @@ http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
   size_t i;
   LOG_DEBUG("http_loop_cancel_timer: Entering");
@@ -970,6 +1051,11 @@ http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
   for (i = 0; i < loop->timer_count; ++i) {
     if (loop->timers[i].id == timer_id && loop->timers[i].active) {
       loop->timers[i].active = 0;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+      if (math_loop_should_fail_op(6)) {
+        return C_ABSTRACT_HTTP_ERR_IO;
+      }
+#endif
       /* We lazily remove it when it reaches the top of the heap */
       LOG_DEBUG("http_loop_cancel_timer: Success");
       return C_ABSTRACT_HTTP_SUCCESS;
@@ -984,9 +1070,9 @@ http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
  * @param loop Active event loop instance.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum percolated from callbacks.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 process_timers(struct ModalityEventLoop *loop) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   abstract_http_int64_t now;
   struct TimerNode fired;
 
@@ -1013,8 +1099,7 @@ process_timers(struct ModalityEventLoop *loop) {
     loop->timer_count--;
 
     if (fired.active) {
-      enum c_abstract_http_error cb_rc =
-          fired.cb(loop, fired.id, fired.user_data);
+      c_abstract_http_error_t cb_rc = fired.cb(loop, fired.id, fired.user_data);
       if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return cb_rc;
       }
@@ -1030,14 +1115,14 @@ process_timers(struct ModalityEventLoop *loop) {
  * @param loop Event loop context.
  * @return C_ABSTRACT_HTTP_SUCCESS or first callback error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dispatch_pending_fd_callbacks(struct ModalityEventLoop *loop) {
   size_t i;
   for (i = 0; i < loop->fd_count; ++i) {
     if (loop->fds[i].active && loop->fds[i].pending_revents != 0) {
       int revents = loop->fds[i].pending_revents;
       abstract_http_int64_t start_cb = math_get_current_time_ms();
-      enum c_abstract_http_error cb_rc;
+      c_abstract_http_error_t cb_rc;
       loop->fds[i].pending_revents = 0;
       cb_rc = loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                               loop->fds[i].user_data);
@@ -1078,7 +1163,7 @@ static int math_count_active_fds(struct ModalityEventLoop *loop) {
  * @param timeout_ms Timeout in milliseconds (`0` non-blocking, `<0` infinite).
  * @return C_ABSTRACT_HTTP_SUCCESS or callback error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 poll_select_once(struct ModalityEventLoop *loop, int active_fds,
                  abstract_http_int64_t timeout_ms) {
   size_t i;
@@ -1194,7 +1279,7 @@ poll_select_once(struct ModalityEventLoop *loop, int active_fds,
  * @param timeout_ms Timeout in milliseconds (`0` non-blocking, `<0` infinite).
  * @return C_ABSTRACT_HTTP_SUCCESS or callback error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 poll_epoll_once(struct ModalityEventLoop *loop,
                 abstract_http_int64_t timeout_ms) {
   struct epoll_event ev_batch[64];
@@ -1246,7 +1331,7 @@ poll_epoll_once(struct ModalityEventLoop *loop,
  * @param timeout_ms Timeout in milliseconds (`0` non-blocking, `<0` infinite).
  * @return C_ABSTRACT_HTTP_SUCCESS or callback error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 poll_kqueue_once(struct ModalityEventLoop *loop,
                  abstract_http_int64_t timeout_ms) {
   struct kevent ev_batch[64];
@@ -1305,7 +1390,7 @@ poll_kqueue_once(struct ModalityEventLoop *loop,
  * @param timeout_ms Timeout in milliseconds (`0` non-blocking, `<0` infinite).
  * @return C_ABSTRACT_HTTP_SUCCESS or callback error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 poll_iocp_once(struct ModalityEventLoop *loop, int active_fds,
                abstract_http_int64_t timeout_ms) {
   DWORD bytes = 0;
@@ -1433,7 +1518,7 @@ poll_iocp_once(struct ModalityEventLoop *loop, int active_fds,
  * @param timeout_ms Timeout in milliseconds (`0` non-blocking, `<0` infinite).
  * @return C_ABSTRACT_HTTP_SUCCESS or callback error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 poll_fds_once(struct ModalityEventLoop *loop, int active_fds,
               abstract_http_int64_t timeout_ms) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -1463,9 +1548,10 @@ poll_fds_once(struct ModalityEventLoop *loop, int active_fds,
 #endif
 
 /** @brief Run a single non-blocking tick of the event loop */
-enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
+NO_DISCARD c_abstract_http_error_t
+http_loop_tick(struct ModalityEventLoop *loop) {
 #if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   if (!loop) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -1480,7 +1566,7 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
   return C_ABSTRACT_HTTP_SUCCESS;
 #else
   int active_fds;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   LOG_DEBUG("http_loop_tick: Entering");
   if (!loop) {
@@ -1528,7 +1614,8 @@ enum c_abstract_http_error http_loop_tick(struct ModalityEventLoop *loop) {
 }
 
 /** @brief Run the event loop until stopped or idle */
-enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
+NO_DISCARD c_abstract_http_error_t
+http_loop_run(struct ModalityEventLoop *loop) {
   LOG_DEBUG("http_loop_run: Entering");
   if (!loop) {
     LOG_DEBUG("http_loop_run: Error EINVAL");
@@ -1539,13 +1626,18 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
     LOG_DEBUG("http_loop_run: Error ENOTSUP (external loop)");
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (math_loop_should_fail_op(5)) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
 
   loop->running = 1;
   loop->stop_requested = 0;
 
 #if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
   while (!loop->stop_requested) {
-    enum c_abstract_http_error rc = process_timers(loop);
+    c_abstract_http_error_t rc = process_timers(loop);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       loop->running = 0;
       return rc;
@@ -1579,7 +1671,7 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
     abstract_http_int64_t now;
     abstract_http_int64_t next_timeout = -1;
     int active_fds;
-    enum c_abstract_http_error rc;
+    c_abstract_http_error_t rc;
 
     rc = process_timers(loop);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1630,8 +1722,9 @@ enum c_abstract_http_error http_loop_run(struct ModalityEventLoop *loop) {
 }
 
 /** @brief Request the event loop to stop */
-enum c_abstract_http_error http_loop_stop(struct ModalityEventLoop *loop) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t
+http_loop_stop(struct ModalityEventLoop *loop) {
+  c_abstract_http_error_t rc;
   LOG_DEBUG("http_loop_stop: Entering");
   if (!loop) {
     LOG_DEBUG("http_loop_stop: Error EINVAL");
@@ -1646,9 +1739,14 @@ enum c_abstract_http_error http_loop_stop(struct ModalityEventLoop *loop) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_event_loop_test_unstop(struct ModalityEventLoop *loop) {
   if (loop)
     loop->stop_requested = 0;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (math_loop_should_fail_op(2)) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
   return C_ABSTRACT_HTTP_SUCCESS;
 }

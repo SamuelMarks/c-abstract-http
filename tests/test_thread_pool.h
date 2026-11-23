@@ -34,7 +34,7 @@ extern "C" {
     !defined(_WIN32)
 TEST test_thread_pool_init_lock_fail(void) {
   struct AbstractHttpThreadPool *pool = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   /* Fail on second thread so it locks and unlocks during cleanup */
   g_mock_pthread_fail = 2;
@@ -52,7 +52,7 @@ TEST test_thread_pool_init_lock_fail(void) {
 
 TEST test_thread_pool_init_unlock_fail(void) {
   struct AbstractHttpThreadPool *pool = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   /* Fail on second thread so it locks and unlocks during cleanup */
   g_mock_pthread_fail = 2;
@@ -69,9 +69,9 @@ TEST test_thread_pool_init_unlock_fail(void) {
 }
 #endif
 
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_thread_pool_test_set_stop(struct AbstractHttpThreadPool *pool);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_thread_pool_test_inject_task(struct AbstractHttpThreadPool *pool);
 
 static void sleep_ms(int ms) {
@@ -92,9 +92,9 @@ struct TestTaskData {
   int *counter;
 };
 
-static enum c_abstract_http_error test_task_cb(void *arg) {
+NO_DISCARD static c_abstract_http_error_t test_task_cb(void *arg) {
   struct TestTaskData *data = (struct TestTaskData *)arg;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   if (!data) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -255,7 +255,7 @@ TEST test_thread_pool_errors(void) {
 }
 
 #endif
-extern enum c_abstract_http_error dummy_cb_thread(void *arg);
+NO_DISCARD extern c_abstract_http_error_t dummy_cb_thread(void *arg);
 
 TEST test_thread_pool_external(void) {
   struct AbstractHttpThreadPool *pool;
@@ -270,14 +270,15 @@ TEST test_thread_pool_external(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_thread_pool_test_worker(struct AbstractHttpThreadPool *pool);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_thread_pool_test_clear_stop(struct AbstractHttpThreadPool *pool);
-extern enum c_abstract_http_error abstract_http_thread_pool_test_create_dummy(
+NO_DISCARD extern c_abstract_http_error_t
+abstract_http_thread_pool_test_create_dummy(
     struct AbstractHttpThreadPool **out);
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dummy_hook_push(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
   (void)ctx;
   (void)cb;
@@ -285,7 +286,7 @@ dummy_hook_push(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error dummy_failing_task_cb(void *arg) {
+NO_DISCARD static c_abstract_http_error_t dummy_failing_task_cb(void *arg) {
   (void)arg;
   return C_ABSTRACT_HTTP_ERR_IO;
 }
@@ -494,7 +495,7 @@ TEST test_thread_pool_edge_cases(void) {
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
 TEST test_thread_pool_pthread_create_failures(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct AbstractHttpThreadPool *pool = NULL;
 
 #if !defined(_WIN32)
@@ -549,7 +550,7 @@ TEST test_thread_pool_pthread_create_failures(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
 TEST test_thread_pool_pthread_failures(void) {
 #if !defined(_WIN32)
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct AbstractHttpMutex *lock = NULL;
   struct AbstractHttpCond *cond = NULL;
 
@@ -569,7 +570,7 @@ TEST test_thread_pool_pthread_failures(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__EMSCRIPTEN__)
 TEST test_thread_pool_fallback_paths(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct AbstractHttpThreadPool *pool = NULL;
   struct AbstractHttpMutex *lock = NULL;
   struct AbstractHttpCond *cond = NULL;

@@ -56,7 +56,7 @@ http_msh3_context_init(struct HttpTransportContext **ctx);
  * @param[in] ctx The context to free.
  * @return 0 on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_msh3_context_free(struct HttpTransportContext *ctx);
 
 /**

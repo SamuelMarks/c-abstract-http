@@ -279,7 +279,7 @@ static int evhttp_add_header(struct evkeyvalq *headers, const char *key,
                              const char *val) {
   char *_ast_strdup_k = NULL;
   char *_ast_strdup_v = NULL;
-  enum c_abstract_http_error rck, rcv;
+  c_abstract_http_error_t rck, rcv;
   if (g_mock_libevent_buf_add_fail) {
     return -1;
   }
@@ -395,6 +395,25 @@ static void mock_libevent_run_one(struct event_base *base,
     }
     return;
   }
+  if (strstr(p->path, "/redir-no-loc") != NULL) {
+    p->req->response_code = 302;
+    evhttp_add_header(&p->req->input_headers, "X-Other", "1");
+    if (p->req->cb) {
+      p->req->cb(p->req, p->req->cb_arg);
+    }
+    return;
+  }
+  if (strstr(p->path, "/redir-rel") != NULL) {
+    p->req->response_code = 302;
+    evhttp_add_header(&p->req->input_headers, "location", "landed");
+    if (p->req->cb) {
+      p->req->cb(p->req, p->req->cb_arg);
+    }
+    return;
+  }
+  if (strstr(p->path, "/null-done") != NULL) {
+    return;
+  }
   if (strstr(p->path, "/redir-once") != NULL) {
     p->req->response_code = 302;
     evhttp_add_header(&p->req->input_headers, "Location",
@@ -433,7 +452,7 @@ static void mock_libevent_run_one(struct event_base *base,
 
 static int event_base_loop(struct event_base *base, int flags) {
   size_t i;
-  (void)flags;
+  int any_deferred = 0;
   if (g_mock_libevent_empty_body == 2) {
     return 0;
   }
@@ -441,12 +460,20 @@ static int event_base_loop(struct event_base *base, int flags) {
     return -1;
   }
   for (i = 0; i < base->pending_count; ++i) {
+    if (base->pending[i].active == 1 && (flags & EVLOOP_NONBLOCK) &&
+        strstr(base->pending[i].path, "/defer-once") != NULL) {
+      base->pending[i].active = 2;
+      any_deferred = 1;
+      continue;
+    }
     if (base->pending[i].active) {
       base->pending[i].active = 0;
       mock_libevent_run_one(base, &base->pending[i]);
     }
   }
-  base->pending_count = 0;
+  if (!any_deferred) {
+    base->pending_count = 0;
+  }
   return 0;
 }
 

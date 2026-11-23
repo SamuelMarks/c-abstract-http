@@ -17,9 +17,14 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #else
+#include <netdb.h>
 #include <netinet/in.h>
+#include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
 #endif
 
 #include <c_abstract_http/http_lsquic.h>
@@ -59,7 +64,7 @@ struct lsquic_stream_ctx {
   /** @brief Stream completion flag */
   int done;
   /** @brief Stream error code */
-  enum c_abstract_http_error err;
+  c_abstract_http_error_t err;
 };
 
 /** @brief Active batch queue bound to `ea_stream_if_ctx` during dispatch */
@@ -90,6 +95,11 @@ struct HttpTransportContext {
   char *proxy_host;
   /** @brief Parsed MASQUE/HTTP3 proxy UDP port */
   unsigned short proxy_port;
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC)
+  /** @brief Active UDP socket descriptor during QUIC dispatch */
+  int udp_fd;
+#endif
   /** @brief Configuration struct */
   struct HttpConfig config;
 };
@@ -101,8 +111,8 @@ struct HttpTransportContext {
  * @param n Byte count to append.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error lsq_buf_append(struct lsq_h3_buf *b,
-                                                 const void *src, size_t n) {
+NO_DISCARD static c_abstract_http_error_t
+lsq_buf_append(struct lsq_h3_buf *b, const void *src, size_t n) {
   if (n == 0) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
@@ -140,9 +150,9 @@ static enum c_abstract_http_error lsq_buf_append(struct lsq_h3_buf *b,
  * @param val Non-negative integer value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error lsq_write_varint(struct lsq_h3_buf *b,
-                                                   size_t val) {
-  uint8_t tmp[4];
+NO_DISCARD static c_abstract_http_error_t lsq_write_varint(struct lsq_h3_buf *b,
+                                                           size_t val) {
+  uint8_t tmp[8];
   if (val < 64) {
     tmp[0] = (uint8_t)val;
     return lsq_buf_append(b, tmp, 1);
@@ -152,11 +162,25 @@ static enum c_abstract_http_error lsq_write_varint(struct lsq_h3_buf *b,
     tmp[1] = (uint8_t)(val & 0xFFU);
     return lsq_buf_append(b, tmp, 2);
   }
-  tmp[0] = (uint8_t)(0x80U | ((val >> 24) & 0x3FU));
-  tmp[1] = (uint8_t)((val >> 16) & 0xFFU);
-  tmp[2] = (uint8_t)((val >> 8) & 0xFFU);
-  tmp[3] = (uint8_t)(val & 0xFFU);
-  return lsq_buf_append(b, tmp, 4);
+  if (val < 1073741824UL) {
+    tmp[0] = (uint8_t)(0x80U | ((val >> 24) & 0x3FU));
+    tmp[1] = (uint8_t)((val >> 16) & 0xFFU);
+    tmp[2] = (uint8_t)((val >> 8) & 0xFFU);
+    tmp[3] = (uint8_t)(val & 0xFFU);
+    return lsq_buf_append(b, tmp, 4);
+  }
+  {
+    abstract_http_uint64_t v64 = (abstract_http_uint64_t)val;
+    tmp[0] = (uint8_t)(0xC0U | ((v64 >> 56) & 0x3FU));
+    tmp[1] = (uint8_t)((v64 >> 48) & 0xFFU);
+    tmp[2] = (uint8_t)((v64 >> 40) & 0xFFU);
+    tmp[3] = (uint8_t)((v64 >> 32) & 0xFFU);
+    tmp[4] = (uint8_t)((v64 >> 24) & 0xFFU);
+    tmp[5] = (uint8_t)((v64 >> 16) & 0xFFU);
+    tmp[6] = (uint8_t)((v64 >> 8) & 0xFFU);
+    tmp[7] = (uint8_t)(v64 & 0xFFU);
+    return lsq_buf_append(b, tmp, 8);
+  }
 }
 
 /**
@@ -167,7 +191,7 @@ static enum c_abstract_http_error lsq_write_varint(struct lsq_h3_buf *b,
  * @param out_val Decoded integer output.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_read_varint(const uint8_t *src, size_t len, size_t *off, size_t *out_val) {
   uint8_t fb;
   unsigned int prefix;
@@ -198,7 +222,22 @@ lsq_read_varint(const uint8_t *src, size_t len, size_t *off, size_t *out_val) {
     *off += 4;
     return C_ABSTRACT_HTTP_SUCCESS;
   }
-  return C_ABSTRACT_HTTP_ERR_IO;
+  if (*off + 8 > len) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  {
+    abstract_http_uint64_t v64 = ((abstract_http_uint64_t)(fb & 0x3FU) << 56) |
+                                 ((abstract_http_uint64_t)src[*off + 1] << 48) |
+                                 ((abstract_http_uint64_t)src[*off + 2] << 40) |
+                                 ((abstract_http_uint64_t)src[*off + 3] << 32) |
+                                 ((abstract_http_uint64_t)src[*off + 4] << 24) |
+                                 ((abstract_http_uint64_t)src[*off + 5] << 16) |
+                                 ((abstract_http_uint64_t)src[*off + 6] << 8) |
+                                 (abstract_http_uint64_t)src[*off + 7];
+    *out_val = (size_t)v64;
+    *off += 8;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
 }
 
 /**
@@ -208,9 +247,9 @@ lsq_read_varint(const uint8_t *src, size_t len, size_t *off, size_t *out_val) {
  * @param val Header field value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_write_qpack_field(struct lsq_h3_buf *b, const char *name, const char *val) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   uint8_t marker = 0x20U;
   size_t nlen = strlen(name);
   size_t vlen = strlen(val);
@@ -240,8 +279,8 @@ lsq_write_qpack_field(struct lsq_h3_buf *b, const char *name, const char *val) {
  * @param out Output string pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-static enum c_abstract_http_error lsq_method_str(enum HttpMethod method,
-                                                 const char **out) {
+NO_DISCARD static c_abstract_http_error_t lsq_method_str(enum HttpMethod method,
+                                                         const char **out) {
   switch ((int)method) {
   case HTTP_GET:
     *out = "GET";
@@ -285,7 +324,7 @@ static enum c_abstract_http_error lsq_method_str(enum HttpMethod method,
  * @param out_path Newly allocated path string.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_parse_url(const char *url, char **out_scheme, char **out_host,
               unsigned short *out_port, char **out_path) {
   const char *p;
@@ -294,7 +333,7 @@ lsq_parse_url(const char *url, char **out_scheme, char **out_host,
   size_t scheme_len;
   size_t host_len;
   unsigned short default_port = 443;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!url) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -407,7 +446,7 @@ static int math_lsq_strcasecmp(const char *a, const char *b) {
  * @param out_hdr Newly allocated "Basic <base64>" string.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
   const char *pw = pass ? pass : "";
   size_t ulen = strlen(user);
@@ -416,7 +455,7 @@ lsq_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
   char *b64 = NULL;
   size_t b64_len = 0;
   char *hdr;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   raw = (char *)malloc(ulen + 1 + plen + 1);
   if (!raw) {
@@ -457,7 +496,7 @@ lsq_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
  * @param out_stream Output buffer receiving encoded HTTP/3 stream bytes.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_serialize_request(const struct HttpTransportContext *ctx,
                       const struct HttpRequest *req, const char *scheme,
                       const char *host, const char *path,
@@ -468,7 +507,7 @@ lsq_serialize_request(const struct HttpTransportContext *ctx,
   uint8_t prefix[2];
   size_t i;
   int has_ua = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   memset(&hdr_payload, 0, sizeof(hdr_payload));
   memset(&body_payload, 0, sizeof(body_payload));
@@ -672,7 +711,7 @@ lsq_serialize_request(const struct HttpTransportContext *ctx,
  * @param header_val Raw Set-Cookie header value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
   const char *eq;
   const char *semi;
@@ -680,7 +719,7 @@ lsq_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
   size_t vlen;
   char *cname;
   char *cval;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   eq = strchr(header_val, '=');
   if (!eq || eq == header_val) {
@@ -724,12 +763,12 @@ lsq_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
  * @param res Output response structure.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_decode_response(struct HttpTransportContext *ctx,
                     const struct HttpRequest *req, const uint8_t *buf,
                     size_t len, struct HttpResponse *res) {
   size_t off = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   while (off < len) {
     size_t ftype = 0;
@@ -852,18 +891,18 @@ lsq_decode_response(struct HttpTransportContext *ctx,
  * @param out_st Output stream context pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_on_new_stream_impl(struct HttpTransportContext *ctx, lsquic_stream_t *s,
                        lsquic_stream_ctx_t **out_st) {
   lsquic_stream_ctx_t *st;
-  int prev_w;
   if (!ctx || ctx->active_batch.next_idx >= ctx->active_batch.count) {
     *out_st = NULL;
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   st = &ctx->active_batch.streams[ctx->active_batch.next_idx++];
-  prev_w = lsquic_stream_wantwrite(s, 1);
-  (void)prev_w;
+  if (lsquic_stream_wantwrite(s, 1) < 0) {
+    LOG_DEBUG("lsq_on_new_stream_impl: lsquic_stream_wantwrite failed");
+  }
   *out_st = st;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -874,34 +913,35 @@ lsq_on_new_stream_impl(struct HttpTransportContext *ctx, lsquic_stream_t *s,
  * @param st Stream context pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error lsq_on_write_impl(lsquic_stream_t *s,
-                                                    lsquic_stream_ctx_t *st) {
-  int prev_w;
-  int prev_r;
-  int cls_rc;
+NO_DISCARD static c_abstract_http_error_t
+lsq_on_write_impl(lsquic_stream_t *s, lsquic_stream_ctx_t *st) {
   while (st->tx_off < st->tx.len) {
     long nw = lsquic_stream_write(s, st->tx.data + st->tx_off,
                                   st->tx.len - st->tx_off);
     if (nw <= 0) {
       st->err = C_ABSTRACT_HTTP_ERR_IO;
       st->done = 1;
-      cls_rc = lsquic_stream_close(s);
-      (void)cls_rc;
+      if (lsquic_stream_close(s) != 0) {
+        LOG_DEBUG("lsq_on_write_impl: lsquic_stream_close failed");
+      }
       return C_ABSTRACT_HTTP_ERR_IO;
     }
     st->tx_off += (size_t)nw;
   }
-  prev_w = lsquic_stream_wantwrite(s, 0);
-  (void)prev_w;
+  if (lsquic_stream_wantwrite(s, 0) < 0) {
+    LOG_DEBUG("lsq_on_write_impl: lsquic_stream_wantwrite(0) failed");
+  }
   if (lsquic_stream_shutdown(s, 1) != 0) {
     st->err = C_ABSTRACT_HTTP_ERR_IO;
     st->done = 1;
-    cls_rc = lsquic_stream_close(s);
-    (void)cls_rc;
+    if (lsquic_stream_close(s) != 0) {
+      LOG_DEBUG("lsq_on_write_impl: lsquic_stream_close failed");
+    }
     return C_ABSTRACT_HTTP_ERR_IO;
   }
-  prev_r = lsquic_stream_wantread(s, 1);
-  (void)prev_r;
+  if (lsquic_stream_wantread(s, 1) < 0) {
+    LOG_DEBUG("lsq_on_write_impl: lsquic_stream_wantread(1) failed");
+  }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -911,35 +951,37 @@ static enum c_abstract_http_error lsq_on_write_impl(lsquic_stream_t *s,
  * @param st Stream context pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error lsq_on_read_impl(lsquic_stream_t *s,
-                                                   lsquic_stream_ctx_t *st) {
-  int prev_r;
-  int cls_rc;
-  enum c_abstract_http_error rc;
+NO_DISCARD static c_abstract_http_error_t
+lsq_on_read_impl(lsquic_stream_t *s, lsquic_stream_ctx_t *st) {
+  c_abstract_http_error_t rc;
   for (;;) {
     uint8_t buf[2048];
     long nr = lsquic_stream_read(s, buf, sizeof(buf));
     if (nr < 0) {
       st->err = C_ABSTRACT_HTTP_ERR_IO;
       st->done = 1;
-      cls_rc = lsquic_stream_close(s);
-      (void)cls_rc;
+      if (lsquic_stream_close(s) != 0) {
+        LOG_DEBUG("lsq_on_read_impl: lsquic_stream_close failed");
+      }
       return C_ABSTRACT_HTTP_ERR_IO;
     }
     if (nr == 0) {
-      prev_r = lsquic_stream_wantread(s, 0);
-      (void)prev_r;
+      if (lsquic_stream_wantread(s, 0) < 0) {
+        LOG_DEBUG("lsq_on_read_impl: lsquic_stream_wantread(0) failed");
+      }
       st->done = 1;
-      cls_rc = lsquic_stream_close(s);
-      (void)cls_rc;
+      if (lsquic_stream_close(s) != 0) {
+        LOG_DEBUG("lsq_on_read_impl: lsquic_stream_close failed");
+      }
       return C_ABSTRACT_HTTP_SUCCESS;
     }
     rc = lsq_buf_append(&st->rx, buf, (size_t)nr);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       st->err = rc;
       st->done = 1;
-      cls_rc = lsquic_stream_close(s);
-      (void)cls_rc;
+      if (lsquic_stream_close(s) != 0) {
+        LOG_DEBUG("lsq_on_read_impl: lsquic_stream_close failed");
+      }
       return rc;
     }
   }
@@ -964,6 +1006,33 @@ static lsquic_conn_ctx_t *lsq_cb_on_new_conn(void *stream_if_ctx,
 static void lsq_cb_on_conn_closed(lsquic_conn_t *c) { (void)c; }
 
 /**
+ * @brief Dispatch an enum-returning lsquic helper inside a pointer C-ABI
+ * callback.
+ * @param expr Expression returning `c_abstract_http_error_t`.
+ * @param ok_ptr Pointer returned on `C_ABSTRACT_HTTP_SUCCESS`.
+ */
+#define LSQ_PTR_CB_DISPATCH(expr, ok_ptr)                                      \
+  do {                                                                         \
+    c_abstract_http_error_t _cb_rc = (expr);                                   \
+    if (_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
+      return NULL;                                                             \
+    }                                                                          \
+    return (ok_ptr);                                                           \
+  } while (0)
+
+/**
+ * @brief Dispatch an enum-returning lsquic helper inside a void C-ABI callback.
+ * @param expr Expression returning `c_abstract_http_error_t`.
+ */
+#define LSQ_VOID_CB_DISPATCH(expr)                                             \
+  do {                                                                         \
+    c_abstract_http_error_t _cb_rc = (expr);                                   \
+    if (_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
+      LOG_DEBUG("lsquic_cb: helper returned %d", (int)_cb_rc);                 \
+    }                                                                          \
+  } while (0)
+
+/**
  * @brief LiteSpeed QUIC C-API new-stream callback trampoline.
  * @param stream_if_ctx Engine stream interface user pointer.
  * @param s Stream handle.
@@ -974,12 +1043,7 @@ static lsquic_stream_ctx_t *lsq_cb_on_new_stream(void *stream_if_ctx,
   struct HttpTransportContext *ctx =
       (struct HttpTransportContext *)stream_if_ctx;
   lsquic_stream_ctx_t *st = NULL;
-  enum c_abstract_http_error rc;
-  rc = lsq_on_new_stream_impl(ctx, s, &st);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return NULL;
-  }
-  return st;
+  LSQ_PTR_CB_DISPATCH(lsq_on_new_stream_impl(ctx, s, &st), st);
 }
 
 /**
@@ -988,14 +1052,10 @@ static lsquic_stream_ctx_t *lsq_cb_on_new_stream(void *stream_if_ctx,
  * @param h Stream context pointer.
  */
 static void lsq_cb_on_write(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
-  enum c_abstract_http_error rc;
   if (!h) {
     return;
   }
-  rc = lsq_on_write_impl(s, h);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("lsq_cb_on_write: stream write error");
-  }
+  LSQ_VOID_CB_DISPATCH(lsq_on_write_impl(s, h));
 }
 
 /**
@@ -1004,14 +1064,10 @@ static void lsq_cb_on_write(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
  * @param h Stream context pointer.
  */
 static void lsq_cb_on_read(lsquic_stream_t *s, lsquic_stream_ctx_t *h) {
-  enum c_abstract_http_error rc;
   if (!h) {
     return;
   }
-  rc = lsq_on_read_impl(s, h);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    LOG_DEBUG("lsq_cb_on_read: stream read error");
-  }
+  LSQ_VOID_CB_DISPATCH(lsq_on_read_impl(s, h));
 }
 
 /**
@@ -1031,7 +1087,7 @@ static const struct lsquic_stream_if g_lsq_stream_if = {
     lsq_cb_on_new_conn, lsq_cb_on_conn_closed, lsq_cb_on_new_stream,
     lsq_cb_on_read,     lsq_cb_on_write,       lsq_cb_on_close};
 
-enum c_abstract_http_error http_lsquic_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_lsquic_global_init(void) {
   if (g_lsquic_init_count == 0) {
     if (lsquic_global_init(LSQUIC_GLOBAL_CLIENT) != 0) {
       return C_ABSTRACT_HTTP_ERR_IO;
@@ -1041,18 +1097,58 @@ enum c_abstract_http_error http_lsquic_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error http_lsquic_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_lsquic_global_cleanup(void) {
   if (g_lsquic_init_count > 0 && --g_lsquic_init_count == 0) {
     lsquic_global_cleanup();
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC)
+/**
+ * @brief Transmit outbound QUIC packets generated by lsquic over UDP.
+ * @param packets_out_ctx Engine packet-out user pointer (`ctx`).
+ * @param specs Array of outbound packet specifications.
+ * @param n_specs Count of entries in @p specs.
+ * @return Number of packets sent or -1 on error.
+ */
+static int lsq_packets_out_cb(void *packets_out_ctx,
+                              const struct lsquic_out_spec *specs,
+                              unsigned n_specs) {
+  struct HttpTransportContext *ctx =
+      (struct HttpTransportContext *)packets_out_ctx;
+  unsigned n;
+  if (!ctx || ctx->udp_fd < 0) {
+    return -1;
+  }
+  for (n = 0; n < n_specs; ++n) {
+    uint8_t dg[1500];
+    size_t dg_len = 0;
+    size_t v;
+    for (v = 0; v < specs[n].iovlen; ++v) {
+      if (dg_len + specs[n].iov[v].iov_len > sizeof(dg)) {
+        break;
+      }
+      memcpy(dg + dg_len, specs[n].iov[v].iov_base, specs[n].iov[v].iov_len);
+      dg_len += specs[n].iov[v].iov_len;
+    }
+    if (sendto(ctx->udp_fd, (const char *)dg, (int)dg_len, 0, specs[n].dest_sa,
+               specs[n].dest_sa->sa_family == AF_INET6
+                   ? (int)sizeof(struct sockaddr_in6)
+                   : (int)sizeof(struct sockaddr_in)) < 0) {
+      return (int)n;
+    }
+  }
+  return (int)n_specs;
+}
+#endif
+
+NO_DISCARD c_abstract_http_error_t
 http_lsquic_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
   struct lsquic_engine_api eapi;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!ctx) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -1085,11 +1181,17 @@ http_lsquic_context_init(struct HttpTransportContext **ctx) {
   eapi.ea_settings = &c->settings;
   eapi.ea_stream_if = &g_lsq_stream_if;
   eapi.ea_stream_if_ctx = c;
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC)
+  c->udp_fd = -1;
+  eapi.ea_packets_out = lsq_packets_out_cb;
+  eapi.ea_packets_out_ctx = c;
+#endif
   eapi.ea_alpn = "h3";
 
   c->engine = lsquic_engine_new(LSENG_HTTP, &eapi);
   if (!c->engine) {
-    enum c_abstract_http_error free_rc = http_config_free(&c->config);
+    c_abstract_http_error_t free_rc = http_config_free(&c->config);
     if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
       free(c);
       return free_rc;
@@ -1102,9 +1204,9 @@ http_lsquic_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_lsquic_context_free(struct HttpTransportContext *ctx) {
-  enum c_abstract_http_error rch;
+  c_abstract_http_error_t rch;
   if (!ctx) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
@@ -1126,7 +1228,8 @@ http_lsquic_context_free(struct HttpTransportContext *ctx) {
  * @param src Optional source string to duplicate.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error lsq_replace_str(char **dst, const char *src) {
+NO_DISCARD static c_abstract_http_error_t lsq_replace_str(char **dst,
+                                                          const char *src) {
   free(*dst);
   *dst = NULL;
   if (!src) {
@@ -1135,10 +1238,9 @@ static enum c_abstract_http_error lsq_replace_str(char **dst, const char *src) {
   return c_abstract_http_strdup(src, dst);
 }
 
-enum c_abstract_http_error
-http_lsquic_config_apply(struct HttpTransportContext *ctx,
-                         const struct HttpConfig *config) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t http_lsquic_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
   if (!ctx || !config) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -1223,12 +1325,12 @@ http_lsquic_config_apply(struct HttpTransportContext *ctx,
  * @param out_eff Output pointer to the effective request to transmit.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_prepare_effective_request(const struct HttpRequest *req,
                               struct HttpRequest *flat_req, int *out_flattened,
                               const struct HttpRequest **out_eff) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   *out_flattened = 0;
   *out_eff = req;
@@ -1255,7 +1357,7 @@ lsq_prepare_effective_request(const struct HttpRequest *req,
     rc = http_headers_add(&flat_req->headers, req->headers.headers[i].key,
                           req->headers.headers[i].value);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error frc;
+      c_abstract_http_error_t frc;
       frc = http_headers_free(&flat_req->headers);
       if (frc != C_ABSTRACT_HTTP_SUCCESS) {
         return frc;
@@ -1265,7 +1367,7 @@ lsq_prepare_effective_request(const struct HttpRequest *req,
   }
   rc = http_request_flatten_parts(flat_req);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error frc;
+    c_abstract_http_error_t frc;
     free(flat_req->body);
     flat_req->body = NULL;
     frc = http_headers_free(&flat_req->headers);
@@ -1285,7 +1387,7 @@ lsq_prepare_effective_request(const struct HttpRequest *req,
  * @param flattened Non-zero when @p flat_req owns allocated headers/body.
  * @return C_ABSTRACT_HTTP_SUCCESS or cleanup error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
   if (!flattened) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -1301,11 +1403,11 @@ lsq_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
  * @param orig_rc Fallback error code if response cleanup succeeds.
  * @return Cleanup error code if cleanup failed, otherwise @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_cleanup_failed_res(struct HttpResponse **res,
-                       enum c_abstract_http_error orig_rc) {
+                       c_abstract_http_error_t orig_rc) {
   struct HttpResponse *tmp;
-  enum c_abstract_http_error free_rc;
+  c_abstract_http_error_t free_rc;
   if (!*res) {
     return orig_rc;
   }
@@ -1327,11 +1429,11 @@ lsq_cleanup_failed_res(struct HttpResponse **res,
  * @param orig_rc Primary status from fallback send.
  * @return Cleanup error if context cleanup fails, otherwise @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_raw_ctx_cleanup(struct HttpTransportContext *raw_ctx,
                     struct HttpResponse **res,
-                    enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error frc;
+                    c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t frc;
   frc = http_raw_context_free(raw_ctx);
   if (frc != C_ABSTRACT_HTTP_SUCCESS) {
     return lsq_cleanup_failed_res(res, frc);
@@ -1346,11 +1448,11 @@ lsq_raw_ctx_cleanup(struct HttpTransportContext *raw_ctx,
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or fallback error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_fallback_tcp(const struct HttpConfig *cfg,
                  const struct HttpRequest *eff_req, struct HttpResponse **res) {
   struct HttpTransportContext *raw_ctx = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = http_raw_context_init(&raw_ctx);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1387,7 +1489,7 @@ static unsigned short math_lsq_htons(unsigned short hostshort) {
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_send_quic_once(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, struct HttpResponse **res) {
   char *scheme = NULL;
@@ -1399,7 +1501,7 @@ lsq_send_quic_once(struct HttpTransportContext *ctx,
   struct lsquic_stream_ctx st;
   struct sockaddr_in peer_sa;
   lsquic_conn_t *conn = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = lsq_parse_url(req->url, &scheme, &host, &port, &path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1453,6 +1555,127 @@ lsq_send_quic_once(struct HttpTransportContext *ctx,
   conn_host = ctx->proxy_host ? ctx->proxy_host : host;
   conn_port = ctx->proxy_host ? ctx->proxy_port : port;
 
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC)
+  {
+    struct addrinfo hints;
+    struct addrinfo *ai = NULL;
+    struct sockaddr_storage local_ss;
+    socklen_t local_len = (socklen_t)sizeof(local_ss);
+    char port_str[16];
+    int sfd;
+    unsigned int elapsed = 0;
+    unsigned int budget = ctx->timeout_ms > 0 ? ctx->timeout_ms : 15000U;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    sprintf(port_str, "%u", (unsigned int)conn_port);
+    if (getaddrinfo(conn_host, port_str, &hints, &ai) != 0 || !ai) {
+      free(host);
+      free(st.tx.data);
+      return lsq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_HOSTUNREACH);
+    }
+    sfd = (int)socket(ai->ai_family, SOCK_DGRAM, 0);
+    if (sfd < 0) {
+      freeaddrinfo(ai);
+      free(host);
+      free(st.tx.data);
+      return lsq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    memset(&local_ss, 0, sizeof(local_ss));
+    local_ss.ss_family = ai->ai_family;
+    if (bind(sfd, (struct sockaddr *)&local_ss, (socklen_t)ai->ai_addrlen) !=
+            0 ||
+        getsockname(sfd, (struct sockaddr *)&local_ss, &local_len) != 0) {
+#if defined(_WIN32)
+      closesocket(sfd);
+#else
+      close(sfd);
+#endif
+      freeaddrinfo(ai);
+      free(host);
+      free(st.tx.data);
+      return lsq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    ctx->udp_fd = sfd;
+    ctx->active_batch.streams = &st;
+    ctx->active_batch.count = 1;
+    ctx->active_batch.next_idx = 0;
+
+    conn = lsquic_engine_connect(ctx->engine, N_LSQVER,
+                                 (struct sockaddr *)&local_ss, ai->ai_addr, ctx,
+                                 NULL, conn_host, 0, NULL, 0, NULL, 0);
+    free(host);
+    if (!conn) {
+      ctx->active_batch.streams = NULL;
+      ctx->udp_fd = -1;
+#if defined(_WIN32)
+      closesocket(sfd);
+#else
+      close(sfd);
+#endif
+      freeaddrinfo(ai);
+      free(st.tx.data);
+      return lsq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_CONNREFUSED);
+    }
+
+    lsquic_conn_make_stream(conn);
+    lsquic_engine_process_conns(ctx->engine);
+    if (lsquic_engine_has_unsent_packets(ctx->engine)) {
+      lsquic_engine_send_unsent_packets(ctx->engine);
+    }
+
+    while (!st.done && st.err == C_ABSTRACT_HTTP_SUCCESS && elapsed < budget) {
+      fd_set rfds;
+      struct timeval tv;
+      int diff_us = 50000;
+      int sel;
+      (void)lsquic_engine_earliest_adv_tick(ctx->engine, &diff_us);
+      if (diff_us < 1000) {
+        diff_us = 1000;
+      } else if (diff_us > 50000) {
+        diff_us = 50000;
+      }
+      FD_ZERO(&rfds);
+      FD_SET(sfd, &rfds);
+      tv.tv_sec = diff_us / 1000000;
+      tv.tv_usec = diff_us % 1000000;
+      sel = select(sfd + 1, &rfds, NULL, NULL, &tv);
+      if (sel > 0 && FD_ISSET(sfd, &rfds)) {
+        uint8_t rbuf[1500];
+        struct sockaddr_storage peer_from;
+        socklen_t from_len = (socklen_t)sizeof(peer_from);
+        long nr = (long)recvfrom(sfd, (char *)rbuf, sizeof(rbuf), 0,
+                                 (struct sockaddr *)&peer_from, &from_len);
+        if (nr > 0) {
+          (void)lsquic_engine_packet_in(ctx->engine, rbuf, (size_t)nr,
+                                        (struct sockaddr *)&local_ss,
+                                        (struct sockaddr *)&peer_from, ctx, 0);
+        }
+      } else {
+        elapsed += (unsigned int)((diff_us + 999) / 1000);
+      }
+      lsquic_engine_process_conns(ctx->engine);
+      if (lsquic_engine_has_unsent_packets(ctx->engine)) {
+        lsquic_engine_send_unsent_packets(ctx->engine);
+      }
+    }
+
+    lsquic_conn_close(conn);
+    lsquic_engine_process_conns(ctx->engine);
+    ctx->udp_fd = -1;
+#if defined(_WIN32)
+    closesocket(sfd);
+#else
+    close(sfd);
+#endif
+    freeaddrinfo(ai);
+    if (!st.done && st.err == C_ABSTRACT_HTTP_SUCCESS) {
+      st.err = C_ABSTRACT_HTTP_ERR_TIMEOUT;
+    }
+  }
+#else
   memset(&peer_sa, 0, sizeof(peer_sa));
   peer_sa.sin_family = AF_INET;
   peer_sa.sin_port = math_lsq_htons(conn_port);
@@ -1474,6 +1697,7 @@ lsq_send_quic_once(struct HttpTransportContext *ctx,
   lsquic_conn_make_stream(conn);
   lsquic_engine_process_conns(ctx->engine);
   lsquic_conn_close(conn);
+#endif
 
   ctx->active_batch.streams = NULL;
   free(st.tx.data);
@@ -1501,10 +1725,10 @@ lsq_send_quic_once(struct HttpTransportContext *ctx,
  * @param orig_rc Primary send result.
  * @return Final status enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 lsq_finish_send(struct HttpRequest *flat_req, int flattened,
-                struct HttpResponse **res, enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error cl_rc;
+                struct HttpResponse **res, c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t cl_rc;
   cl_rc = lsq_cleanup_effective_request(flat_req, flattened);
   if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
     return lsq_cleanup_failed_res(res, cl_rc);
@@ -1512,13 +1736,13 @@ lsq_finish_send(struct HttpRequest *flat_req, int flattened,
   return orig_rc;
 }
 
-enum c_abstract_http_error http_lsquic_send(struct HttpTransportContext *ctx,
-                                            const struct HttpRequest *req,
-                                            struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_lsquic_send(struct HttpTransportContext *ctx,
+                 const struct HttpRequest *req, struct HttpResponse **res) {
   struct HttpRequest flat_req;
   const struct HttpRequest *eff_req = NULL;
   int flattened = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
   if (!ctx || !req || !res || !ctx->is_configured || !ctx->engine) {
@@ -1534,7 +1758,7 @@ enum c_abstract_http_error http_lsquic_send(struct HttpTransportContext *ctx,
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (ctx->config.http3_fallback && (rc == C_ABSTRACT_HTTP_ERR_CONNREFUSED ||
                                        rc == C_ABSTRACT_HTTP_ERR_IO)) {
-      enum c_abstract_http_error fb_rc;
+      c_abstract_http_error_t fb_rc;
       fb_rc = lsq_fallback_tcp(&ctx->config, eff_req, res);
       if (fb_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return lsq_finish_send(&flat_req, flattened, res, fb_rc);
@@ -1548,11 +1772,11 @@ enum c_abstract_http_error http_lsquic_send(struct HttpTransportContext *ctx,
   return lsq_finish_send(&flat_req, flattened, res, C_ABSTRACT_HTTP_SUCCESS);
 }
 
-enum c_abstract_http_error http_lsquic_send_multi(
+NO_DISCARD c_abstract_http_error_t http_lsquic_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   cah_cppcheck_mut_ptr((void *)ctx);
 
   if (!ctx || !multi || !futures || !ctx->is_configured || !ctx->engine) {
@@ -1587,3 +1811,29 @@ enum c_abstract_http_error http_lsquic_send_multi(
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Internal test hook verifying 8-byte RFC 9000 varint round-trip.
+ * @return C_ABSTRACT_HTTP_SUCCESS on exact round-trip match.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_lsquic_test_varint8(void);
+NO_DISCARD c_abstract_http_error_t c_abstract_http_lsquic_test_varint8(void) {
+  struct lsq_h3_buf b;
+  size_t off = 0;
+  size_t dec = 0;
+  c_abstract_http_error_t rc;
+  memset(&b, 0, sizeof(b));
+  rc = lsq_write_varint(&b, (size_t)1073741824UL);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = lsq_read_varint(b.data, b.len, &off, &dec);
+  free(b.data);
+  return (rc == C_ABSTRACT_HTTP_SUCCESS && off == 8 &&
+          dec == (size_t)1073741824UL)
+             ? C_ABSTRACT_HTTP_SUCCESS
+             : C_ABSTRACT_HTTP_ERR_INVAL;
+}
+#endif

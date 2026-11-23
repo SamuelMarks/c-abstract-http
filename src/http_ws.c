@@ -62,22 +62,15 @@ extern int g_mock_pack_header_fail;
 #endif
 
 /** @brief Generate a Base64-encoded 16-byte Sec-WebSocket-Key */
-enum c_abstract_http_error ws_generate_key(char out_key[25]) {
+NO_DISCARD c_abstract_http_error_t ws_generate_key(char out_key[25]) {
   unsigned char random_bytes[16];
   char *base64_str = NULL;
   size_t base64_len = 0;
-  int i;
-  enum c_abstract_http_error res;
-  static int rand_initialized = 0;
+  c_abstract_http_error_t res;
 
-  /* Generate 16 random bytes using rand() fallback */
-  if (!rand_initialized) {
-    srand((unsigned int)time(NULL));
-    rand_initialized = 1;
-  }
-  for (i = 0; i < 16; ++i) {
-    random_bytes[i] = (unsigned char)(rand() % 256);
-  }
+  res = c_abstract_http_random_bytes(random_bytes, 16);
+  if (res != C_ABSTRACT_HTTP_SUCCESS)
+    return res;
 
   res = base64_encode(random_bytes, 16, &base64_str, &base64_len);
   if (res != 0)
@@ -90,16 +83,16 @@ enum c_abstract_http_error ws_generate_key(char out_key[25]) {
 }
 
 /** @brief Sign a client Sec-WebSocket-Key to produce Sec-WebSocket-Accept */
-enum c_abstract_http_error ws_sign_key(const char *client_key,
-                                       char out_accept[29]) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t ws_sign_key(const char *client_key,
+                                               char out_accept[29]) {
+  c_abstract_http_error_t rc;
   const char *magic_guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
   char concatenated[100];
   struct sha1_ctx ctx;
   unsigned char hash[20];
   char *base64_str = NULL;
   size_t base64_len = 0;
-  enum c_abstract_http_error res;
+  c_abstract_http_error_t res;
   size_t len1 = strlen(client_key);
   size_t len2 = strlen(magic_guid);
 
@@ -134,10 +127,10 @@ enum c_abstract_http_error ws_sign_key(const char *client_key,
 }
 
 /** @brief Verify server Sec-WebSocket-Accept header against client key */
-enum c_abstract_http_error ws_verify_accept(const char *client_key,
-                                            const char *server_accept) {
+NO_DISCARD c_abstract_http_error_t ws_verify_accept(const char *client_key,
+                                                    const char *server_accept) {
   char expected_accept[29];
-  enum c_abstract_http_error res;
+  c_abstract_http_error_t res;
   res = ws_sign_key(client_key, expected_accept);
   if (res != C_ABSTRACT_HTTP_SUCCESS)
     return res;
@@ -156,9 +149,9 @@ enum c_abstract_http_error ws_verify_accept(const char *client_key,
  * @param out_read Output byte count written (0 signals EOF).
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on synchronization failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)user_data;
   if (!sctx)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -172,7 +165,7 @@ ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
     /* Wait for data or close */
     rc = abstract_http_cond_wait(sctx->cond, sctx->mutex);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
+      c_abstract_http_error_t u_rc = abstract_http_mutex_unlock(sctx->mutex);
       if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
         LOG_DEBUG("ws_read_chunk_cb: unlock error %d", (int)u_rc);
         return u_rc;
@@ -210,8 +203,8 @@ ws_read_chunk_cb(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
  * @param orig_rc Status enum to return.
  * @return `orig_rc`.
  */
-static enum c_abstract_http_error
-ws_close_fd_and_return(int fd, enum c_abstract_http_error orig_rc) {
+NO_DISCARD static c_abstract_http_error_t
+ws_close_fd_and_return(int fd, c_abstract_http_error_t orig_rc) {
 #if defined(_WIN32)
   closesocket((SOCKET)fd);
 #elif !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
@@ -227,11 +220,11 @@ ws_close_fd_and_return(int fd, enum c_abstract_http_error orig_rc) {
  * @param sctx WebSocket stream context.
  * @return C_ABSTRACT_HTTP_SUCCESS or event-loop removal error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ws_close_upgraded_socket(struct ws_stream_ctx *sctx) {
   if (sctx->loop_registered && sctx->loop && sctx->has_upgraded_fd) {
     int fd = sctx->upgraded_fd;
-    enum c_abstract_http_error rm_rc;
+    c_abstract_http_error_t rm_rc;
     sctx->loop_registered = 0;
     sctx->has_upgraded_fd = 0;
     sctx->upgraded_fd = -1;
@@ -256,10 +249,10 @@ ws_close_upgraded_socket(struct ws_stream_ctx *sctx) {
  * @param orig_rc Primary error enum.
  * @return Cleanup error if socket removal fails, otherwise `orig_rc`.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ws_fail_upgraded_socket(struct ws_stream_ctx *sctx,
-                        enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error cl_rc;
+                        c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t cl_rc;
   cl_rc = ws_close_upgraded_socket(sctx);
   if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
     return cl_rc;
@@ -272,18 +265,18 @@ ws_fail_upgraded_socket(struct ws_stream_ctx *sctx,
  * @param sctx Streaming context pointer (may be NULL).
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on mutex/cond cleanup failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
   if (!sctx)
     return C_ABSTRACT_HTTP_SUCCESS;
   {
-    enum c_abstract_http_error sc_rc;
+    c_abstract_http_error_t sc_rc;
     sc_rc = ws_close_upgraded_socket(sctx);
     if (sc_rc != C_ABSTRACT_HTTP_SUCCESS)
       return sc_rc;
   }
   if (sctx->has_async_parser) {
-    enum c_abstract_http_error pr_rc;
+    c_abstract_http_error_t pr_rc;
     sctx->has_async_parser = 0;
     pr_rc = ws_parser_destroy(&sctx->async_parser);
     if (pr_rc != C_ABSTRACT_HTTP_SUCCESS)
@@ -291,7 +284,7 @@ ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
   }
   if (sctx->mutex) {
     struct AbstractHttpMutex *m = sctx->mutex;
-    enum c_abstract_http_error rc;
+    c_abstract_http_error_t rc;
     sctx->mutex = NULL;
     rc = abstract_http_mutex_free(m);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
@@ -299,7 +292,7 @@ ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
   }
   if (sctx->cond) {
     struct AbstractHttpCond *c = sctx->cond;
-    enum c_abstract_http_error rc;
+    c_abstract_http_error_t rc;
     sctx->cond = NULL;
     rc = abstract_http_cond_free(c);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
@@ -317,7 +310,7 @@ ws_stream_ctx_free(struct ws_stream_ctx *sctx) {
  * @param cond Output pointer receiving the initialized condition variable.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ws_cond_init_checked(struct AbstractHttpCond **cond) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_cond_init_fail)
@@ -326,11 +319,10 @@ ws_cond_init_checked(struct AbstractHttpCond **cond) {
   return abstract_http_cond_init(cond);
 }
 
-enum c_abstract_http_error
-c_abstract_http_ws_init(struct HttpRequest *req,
-                        const struct c_abstract_http_ws_config *config) {
+NO_DISCARD c_abstract_http_error_t c_abstract_http_ws_init(
+    struct HttpRequest *req, const struct c_abstract_http_ws_config *config) {
   char key[25] = {0};
-  enum c_abstract_http_error res;
+  c_abstract_http_error_t res;
 
   if (!req)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -343,20 +335,19 @@ c_abstract_http_ws_init(struct HttpRequest *req,
     res = abstract_http_mutex_init(&sctx->mutex);
     if (res != C_ABSTRACT_HTTP_SUCCESS) {
       free(sctx);
-      return (enum c_abstract_http_error)res;
+      return (c_abstract_http_error_t)res;
     }
     res = ws_cond_init_checked(&sctx->cond);
     if (res != C_ABSTRACT_HTTP_SUCCESS) {
       {
-        enum c_abstract_http_error rc_tmp =
-            abstract_http_mutex_free(sctx->mutex);
+        c_abstract_http_error_t rc_tmp = abstract_http_mutex_free(sctx->mutex);
         if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
           free(sctx);
           return rc_tmp;
         }
       }
       free(sctx);
-      return (enum c_abstract_http_error)res;
+      return (c_abstract_http_error_t)res;
     }
     sctx->queue_cap = 4096;
     sctx->queue = (unsigned char *)malloc(sctx->queue_cap);
@@ -368,9 +359,9 @@ c_abstract_http_ws_init(struct HttpRequest *req,
 #endif
     if (!sctx->queue) {
       {
-        enum c_abstract_http_error rc_tmp = abstract_http_cond_free(sctx->cond);
+        c_abstract_http_error_t rc_tmp = abstract_http_cond_free(sctx->cond);
         if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
-          enum c_abstract_http_error rc_mtx;
+          c_abstract_http_error_t rc_mtx;
           rc_mtx = abstract_http_mutex_free(sctx->mutex);
           if (rc_mtx != C_ABSTRACT_HTTP_SUCCESS) {
             free(sctx);
@@ -381,8 +372,7 @@ c_abstract_http_ws_init(struct HttpRequest *req,
         }
       }
       {
-        enum c_abstract_http_error rc_tmp =
-            abstract_http_mutex_free(sctx->mutex);
+        c_abstract_http_error_t rc_tmp = abstract_http_mutex_free(sctx->mutex);
         if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
           free(sctx);
           return rc_tmp;
@@ -474,28 +464,20 @@ uint64_t math_ws_ntohll(uint64_t netqword) {
 }
 
 /** @brief Generate a 4-byte WebSocket masking key */
-enum c_abstract_http_error ws_generate_mask_key(unsigned char out_key[4]) {
-  int i;
-  static int rand_initialized = 0;
+NO_DISCARD c_abstract_http_error_t
+ws_generate_mask_key(unsigned char out_key[4]) {
   if (!out_key)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_mask_key_fail == 1)
     return C_ABSTRACT_HTTP_ERR_IO;
 #endif
-  if (!rand_initialized) {
-    srand((unsigned int)time(NULL));
-    rand_initialized = 1;
-  }
-  for (i = 0; i < 4; ++i) {
-    out_key[i] = (unsigned char)(rand() % 256);
-  }
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return c_abstract_http_random_bytes(out_key, 4);
 }
 
 /** @brief Apply XOR mask to WebSocket frame payload */
-enum c_abstract_http_error ws_apply_mask(unsigned char *payload, size_t len,
-                                         const unsigned char mask_key[4]) {
+NO_DISCARD c_abstract_http_error_t ws_apply_mask(
+    unsigned char *payload, size_t len, const unsigned char mask_key[4]) {
   size_t i;
   if (!payload || len == 0)
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -511,10 +493,9 @@ enum c_abstract_http_error ws_apply_mask(unsigned char *payload, size_t len,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-ws_pack_header_small(unsigned char *buf, int fin,
-                     enum c_abstract_http_ws_opcode opcode, int mask,
-                     size_t len, size_t *out_len) {
+NO_DISCARD c_abstract_http_error_t ws_pack_header_small(
+    unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode,
+    int mask, size_t len, size_t *out_len) {
   if (!buf || len > 125)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -528,10 +509,9 @@ ws_pack_header_small(unsigned char *buf, int fin,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-ws_pack_header_medium(unsigned char *buf, int fin,
-                      enum c_abstract_http_ws_opcode opcode, int mask,
-                      size_t len, size_t *out_len) {
+NO_DISCARD c_abstract_http_error_t ws_pack_header_medium(
+    unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode,
+    int mask, size_t len, size_t *out_len) {
   uint16_t net_len;
   if (!buf || len <= 125 || len > 65535)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -548,10 +528,9 @@ ws_pack_header_medium(unsigned char *buf, int fin,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-ws_pack_header_large(unsigned char *buf, int fin,
-                     enum c_abstract_http_ws_opcode opcode, int mask,
-                     size_t len, size_t *out_len) {
+NO_DISCARD c_abstract_http_error_t ws_pack_header_large(
+    unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode,
+    int mask, size_t len, size_t *out_len) {
   uint64_t net_len;
   if (!buf || len <= 65535)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -569,11 +548,10 @@ ws_pack_header_large(unsigned char *buf, int fin,
 }
 
 /** @brief Initialize a WebSocket frame parser context */
-enum c_abstract_http_error ws_parser_init(struct ws_parser_ctx *ctx,
-                                          c_abstract_http_ws_on_message on_msg,
-                                          c_abstract_http_ws_on_error on_err,
-                                          c_abstract_http_ws_on_close on_cls,
-                                          void *user_data) {
+NO_DISCARD c_abstract_http_error_t
+ws_parser_init(struct ws_parser_ctx *ctx, c_abstract_http_ws_on_message on_msg,
+               c_abstract_http_ws_on_error on_err,
+               c_abstract_http_ws_on_close on_cls, void *user_data) {
   if (!ctx)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   memset(ctx, 0, sizeof(*ctx));
@@ -593,7 +571,8 @@ enum c_abstract_http_error ws_parser_init(struct ws_parser_ctx *ctx,
 }
 
 /** @brief Destroy a WebSocket frame parser context */
-enum c_abstract_http_error ws_parser_destroy(struct ws_parser_ctx *ctx) {
+NO_DISCARD c_abstract_http_error_t
+ws_parser_destroy(struct ws_parser_ctx *ctx) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_parser_destroy_fail)
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -607,9 +586,9 @@ enum c_abstract_http_error ws_parser_destroy(struct ws_parser_ctx *ctx) {
 }
 
 /** @brief Feed raw bytes into the WebSocket frame parser */
-enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
-                                          const unsigned char *chunk,
-                                          size_t len) {
+NO_DISCARD c_abstract_http_error_t ws_parser_feed(struct ws_parser_ctx *ctx,
+                                                  const unsigned char *chunk,
+                                                  size_t len) {
   size_t i = 0;
   if (!ctx || (!chunk && len > 0)) {
     LOG_DEBUG("ws_parser_feed: Error EINVAL");
@@ -625,7 +604,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
       /* Fail if any RSV bits are set */
       if (b & 0x70) {
         if (ctx->on_error) {
-          enum c_abstract_http_error cb_rc =
+          c_abstract_http_error_t cb_rc =
               ctx->on_error(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
           if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
             return cb_rc;
@@ -636,7 +615,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
       /* Fail if control frame is fragmented */
       if (!ctx->current_frame.fin && ctx->current_frame.opcode >= 0x08) {
         if (ctx->on_error) {
-          enum c_abstract_http_error cb_rc =
+          c_abstract_http_error_t cb_rc =
               ctx->on_error(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
           if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
             return cb_rc;
@@ -651,6 +630,16 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
       unsigned char b = chunk[i++];
       unsigned char base_len = b & 0x7F;
       ctx->current_frame.mask = (b >> 7) & 1;
+
+      if (base_len >= 126 && ctx->current_frame.opcode >= 0x08) {
+        if (ctx->on_error) {
+          c_abstract_http_error_t cb_rc =
+              ctx->on_error(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
+          if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
+            return cb_rc;
+        }
+        return C_ABSTRACT_HTTP_ERR_WS_FRAMING;
+      }
 
       if (base_len == 126) {
         ctx->state = WS_PARSER_READ_EXT_LEN_16;
@@ -692,7 +681,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
         if (ctx->current_frame.payload_len >
             C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE) {
           if (ctx->on_error) {
-            enum c_abstract_http_error cb_rc =
+            c_abstract_http_error_t cb_rc =
                 ctx->on_error(C_ABSTRACT_HTTP_ERR_MSGSIZE, ctx->user_data);
             if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
               return cb_rc;
@@ -722,8 +711,8 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
             ctx->payload_buffer, (size_t)ctx->current_frame.payload_len);
         if (!new_buf) {
           if (ctx->on_error) {
-            enum c_abstract_http_error cb_rc =
-                ctx->on_error(ENOMEM, ctx->user_data);
+            c_abstract_http_error_t cb_rc =
+                ctx->on_error(C_ABSTRACT_HTTP_ERR_NOMEM, ctx->user_data);
             if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
               return cb_rc;
           }
@@ -759,7 +748,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
             status = math_ws_ntohs(net_status);
           }
           if (ctx->on_close) {
-            enum c_abstract_http_error cb_rc =
+            c_abstract_http_error_t cb_rc =
                 ctx->on_close(status, ctx->user_data);
             if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
               return cb_rc;
@@ -772,7 +761,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
           ev.payload_len = (size_t)ctx->current_frame.payload_len;
           ev.is_fin = ctx->current_frame.fin;
           if (ctx->on_message) {
-            enum c_abstract_http_error cb_rc =
+            c_abstract_http_error_t cb_rc =
                 ctx->on_message(&ev, ctx->user_data);
             if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
               return cb_rc;
@@ -785,27 +774,42 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
           ev.payload_len = (size_t)ctx->current_frame.payload_len;
           ev.is_fin = ctx->current_frame.fin;
           if (ctx->on_message) {
-            enum c_abstract_http_error cb_rc =
+            c_abstract_http_error_t cb_rc =
                 ctx->on_message(&ev, ctx->user_data);
             if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
               return cb_rc;
           }
         } else {
           /* Data Frame (Text or Binary or Continuation) */
+          if (ctx->current_frame.opcode ==
+                  C_ABSTRACT_HTTP_WS_OPCODE_CONTINUATION &&
+              !ctx->in_fragment && ctx->reassembly_offset == 0) {
+            if (ctx->on_error) {
+              c_abstract_http_error_t cb_rc =
+                  ctx->on_error(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
+              if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
+                return cb_rc;
+            }
+            return C_ABSTRACT_HTTP_ERR_WS_FRAMING;
+          }
           if (!ctx->current_frame.fin) {
             /* Fragmented message */
             if (ctx->current_frame.opcode !=
                     C_ABSTRACT_HTTP_WS_OPCODE_CONTINUATION &&
-                ctx->reassembly_offset > 0) {
+                (ctx->in_fragment || ctx->reassembly_offset > 0)) {
               /* EPROTO: new data frame before old
                * continuation finished */
               if (ctx->on_error) {
-                enum c_abstract_http_error cb_rc = ctx->on_error(
+                c_abstract_http_error_t cb_rc = ctx->on_error(
                     C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
                 if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
                   return cb_rc;
               }
               return C_ABSTRACT_HTTP_ERR_WS_FRAMING;
+            }
+            if (!ctx->in_fragment) {
+              ctx->in_fragment = 1;
+              ctx->fragment_opcode = ctx->current_frame.opcode;
             }
 
             /* Expand reassembly buffer */
@@ -821,7 +825,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
               /* Memory limit bounds check */
               if (new_cap > C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE) {
                 if (ctx->on_error) {
-                  enum c_abstract_http_error cb_rc = ctx->on_error(
+                  c_abstract_http_error_t cb_rc = ctx->on_error(
                       C_ABSTRACT_HTTP_ERR_MSGSIZE, ctx->user_data);
                   if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
                     return cb_rc;
@@ -834,8 +838,8 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
                     (unsigned char *)realloc(ctx->reassembly_buffer, new_cap);
                 if (!new_buf) {
                   if (ctx->on_error) {
-                    enum c_abstract_http_error cb_rc =
-                        ctx->on_error(ENOMEM, ctx->user_data);
+                    c_abstract_http_error_t cb_rc = ctx->on_error(
+                        C_ABSTRACT_HTTP_ERR_NOMEM, ctx->user_data);
                     if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
                       return cb_rc;
                   }
@@ -853,10 +857,23 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
           } else {
             /* Final frame */
             struct c_abstract_http_ws_event ev;
-            ev.opcode = ctx->current_frame.opcode;
+            if (ctx->current_frame.opcode !=
+                    C_ABSTRACT_HTTP_WS_OPCODE_CONTINUATION &&
+                (ctx->in_fragment || ctx->reassembly_offset > 0)) {
+              if (ctx->on_error) {
+                c_abstract_http_error_t cb_rc = ctx->on_error(
+                    C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
+                if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
+                  return cb_rc;
+              }
+              return C_ABSTRACT_HTTP_ERR_WS_FRAMING;
+            }
+            ev.opcode = (ctx->in_fragment && ctx->fragment_opcode != 0)
+                            ? ctx->fragment_opcode
+                            : ctx->current_frame.opcode;
             ev.is_fin = 1;
 
-            if (ctx->reassembly_offset > 0) {
+            if (ctx->in_fragment || ctx->reassembly_offset > 0) {
               /* Expand to fit final chunk */
               if (ctx->reassembly_offset + ctx->current_frame.payload_len >
                   ctx->reassembly_capacity) {
@@ -866,8 +883,8 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
                     (unsigned char *)realloc(ctx->reassembly_buffer, new_cap);
                 if (!new_buf) {
                   if (ctx->on_error) {
-                    enum c_abstract_http_error cb_rc =
-                        ctx->on_error(ENOMEM, ctx->user_data);
+                    c_abstract_http_error_t cb_rc = ctx->on_error(
+                        C_ABSTRACT_HTTP_ERR_NOMEM, ctx->user_data);
                     if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
                       return cb_rc;
                   }
@@ -884,8 +901,10 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
               ev.payload = ctx->reassembly_buffer;
               ev.payload_len = ctx->reassembly_offset;
               ctx->reassembly_offset = 0; /* Reset for next message */
+              ctx->in_fragment = 0;
+              ctx->fragment_opcode = C_ABSTRACT_HTTP_WS_OPCODE_CONTINUATION;
               if (ctx->on_message) {
-                enum c_abstract_http_error cb_rc =
+                c_abstract_http_error_t cb_rc =
                     ctx->on_message(&ev, ctx->user_data);
                 if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
                   return cb_rc;
@@ -895,7 +914,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
               ev.payload = ctx->payload_buffer;
               ev.payload_len = (size_t)ctx->current_frame.payload_len;
               if (ctx->on_message) {
-                enum c_abstract_http_error cb_rc =
+                c_abstract_http_error_t cb_rc =
                     ctx->on_message(&ev, ctx->user_data);
                 if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
                   return cb_rc;
@@ -914,7 +933,7 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
     }
     default: {
       if (ctx->on_error) {
-        enum c_abstract_http_error cb_rc =
+        c_abstract_http_error_t cb_rc =
             ctx->on_error(C_ABSTRACT_HTTP_ERR_WS_FRAMING, ctx->user_data);
         if (cb_rc != C_ABSTRACT_HTTP_SUCCESS)
           return cb_rc;
@@ -927,12 +946,12 @@ enum c_abstract_http_error ws_parser_feed(struct ws_parser_ctx *ctx,
 }
 
 /* Execute a synchronous WebSocket read loop */
-enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
+NO_DISCARD c_abstract_http_error_t c_abstract_http_ws_sync_read_loop(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
     c_abstract_http_ws_on_close on_close, void *user_data,
     volatile int *exit_flag) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpResponse *res = NULL;
   struct ws_parser_ctx parser;
   cah_cppcheck_mut_ptr(exit_flag);
@@ -948,7 +967,7 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   rc = c_abstract_http_ws_init(req, NULL);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (on_err) {
-      enum c_abstract_http_error err_rc = on_err(rc, user_data);
+      c_abstract_http_error_t err_rc = on_err(rc, user_data);
       if (err_rc != C_ABSTRACT_HTTP_SUCCESS)
         return err_rc;
     }
@@ -958,7 +977,7 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   rc = ws_parser_init(&parser, on_msg, on_err, on_close, user_data);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (on_err) {
-      enum c_abstract_http_error err_rc = on_err(rc, user_data);
+      c_abstract_http_error_t err_rc = on_err(rc, user_data);
       if (err_rc != C_ABSTRACT_HTTP_SUCCESS)
         return err_rc;
     }
@@ -968,12 +987,12 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   rc = client->send(client->transport, req, &res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS || !res) {
     {
-      enum c_abstract_http_error rch = ws_parser_destroy(&parser);
+      c_abstract_http_error_t rch = ws_parser_destroy(&parser);
       if (rch != C_ABSTRACT_HTTP_SUCCESS)
         return rch;
     }
     if (on_err) {
-      enum c_abstract_http_error err_rc = on_err(rc, user_data);
+      c_abstract_http_error_t err_rc = on_err(rc, user_data);
       if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return err_rc;
       }
@@ -986,10 +1005,10 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
                         res->body_len);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       if (on_err) {
-        enum c_abstract_http_error err_rc = on_err(rc, user_data);
+        c_abstract_http_error_t err_rc = on_err(rc, user_data);
         if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          enum c_abstract_http_error rch;
-          enum c_abstract_http_error rc_tmp;
+          c_abstract_http_error_t rch;
+          c_abstract_http_error_t rc_tmp;
           rch = ws_parser_destroy(&parser);
           if (rch != C_ABSTRACT_HTTP_SUCCESS) {
             free(res);
@@ -1005,14 +1024,14 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
         }
       }
       {
-        enum c_abstract_http_error rch = ws_parser_destroy(&parser);
+        c_abstract_http_error_t rch = ws_parser_destroy(&parser);
         if (rch != C_ABSTRACT_HTTP_SUCCESS) {
           free(res);
           return rch;
         }
       }
       {
-        enum c_abstract_http_error rc_tmp = http_response_free(res);
+        c_abstract_http_error_t rc_tmp = http_response_free(res);
         if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
           free(res);
           return rc_tmp;
@@ -1024,14 +1043,14 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   }
 
   {
-    enum c_abstract_http_error rch = ws_parser_destroy(&parser);
+    c_abstract_http_error_t rch = ws_parser_destroy(&parser);
     if (rch != C_ABSTRACT_HTTP_SUCCESS) {
       free(res);
       return rch;
     }
   }
   {
-    enum c_abstract_http_error rc_tmp = http_response_free(res);
+    c_abstract_http_error_t rc_tmp = http_response_free(res);
     if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
       free(res);
       return rc_tmp;
@@ -1040,7 +1059,7 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
   free(res);
 
   if (on_close) {
-    enum c_abstract_http_error cls_rc = on_close(200, user_data);
+    c_abstract_http_error_t cls_rc = on_close(200, user_data);
     if (cls_rc != C_ABSTRACT_HTTP_SUCCESS) {
       return cls_rc;
     }
@@ -1048,7 +1067,7 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
 
   if (req->ws_ctx) {
     {
-      enum c_abstract_http_error rch =
+      c_abstract_http_error_t rch =
           ws_stream_ctx_free((struct ws_stream_ctx *)req->ws_ctx);
       if (rch != C_ABSTRACT_HTTP_SUCCESS)
         return rch;
@@ -1064,8 +1083,9 @@ enum c_abstract_http_error c_abstract_http_ws_sync_read_loop(
  * @param arg Owned pointer to struct c_abstract_http_ws_async_ctx.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static enum c_abstract_http_error c_abstract_http_ws_async_task(void *arg) {
-  enum c_abstract_http_error err;
+NO_DISCARD static c_abstract_http_error_t
+c_abstract_http_ws_async_task(void *arg) {
+  c_abstract_http_error_t err;
   struct c_abstract_http_ws_async_ctx *ctx =
       (struct c_abstract_http_ws_async_ctx *)arg;
   volatile int exit_flag = 0;
@@ -1076,7 +1096,7 @@ static enum c_abstract_http_error c_abstract_http_ws_async_task(void *arg) {
                                           ctx->user_data, &exit_flag);
   if (err != C_ABSTRACT_HTTP_SUCCESS) {
     if (ctx->on_err) {
-      enum c_abstract_http_error err_rc = ctx->on_err(err, ctx->user_data);
+      c_abstract_http_error_t err_rc = ctx->on_err(err, ctx->user_data);
       if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
         free(ctx);
         return err_rc;
@@ -1095,13 +1115,13 @@ static enum c_abstract_http_error c_abstract_http_ws_async_task(void *arg) {
  * @param arg Owned pointer to struct c_abstract_http_ws_async_ctx.
  * @return Result from c_abstract_http_ws_async_task.
  */
-enum c_abstract_http_error abstract_http_test_ws_async_task(void *arg);
+NO_DISCARD c_abstract_http_error_t abstract_http_test_ws_async_task(void *arg);
 /**
  * @brief Test helper for WebSocket async task.
  * @param arg Owned pointer to struct c_abstract_http_ws_async_ctx.
  * @return Result from c_abstract_http_ws_async_task.
  */
-enum c_abstract_http_error abstract_http_test_ws_async_task(void *arg) {
+NO_DISCARD c_abstract_http_error_t abstract_http_test_ws_async_task(void *arg) {
   return c_abstract_http_ws_async_task(arg);
 }
 #endif
@@ -1117,10 +1137,10 @@ static int g_mock_ws_send_mode = 0;
  * @param mode `0` normal, `1` `EWOULDBLOCK`, `2` fatal error.
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_test_set_ws_send_mode(int mode);
 
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_test_set_ws_send_mode(int mode) {
   g_mock_ws_send_mode = mode;
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -1171,15 +1191,14 @@ static int math_ws_sock_send(int fd, const void *buf, size_t len) {
  * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_INVAL,
  * C_ABSTRACT_HTTP_ERR_NOTSUP, or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error ws_parse_connect_url(const char *url,
-                                                       char **out_host,
-                                                       int *out_port,
-                                                       char **out_path) {
+NO_DISCARD static c_abstract_http_error_t
+ws_parse_connect_url(const char *url, char **out_host, int *out_port,
+                     char **out_path) {
   const char *p;
   const char *slash;
   const char *colon;
   size_t host_len;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (strncmp(url, "ws://", 5) == 0) {
     p = url + 5;
@@ -1239,7 +1258,7 @@ static int math_ws_sock_would_block(void) {
  * @param sctx Active upgraded WebSocket stream context.
  * @return C_ABSTRACT_HTTP_SUCCESS or I/O / loop error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ws_flush_upgraded_queue_locked(struct ws_stream_ctx *sctx) {
   while (sctx->queue_len > 0 && sctx->has_upgraded_fd) {
     int n = math_ws_sock_send(sctx->upgraded_fd, sctx->queue, sctx->queue_len);
@@ -1270,12 +1289,12 @@ ws_flush_upgraded_queue_locked(struct ws_stream_ctx *sctx) {
  * @param user_data Pointer to `struct ws_stream_ctx`.
  * @return C_ABSTRACT_HTTP_SUCCESS or callback/send error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ws_upgraded_on_msg_cb(const struct c_abstract_http_ws_event *ev,
                       void *user_data) {
   struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)user_data;
   if (ev->opcode == C_ABSTRACT_HTTP_WS_OPCODE_PING && sctx->owner_req) {
-    enum c_abstract_http_error prc;
+    c_abstract_http_error_t prc;
     prc =
         c_abstract_http_ws_send(sctx->owner_req, C_ABSTRACT_HTTP_WS_OPCODE_PONG,
                                 ev->payload, ev->payload_len);
@@ -1295,8 +1314,8 @@ ws_upgraded_on_msg_cb(const struct c_abstract_http_ws_event *ev,
  * @param user_data Pointer to `struct ws_stream_ctx`.
  * @return C_ABSTRACT_HTTP_SUCCESS or user callback error enum.
  */
-static enum c_abstract_http_error ws_upgraded_on_err_cb(int error_code,
-                                                        void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+ws_upgraded_on_err_cb(int error_code, void *user_data) {
   struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)user_data;
   if (sctx->user_on_err) {
     return sctx->user_on_err(error_code, sctx->user_cb_data);
@@ -1311,8 +1330,8 @@ static enum c_abstract_http_error ws_upgraded_on_err_cb(int error_code,
  * @param user_data Pointer to `struct ws_stream_ctx`.
  * @return C_ABSTRACT_HTTP_SUCCESS or user callback error enum.
  */
-static enum c_abstract_http_error ws_upgraded_on_close_cb(int status_code,
-                                                          void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+ws_upgraded_on_close_cb(int status_code, void *user_data) {
   struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)user_data;
   sctx->peer_closed = 1;
   if (sctx->user_on_close) {
@@ -1330,12 +1349,12 @@ static enum c_abstract_http_error ws_upgraded_on_close_cb(int status_code,
  * @param user_data Pointer to owning `struct HttpRequest`.
  * @return C_ABSTRACT_HTTP_SUCCESS or callback/protocol error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ws_upgraded_loop_cb(struct ModalityEventLoop *loop, int fd, int revents,
                     void *user_data) {
   struct HttpRequest *req = (struct HttpRequest *)user_data;
   struct ws_stream_ctx *sctx = (struct ws_stream_ctx *)req->ws_ctx;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   (void)loop;
   if (revents & HTTP_LOOP_WRITE) {
@@ -1346,7 +1365,7 @@ ws_upgraded_loop_cb(struct ModalityEventLoop *loop, int fd, int revents,
     }
     rc = ws_flush_upgraded_queue_locked(sctx);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
+      c_abstract_http_error_t u_rc = abstract_http_mutex_unlock(sctx->mutex);
       if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return u_rc;
       }
@@ -1403,7 +1422,7 @@ ws_upgraded_loop_cb(struct ModalityEventLoop *loop, int fd, int revents,
  * @param out_rem_len Number of trailing bytes written into `rem_buf`.
  * @return C_ABSTRACT_HTTP_SUCCESS or handshake/I/O error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ws_perform_101_handshake(const struct HttpRequest *req, const char *host,
                          int port, const char *path, int *out_fd,
                          unsigned char rem_buf[4096], size_t *out_rem_len) {
@@ -1417,7 +1436,7 @@ ws_perform_101_handshake(const struct HttpRequest *req, const char *host,
   size_t i;
   int off = 0;
   int sock_fd = -1;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
 #if defined(_WIN32)
   {
@@ -1457,7 +1476,11 @@ ws_perform_101_handshake(const struct HttpRequest *req, const char *host,
                sizeof(nosig));
   }
 #endif
+#if defined(_WIN32)
+  if (connect((SOCKET)sock_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+#else
   if (connect(sock_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+#endif
     return ws_close_fd_and_return(sock_fd, C_ABSTRACT_HTTP_ERR_CONNREFUSED);
   }
 
@@ -1494,13 +1517,13 @@ ws_perform_101_handshake(const struct HttpRequest *req, const char *host,
   }
 
   while (rx_len + 1U < sizeof(rx_buf)) {
-    int n = (int)recv(sock_fd, rx_buf + rx_len,
 #if defined(_WIN32)
-                      (int)(sizeof(rx_buf) - 1U - rx_len),
+    int n = (int)recv((SOCKET)sock_fd, rx_buf + rx_len,
+                      (int)(sizeof(rx_buf) - 1U - rx_len), 0);
 #else
-                      sizeof(rx_buf) - 1U - rx_len,
+    int n =
+        (int)recv(sock_fd, rx_buf + rx_len, sizeof(rx_buf) - 1U - rx_len, 0);
 #endif
-                      0);
     if (n <= 0) {
       break;
     }
@@ -1573,7 +1596,7 @@ ws_perform_101_handshake(const struct HttpRequest *req, const char *host,
 #endif
 
 /** @brief Connect, upgrade, detach raw socket, and register on event loop */
-enum c_abstract_http_error c_abstract_http_ws_async_connect(
+NO_DISCARD c_abstract_http_error_t c_abstract_http_ws_async_connect(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
     c_abstract_http_ws_on_close on_close, void *user_data) {
@@ -1594,7 +1617,7 @@ enum c_abstract_http_error c_abstract_http_ws_async_connect(
   size_t rem_len = 0;
   struct ws_stream_ctx *sctx;
   int init_ev;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!client || !req || !req->url || !client->loop) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -1668,11 +1691,11 @@ enum c_abstract_http_error c_abstract_http_ws_async_connect(
 }
 
 /** @brief Register an asynchronous WebSocket reader */
-enum c_abstract_http_error c_abstract_http_ws_async_register(
+NO_DISCARD c_abstract_http_error_t c_abstract_http_ws_async_register(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
     c_abstract_http_ws_on_close on_close, void *user_data) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct c_abstract_http_ws_async_ctx *ctx;
 
   if (!client || !req) {
@@ -1715,21 +1738,19 @@ enum c_abstract_http_error c_abstract_http_ws_async_register(
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
 
-enum c_abstract_http_error
-c_abstract_http_ws_send_async(struct HttpRequest *req,
-                              enum c_abstract_http_ws_opcode opcode,
-                              const unsigned char *payload, size_t len) {
+NO_DISCARD c_abstract_http_error_t c_abstract_http_ws_send_async(
+    struct HttpRequest *req, enum c_abstract_http_ws_opcode opcode,
+    const unsigned char *payload, size_t len) {
   return c_abstract_http_ws_send(req, opcode, payload, len);
 }
 
-enum c_abstract_http_error
-c_abstract_http_ws_send(struct HttpRequest *req,
-                        enum c_abstract_http_ws_opcode opcode,
-                        const unsigned char *payload, size_t len) {
+NO_DISCARD c_abstract_http_error_t c_abstract_http_ws_send(
+    struct HttpRequest *req, enum c_abstract_http_ws_opcode opcode,
+    const unsigned char *payload, size_t len) {
   struct ws_stream_ctx *sctx;
   unsigned char header[10];
   size_t header_len = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   unsigned char mask_key[4] = {0, 0, 0, 0};
   unsigned char *masked_payload = NULL;
 
@@ -1830,7 +1851,7 @@ c_abstract_http_ws_send(struct HttpRequest *req,
     int need_wakeup = 0;
     rc = ws_flush_upgraded_queue_locked(sctx);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
+      c_abstract_http_error_t u_rc = abstract_http_mutex_unlock(sctx->mutex);
       if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
         free(masked_payload);
         return u_rc;
@@ -1854,7 +1875,7 @@ c_abstract_http_ws_send(struct HttpRequest *req,
 
   rc = abstract_http_cond_signal(sctx->cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
+    c_abstract_http_error_t u_rc = abstract_http_mutex_unlock(sctx->mutex);
     if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("c_abstract_http_ws_send: unlock error %d", (int)u_rc);
       free(masked_payload);
@@ -1874,12 +1895,12 @@ c_abstract_http_ws_send(struct HttpRequest *req,
 }
 
 /* Send a WebSocket close frame and close the stream */
-enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
-                                                    int status_code) {
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_ws_close(struct HttpRequest *req, int status_code) {
   struct ws_stream_ctx *sctx;
   unsigned char payload[2];
   uint16_t net_status = math_ws_htons((uint16_t)status_code);
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   if (!req || !req->ws_ctx)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   sctx = (struct ws_stream_ctx *)req->ws_ctx;
@@ -1898,7 +1919,7 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
   sctx->close_requested = 1;
   rc = abstract_http_cond_signal(sctx->cond);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(sctx->mutex);
+    c_abstract_http_error_t u_rc = abstract_http_mutex_unlock(sctx->mutex);
     if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("c_abstract_http_ws_close: unlock error %d", (int)u_rc);
       return u_rc;
@@ -1918,11 +1939,12 @@ enum c_abstract_http_error c_abstract_http_ws_close(struct HttpRequest *req,
 }
 
 /** @brief Free WebSocket stream resources attached to an HTTP request */
-enum c_abstract_http_error c_abstract_http_ws_free(struct HttpRequest *req) {
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_ws_free(struct HttpRequest *req) {
   if (req) {
     if (req->ws_ctx) {
       {
-        enum c_abstract_http_error rch =
+        c_abstract_http_error_t rch =
             ws_stream_ctx_free((struct ws_stream_ctx *)req->ws_ctx);
         if (rch != C_ABSTRACT_HTTP_SUCCESS)
           return rch;

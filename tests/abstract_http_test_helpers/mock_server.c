@@ -99,7 +99,7 @@ static void mutex_unlock(mutex_t *m) { LeaveCriticalSection(m); }
     (defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600)
 static void cond_init(HANDLE *c) { *c = CreateEvent(NULL, FALSE, FALSE, NULL); }
 static void cond_signal(HANDLE *c) { SetEvent(*c); }
-static enum c_abstract_http_error cond_wait(HANDLE *c, mutex_t *m) {
+NO_DISCARD static c_abstract_http_error_t cond_wait(HANDLE *c, mutex_t *m) {
   if (g_mock_server_cond_wait_fail)
     return C_ABSTRACT_HTTP_ERR_IO;
   LeaveCriticalSection(m);
@@ -110,7 +110,7 @@ static enum c_abstract_http_error cond_wait(HANDLE *c, mutex_t *m) {
 #else
 static void cond_init(cond_t *c) { InitializeConditionVariable(c); }
 static void cond_signal(cond_t *c) { WakeConditionVariable(c); }
-static enum c_abstract_http_error cond_wait(cond_t *c, mutex_t *m) {
+NO_DISCARD static c_abstract_http_error_t cond_wait(cond_t *c, mutex_t *m) {
   if (g_mock_server_cond_wait_fail)
     return C_ABSTRACT_HTTP_ERR_IO;
   return SleepConditionVariableCS(c, m, 5000) ? C_ABSTRACT_HTTP_SUCCESS
@@ -120,7 +120,7 @@ static enum c_abstract_http_error cond_wait(cond_t *c, mutex_t *m) {
 
 static void close_socket(socket_t s) { closesocket(s); }
 
-static enum c_abstract_http_error platform_init(void) {
+NO_DISCARD static c_abstract_http_error_t platform_init(void) {
   WSADATA wsa;
   return WSAStartup(MAKEWORD(2, 2), &wsa) == 0 ? C_ABSTRACT_HTTP_SUCCESS
                                                : C_ABSTRACT_HTTP_ERR_IO;
@@ -150,7 +150,7 @@ static void mutex_unlock(mutex_t *m) { pthread_mutex_unlock(m); }
 static void cond_init(cond_t *c) { pthread_cond_init(c, NULL); }
 static void cond_signal(cond_t *c) { pthread_cond_signal(c); }
 
-static enum c_abstract_http_error cond_wait(cond_t *c, mutex_t *m) {
+NO_DISCARD static c_abstract_http_error_t cond_wait(cond_t *c, mutex_t *m) {
   if (g_mock_server_cond_wait_fail)
     return C_ABSTRACT_HTTP_ERR_IO;
   return pthread_cond_wait(c, m) == 0 ? C_ABSTRACT_HTTP_SUCCESS
@@ -159,7 +159,7 @@ static enum c_abstract_http_error cond_wait(cond_t *c, mutex_t *m) {
 
 static void close_socket(socket_t s) { close(s); }
 
-static enum c_abstract_http_error platform_init(void) {
+NO_DISCARD static c_abstract_http_error_t platform_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 static void platform_cleanup(void) {}
@@ -275,9 +275,9 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
 
 /* --- Wrapper API --- */
 
-enum c_abstract_http_error mock_server_init(MockServerPtr *out) {
+NO_DISCARD c_abstract_http_error_t mock_server_init(MockServerPtr *out) {
   struct MockServer_ *s;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = platform_init();
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -310,7 +310,7 @@ static unsigned short math_portable_ntohs(unsigned short netshort) {
   return (unsigned short)(((unsigned short)b[0] << 8) | (unsigned short)b[1]);
 }
 
-enum c_abstract_http_error mock_server_destroy(MockServerPtr server) {
+NO_DISCARD c_abstract_http_error_t mock_server_destroy(MockServerPtr server) {
   if (!server)
     return C_ABSTRACT_HTTP_SUCCESS;
 
@@ -367,7 +367,7 @@ enum c_abstract_http_error mock_server_destroy(MockServerPtr server) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error mock_server_start(MockServerPtr server) {
+NO_DISCARD c_abstract_http_error_t mock_server_start(MockServerPtr server) {
   struct sockaddr_in addr;
 #if defined(_WIN32)
   int addr_len = sizeof(addr);
@@ -446,15 +446,14 @@ int math_mock_server_get_port(MockServerPtr server) {
   return server ? server->port : 0;
 }
 
-enum c_abstract_http_error
-mock_server_wait_for_request(MockServerPtr server,
-                             struct MockServerRequest *out_req) {
+NO_DISCARD c_abstract_http_error_t mock_server_wait_for_request(
+    MockServerPtr server, struct MockServerRequest *out_req) {
   if (!server || !out_req)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   mutex_lock(&server->lock);
   while (!server->has_request && server->running) {
-    enum c_abstract_http_error cw_rc;
+    c_abstract_http_error_t cw_rc;
     cw_rc = cond_wait(&server->cond_req_ready, &server->lock);
     if (cw_rc != C_ABSTRACT_HTTP_SUCCESS) {
       mutex_unlock(&server->lock);
@@ -486,7 +485,7 @@ mock_server_wait_for_request(MockServerPtr server,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 mock_server_request_cleanup(struct MockServerRequest *req) {
   if (req && req->raw_header) {
     free(req->raw_header);
@@ -495,9 +494,8 @@ mock_server_request_cleanup(struct MockServerRequest *req) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_mock_server_force_request(MockServerPtr server,
-                                        const char *data) {
+NO_DISCARD c_abstract_http_error_t abstract_http_mock_server_force_request(
+    MockServerPtr server, const char *data) {
   if (server) {
     server->has_request = 1;
     if (server->captured_request) {
@@ -517,7 +515,7 @@ abstract_http_mock_server_force_request(MockServerPtr server,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_server_has_request(MockServerPtr server, int *out_has) {
   if (out_has) {
     *out_has = server ? server->has_request : 0;
@@ -525,7 +523,7 @@ abstract_http_mock_server_has_request(MockServerPtr server, int *out_has) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_server_clear_request(MockServerPtr server) {
   if (server) {
     if (server->captured_request) {
@@ -537,7 +535,7 @@ abstract_http_mock_server_clear_request(MockServerPtr server) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_server_force_fd(MockServerPtr server, int fd) {
   if (server) {
     server->server_fd = (socket_t)fd;
@@ -546,7 +544,7 @@ abstract_http_mock_server_force_fd(MockServerPtr server, int fd) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_server_signal_ready(MockServerPtr server) {
   if (server) {
     mutex_lock(&server->lock);
@@ -556,7 +554,7 @@ abstract_http_mock_server_signal_ready(MockServerPtr server) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_server_run_thread_once(MockServerPtr server) {
   if (server) {
     server->running = 0;
@@ -565,7 +563,7 @@ abstract_http_mock_server_run_thread_once(MockServerPtr server) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_server_force_running(MockServerPtr server, int running) {
   if (server) {
     server->running = running;
@@ -573,7 +571,7 @@ abstract_http_mock_server_force_running(MockServerPtr server, int running) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_server_force_port(MockServerPtr server, int port) {
   if (server) {
     server->port = port;

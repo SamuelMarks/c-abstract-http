@@ -48,9 +48,9 @@ extern "C" {
 
 extern int g_mock_http_types_strdup_fail;
 
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_test_urldecode_alloc(const char *src, size_t src_len, char **out);
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_test_real_strdup(const char *s, char **out_s);
 
 #if defined(_WIN32)
@@ -71,11 +71,11 @@ struct ServerArgs {
   /** @brief Documented */
   char *err_desc;
   /** @brief Documented */
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 };
 
 #if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
-static enum c_abstract_http_error server_task(void *arg) {
+NO_DISCARD static c_abstract_http_error_t server_task(void *arg) {
   struct ServerArgs *args = (struct ServerArgs *)arg;
   if (!args)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -317,7 +317,7 @@ TEST test_multipart_part_headers(void) {
 }
 
 TEST test_auth_basic_header(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -331,7 +331,7 @@ TEST test_auth_basic_header(void) {
 }
 
 TEST test_auth_basic_userpwd(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -538,7 +538,7 @@ TEST test_http_multi_request(void) {
 }
 
 TEST test_oauth2_password_grant(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
   const char *out_header;
 
@@ -587,7 +587,7 @@ TEST test_oauth2_password_grant(void) {
 }
 
 TEST test_oauth2_refresh_token_grant(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -630,7 +630,7 @@ TEST test_oauth2_refresh_token_grant(void) {
 }
 
 TEST test_oauth2_authorization_code_grant(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -672,7 +672,7 @@ TEST test_oauth2_authorization_code_grant(void) {
 }
 
 TEST test_oauth2_device_authorization_request(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -698,7 +698,7 @@ TEST test_oauth2_device_authorization_request(void) {
 }
 
 TEST test_oauth2_device_access_token_request(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -729,7 +729,7 @@ TEST test_oauth2_device_access_token_request(void) {
 }
 
 TEST test_oauth2_token_revocation(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -757,7 +757,7 @@ TEST test_oauth2_token_revocation(void) {
 }
 
 TEST test_oauth2_token_introspection(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -786,7 +786,7 @@ TEST test_oauth2_token_introspection(void) {
 }
 
 TEST test_oauth2_client_credentials_grant(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -825,7 +825,7 @@ TEST test_oauth2_client_credentials_grant(void) {
 }
 
 TEST test_oauth2_jwt_bearer_grant(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -867,7 +867,7 @@ TEST test_oauth2_jwt_bearer_grant(void) {
 }
 
 TEST test_oauth2_build_authorization_url(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   char *url = NULL;
 
   /* Test invalid inputs */
@@ -994,7 +994,7 @@ TEST test_c_abstract_http_log_debug(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_multi_progress_ok(size_t current, size_t total, void *user_data) {
   size_t *counter = (size_t *)user_data;
   if (counter) {
@@ -1003,7 +1003,7 @@ test_multi_progress_ok(size_t current, size_t total, void *user_data) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 test_multi_progress_abort(size_t current, size_t total, void *user_data) {
   (void)current;
   (void)total;
@@ -1011,7 +1011,7 @@ test_multi_progress_abort(size_t current, size_t total, void *user_data) {
   return C_ABSTRACT_HTTP_ERR_TIMEOUT;
 }
 
-static enum c_abstract_http_error test_async_send_multi_ready_ok(
+NO_DISCARD static c_abstract_http_error_t test_async_send_multi_ready_ok(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
@@ -1024,7 +1024,7 @@ static enum c_abstract_http_error test_async_send_multi_ready_ok(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error test_async_send_multi_ready_err(
+NO_DISCARD static c_abstract_http_error_t test_async_send_multi_ready_err(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
@@ -1159,7 +1159,7 @@ TEST test_http_types_leftover_errs(void) {
   char *boundary = NULL;
   const char *out = NULL;
   struct HttpResponse res;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   int i;
   memset(&multi, 0, sizeof(multi));
   memset(&res, 0, sizeof(res));
@@ -1428,7 +1428,7 @@ TEST test_http_types_more_errs_2(void) {
   struct HttpRequest req;
   struct HttpFuture f;
   char *url = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   int i;
   memset(&f, 0, sizeof(f));
   (void)f;
@@ -1554,7 +1554,7 @@ TEST test_http_types_end_errs(void) {
   struct HttpResponse res = {0};
   char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
   int i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   memset(&multi, 0, sizeof(multi));
 
   (void)multi;
@@ -1609,7 +1609,7 @@ TEST test_http_types_end_errs(void) {
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 
 dummy_send_fail(struct HttpTransportContext *transport,
                 const struct HttpRequest *req, struct HttpResponse **res) {
@@ -1619,7 +1619,7 @@ dummy_send_fail(struct HttpTransportContext *transport,
   return 1;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 
 dummy_send_multi_ok(struct HttpTransportContext *transport,
                     struct ModalityEventLoop *loop,
@@ -1638,7 +1638,7 @@ TEST test_http_types_final_errs(void) {
   struct HttpRequest req;
   struct HttpMultiRequest multi;
   struct HttpFuture f1;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpFuture *futures[1];
   struct HttpResponse res = {0};
   char *c = NULL, *s = NULL, *e = NULL, *ed = NULL;
@@ -1704,7 +1704,7 @@ TEST test_http_types_final_errs(void) {
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_http_types_oom_bruteforce_all(void) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   struct HttpRequest req;
   int i;
 
@@ -1944,6 +1944,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     res2.body_len = 4;
     g_mock_fwrite_fail = 1;
     rc = http_response_save_to_file(&res2, "out_fwrite.txt");
+    remove("out_fwrite.txt");
     res2.body = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(&res2));
     g_mock_fwrite_fail = 0;
@@ -1958,6 +1959,7 @@ TEST test_http_types_oom_bruteforce_all(void) {
     res2.body_len = 4;
     g_mock_fclose_fail = 1;
     rc = http_response_save_to_file(&res2, "out_fclose.txt");
+    remove("out_fclose.txt");
     res2.body = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(&res2));
     g_mock_fclose_fail = 0;
@@ -2245,12 +2247,12 @@ TEST test_http_types_extra_coverage(void) {
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_test_urldecode_alloc(const char *src, size_t src_len, char **out);
-C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_test_real_strdup(const char *s, char **out_s);
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_send_sync_success(struct HttpTransportContext *transport,
                        const struct HttpRequest *req,
                        struct HttpResponse **out_res) {
@@ -2261,7 +2263,7 @@ mock_send_sync_success(struct HttpTransportContext *transport,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error mock_send_multi_fail(
+NO_DISCARD static c_abstract_http_error_t mock_send_multi_fail(
     struct HttpTransportContext *transport, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   (void)transport;
@@ -2271,7 +2273,7 @@ static enum c_abstract_http_error mock_send_multi_fail(
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
-static enum c_abstract_http_error mock_send_multi_success(
+NO_DISCARD static c_abstract_http_error_t mock_send_multi_success(
     struct HttpTransportContext *transport, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   (void)transport;
@@ -2814,13 +2816,13 @@ TEST test_http_types_complete_coverage(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_http_types_helpers(int step);
 
 TEST test_http_types_oauth_and_multipart_failures(void) {
   int i;
   struct HttpRequest req;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   /* 1. Internal helpers */
   for (i = 0; i < 7; ++i) {
@@ -3007,7 +3009,7 @@ TEST test_http_types_free_ooms(void) {
 
   g_mock_http_types_strdup_fail = 1;
   {
-    enum c_abstract_http_error r = abstract_http_test_real_strdup("test", NULL);
+    c_abstract_http_error_t r = abstract_http_test_real_strdup("test", NULL);
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_ERR_NOMEM, r, "%d");
   }
   g_mock_http_types_strdup_fail = 0;
@@ -3025,7 +3027,7 @@ TEST test_http_types_free_ooms_extended(void) {
   pfuts[0] = &futs[0];
 
   {
-    enum c_abstract_http_error r = http_client_init(&client);
+    c_abstract_http_error_t r = http_client_init(&client);
     ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, r, "%d");
   }
   g_mock_config_free_fail = 1;
@@ -3072,7 +3074,7 @@ TEST test_http_types_free_ooms_extended(void) {
   PASS();
 }
 
-static enum c_abstract_http_error mock_send_multi_err(
+NO_DISCARD static c_abstract_http_error_t mock_send_multi_err(
     struct HttpTransportContext *transport, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   (void)transport;
@@ -3150,12 +3152,12 @@ static int g_pipeline_mode = 0;
 static char g_pipeline_last_url[256];
 static char g_pipeline_last_cookie[256];
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 pipeline_mock_send(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, struct HttpResponse **res) {
   struct HttpResponse *r;
   const char *ck = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)ctx;
   g_pipeline_call_count++;
   g_pipeline_last_url[0] = '\0';
@@ -3194,14 +3196,14 @@ pipeline_mock_send(struct HttpTransportContext *ctx,
     if (g_pipeline_call_count == 1) {
       rc = http_headers_add(&r->headers, "Retry-After", "1");
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        enum c_abstract_http_error fr = http_response_free(r);
+        c_abstract_http_error_t fr = http_response_free(r);
         free(r);
         return fr != C_ABSTRACT_HTTP_SUCCESS ? fr : rc;
       }
     } else if (g_pipeline_call_count == 2) {
       rc = http_headers_add(&r->headers, "Retry-After", "0");
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        enum c_abstract_http_error fr = http_response_free(r);
+        c_abstract_http_error_t fr = http_response_free(r);
         free(r);
         return fr != C_ABSTRACT_HTTP_SUCCESS ? fr : rc;
       }
@@ -3212,7 +3214,7 @@ pipeline_mock_send(struct HttpTransportContext *ctx,
         "sid=tok99; Domain=.example.com; Path=/v1; Max-Age=3600; Secure; "
         "HttpOnly; SameSite=Lax");
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error fr = http_response_free(r);
+      c_abstract_http_error_t fr = http_response_free(r);
       free(r);
       return fr != C_ABSTRACT_HTTP_SUCCESS ? fr : rc;
     }
@@ -3221,7 +3223,7 @@ pipeline_mock_send(struct HttpTransportContext *ctx,
   } else if (g_pipeline_mode == 6) {
     rc = http_headers_add(&r->headers, "Set-Cookie", "malformed_cookie_no_eq");
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error fr = http_response_free(r);
+      c_abstract_http_error_t fr = http_response_free(r);
       free(r);
       return fr != C_ABSTRACT_HTTP_SUCCESS ? fr : rc;
     }
@@ -3358,13 +3360,13 @@ TEST test_rfc6265_cookie_jar_and_pipeline(void) {
     g_mock_alloc_fail = 1;
     g_mock_alloc_count = k;
     {
-      enum c_abstract_http_error orc = http_cookie_jar_parse_set_cookie(
+      c_abstract_http_error_t orc = http_cookie_jar_parse_set_cookie(
           &oom_jar,
           "k=v; HttpOnly; Domain=.example.com; Path=/p; SameSite=Lax; "
           "Expires=1999999999");
       if (orc == C_ABSTRACT_HTTP_SUCCESS) {
         char *oh = NULL;
-        enum c_abstract_http_error brc = http_cookie_jar_build_header(
+        c_abstract_http_error_t brc = http_cookie_jar_build_header(
             &oom_jar, "https://example.com/p", &oh);
         if (brc == C_ABSTRACT_HTTP_SUCCESS) {
           free(oh);
@@ -3388,7 +3390,7 @@ TEST test_rfc6265_cookie_jar_and_pipeline(void) {
   for (k = 1; k <= 25; ++k) {
     g_mock_strcasecmp_fail = -k;
     {
-      enum c_abstract_http_error src = http_cookie_jar_parse_set_cookie(
+      c_abstract_http_error_t src = http_cookie_jar_parse_set_cookie(
           &jar, "c1=v; Domain=example.com; Path=/api; Custom=1");
       ASSERT(src == C_ABSTRACT_HTTP_SUCCESS || src == C_ABSTRACT_HTTP_ERR_IO);
     }
@@ -3554,7 +3556,7 @@ TEST test_rfc6265_cookie_jar_and_pipeline(void) {
 
 static int g_ipc_fail_step = 0;
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_ipc_wait_ok(struct AbstractHttpProcess *proc, int *exit_code) {
   free(proc);
   if (exit_code)
@@ -3569,7 +3571,7 @@ static char *g_ipc_mock_resp_bytes = NULL;
 static size_t g_ipc_mock_resp_len = 0;
 static size_t g_ipc_mock_read_stage = 0;
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_ipc_spawn_ok(struct AbstractHttpProcess **proc,
                   struct AbstractHttpIpcPipe *p2c,
                   struct AbstractHttpIpcPipe *c2p) {
@@ -3581,7 +3583,7 @@ mock_ipc_spawn_ok(struct AbstractHttpProcess **proc,
   return *proc ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_NOMEM;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_ipc_write_ok(void *handle, const void *data, size_t len) {
   (void)handle;
   (void)data;
@@ -3592,8 +3594,8 @@ mock_ipc_write_ok(void *handle, const void *data, size_t len) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error mock_ipc_read_ok(void *handle, void *data,
-                                                   size_t len) {
+NO_DISCARD static c_abstract_http_error_t
+mock_ipc_read_ok(void *handle, void *data, size_t len) {
   (void)handle;
   if (g_ipc_mock_read_stage == 0) {
     g_ipc_mock_read_stage = 1;
@@ -3612,12 +3614,12 @@ static enum c_abstract_http_error mock_ipc_read_ok(void *handle, void *data,
 }
 #endif
 
-static enum c_abstract_http_error dummy_coro_noop(void *arg) {
+NO_DISCARD static c_abstract_http_error_t dummy_coro_noop(void *arg) {
   (void)arg;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 fail_push_hook(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
   (void)ctx;
   (void)cb;
@@ -3626,9 +3628,9 @@ fail_push_hook(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 sync_exec_push_hook(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
-  enum c_abstract_http_error trc;
+  c_abstract_http_error_t trc;
   (void)ctx;
   trc = cb(arg);
   if (trc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -3637,7 +3639,7 @@ sync_exec_push_hook(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 noop_push_hook(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
   (void)ctx;
   (void)cb;
@@ -3648,7 +3650,7 @@ noop_push_hook(void *ctx, abstract_http_thread_task_cb cb, void *arg) {
 static int g_coro_hook_mode = 0;
 static int g_coro_is_done_calls = 0;
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_co_init_hook(struct AbstractHttpCoroutine **co, size_t stack_size,
                   abstract_http_coroutine_cb cb, void *arg) {
   (void)stack_size;
@@ -3660,14 +3662,14 @@ mock_co_init_hook(struct AbstractHttpCoroutine **co, size_t stack_size,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_co_free_hook(struct AbstractHttpCoroutine *co) {
   free(co);
   return g_coro_hook_mode == 5 ? C_ABSTRACT_HTTP_ERR_IO
                                : C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_co_resume_hook(struct AbstractHttpCoroutine *co) {
   abstract_http_coroutine_cb cb =
       (abstract_http_coroutine_cb)(size_t)((void **)co)[0];
@@ -3677,12 +3679,12 @@ mock_co_resume_hook(struct AbstractHttpCoroutine *co) {
   return cb(arg);
 }
 
-static enum c_abstract_http_error mock_co_yield_hook(void) {
+NO_DISCARD static c_abstract_http_error_t mock_co_yield_hook(void) {
   return g_coro_hook_mode == 1 ? C_ABSTRACT_HTTP_ERR_IO
                                : C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_co_is_done_hook(const struct AbstractHttpCoroutine *co, int *out_done) {
   (void)co;
   g_coro_is_done_calls++;
@@ -3702,20 +3704,20 @@ mock_co_is_done_hook(const struct AbstractHttpCoroutine *co, int *out_done) {
 
 static int g_actor_hook_mode = 0;
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_bus_init_hook(struct AbstractHttpMessageBus **bus) {
   *bus = (struct AbstractHttpMessageBus *)calloc(1, sizeof(int));
   return *bus ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_NOMEM;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_bus_free_hook(struct AbstractHttpMessageBus *bus) {
   free(bus);
   return g_actor_hook_mode == 2 ? C_ABSTRACT_HTTP_ERR_IO
                                 : C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_bus_process_hook(struct AbstractHttpMessageBus *bus, int *out_proc) {
   (void)bus;
   if (out_proc)
@@ -3724,7 +3726,7 @@ mock_bus_process_hook(struct AbstractHttpMessageBus *bus, int *out_proc) {
                                 : C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_actor_spawn_hook(struct AbstractHttpMessageBus *bus, const char *name,
                       abstract_http_actor_handler_cb handler, void *state,
                       struct AbstractHttpActor **actor) {
@@ -3736,7 +3738,7 @@ mock_actor_spawn_hook(struct AbstractHttpMessageBus *bus, const char *name,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_actor_send_hook(struct AbstractHttpMessageBus *bus,
                      const struct AbstractHttpMessage *msg) {
   (void)bus;
@@ -3747,7 +3749,7 @@ mock_actor_send_hook(struct AbstractHttpMessageBus *bus,
 
 #if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__) &&   \
     !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
-static enum c_abstract_http_error future_cancel_worker_cb(void *arg) {
+NO_DISCARD static c_abstract_http_error_t future_cancel_worker_cb(void *arg) {
   struct HttpFuture *f = (struct HttpFuture *)arg;
 #if defined(_WIN32)
   Sleep(15);
@@ -4368,13 +4370,17 @@ TEST test_modalities_future_and_context_lifecycle(void) {
       client.thread_pool = NULL;
 
       /* Sequential fail_fast with non-NULL progress_cb */
-      client.config.modality = MODALITY_SYNC;
-      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
-      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
-      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT,
-                http_client_send_multi(&client, reqs, 2, futures,
-                                       test_multi_progress_ok, &k, 1));
-      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      {
+        size_t progress_seen_ff = 0;
+        client.config.modality = MODALITY_SYNC;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_init(&f1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_cancel(&f1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_TIMEOUT,
+                  http_client_send_multi(&client, reqs, 2, futures,
+                                         test_multi_progress_ok,
+                                         &progress_seen_ff, 1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      }
     }
 
     /* Coroutine hook error paths (yield, is_done 1/2, resume, free, 2-coro

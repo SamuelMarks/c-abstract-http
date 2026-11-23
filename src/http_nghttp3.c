@@ -11,6 +11,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
+#endif
+
 #include <c_abstract_http/http_nghttp3.h>
 #include <c_abstract_http/http_raw.h>
 #include <c_abstract_http/http_types.h>
@@ -65,7 +80,7 @@ struct ngh3_stream_state {
   /** @brief Completion flag */
   int done;
   /** @brief Callback error state */
-  enum c_abstract_http_error err;
+  c_abstract_http_error_t err;
 };
 
 /**
@@ -74,8 +89,8 @@ struct ngh3_stream_state {
  * @param out Output string pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-static enum c_abstract_http_error ngh3_method_str(enum HttpMethod method,
-                                                  const char **out) {
+NO_DISCARD static c_abstract_http_error_t
+ngh3_method_str(enum HttpMethod method, const char **out) {
   switch ((int)method) {
   case HTTP_GET:
     *out = "GET";
@@ -119,7 +134,7 @@ static enum c_abstract_http_error ngh3_method_str(enum HttpMethod method,
  * @param out_path Newly allocated path string.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_parse_url(const char *url, char **out_scheme, char **out_host,
                unsigned short *out_port, char **out_path) {
   const char *p;
@@ -128,7 +143,7 @@ ngh3_parse_url(const char *url, char **out_scheme, char **out_host,
   size_t scheme_len;
   size_t host_len;
   unsigned short default_port = 443;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!url) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -241,7 +256,7 @@ static int math_ngh3_strcasecmp(const char *a, const char *b) {
  * @param out_hdr Newly allocated "Basic <base64>" string.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
   const char *pw = pass ? pass : "";
   size_t ulen = strlen(user);
@@ -250,7 +265,7 @@ ngh3_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
   char *b64 = NULL;
   size_t b64_len = 0;
   char *hdr;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   raw = (char *)malloc(ulen + 1 + plen + 1);
   if (!raw) {
@@ -287,7 +302,7 @@ ngh3_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
  * @param out_cookie Newly allocated Cookie string.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_build_cookie_hdr(const struct HttpCookieJar *jar, char **out_cookie) {
   size_t total = 1;
   size_t i;
@@ -328,7 +343,7 @@ ngh3_build_cookie_hdr(const struct HttpCookieJar *jar, char **out_cookie) {
  * @param header_val Raw Set-Cookie header value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
   const char *eq;
   const char *semi;
@@ -336,7 +351,7 @@ ngh3_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
   size_t vlen;
   char *cname;
   char *cval;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   eq = strchr(header_val, '=');
   if (!eq || eq == header_val) {
@@ -378,12 +393,12 @@ ngh3_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
  * @param vbuf Header value buffer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_recv_header_impl(struct ngh3_stream_state *st, nghttp3_vec kbuf,
                       nghttp3_vec vbuf) {
   char *kstr;
   char *vstr;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   kstr = (char *)malloc(kbuf.len + 1);
   if (!kstr) {
@@ -434,10 +449,10 @@ ngh3_recv_header_impl(struct ngh3_stream_state *st, nghttp3_vec kbuf,
  * @param datalen Payload byte count.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_recv_data_impl(struct ngh3_stream_state *st, const uint8_t *data,
                     size_t datalen) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   if (datalen == 0) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
@@ -471,10 +486,10 @@ ngh3_recv_data_impl(struct ngh3_stream_state *st, const uint8_t *data,
  * @param out_cnt Output vector count (0 or 1).
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_read_data_impl(struct ngh3_stream_state *st, nghttp3_vec *vec,
                     uint32_t *pflags, size_t *out_cnt) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   *pflags = NGHTTP3_DATA_FLAG_NONE;
   *out_cnt = 0;
 
@@ -509,6 +524,21 @@ ngh3_read_data_impl(struct ngh3_stream_state *st, nghttp3_vec *vec,
 }
 
 /**
+ * @brief Dispatch an enum-returning nghttp3 helper inside an int C-ABI
+ * callback.
+ * @param expr Expression returning `c_abstract_http_error_t`.
+ * @param ok_ret Return value on `C_ABSTRACT_HTTP_SUCCESS`.
+ */
+#define NGH3_CB_DISPATCH(expr, ok_ret)                                         \
+  do {                                                                         \
+    c_abstract_http_error_t _cb_rc = (expr);                                   \
+    if (_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
+      return NGHTTP3_ERR_CALLBACK_FAILURE;                                     \
+    }                                                                          \
+    return (ok_ret);                                                           \
+  } while (0)
+
+/**
  * @brief nghttp3 C-API recv_header callback trampoline.
  * @param conn HTTP/3 connection handle.
  * @param stream_id QUIC stream identifier.
@@ -527,7 +557,6 @@ static int ngh3_cb_recv_header(nghttp3_conn *conn, int64_t stream_id,
   struct ngh3_stream_state *st = (struct ngh3_stream_state *)stream_user_data;
   nghttp3_vec kbuf;
   nghttp3_vec vbuf;
-  enum c_abstract_http_error rc;
   (void)conn;
   (void)stream_id;
   (void)token;
@@ -535,11 +564,7 @@ static int ngh3_cb_recv_header(nghttp3_conn *conn, int64_t stream_id,
   (void)conn_user_data;
   kbuf = nghttp3_rcbuf_get_buf(name);
   vbuf = nghttp3_rcbuf_get_buf(value);
-  rc = ngh3_recv_header_impl(st, kbuf, vbuf);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return NGHTTP3_ERR_CALLBACK_FAILURE;
-  }
-  return 0;
+  NGH3_CB_DISPATCH(ngh3_recv_header_impl(st, kbuf, vbuf), 0);
 }
 
 /**
@@ -556,15 +581,10 @@ static int ngh3_cb_recv_data(nghttp3_conn *conn, int64_t stream_id,
                              const uint8_t *data, size_t datalen,
                              void *conn_user_data, void *stream_user_data) {
   struct ngh3_stream_state *st = (struct ngh3_stream_state *)stream_user_data;
-  enum c_abstract_http_error rc;
   (void)conn;
   (void)stream_id;
   (void)conn_user_data;
-  rc = ngh3_recv_data_impl(st, data, datalen);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return NGHTTP3_ERR_CALLBACK_FAILURE;
-  }
-  return 0;
+  NGH3_CB_DISPATCH(ngh3_recv_data_impl(st, data, datalen), 0);
 }
 
 /**
@@ -602,19 +622,15 @@ static nghttp3_ssize ngh3_cb_read_data(nghttp3_conn *conn, int64_t stream_id,
                                        void *stream_user_data) {
   struct ngh3_stream_state *st = (struct ngh3_stream_state *)stream_user_data;
   size_t cnt = 0;
-  enum c_abstract_http_error rc;
   (void)conn;
   (void)stream_id;
   (void)veccnt;
   (void)conn_user_data;
-  rc = ngh3_read_data_impl(st, vec, pflags, &cnt);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return NGHTTP3_ERR_CALLBACK_FAILURE;
-  }
-  return (nghttp3_ssize)cnt;
+  NGH3_CB_DISPATCH(ngh3_read_data_impl(st, vec, pflags, &cnt),
+                   (nghttp3_ssize)cnt);
 }
 
-enum c_abstract_http_error http_nghttp3_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_nghttp3_global_init(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_nghttp3_global_init_fail) {
     return C_ABSTRACT_HTTP_ERR_IO;
@@ -624,17 +640,17 @@ enum c_abstract_http_error http_nghttp3_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error http_nghttp3_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_nghttp3_global_cleanup(void) {
   if (g_nghttp3_init_count > 0) {
     g_nghttp3_init_count--;
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_nghttp3_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!ctx) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -670,9 +686,9 @@ http_nghttp3_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_nghttp3_context_free(struct HttpTransportContext *ctx) {
-  enum c_abstract_http_error rch;
+  c_abstract_http_error_t rch;
   if (!ctx) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
@@ -692,8 +708,8 @@ http_nghttp3_context_free(struct HttpTransportContext *ctx) {
  * @param src Optional source string to duplicate.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error ngh3_replace_str(char **dst,
-                                                   const char *src) {
+NO_DISCARD static c_abstract_http_error_t ngh3_replace_str(char **dst,
+                                                           const char *src) {
   free(*dst);
   *dst = NULL;
   if (!src) {
@@ -702,10 +718,9 @@ static enum c_abstract_http_error ngh3_replace_str(char **dst,
   return c_abstract_http_strdup(src, dst);
 }
 
-enum c_abstract_http_error
-http_nghttp3_config_apply(struct HttpTransportContext *ctx,
-                          const struct HttpConfig *config) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t http_nghttp3_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
   if (!ctx || !config) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -791,12 +806,12 @@ http_nghttp3_config_apply(struct HttpTransportContext *ctx,
  * @param out_eff Output pointer to the effective request to transmit.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_prepare_effective_request(const struct HttpRequest *req,
                                struct HttpRequest *flat_req, int *out_flattened,
                                const struct HttpRequest **out_eff) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   *out_flattened = 0;
   *out_eff = req;
@@ -823,7 +838,7 @@ ngh3_prepare_effective_request(const struct HttpRequest *req,
     rc = http_headers_add(&flat_req->headers, req->headers.headers[i].key,
                           req->headers.headers[i].value);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error frc;
+      c_abstract_http_error_t frc;
       frc = http_headers_free(&flat_req->headers);
       if (frc != C_ABSTRACT_HTTP_SUCCESS) {
         return frc;
@@ -833,7 +848,7 @@ ngh3_prepare_effective_request(const struct HttpRequest *req,
   }
   rc = http_request_flatten_parts(flat_req);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error frc;
+    c_abstract_http_error_t frc;
     free(flat_req->body);
     flat_req->body = NULL;
     frc = http_headers_free(&flat_req->headers);
@@ -853,7 +868,7 @@ ngh3_prepare_effective_request(const struct HttpRequest *req,
  * @param flattened Non-zero when @p flat_req owns allocated headers/body.
  * @return C_ABSTRACT_HTTP_SUCCESS or cleanup error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
   if (!flattened) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -869,11 +884,11 @@ ngh3_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
  * @param orig_rc Fallback error code if response cleanup succeeds.
  * @return Cleanup error code if cleanup failed, otherwise @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_cleanup_failed_res(struct HttpResponse **res,
-                        enum c_abstract_http_error orig_rc) {
+                        c_abstract_http_error_t orig_rc) {
   struct HttpResponse *tmp;
-  enum c_abstract_http_error free_rc;
+  c_abstract_http_error_t free_rc;
   if (!*res) {
     return orig_rc;
   }
@@ -895,11 +910,11 @@ ngh3_cleanup_failed_res(struct HttpResponse **res,
  * @param orig_rc Primary status from fallback send.
  * @return Cleanup error if context cleanup fails, otherwise @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_raw_ctx_cleanup(struct HttpTransportContext *raw_ctx,
                      struct HttpResponse **res,
-                     enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error frc;
+                     c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t frc;
   frc = http_raw_context_free(raw_ctx);
   if (frc != C_ABSTRACT_HTTP_SUCCESS) {
     return ngh3_cleanup_failed_res(res, frc);
@@ -914,12 +929,12 @@ ngh3_raw_ctx_cleanup(struct HttpTransportContext *raw_ctx,
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or fallback error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_fallback_tcp(const struct HttpConfig *cfg,
                   const struct HttpRequest *eff_req,
                   struct HttpResponse **res) {
   struct HttpTransportContext *raw_ctx = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = http_raw_context_init(&raw_ctx);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -954,6 +969,47 @@ ngh3_fallback_tcp(const struct HttpConfig *cfg,
     _nv->flags = NGHTTP3_NV_FLAG_NONE;                                         \
   } while (0)
 
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_NGHTTP3)
+/**
+ * @brief Populate random bytes requested by ngtcp2 callbacks.
+ * @param dest Destination buffer.
+ * @param destlen Requested byte length.
+ * @param rand_ctx Optional ngtcp2 random context.
+ */
+static void ngh3_real_rand_cb(uint8_t *dest, size_t destlen,
+                              const ngtcp2_rand_ctx *rand_ctx) {
+  (void)rand_ctx;
+  if (c_abstract_http_random_bytes(dest, destlen) != C_ABSTRACT_HTTP_SUCCESS) {
+    memset(dest, 0x42, destlen);
+  }
+}
+
+/**
+ * @brief Generate a new connection ID and stateless reset token for ngtcp2.
+ * @param conn Active ngtcp2 connection.
+ * @param user_data Connection user pointer.
+ * @param cid Output connection ID structure.
+ * @param token Output stateless reset token buffer.
+ * @param cidlen Requested CID byte length.
+ * @return 0 on success, negative ngtcp2 error code on failure.
+ */
+static int ngh3_real_get_new_cid_cb(ngtcp2_conn *conn, void *user_data,
+                                    ngtcp2_cid *cid, uint8_t *token,
+                                    size_t cidlen) {
+  (void)conn;
+  (void)user_data;
+  if (c_abstract_http_random_bytes(cid->data, cidlen) !=
+          C_ABSTRACT_HTTP_SUCCESS ||
+      c_abstract_http_random_bytes(token, NGTCP2_STATELESS_RESET_TOKENLEN) !=
+          C_ABSTRACT_HTTP_SUCCESS) {
+    return NGTCP2_ERR_CALLBACK_FAILURE;
+  }
+  cid->datalen = cidlen;
+  return 0;
+}
+#endif
+
 /**
  * @brief Open and bind ngtcp2 + nghttp3 client connection & control streams.
  * @param ctx Transport context.
@@ -963,7 +1019,7 @@ ngh3_fallback_tcp(const struct HttpConfig *cfg,
  * @param out_h3conn Output nghttp3 connection handle.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_open_h3_session(struct HttpTransportContext *ctx, const char *conn_host,
                      unsigned short conn_port, ngtcp2_conn **out_qconn,
                      nghttp3_conn **out_h3conn) {
@@ -974,10 +1030,69 @@ ngh3_open_h3_session(struct HttpTransportContext *ctx, const char *conn_host,
   int64_t qenc_id = 0;
   int64_t qdec_id = 0;
 
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_NGHTTP3)
+  {
+    struct addrinfo hints;
+    struct addrinfo *ai = NULL;
+    struct sockaddr_storage local_ss;
+    char port_str[16];
+    ngtcp2_cid dcid;
+    ngtcp2_cid scid;
+    ngtcp2_path path;
+    ngtcp2_callbacks qcbs;
+    int qrc;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    sprintf(port_str, "%u", (unsigned int)conn_port);
+    if (getaddrinfo(conn_host, port_str, &hints, &ai) != 0 || !ai) {
+      return C_ABSTRACT_HTTP_ERR_HOSTUNREACH;
+    }
+    memset(&local_ss, 0, sizeof(local_ss));
+    local_ss.ss_family = ai->ai_family;
+    memset(&dcid, 0, sizeof(dcid));
+    memset(&scid, 0, sizeof(scid));
+    dcid.datalen = 16;
+    scid.datalen = 16;
+    if (c_abstract_http_random_bytes(dcid.data, dcid.datalen) !=
+            C_ABSTRACT_HTTP_SUCCESS ||
+        c_abstract_http_random_bytes(scid.data, scid.datalen) !=
+            C_ABSTRACT_HTTP_SUCCESS) {
+      freeaddrinfo(ai);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    memset(&path, 0, sizeof(path));
+    path.local.addr = (ngtcp2_sockaddr *)&local_ss;
+    path.local.addrlen = (ngtcp2_socklen)ai->ai_addrlen;
+    path.remote.addr = (ngtcp2_sockaddr *)ai->ai_addr;
+    path.remote.addrlen = (ngtcp2_socklen)ai->ai_addrlen;
+    memset(&qcbs, 0, sizeof(qcbs));
+    qcbs.rand = ngh3_real_rand_cb;
+    qcbs.get_new_connection_id = ngh3_real_get_new_cid_cb;
+    ctx->q_params.original_dcid = dcid;
+    ctx->q_params.original_dcid_present = 1;
+    ctx->q_params.initial_max_streams_uni = 3;
+    ctx->q_params.initial_max_streams_bidi = 8;
+    ctx->q_params.initial_max_data = 1048576U;
+    ctx->q_params.initial_max_stream_data_bidi_local = 262144U;
+    ctx->q_params.initial_max_stream_data_bidi_remote = 262144U;
+    ctx->q_params.initial_max_stream_data_uni = 262144U;
+    qrc = ngtcp2_conn_client_new(&qconn, &dcid, &scid, &path,
+                                 NGTCP2_PROTO_VER_V1, &qcbs, &ctx->q_settings,
+                                 &ctx->q_params, NULL, ctx);
+    freeaddrinfo(ai);
+    if (qrc != 0) {
+      return C_ABSTRACT_HTTP_ERR_CONNREFUSED;
+    }
+  }
+#else
   if (ngtcp2_conn_client_new(&qconn, conn_host, conn_port, &ctx->q_settings,
                              &ctx->q_params) != 0) {
     return C_ABSTRACT_HTTP_ERR_CONNREFUSED;
   }
+#endif
 
   memset(&cbs, 0, sizeof(cbs));
   cbs.recv_header = ngh3_cb_recv_header;
@@ -1016,7 +1131,7 @@ ngh3_open_h3_session(struct HttpTransportContext *ctx, const char *conn_host,
  * @param path Request path string.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_submit_stream(const struct HttpTransportContext *ctx, ngtcp2_conn *qconn,
                    nghttp3_conn *h3conn, struct ngh3_stream_state *st,
                    const char *scheme, const char *host, const char *path) {
@@ -1032,7 +1147,7 @@ ngh3_submit_stream(const struct HttpTransportContext *ctx, ngtcp2_conn *qconn,
   int64_t stream_id = 0;
   nghttp3_data_reader dr;
   int sub_rc;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = ngh3_method_str(st->req->method, &method_s);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1120,7 +1235,7 @@ ngh3_submit_stream(const struct HttpTransportContext *ctx, ngtcp2_conn *qconn,
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_send_quic_once(struct HttpTransportContext *ctx,
                     const struct HttpRequest *req, struct HttpResponse **res) {
   char *scheme = NULL;
@@ -1133,7 +1248,7 @@ ngh3_send_quic_once(struct HttpTransportContext *ctx,
   nghttp3_conn *h3conn = NULL;
   struct ngh3_stream_state st;
   int drv_rc = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = ngh3_parse_url(req->url, &scheme, &host, &port, &path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1193,14 +1308,17 @@ ngh3_send_quic_once(struct HttpTransportContext *ctx,
   st.res = *res;
 
   rc = ngh3_submit_stream(ctx, qconn, h3conn, &st, scheme, host, path);
-  free(scheme);
-  free(host);
-  free(path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(scheme);
+    free(host);
+    free(path);
     nghttp3_conn_del(h3conn);
     ngtcp2_conn_del(qconn);
     return ngh3_cleanup_failed_res(res, rc);
   }
+  free(scheme);
+  free(host);
+  free(path);
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
     !defined(C_ABSTRACT_HTTP_HAVE_REAL_NGHTTP3)
@@ -1228,11 +1346,10 @@ ngh3_send_quic_once(struct HttpTransportContext *ctx,
  * @param orig_rc Primary send result.
  * @return Final status enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ngh3_finish_send(struct HttpRequest *flat_req, int flattened,
-                 struct HttpResponse **res,
-                 enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error cl_rc;
+                 struct HttpResponse **res, c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t cl_rc;
   cl_rc = ngh3_cleanup_effective_request(flat_req, flattened);
   if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
     return ngh3_cleanup_failed_res(res, cl_rc);
@@ -1240,13 +1357,13 @@ ngh3_finish_send(struct HttpRequest *flat_req, int flattened,
   return orig_rc;
 }
 
-enum c_abstract_http_error http_nghttp3_send(struct HttpTransportContext *ctx,
-                                             const struct HttpRequest *req,
-                                             struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_nghttp3_send(struct HttpTransportContext *ctx,
+                  const struct HttpRequest *req, struct HttpResponse **res) {
   struct HttpRequest flat_req;
   const struct HttpRequest *eff_req = NULL;
   int flattened = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
   if (!ctx || !req || !res || !ctx->is_configured) {
@@ -1262,7 +1379,7 @@ enum c_abstract_http_error http_nghttp3_send(struct HttpTransportContext *ctx,
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (ctx->config.http3_fallback && (rc == C_ABSTRACT_HTTP_ERR_CONNREFUSED ||
                                        rc == C_ABSTRACT_HTTP_ERR_IO)) {
-      enum c_abstract_http_error fb_rc;
+      c_abstract_http_error_t fb_rc;
       fb_rc = ngh3_fallback_tcp(&ctx->config, eff_req, res);
       if (fb_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return ngh3_finish_send(&flat_req, flattened, res, fb_rc);
@@ -1276,11 +1393,11 @@ enum c_abstract_http_error http_nghttp3_send(struct HttpTransportContext *ctx,
   return ngh3_finish_send(&flat_req, flattened, res, C_ABSTRACT_HTTP_SUCCESS);
 }
 
-enum c_abstract_http_error http_nghttp3_send_multi(
+NO_DISCARD c_abstract_http_error_t http_nghttp3_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   cah_cppcheck_mut_ptr((void *)ctx);
 
   if (!ctx || !multi || !futures || !ctx->is_configured) {

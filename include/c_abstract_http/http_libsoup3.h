@@ -49,7 +49,7 @@ http_libsoup3_context_init(struct HttpTransportContext **ctx);
  * @param[in] ctx The context to free. Safe to pass NULL.
  * @return 0 on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_libsoup3_context_free(struct HttpTransportContext *ctx);
 
 /**
@@ -88,11 +88,9 @@ http_libsoup3_send(struct HttpTransportContext *ctx,
  * @param[out] futures Array of futures populated with responses/errors.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
-http_libsoup3_send_multi(struct HttpTransportContext *ctx,
-                         struct ModalityEventLoop *loop,
-                         const struct HttpMultiRequest *multi,
-                         struct HttpFuture **futures);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_libsoup3_send_multi(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
 #ifdef __cplusplus
 }

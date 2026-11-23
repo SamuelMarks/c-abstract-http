@@ -34,10 +34,9 @@ extern "C" {
  * @param[out] out_read Number of bytes copied.
  * @return 0 on success.
  */
-static enum c_abstract_http_error wasm_mock_read_chunk(void *user_data,
-                                                       void *buf,
-                                                       size_t max_len,
-                                                       size_t *out_read) {
+NO_DISCARD static c_abstract_http_error_t
+wasm_mock_read_chunk(void *user_data, void *buf, size_t max_len,
+                     size_t *out_read) {
   int *called = (int *)user_data;
   if (*called == 0) {
     size_t to_copy = max_len < 10 ? max_len : 10;
@@ -58,7 +57,7 @@ static enum c_abstract_http_error wasm_mock_read_chunk(void *user_data,
  * @param[in] len Length of received chunk.
  * @return 0 on success.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 wasm_mock_on_chunk_success(void *user_data, const void *data, size_t len) {
   if (user_data || data || len) {
   }
@@ -73,7 +72,7 @@ wasm_mock_on_chunk_success(void *user_data, const void *data, size_t len) {
  * @param[in] len Length of received chunk.
  * @return Non-zero error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 wasm_mock_on_chunk_fail(void *user_data, const void *data, size_t len) {
   if (user_data || data || len) {
   }
@@ -89,10 +88,9 @@ wasm_mock_on_chunk_fail(void *user_data, const void *data, size_t len) {
  * @param[out] out_read Number of bytes copied.
  * @return Non-zero error code.
  */
-static enum c_abstract_http_error wasm_mock_read_chunk_fail(void *user_data,
-                                                            void *buf,
-                                                            size_t max_len,
-                                                            size_t *out_read) {
+NO_DISCARD static c_abstract_http_error_t
+wasm_mock_read_chunk_fail(void *user_data, void *buf, size_t max_len,
+                          size_t *out_read) {
   if (user_data || buf || max_len || out_read) {
   }
   return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -108,10 +106,9 @@ static enum c_abstract_http_error wasm_mock_read_chunk_fail(void *user_data,
  * @param[out] out_read Number of bytes copied.
  * @return 0 on success.
  */
-static enum c_abstract_http_error wasm_mock_read_chunk_large(void *user_data,
-                                                             void *buf,
-                                                             size_t max_len,
-                                                             size_t *out_read) {
+NO_DISCARD static c_abstract_http_error_t
+wasm_mock_read_chunk_large(void *user_data, void *buf, size_t max_len,
+                           size_t *out_read) {
   int *called = (int *)user_data;
   if (*called < 3) {
     size_t to_copy = max_len < 10 ? max_len : 10;
@@ -419,7 +416,28 @@ TEST test_wasm_send_headers_and_body(void) {
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-extern enum c_abstract_http_error c_abstract_http_test_wasm_helpers(void);
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_wasm_helpers(void);
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_set_wasm_op_fail(int op, int countdown);
+
+NO_DISCARD static c_abstract_http_error_t
+wasm_mock_read_chunk_nomem(void *user_data, void *buf, size_t max_len,
+                           size_t *out_read) {
+  (void)user_data;
+  (void)buf;
+  (void)max_len;
+  *out_read = 0;
+  return C_ABSTRACT_HTTP_ERR_NOMEM;
+}
+
+NO_DISCARD static c_abstract_http_error_t
+wasm_mock_on_chunk_nomem(void *user_data, const void *data, size_t len) {
+  (void)user_data;
+  (void)data;
+  (void)len;
+  return C_ABSTRACT_HTTP_ERR_NOMEM;
+}
 #endif
 
 /**
@@ -433,7 +451,7 @@ TEST test_wasm_send_failures(void) {
   struct HttpRequest req;
   char *_ast_strdup_0;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   int read_called;
   struct HttpConfig cfg0;
 #endif
@@ -619,7 +637,8 @@ TEST test_wasm_send_failures(void) {
  * @param[in] loop Event loop pointer.
  * @return C_ABSTRACT_HTTP_ERR_IO.
  */
-static enum c_abstract_http_error wasm_test_mock_loop_wakeup_fail(void *loop) {
+NO_DISCARD static c_abstract_http_error_t
+wasm_test_mock_loop_wakeup_fail(void *loop) {
   if (loop) {
   }
   return C_ABSTRACT_HTTP_ERR_IO;
@@ -861,13 +880,13 @@ TEST test_wasm_async_timeouts_ua_and_limits(void) {
   {
     int k;
     for (k = 0; k < 25; ++k) {
-      enum c_abstract_http_error orc;
+      c_abstract_http_error_t orc;
       res = NULL;
       g_mock_alloc_count = k;
       g_mock_alloc_fail = 1;
       orc = http_wasm_config_apply(ctx, &cfg);
       g_mock_alloc_fail = 0;
-      (void)orc;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
 
       g_mock_alloc_count = k;
       g_mock_alloc_fail = 1;
@@ -884,11 +903,11 @@ TEST test_wasm_async_timeouts_ua_and_limits(void) {
       g_mock_alloc_fail = 1;
       orc = http_wasm_send_multi(ctx, NULL, &multi, futs);
       g_mock_alloc_fail = 0;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
       if (f1.response) {
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
         free(f1.response);
       }
-      (void)orc;
     }
     g_mock_alloc_count = 0;
     {
@@ -914,6 +933,155 @@ TEST test_wasm_async_timeouts_ua_and_limits(void) {
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_wasm_context_free(ctx));
       g_mock_config_free_fail = 0;
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_context_init(&ctx));
+
+      {
+        struct ModalityEventLoop *wloop = NULL;
+        int op_i;
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&wloop));
+
+        req.method = (enum HttpMethod)999;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_wasm_send(ctx, &req, &res));
+        req.method = HTTP_GET;
+
+        for (op_i = 10; op_i <= 13; ++op_i) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    c_abstract_http_test_set_wasm_op_fail(op_i, 0));
+          ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+                    c_abstract_http_test_wasm_helpers());
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    c_abstract_http_test_set_wasm_op_fail(0, 0));
+        }
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_wasm_op_fail(14, 0));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_wasm_helpers());
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_wasm_op_fail(0, 0));
+
+        for (op_i = 1; op_i <= 5; ++op_i) {
+          int cd;
+          c_abstract_http_error_t hrc;
+          for (cd = 0; cd < 6; ++cd) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                      c_abstract_http_test_set_wasm_op_fail(op_i, cd));
+            hrc = c_abstract_http_test_wasm_helpers();
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                      c_abstract_http_test_set_wasm_op_fail(0, 0));
+            ASSERT((int)hrc >= -2000 && (int)hrc <= 2000);
+          }
+          g_mock_wasm_fetch_fail = 1;
+          hrc = c_abstract_http_test_wasm_helpers();
+          g_mock_wasm_fetch_fail = 0;
+          ASSERT((int)hrc >= -2000 && (int)hrc <= 2000);
+
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    c_abstract_http_test_set_wasm_op_fail(op_i, 0));
+          res = NULL;
+          hrc = http_wasm_send(ctx, &req, &res);
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    c_abstract_http_test_set_wasm_op_fail(0, 0));
+          ASSERT(hrc != C_ABSTRACT_HTTP_SUCCESS);
+          if (res) {
+            ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+            free(res);
+            res = NULL;
+          }
+        }
+
+        {
+          c_abstract_http_error_t trc;
+          int k_oom;
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    c_abstract_http_test_set_wasm_op_fail(3, 0));
+          g_mock_response_free_fail = 1;
+          trc = http_wasm_send(ctx, &req, &res);
+          g_mock_response_free_fail = 0;
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    c_abstract_http_test_set_wasm_op_fail(0, 0));
+          ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, trc);
+
+          req.read_chunk = wasm_mock_read_chunk_nomem;
+          trc = http_wasm_send(ctx, &req, &res);
+          req.read_chunk = NULL;
+          ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, trc);
+
+          req.on_chunk = wasm_mock_on_chunk_nomem;
+          trc = http_wasm_send(ctx, &req, &res);
+          req.on_chunk = NULL;
+          ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, trc);
+
+          req.on_chunk = wasm_mock_on_chunk_fail;
+          g_mock_response_free_fail = 1;
+          trc = http_wasm_send(ctx, &req, &res);
+          g_mock_response_free_fail = 0;
+          req.on_chunk = NULL;
+          ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, trc);
+
+          for (k_oom = 0; k_oom < 8; ++k_oom) {
+            res = NULL;
+            g_mock_alloc_count = k_oom;
+            g_mock_alloc_fail = 1;
+            trc = http_wasm_send(ctx, &req, &res);
+            g_mock_alloc_fail = 0;
+            g_mock_alloc_count = 0;
+            ASSERT((int)trc >= -2000 && (int)trc <= 2000);
+            if (res) {
+              ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+              free(res);
+              res = NULL;
+            }
+          }
+
+          for (k_oom = 0; k_oom < 6; ++k_oom) {
+            res = NULL;
+            g_mock_wasm_fetch_timeout = 2;
+            g_mock_alloc_count = k_oom;
+            g_mock_alloc_fail = 1;
+            trc = http_wasm_send(ctx, &req, &res);
+            g_mock_alloc_fail = 0;
+            g_mock_alloc_count = 0;
+            g_mock_wasm_fetch_timeout = 0;
+            ASSERT((int)trc >= -2000 && (int)trc <= 2000);
+            if (res) {
+              ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+              free(res);
+              res = NULL;
+            }
+          }
+        }
+
+        memset(&f1, 0, sizeof(f1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_wasm_op_fail(2, 0));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                  http_wasm_send_multi(ctx, wloop, &multi, futs));
+        if (f1.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+          free(f1.response);
+        }
+
+        memset(&f1, 0, sizeof(f1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_wasm_op_fail(2, 0));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_loop_op_fail(3, 0));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                  http_wasm_send_multi(ctx, wloop, &multi, futs));
+        if (f1.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+          free(f1.response);
+        }
+
+        memset(&f1, 0, sizeof(f1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  c_abstract_http_test_set_loop_op_fail(3, 0));
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                  http_wasm_send_multi(ctx, wloop, &multi, futs));
+        if (f1.response) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+          free(f1.response);
+        }
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(wloop));
+      }
     }
   }
 #endif

@@ -28,10 +28,10 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #define CAH_TEST_POSIX_PIPE 1
 #endif
 
-static enum c_abstract_http_error timer_cb_1(struct ModalityEventLoop *loop,
-                                             int timer_id, void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+timer_cb_1(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   int *triggered = (int *)user_data;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   if (timer_id) {
     /* pass */
   }
@@ -73,7 +73,7 @@ TEST test_event_loop_timer(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 timer_cb_cancel(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   int *triggered = (int *)user_data;
   if (loop || timer_id) {
@@ -83,9 +83,9 @@ timer_cb_cancel(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error timer_cb_stop(struct ModalityEventLoop *loop,
-                                                int timer_id, void *user_data) {
-  enum c_abstract_http_error rc;
+NO_DISCARD static c_abstract_http_error_t
+timer_cb_stop(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
+  c_abstract_http_error_t rc;
   if (timer_id || user_data) {
   }
   rc = http_loop_stop(loop);
@@ -122,26 +122,27 @@ TEST test_event_loop_timer_cancel(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_loop_add_fd(void *ctx, int fd, int events, http_loop_cb cb, void *data) {
   if (ctx || fd || events || cb || data) {
   }
   return 0;
 }
-static enum c_abstract_http_error mock_loop_mod_fd(void *ctx, int fd,
-                                                   int events) {
+NO_DISCARD static c_abstract_http_error_t mock_loop_mod_fd(void *ctx, int fd,
+                                                           int events) {
   if (ctx || fd || events) {
   }
   return 0;
 }
-static enum c_abstract_http_error mock_loop_remove_fd(void *ctx, int fd) {
+NO_DISCARD static c_abstract_http_error_t mock_loop_remove_fd(void *ctx,
+                                                              int fd) {
   (void)ctx;
   (void)fd;
   return 0;
 }
-static enum c_abstract_http_error stop_loop_cb(struct ModalityEventLoop *loop,
-                                               int timer_id, void *user_data) {
-  enum c_abstract_http_error rc;
+NO_DISCARD static c_abstract_http_error_t
+stop_loop_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
+  c_abstract_http_error_t rc;
   if (timer_id || user_data) {
   }
   rc = http_loop_stop(loop);
@@ -152,7 +153,7 @@ static enum c_abstract_http_error stop_loop_cb(struct ModalityEventLoop *loop,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_loop_add_timer(void *ctx, long timeout_ms, http_timer_cb cb, void *data,
                     int *timer_id) {
   if (ctx || timeout_ms || cb || data) {
@@ -160,17 +161,17 @@ mock_loop_add_timer(void *ctx, long timeout_ms, http_timer_cb cb, void *data,
   *timer_id = 1;
   return 0;
 }
-static enum c_abstract_http_error mock_loop_cancel_timer(void *ctx,
-                                                         int timer_id) {
+NO_DISCARD static c_abstract_http_error_t mock_loop_cancel_timer(void *ctx,
+                                                                 int timer_id) {
   if (ctx || timer_id) {
   }
   return 0;
 }
-static enum c_abstract_http_error mock_loop_wakeup(void *ctx) {
+NO_DISCARD static c_abstract_http_error_t mock_loop_wakeup(void *ctx) {
   (void)ctx;
   return 0;
 }
-static enum c_abstract_http_error mock_loop_wakeup_fail(void *ctx) {
+NO_DISCARD static c_abstract_http_error_t mock_loop_wakeup_fail(void *ctx) {
   (void)ctx;
   return C_ABSTRACT_HTTP_ERR_IO;
 }
@@ -216,9 +217,9 @@ TEST test_event_loop_external(void) {
   PASS();
 }
 
-static enum c_abstract_http_error mock_fd_cb(struct ModalityEventLoop *loop,
-                                             int fd, int revents,
-                                             void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+mock_fd_cb(struct ModalityEventLoop *loop, int fd, int revents,
+           void *user_data) {
   int *triggered = (int *)user_data;
   if (loop || fd || revents) {
   }
@@ -315,7 +316,7 @@ TEST test_event_loop_errors(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 timer_dummy_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   if (loop || timer_id || user_data) {
   }
@@ -396,7 +397,7 @@ TEST test_event_loop_heap_down(void) {
   int ids[10];
   int i;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  enum c_abstract_http_error rc_test_tmp;
+  c_abstract_http_error_t rc_test_tmp;
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
@@ -727,7 +728,7 @@ TEST test_event_loop_tick_fd_and_timer(void) {
 #endif
 
 #if defined(CAH_TEST_POSIX_PIPE)
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 blocking_mock_fd_cb(struct ModalityEventLoop *loop, int fd, int revents,
                     void *user_data) {
   int *triggered = (int *)user_data;
@@ -978,11 +979,11 @@ TEST test_event_loop_timeout_underflow(void) {
 }
 
 #if defined(CAH_TEST_POSIX_PIPE)
-static enum c_abstract_http_error dummy_write_cb(struct ModalityEventLoop *loop,
-                                                 int fd, int revents,
-                                                 void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+dummy_write_cb(struct ModalityEventLoop *loop, int fd, int revents,
+               void *user_data) {
   int *triggered = (int *)user_data;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   if (fd) {
   }
   *triggered |= revents;
@@ -1025,11 +1026,11 @@ TEST test_event_loop_write_error_coverage(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dummy_timer_past_cb(struct ModalityEventLoop *loop, int timer_id,
                     void *user_data) {
   int *triggered = (int *)user_data;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   *triggered = 1;
   if (timer_id) {
   }
@@ -1062,9 +1063,9 @@ TEST test_event_loop_timer_past_coverage(void) {
 }
 
 #if defined(CAH_TEST_POSIX_PIPE)
-static enum c_abstract_http_error dummy_error_cb(struct ModalityEventLoop *loop,
-                                                 int fd, int revents,
-                                                 void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+dummy_error_cb(struct ModalityEventLoop *loop, int fd, int revents,
+               void *user_data) {
   int *triggered = (int *)user_data;
   if (loop || fd) {
   }
@@ -1102,7 +1103,7 @@ TEST test_event_loop_write_error_coverage2(void) {
 }
 
 #if defined(CAH_TEST_POSIX_PIPE)
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 dummy_fd_simple_cb(struct ModalityEventLoop *l, int fd, int events,
                    void *user_data) {
   if (l || fd || events || user_data) {
@@ -1111,9 +1112,9 @@ dummy_fd_simple_cb(struct ModalityEventLoop *l, int fd, int events,
 }
 #endif
 
-static enum c_abstract_http_error timer_stop_cb(struct ModalityEventLoop *loop,
-                                                int timer_id, void *user_data) {
-  enum c_abstract_http_error rc;
+NO_DISCARD static c_abstract_http_error_t
+timer_stop_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
+  c_abstract_http_error_t rc;
   if (timer_id || user_data) {
   }
   rc = http_loop_stop(loop);
@@ -1125,9 +1126,9 @@ static enum c_abstract_http_error timer_stop_cb(struct ModalityEventLoop *loop,
 }
 
 #if defined(CAH_TEST_POSIX_PIPE)
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 fd_stop_cb(struct ModalityEventLoop *l, int fd, int events, void *user_data) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   if (fd || events || user_data) {
   }
   rc = http_loop_stop(l);
@@ -1371,15 +1372,15 @@ TEST test_event_loop_additional_coverage(void) {
   PASS();
 }
 
-static enum c_abstract_http_error timer_fail_cb(struct ModalityEventLoop *loop,
-                                                int timer_id, void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+timer_fail_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   if (loop || timer_id || user_data) {
   }
   return C_ABSTRACT_HTTP_ERR_CANCELED;
 }
 
 #if defined(CAH_TEST_POSIX_PIPE)
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 fd_fail_cb(struct ModalityEventLoop *l, int fd, int events, void *user_data) {
   if (l || fd || events || user_data) {
   }

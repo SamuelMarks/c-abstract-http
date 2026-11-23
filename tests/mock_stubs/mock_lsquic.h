@@ -205,6 +205,9 @@ static int lsquic_stream_wantwrite(lsquic_stream_t *s, int is_want) {
   if (s) {
     prev = s->want_write;
     s->want_write = is_want;
+    if (s->conn && strcmp(s->conn->sni, "ctl-fail.invalid") == 0) {
+      return -1;
+    }
   }
   return prev;
 }
@@ -214,6 +217,9 @@ static int lsquic_stream_wantread(lsquic_stream_t *s, int is_want) {
   if (s) {
     prev = s->want_read;
     s->want_read = is_want;
+    if (s->conn && strcmp(s->conn->sni, "ctl-fail.invalid") == 0) {
+      return -1;
+    }
   }
   return prev;
 }
@@ -272,6 +278,9 @@ static int lsquic_stream_close(lsquic_stream_t *s) {
         s->conn->engine->stream_if->on_close) {
       s->conn->engine->stream_if->on_close(s, s->st_ctx);
     }
+  }
+  if (s->conn && strcmp(s->conn->sni, "ctl-fail.invalid") == 0) {
+    return -1;
   }
   return 0;
 }

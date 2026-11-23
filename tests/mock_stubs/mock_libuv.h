@@ -149,6 +149,9 @@ static uv_buf_t uv_buf_init(char *base, unsigned int len) {
 }
 
 static int uv_loop_init(uv_loop_t *loop) {
+  if (g_mock_libuv_context_init_fail == 2) {
+    return -1;
+  }
   memset(loop, 0, sizeof(*loop));
   return 0;
 }
@@ -165,6 +168,9 @@ static void uv_stop(uv_loop_t *loop) {
 }
 
 static int uv_tcp_init(uv_loop_t *loop, uv_tcp_t *tcp) {
+  if (g_mock_libuv_context_init_fail == 3) {
+    return -1;
+  }
   memset(tcp, 0, sizeof(*tcp));
   tcp->loop = loop;
   if (loop) {
@@ -177,6 +183,9 @@ static int uv_tcp_init(uv_loop_t *loop, uv_tcp_t *tcp) {
 }
 
 static int uv_timer_init(uv_loop_t *loop, uv_timer_t *timer) {
+  if (g_mock_libuv_context_init_fail == 4) {
+    return -1;
+  }
   memset(timer, 0, sizeof(*timer));
   timer->loop = loop;
   return 0;
@@ -186,6 +195,9 @@ static int uv_timer_start(uv_timer_t *timer, uv_timer_cb cb, uint64_t timeout,
                           uint64_t repeat) {
   (void)timeout;
   (void)repeat;
+  if (g_mock_libuv_context_init_fail == 5) {
+    return -1;
+  }
   timer->timer_cb = cb;
   timer->active = 1;
   return 0;
@@ -320,6 +332,35 @@ static void mock_uv_drive_tcp(uv_loop_t *loop, uv_tcp_t *tcp,
     } else if (strstr(tcp->tx_preview, "/chunked-bad3") != NULL) {
       hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
       body_str = "a\r\nshort";
+    } else if (strstr(tcp->tx_preview, "/chunked-empty") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+      body_str = "0\r\n\r\n";
+    } else if (strstr(tcp->tx_preview, "/chunked-bad4") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+      body_str = "5;ext";
+    } else if (strstr(tcp->tx_preview, "/chunked-huge") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+      body_str =
+          "5\r\nHello\r\n100\r\n"
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          "\r\n0\r\n\r\n";
+    } else if (strstr(tcp->tx_preview, "/chunked-eof") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+      body_str = "5\r\nHello\r\n";
+    } else if (strstr(tcp->tx_preview, "/chunked-big") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
+      body_str = "5\r\nHello\r\n50\r\n"
+                 "0123456789012345678901234567890123456789"
+                 "0123456789012345678901234567890123456789\r\n0\r\n\r\n";
+    } else if (strstr(tcp->tx_preview, "/redir-no-loc") != NULL) {
+      hdr_str = "HTTP/1.1 302 Found\r\nX-Other: 1\r\n\r\n";
+      body_str = "";
+    } else if (strstr(tcp->tx_preview, "/redir-rel") != NULL) {
+      hdr_str = "HTTP/1.1 302 Found\r\nlocation: landed\r\n\r\n";
+      body_str = "";
     } else if (strstr(tcp->tx_preview, "/chunked-hex") != NULL) {
       hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
       body_str = "a\r\n0123456789\r\nA\r\nabcdefghij\r\n0\r\n\r\n";
@@ -368,10 +409,13 @@ static void mock_uv_drive_tcp(uv_loop_t *loop, uv_tcp_t *tcp,
 
 static int uv_run(uv_loop_t *loop, int mode) {
   size_t i;
-  (void)mode;
 
   if (!loop || !loop->data) {
     return 0;
+  }
+  if (mode == UV_RUN_NOWAIT && g_mock_libuv_context_init_fail == 6) {
+    g_mock_libuv_context_init_fail = 0;
+    return 1;
   }
 
   for (i = 0; i < loop->resolver_count; ++i) {

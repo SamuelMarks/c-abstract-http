@@ -25,7 +25,7 @@
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on completion.
  */
-enum c_abstract_http_error abstract_http_precondition_failed(void) {
+NO_DISCARD c_abstract_http_error_t abstract_http_precondition_failed(void) {
   fputs("abstract_http_precondition_failed\n", stderr);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -37,12 +37,12 @@ enum c_abstract_http_error abstract_http_precondition_failed(void) {
  * @param[in] contents The string content to write.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error enum on failure.
  */
-enum c_abstract_http_error write_to_file(const char *const filename,
-                                         const char *const contents) {
+NO_DISCARD c_abstract_http_error_t write_to_file(const char *const filename,
+                                                 const char *const contents) {
   FILE *fh;
   size_t len;
   size_t written;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = C_ABSTRACT_HTTP_SUCCESS;
 

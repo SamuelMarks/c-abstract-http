@@ -31,22 +31,22 @@ struct AbstractHttpCoroutine;
  * @param[in] arg User context argument.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-typedef enum c_abstract_http_error (*abstract_http_coroutine_cb)(void *arg);
+typedef c_abstract_http_error_t (*abstract_http_coroutine_cb)(void *arg);
 
 /**
  * @brief External hooks for overriding coroutine management.
  */
 struct AbstractHttpCoroutineHooks {
-  enum c_abstract_http_error (*init)(
+  c_abstract_http_error_t (*init)(
       struct AbstractHttpCoroutine **co, size_t stack_size,
       abstract_http_coroutine_cb cb,
       void *arg); /**< Hook for coroutine initialization */
-  enum c_abstract_http_error (*free)(
+  c_abstract_http_error_t (*free)(
       struct AbstractHttpCoroutine *co); /**< Hook for coroutine destruction */
-  enum c_abstract_http_error (*resume)(
-      struct AbstractHttpCoroutine *co);     /**< Hook for resuming execution */
-  enum c_abstract_http_error (*yield)(void); /**< Hook for yielding execution */
-  enum c_abstract_http_error (*is_done)(
+  c_abstract_http_error_t (*resume)(
+      struct AbstractHttpCoroutine *co);  /**< Hook for resuming execution */
+  c_abstract_http_error_t (*yield)(void); /**< Hook for yielding execution */
+  c_abstract_http_error_t (*is_done)(
       const struct AbstractHttpCoroutine *co,
       int *out_is_done); /**< Hook for checking status */
 };
@@ -79,7 +79,7 @@ abstract_http_coroutine_init(struct AbstractHttpCoroutine **co,
  * @param[in] co The coroutine handle.
  * @return 0 on success, or an error code.
  */
-NO_DISCARD C_ABSTRACT_HTTP_API enum c_abstract_http_error
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 abstract_http_coroutine_free(struct AbstractHttpCoroutine *co);
 
 /**

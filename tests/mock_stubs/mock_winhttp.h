@@ -196,6 +196,9 @@ static BOOL WinHttpCloseHandle(HINTERNET hInternet) {
     s_mock_winhttp_status_cb = NULL;
     s_mock_winhttp_async_ctx = 0;
   }
+  if (g_mock_winhttp_close_fail < 0) {
+    return 0;
+  }
   if (g_mock_winhttp_close_fail > 0) {
     if (--g_mock_winhttp_close_fail == 0) {
       return 0;
@@ -356,6 +359,9 @@ static BOOL WinHttpSendRequest(HINTERNET hRequest, const wchar_t *lpszHeaders,
   (void)lpOptional;
   (void)dwOptionalLength;
   (void)dwTotalLength;
+  if (g_mock_winhttp_send_request_fail == 2) {
+    return 0;
+  }
   if (g_mock_winhttp_send_request_fail) {
     if (hRequest == (HINTERNET)(size_t)203 && s_mock_winhttp_status_cb &&
         dwContext != 0) {
@@ -430,21 +436,36 @@ static BOOL WinHttpQueryHeaders(HINTERNET hRequest, DWORD dwInfoLevel,
     return 1;
   }
   if (g_mock_winhttp_cookie_count > 0) {
+    wchar_t utf_cookie[8];
     const wchar_t cookie_val1[] = L"mock_cookie=123; path=/";
     const wchar_t cookie_val2[] = L"mock_cookie2=456";
-    const wchar_t *cookie_val =
-        (g_mock_winhttp_cookie_count == 1) ? cookie_val2 : cookie_val1;
-    DWORD needed_bytes = (DWORD)((wcslen(cookie_val) + 1) * sizeof(wchar_t));
-    if (!lpBuffer) {
+    const wchar_t *cookie_val;
+    utf_cookie[0] = L'u';
+    utf_cookie[1] = L'=';
+    utf_cookie[2] = (wchar_t)0x00E9;
+    utf_cookie[3] = (wchar_t)0x20AC;
+    utf_cookie[4] = L'\0';
+    cookie_val =
+        (g_mock_winhttp_cookie_count == 99)
+            ? utf_cookie
+            : ((g_mock_winhttp_cookie_count == 1) ? cookie_val2 : cookie_val1);
+    {
+      DWORD needed_bytes = (DWORD)((wcslen(cookie_val) + 1) * sizeof(wchar_t));
+      if (!lpBuffer) {
+        *lpdwBufferLength = needed_bytes;
+        SetLastError(ERROR_INSUFFICIENT_BUFFER);
+        return 0;
+      }
+      memcpy(lpBuffer, cookie_val, needed_bytes);
       *lpdwBufferLength = needed_bytes;
-      SetLastError(ERROR_INSUFFICIENT_BUFFER);
-      return 0;
+      if (g_mock_winhttp_cookie_count == 99) {
+        g_mock_winhttp_cookie_count = 0;
+      } else {
+        g_mock_winhttp_cookie_count--;
+      }
+      SetLastError(0);
+      return 1;
     }
-    memcpy(lpBuffer, cookie_val, needed_bytes);
-    *lpdwBufferLength = needed_bytes;
-    g_mock_winhttp_cookie_count--;
-    SetLastError(0);
-    return 1;
   }
   SetLastError(0);
   return 0;
@@ -453,10 +474,18 @@ static BOOL WinHttpQueryHeaders(HINTERNET hRequest, DWORD dwInfoLevel,
 static BOOL WinHttpQueryDataAvailable(HINTERNET hRequest,
                                       LPDWORD lpdwNumberOfBytesAvailable) {
   DWORD avail = 0;
-  if (g_mock_winhttp_query_data_available_fail) {
+  if (g_mock_winhttp_query_data_available_fail == 2) {
+    g_mock_winhttp_query_data_available_fail = 1;
+  } else if (g_mock_winhttp_query_data_available_fail) {
     return 0;
   }
   if (g_mock_winhttp_read_chunks > 0) {
+    if (g_mock_winhttp_read_chunks == 3 && hRequest == (HINTERNET)(size_t)203 &&
+        s_mock_winhttp_status_cb) {
+      s_mock_winhttp_status_cb(hRequest, 0, 0x99999999U, NULL, 0);
+      s_mock_winhttp_status_cb(hRequest, s_mock_winhttp_async_ctx, 0x99999999U,
+                               NULL, 0);
+    }
     avail = (g_mock_winhttp_read_chunks == 3) ? 9000 : 10;
     g_mock_winhttp_read_chunks--;
   }
@@ -473,6 +502,13 @@ static BOOL WinHttpQueryDataAvailable(HINTERNET hRequest,
 static BOOL WinHttpReadData(HINTERNET hRequest, LPVOID lpBuffer,
                             DWORD dwNumberOfBytesToRead,
                             LPDWORD lpdwNumberOfBytesRead) {
+  if (g_mock_winhttp_read_data_fail == 2 &&
+      hRequest == (HINTERNET)(size_t)203 && s_mock_winhttp_status_cb) {
+    s_mock_winhttp_status_cb(hRequest, s_mock_winhttp_async_ctx,
+                             WINHTTP_CALLBACK_STATUS_READ_COMPLETE, lpBuffer,
+                             0);
+    return 1;
+  }
   if (g_mock_winhttp_read_data_fail) {
     return 0;
   }

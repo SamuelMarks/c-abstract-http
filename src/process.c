@@ -20,6 +20,9 @@ extern int g_mock_waitpid_fail;
 #include <io.h>
 #else
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 #endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -41,9 +44,13 @@ typedef int ssize_t;
  * @return Number of bytes written or -1 on error.
  */
 static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count) {
-  if (g_mock_write_partial) {
+  if (g_mock_write_partial == 1) {
     g_mock_write_partial = 0;
-    return count > 1 ? (ssize_t)(count - 1) : 0;
+    return 0;
+  }
+  if (g_mock_write_partial == 2) {
+    g_mock_write_partial = 0;
+    return write(fd, buf, 1);
   }
 #undef write
   return write(fd, buf, count);
@@ -57,8 +64,10 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 #ifndef __cplusplus
 #if !defined(inline)
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+/** @brief C89 inline compatibility macro for MSVC */
 #define inline __inline
 #elif defined(__GNUC__) || defined(__clang__)
+/** @brief C89 inline compatibility macro for GCC/Clang */
 #define inline __inline__
 #endif
 #endif
@@ -88,7 +97,7 @@ extern int g_mock_pipe_fail;
 static struct AbstractHttpProcessHooks g_process_hooks = {NULL, NULL, NULL,
                                                           NULL};
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_process_set_hooks(const struct AbstractHttpProcessHooks *hooks) {
   if (hooks) {
     g_process_hooks = *hooks;
@@ -104,7 +113,7 @@ struct AbstractHttpProcess {
   HANDLE hThread;  /**< Win32 primary thread handle */
 };
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *pipe) {
   SECURITY_ATTRIBUTES saAttr;
   HANDLE hRead, hWrite;
@@ -136,7 +145,7 @@ abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *pipe) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
   LOG_DEBUG("abstract_http_ipc_pipe_free: Entering");
   if (pipe) {
@@ -158,7 +167,7 @@ abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_process_spawn(struct AbstractHttpProcess **proc,
                             struct AbstractHttpIpcPipe *parent_to_child,
                             struct AbstractHttpIpcPipe *child_to_parent) {
@@ -224,9 +233,8 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
-                                    int *exit_code) {
+NO_DISCARD c_abstract_http_error_t abstract_http_process_wait_and_free(
+    struct AbstractHttpProcess *proc, int *exit_code) {
   DWORD dwExitCode = 0;
   DWORD dwWait;
 
@@ -272,8 +280,9 @@ abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_ipc_write(void *handle, const void *data, size_t len) {
+NO_DISCARD c_abstract_http_error_t abstract_http_ipc_write(void *handle,
+                                                           const void *data,
+                                                           size_t len) {
   DWORD dwWritten;
   BOOL bSuccess;
 
@@ -298,8 +307,9 @@ abstract_http_ipc_write(void *handle, const void *data, size_t len) {
 }
 
 /** @brief Read data from an IPC pipe handle */
-enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
-                                                  size_t len) {
+NO_DISCARD c_abstract_http_error_t abstract_http_ipc_read(void *handle,
+                                                          void *data,
+                                                          size_t len) {
   DWORD dwRead;
   BOOL bSuccess;
 
@@ -331,7 +341,7 @@ struct AbstractHttpProcess {
   int status;
 };
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *p) {
   if (!p) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -341,7 +351,7 @@ abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *p) {
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *p) {
   if (p) {
     p->read_handle = NULL;
@@ -350,7 +360,7 @@ abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *p) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_process_spawn(struct AbstractHttpProcess **proc,
                             struct AbstractHttpIpcPipe *parent_to_child,
                             struct AbstractHttpIpcPipe *child_to_parent) {
@@ -363,9 +373,8 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
 
-enum c_abstract_http_error
-abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
-                                    int *exit_code) {
+NO_DISCARD c_abstract_http_error_t abstract_http_process_wait_and_free(
+    struct AbstractHttpProcess *proc, int *exit_code) {
   if (g_process_hooks.wait_and_free) {
     return g_process_hooks.wait_and_free(proc, exit_code);
   }
@@ -376,8 +385,9 @@ abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
 
-enum c_abstract_http_error
-abstract_http_ipc_write(void *handle, const void *data, size_t len) {
+NO_DISCARD c_abstract_http_error_t abstract_http_ipc_write(void *handle,
+                                                           const void *data,
+                                                           size_t len) {
   if (g_process_hooks.ipc_write) {
     return g_process_hooks.ipc_write(handle, data, len);
   }
@@ -387,8 +397,9 @@ abstract_http_ipc_write(void *handle, const void *data, size_t len) {
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
 
-enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
-                                                  size_t len) {
+NO_DISCARD c_abstract_http_error_t abstract_http_ipc_read(void *handle,
+                                                          void *data,
+                                                          size_t len) {
   if (g_process_hooks.ipc_read) {
     return g_process_hooks.ipc_read(handle, data, len);
   }
@@ -406,7 +417,7 @@ struct AbstractHttpProcess {
   pid_t pid;
 };
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *p) {
   int fd[2];
   LOG_DEBUG("abstract_http_ipc_pipe_init: Entering");
@@ -418,13 +429,18 @@ abstract_http_ipc_pipe_init(struct AbstractHttpIpcPipe *p) {
     LOG_DEBUG("abstract_http_ipc_pipe_init: Error EIO (pipe failed)");
     return C_ABSTRACT_HTTP_ERR_IO;
   }
+  if (fd[0] == 0) {
+    int nfd = dup(fd[0]);
+    close(fd[0]);
+    fd[0] = nfd;
+  }
   p->read_handle = (void *)(size_t)fd[0];
   p->write_handle = (void *)(size_t)fd[1];
   LOG_DEBUG("abstract_http_ipc_pipe_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
   LOG_DEBUG("abstract_http_ipc_pipe_free: Entering");
   if (pipe) {
@@ -445,7 +461,7 @@ abstract_http_ipc_pipe_free(struct AbstractHttpIpcPipe *pipe) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_process_spawn(struct AbstractHttpProcess **proc,
                             struct AbstractHttpIpcPipe *parent_to_child,
                             struct AbstractHttpIpcPipe *child_to_parent) {
@@ -491,7 +507,19 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
     close((int)(size_t)parent_to_child->read_handle);
     close((int)(size_t)child_to_parent->write_handle);
 
+#if defined(__APPLE__)
+    {
+      char exe_path[1024];
+      uint32_t exe_size = (uint32_t)sizeof(exe_path);
+      if (_NSGetExecutablePath(exe_path, &exe_size) == 0) {
+        execv(exe_path, argv);
+      }
+    }
+#elif defined(__FreeBSD__)
+    execv("/proc/curproc/file", argv);
+#else
     execv("/proc/self/exe", argv);
+#endif
     _exit(1);
   }
 
@@ -506,9 +534,8 @@ abstract_http_process_spawn(struct AbstractHttpProcess **proc,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
-                                    int *exit_code) {
+NO_DISCARD c_abstract_http_error_t abstract_http_process_wait_and_free(
+    struct AbstractHttpProcess *proc, int *exit_code) {
   int status;
 
   LOG_DEBUG("abstract_http_process_wait_and_free: Entering");
@@ -536,9 +563,11 @@ abstract_http_process_wait_and_free(struct AbstractHttpProcess *proc,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_ipc_write(void *handle, const void *data, size_t len) {
-  ssize_t written;
+NO_DISCARD c_abstract_http_error_t abstract_http_ipc_write(void *handle,
+                                                           const void *data,
+                                                           size_t len) {
+  const unsigned char *ptr = (const unsigned char *)data;
+  size_t total = 0;
 
   LOG_DEBUG("abstract_http_ipc_write: Entering");
   if (g_process_hooks.ipc_write) {
@@ -546,19 +575,24 @@ abstract_http_ipc_write(void *handle, const void *data, size_t len) {
     return g_process_hooks.ipc_write(handle, data, len);
   }
 
-  written = write((int)(size_t)handle, data, len);
-  if (written < 0 || (size_t)written != len) {
-    LOG_DEBUG("abstract_http_ipc_write: Error EIO (write failed)");
-    return C_ABSTRACT_HTTP_ERR_IO;
+  while (total < len) {
+    ssize_t written = write((int)(size_t)handle, ptr + total, len - total);
+    if (written <= 0) {
+      LOG_DEBUG("abstract_http_ipc_write: Error EIO (write failed)");
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    total += (size_t)written;
   }
   LOG_DEBUG("abstract_http_ipc_write: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /** @brief Read data from an IPC pipe descriptor */
-enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
-                                                  size_t len) {
-  ssize_t r;
+NO_DISCARD c_abstract_http_error_t abstract_http_ipc_read(void *handle,
+                                                          void *data,
+                                                          size_t len) {
+  unsigned char *ptr = (unsigned char *)data;
+  size_t total = 0;
 
   LOG_DEBUG("abstract_http_ipc_read: Entering");
   if (g_process_hooks.ipc_read) {
@@ -566,10 +600,13 @@ enum c_abstract_http_error abstract_http_ipc_read(void *handle, void *data,
     return g_process_hooks.ipc_read(handle, data, len);
   }
 
-  r = read((int)(size_t)handle, data, len);
-  if (r < 0 || (size_t)r != len) {
-    LOG_DEBUG("abstract_http_ipc_read: Error EIO (read failed)");
-    return C_ABSTRACT_HTTP_ERR_IO;
+  while (total < len) {
+    ssize_t r = read((int)(size_t)handle, ptr + total, len - total);
+    if (r <= 0) {
+      LOG_DEBUG("abstract_http_ipc_read: Error EIO (read failed)");
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    total += (size_t)r;
   }
   LOG_DEBUG("abstract_http_ipc_read: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -590,7 +627,7 @@ extern int g_mock_serialize_fail;
  * @param val Integer value to write.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static enum c_abstract_http_error write_int(char **p, int val) {
+NO_DISCARD static c_abstract_http_error_t write_int(char **p, int val) {
   if (!p || !*p)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -608,7 +645,7 @@ static enum c_abstract_http_error write_int(char **p, int val) {
  * @param val Size value to write.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static enum c_abstract_http_error write_size(char **p, size_t val) {
+NO_DISCARD static c_abstract_http_error_t write_size(char **p, size_t val) {
   if (!p || !*p)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -626,9 +663,9 @@ static enum c_abstract_http_error write_size(char **p, size_t val) {
  * @param str Optional NUL-terminated string (NULL written as length 0).
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on failure.
  */
-static enum c_abstract_http_error write_str(char **p, const char *str) {
+NO_DISCARD static c_abstract_http_error_t write_str(char **p, const char *str) {
   size_t len;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   if (!p || !*p)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   len = str ? strlen(str) : 0;
@@ -649,8 +686,8 @@ static enum c_abstract_http_error write_str(char **p, const char *str) {
  * @param val Output pointer receiving parsed int.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL on truncation.
  */
-static enum c_abstract_http_error parse_int(const char **p, const char *end,
-                                            int *val) {
+NO_DISCARD static c_abstract_http_error_t parse_int(const char **p,
+                                                    const char *end, int *val) {
   if (*p + sizeof(int) > end)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   memcpy(val, *p, sizeof(int));
@@ -665,8 +702,8 @@ static enum c_abstract_http_error parse_int(const char **p, const char *end,
  * @param val Output pointer receiving parsed size_t.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL on truncation.
  */
-static enum c_abstract_http_error parse_size(const char **p, const char *end,
-                                             size_t *val) {
+NO_DISCARD static c_abstract_http_error_t
+parse_size(const char **p, const char *end, size_t *val) {
   if (*p + sizeof(size_t) > end)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   memcpy(val, *p, sizeof(size_t));
@@ -681,10 +718,10 @@ static enum c_abstract_http_error parse_size(const char **p, const char *end,
  * @param str Output pointer receiving newly allocated string or NULL.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on truncation/OOM.
  */
-static enum c_abstract_http_error parse_str(const char **p, const char *end,
-                                            char **str) {
+NO_DISCARD static c_abstract_http_error_t
+parse_str(const char **p, const char *end, char **str) {
   size_t len;
-  enum c_abstract_http_error rc = parse_size(p, end, &len);
+  c_abstract_http_error_t rc = parse_size(p, end, &len);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
   if (len == 0) {
@@ -702,13 +739,12 @@ static enum c_abstract_http_error parse_str(const char **p, const char *end,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_ipc_serialize_request(const struct HttpRequest *req,
-                                    char **out_buf, size_t *out_len) {
+NO_DISCARD c_abstract_http_error_t abstract_http_ipc_serialize_request(
+    const struct HttpRequest *req, char **out_buf, size_t *out_len) {
   size_t i;
   size_t est_size = sizeof(int) + sizeof(size_t);
   char *buf, *p;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!req || !out_buf || !out_len)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -772,13 +808,12 @@ abstract_http_ipc_serialize_request(const struct HttpRequest *req,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_ipc_deserialize_request(const char *buf, size_t len,
-                                      struct HttpRequest *req) {
+NO_DISCARD c_abstract_http_error_t abstract_http_ipc_deserialize_request(
+    const char *buf, size_t len, struct HttpRequest *req) {
   size_t hcount, body_len;
   int method;
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   const char *p;
   const char *end;
 
@@ -835,13 +870,12 @@ abstract_http_ipc_deserialize_request(const char *buf, size_t len,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_ipc_serialize_response(const struct HttpResponse *res,
-                                     char **out_buf, size_t *out_len) {
+NO_DISCARD c_abstract_http_error_t abstract_http_ipc_serialize_response(
+    const struct HttpResponse *res, char **out_buf, size_t *out_len) {
   size_t i;
   size_t est_size = sizeof(int) + sizeof(size_t);
   char *buf, *p;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!res || !out_buf || !out_len)
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -899,12 +933,11 @@ abstract_http_ipc_serialize_response(const struct HttpResponse *res,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_ipc_deserialize_response(const char *buf, size_t len,
-                                       struct HttpResponse *res) {
+NO_DISCARD c_abstract_http_error_t abstract_http_ipc_deserialize_response(
+    const char *buf, size_t len, struct HttpResponse *res) {
   size_t hcount, body_len;
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   const char *p;
   const char *end;
 
@@ -960,28 +993,39 @@ abstract_http_ipc_deserialize_response(const char *buf, size_t len,
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /**
- * @brief Test helper for waitpid failure.
- * @return Result from abstract_http_process_wait_and_free.
+ * @brief Reset g_mock_waitpid_fail and percolate status enum.
+ * @param rc Status enum to return.
+ * @return @p rc unchanged.
  */
-enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void);
+NO_DISCARD static c_abstract_http_error_t
+process_reset_waitpid_and_return(c_abstract_http_error_t rc) {
+  g_mock_waitpid_fail = 0;
+  return rc;
+}
+
 /**
  * @brief Test helper for waitpid failure.
  * @return Result from abstract_http_process_wait_and_free.
  */
-enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void) {
+NO_DISCARD c_abstract_http_error_t
+abstract_http_process_test_waitpid_fail(void);
+/**
+ * @brief Test helper for waitpid failure.
+ * @return Result from abstract_http_process_wait_and_free.
+ */
+NO_DISCARD c_abstract_http_error_t
+abstract_http_process_test_waitpid_fail(void) {
   struct AbstractHttpProcess *p =
       (struct AbstractHttpProcess *)malloc(sizeof(struct AbstractHttpProcess));
   if (p) {
-    enum c_abstract_http_error rc;
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
     p->hProcess = (HANDLE)(INT_PTR)123;
 #else
     p->pid = 123;
 #endif
     g_mock_waitpid_fail = 1;
-    rc = abstract_http_process_wait_and_free(p, NULL);
-    g_mock_waitpid_fail = 0;
-    return rc;
+    return process_reset_waitpid_and_return(
+        abstract_http_process_wait_and_free(p, NULL));
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -990,27 +1034,27 @@ enum c_abstract_http_error abstract_http_process_test_waitpid_fail(void) {
  * @brief Test helper for abnormal waitpid exit status.
  * @return Result from abstract_http_process_wait_and_free.
  */
-enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void);
+NO_DISCARD c_abstract_http_error_t
+abstract_http_process_test_waitpid_exit(void);
 /**
  * @brief Test helper for abnormal waitpid exit status.
  * @return Result from abstract_http_process_wait_and_free.
  */
-enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void) {
+NO_DISCARD c_abstract_http_error_t
+abstract_http_process_test_waitpid_exit(void) {
   /* Test WIFEXITED == false */
   struct AbstractHttpProcess *p =
       (struct AbstractHttpProcess *)malloc(sizeof(struct AbstractHttpProcess));
   if (p) {
     int exit_code;
-    enum c_abstract_http_error rc;
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
     p->hProcess = (HANDLE)(INT_PTR)123;
 #else
     p->pid = 123;
 #endif
     g_mock_waitpid_fail = 2;
-    rc = abstract_http_process_wait_and_free(p, &exit_code);
-    g_mock_waitpid_fail = 0;
-    return rc;
+    return process_reset_waitpid_and_return(
+        abstract_http_process_wait_and_free(p, &exit_code));
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -1021,8 +1065,10 @@ enum c_abstract_http_error abstract_http_process_test_waitpid_exit(void) {
  * @param step Integer selecting the helper test case to execute.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or error enum on failure.
  */
-enum c_abstract_http_error abstract_http_process_test_write_helpers(int step);
-enum c_abstract_http_error abstract_http_process_test_write_helpers(int step) {
+NO_DISCARD c_abstract_http_error_t
+abstract_http_process_test_write_helpers(int step);
+NO_DISCARD c_abstract_http_error_t
+abstract_http_process_test_write_helpers(int step) {
   char *null_p = NULL;
 
   switch (step) {
@@ -1049,4 +1095,8 @@ enum c_abstract_http_error abstract_http_process_test_write_helpers(int step) {
   }
   }
 }
+#endif
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && defined(write)
+#undef write
 #endif

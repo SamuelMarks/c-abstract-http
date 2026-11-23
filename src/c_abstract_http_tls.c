@@ -30,9 +30,8 @@ struct AbstractHttpTlsKey {
   DWORD dwTlsIndex; /**< Win32 TlsAlloc slot index */
 };
 
-enum c_abstract_http_error
-abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
-                             void (*destructor)(void *)) {
+NO_DISCARD c_abstract_http_error_t abstract_http_tls_key_create(
+    struct AbstractHttpTlsKey **key, void (*destructor)(void *)) {
   LOG_DEBUG("abstract_http_tls_key_create: Entering");
   if (!key) {
     LOG_DEBUG("abstract_http_tls_key_create: Error EINVAL");
@@ -57,8 +56,8 @@ abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
 }
 
 /** @brief Set TLS value for the current thread */
-enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
-                                                 void *value) {
+NO_DISCARD c_abstract_http_error_t
+abstract_http_tls_set(struct AbstractHttpTlsKey *key, void *value) {
   LOG_DEBUG("abstract_http_tls_set: Entering");
   if (!key) {
     LOG_DEBUG("abstract_http_tls_set: Error EINVAL");
@@ -73,8 +72,8 @@ enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
 }
 
 /** @brief Get TLS value for the current thread */
-enum c_abstract_http_error abstract_http_tls_get(struct AbstractHttpTlsKey *key,
-                                                 void **out_value) {
+NO_DISCARD c_abstract_http_error_t
+abstract_http_tls_get(struct AbstractHttpTlsKey *key, void **out_value) {
   LOG_DEBUG("abstract_http_tls_get: Entering");
   if (!key || !out_value) {
     LOG_DEBUG("abstract_http_tls_get: Error EINVAL");
@@ -89,7 +88,7 @@ enum c_abstract_http_error abstract_http_tls_get(struct AbstractHttpTlsKey *key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_tls_key_delete(struct AbstractHttpTlsKey *key) {
   LOG_DEBUG("abstract_http_tls_key_delete: Entering");
   if (key) {
@@ -110,9 +109,8 @@ struct AbstractHttpTlsKey {
   void (*destructor)(void *);
 };
 
-enum c_abstract_http_error
-abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
-                             void (*destructor)(void *)) {
+NO_DISCARD c_abstract_http_error_t abstract_http_tls_key_create(
+    struct AbstractHttpTlsKey **key, void (*destructor)(void *)) {
   if (!key) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -126,8 +124,8 @@ abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
 }
 
 /** @brief Set TLS value for the current thread on DOS */
-enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
-                                                 void *value) {
+NO_DISCARD c_abstract_http_error_t
+abstract_http_tls_set(struct AbstractHttpTlsKey *key, void *value) {
   if (!key) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -136,8 +134,8 @@ enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
 }
 
 /** @brief Get TLS value for the current thread on DOS */
-enum c_abstract_http_error abstract_http_tls_get(struct AbstractHttpTlsKey *key,
-                                                 void **out_value) {
+NO_DISCARD c_abstract_http_error_t
+abstract_http_tls_get(struct AbstractHttpTlsKey *key, void **out_value) {
   if (!key || !out_value) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -145,7 +143,7 @@ enum c_abstract_http_error abstract_http_tls_get(struct AbstractHttpTlsKey *key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_tls_key_delete(struct AbstractHttpTlsKey *key) {
   if (key) {
     free(key);
@@ -161,9 +159,8 @@ struct AbstractHttpTlsKey {
   pthread_key_t key;
 };
 
-enum c_abstract_http_error
-abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
-                             void (*destructor)(void *)) {
+NO_DISCARD c_abstract_http_error_t abstract_http_tls_key_create(
+    struct AbstractHttpTlsKey **key, void (*destructor)(void *)) {
   int err;
   LOG_DEBUG("abstract_http_tls_key_create: Entering");
   if (!key) {
@@ -188,8 +185,8 @@ abstract_http_tls_key_create(struct AbstractHttpTlsKey **key,
 }
 
 /** @brief Set TLS value for the current thread */
-enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
-                                                 void *value) {
+NO_DISCARD c_abstract_http_error_t
+abstract_http_tls_set(struct AbstractHttpTlsKey *key, void *value) {
   int err;
   LOG_DEBUG("abstract_http_tls_set: Entering");
   if (!key) {
@@ -207,8 +204,8 @@ enum c_abstract_http_error abstract_http_tls_set(struct AbstractHttpTlsKey *key,
 }
 
 /** @brief Get TLS value for the current thread */
-enum c_abstract_http_error abstract_http_tls_get(struct AbstractHttpTlsKey *key,
-                                                 void **out_value) {
+NO_DISCARD c_abstract_http_error_t
+abstract_http_tls_get(struct AbstractHttpTlsKey *key, void **out_value) {
   LOG_DEBUG("abstract_http_tls_get: Entering");
   if (!key || !out_value) {
     LOG_DEBUG("abstract_http_tls_get: Error EINVAL");
@@ -219,7 +216,7 @@ enum c_abstract_http_error abstract_http_tls_get(struct AbstractHttpTlsKey *key,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_tls_key_delete(struct AbstractHttpTlsKey *key) {
   LOG_DEBUG("abstract_http_tls_key_delete: Entering");
   if (key) {

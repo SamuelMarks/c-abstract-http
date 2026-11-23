@@ -4,8 +4,8 @@ This document defines standard operating procedures (SOPs) and strict engineerin
 
 ## 1. Extending the Library with a New Transport Backend
 
-1. **Public Header**: Create `include/c_abstract_http/http_<backend>.h` wrapped in a single `#ifdef __cplusplus` guard and a single `/* clang-format off */` / `/* clang-format on */` `#include` block. Declare `http_<backend>_global_init`, `http_<backend>_global_cleanup`, `http_<backend>_context_init`, `http_<backend>_context_free`, `http_<backend>_send` (`http_send_fn`), and (if supported) `http_<backend>_send_multi` (`http_send_multi_fn`), all prefixed with `NO_DISCARD C_ABSTRACT_HTTP_API` and returning `enum c_abstract_http_error` (`c_abstract_http_error_t`).
-2. **Implementation**: Implement `src/http_<backend>.c` in strict ISO C89, translating every third-party/OS failure into `enum c_abstract_http_error`.
+1. **Public Header**: Create `include/c_abstract_http/http_<backend>.h` wrapped in a single `#ifdef __cplusplus` guard and a single `/* clang-format off */` / `/* clang-format on */` `#include` block. Declare `http_<backend>_global_init`, `http_<backend>_global_cleanup`, `http_<backend>_context_init`, `http_<backend>_context_free`, `http_<backend>_send` (`http_send_fn`), and (if supported) `http_<backend>_send_multi` (`http_send_multi_fn`), all prefixed with `NO_DISCARD C_ABSTRACT_HTTP_API` and returning `c_abstract_http_error_t`.
+2. **Implementation**: Implement `src/http_<backend>.c` in strict ISO C89, translating every third-party/OS failure into `c_abstract_http_error_t`.
 3. **Factory & Amalgamation Wiring**:
    - Wire `C_ABSTRACT_HTTP_USE_<BACKEND>` into `src/transport.c` (`transport_global_init`, `transport_global_cleanup`, `transport_factory_init_client`, `transport_factory_cleanup_client`) **above** implicit OS fallbacks (`_WIN32`, `__APPLE__`, `DOS`).
    - Mirror the header and `#ifdef C_ABSTRACT_HTTP_IMPLEMENTATION` `.c` include in `include/c_abstract_http/c_abstract_http.h`.
@@ -21,7 +21,7 @@ Every `.c` and `.h` file is compiled with `-std=c89 -pedantic -Wall -Wextra -Wer
 
 ## 3. Mandatory Enum Error Return & Percolation Policy
 
-Every non-void, non-math function MUST return `enum c_abstract_http_error` (`c_abstract_http_error_t`), pass outputs via pointer parameters, and percolate errors without `(void)` return discards.
+Every non-void, non-math function MUST return `c_abstract_http_error_t`, pass outputs via pointer parameters, and percolate errors without `(void)` return discards.
 
 ### Bad (Forbidden)
 ```c
@@ -43,7 +43,7 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t http_headers_get(
 
 At every call site, capture and immediately check the returned enum without mutating the error variable before returning it:
 ```c
-enum c_abstract_http_error rc;
+c_abstract_http_error_t rc;
 rc = http_headers_add(&req.headers, "Accept", "application/json");
 if (rc != C_ABSTRACT_HTTP_SUCCESS) {
   LOG_DEBUG("http_headers_add failed: %d", (int)rc);
@@ -66,11 +66,11 @@ strcpy(dest, src);
 ## 5. Portable `size_t` & 64-Bit Integer Formatting
 
 Never use `%zu` or `%lld` directly in format strings (unsupported on MSVC 2005 / legacy MSVCRT):
-- For `size_t`, include `<c_abstract_http/win_compat_sym.h>` and use `"%" SIZE_T_FMT` (which expands to `"Iu"`, `"zu"`, or `"lu"`):
+- For `size_t`, include `<c_abstract_http/win_compat_sym.h>` and use `"%" SIZE_T_FMT` (which handles LP64, ILP32, MSVC, and LLP64 MinGW-w64 via `"Iu"`, `"I64u"`, `"zu"`, `"llu"`, or `"lu"`):
   ```c
   printf("Payload bytes: %" SIZE_T_FMT "\n", body_len);
   ```
-- For signed 64-bit integers (`abstract_http_int64_t`), include `<c_abstract_http/http_types.h>` and use `C_ABSTRACT_HTTP_NUM_FORMAT` (which includes `%` and expands to `"%I64d"`, `"%ld"`, or `"%lld"`):
+- For signed 64-bit integers (`abstract_http_int64_t`), include `<c_abstract_http/http_types.h>` and use `C_ABSTRACT_HTTP_NUM_FORMAT` (which includes `%` and expands to `"%I64d"`, `"%ld"`, or `"%lld"` across MSVC, LLP64 MinGW, LP64 POSIX, and C99+):
   ```c
   printf("Timestamp: " C_ABSTRACT_HTTP_NUM_FORMAT "\n", ts_ms);
   ```
@@ -78,7 +78,7 @@ Never use `%zu` or `%lld` directly in format strings (unsupported on MSVC 2005 /
 ## 6. Dependency & CMake `FetchContent` Policy
 
 - Always use `FetchContent_MakeAvailable` (never `FetchContent_Populate`).
-- Always track the `master` branch (never pin commit hashes) for `SamuelMarks/*` repositories (`c-fs`, `c-orm`, `cdd-c`, `c-ci`, `greatest`).
+- Always track the `master` branch (never pin commit hashes) for `SamuelMarks/*` repositories (`c-fs`, `c-ci`, `greatest`), alongside `offscale/c89stringutils`.
 - Ensure any CMake flag or definition works identically for `STATIC`, `SHARED` (`BUILD_SHARED_LIBS=ON`), and `INTERFACE` (`C_ABSTRACT_HTTP_HEADER_ONLY=ON`) builds.
 
 ## 7. Header Formatting, `extern "C"`, and Clang-Format Safety
@@ -90,10 +90,10 @@ Never use `%zu` or `%lld` directly in format strings (unsupported on MSVC 2005 /
   fd -eh -ec -x clang-format -i --style=LLVM
   ```
 
-## 8. 100% Documentation & 100% Line/Branch Coverage
+## 8. 100% Documentation & 100% Line Coverage
 
-- **Doxygen**: Every public and internal file, struct, field, enum, macro, typedef, and function must have complete Doxygen comments (`0` warnings with `WARN_NO_PARAMDOC=YES`).
-- **Coverage & OOM Testing**: Maintain `100.0%` line, function, and branch coverage in `src/` (`gcovr --fail-under-line 100 --fail-under-branch 100`) using `greatest.h` suites and `tests/mock_alloc.h` fault injection (`g_mock_alloc_fail`, `g_mock_strdup_fail`, etc.). Do not introduce unreachable defensive branches that cannot be exercised by tests.
+- **Doxygen**: Every public and internal file, struct, field, enum, macro, typedef, and function must have complete Doxygen comments (`0` warnings with `WARN_IF_UNDOCUMENTED=YES` and `WARN_NO_PARAMDOC=YES`).
+- **Coverage & OOM Testing**: Maintain `100.0%` line coverage across every module in `src/` (`python3 scripts/update_badges.py` and `gcovr --root . .build-coverage --filter 'src/' --fail-under-line 100`) using `greatest.h` suites and `tests/mock_alloc.h` fault injection (`g_mock_alloc_fail`, `g_mock_strdup_fail`, etc.). Do not introduce unreachable defensive branches that cannot be exercised by tests.
 
 ## 9. Parser Safety & Fuzzing (WebSockets & SSE)
 
@@ -103,4 +103,4 @@ Never use `%zu` or `%lld` directly in format strings (unsupported on MSVC 2005 /
 ## 10. Concurrency & External Event Loop Integration
 
 - Guard multi-threaded code and tests with `#ifndef C_ABSTRACT_HTTP_SINGLE_THREADED`.
-- Thread pool tasks (`abstract_http_thread_task_cb`), loop socket callbacks (`http_loop_cb`), timer callbacks (`http_timer_cb`), and external `struct HttpLoopHooks` functions all return `enum c_abstract_http_error` and must never block the host reactor thread.
+- Thread pool tasks (`abstract_http_thread_task_cb`), loop socket callbacks (`http_loop_cb`), timer callbacks (`http_timer_cb`), and external `struct HttpLoopHooks` functions all return `c_abstract_http_error_t` and must never block the host reactor thread.

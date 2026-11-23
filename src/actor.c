@@ -44,7 +44,7 @@
 static struct AbstractHttpActorHooks g_actor_hooks = {NULL, NULL, NULL, NULL,
                                                       NULL, NULL, NULL};
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_actor_set_hooks(const struct AbstractHttpActorHooks *hooks) {
   if (hooks) {
     g_actor_hooks = *hooks;
@@ -86,7 +86,7 @@ struct AbstractHttpMessageBus {
   struct MessageNode *tail;
 };
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_message_bus_init(struct AbstractHttpMessageBus **bus) {
   struct AbstractHttpMessageBus *b;
   LOG_DEBUG("abstract_http_message_bus_init: Entering");
@@ -122,7 +122,7 @@ abstract_http_message_bus_init(struct AbstractHttpMessageBus **bus) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus) {
   size_t i;
   struct MessageNode *node;
@@ -157,9 +157,8 @@ abstract_http_message_bus_free(struct AbstractHttpMessageBus *bus) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus,
-                                  int *out_processed) {
+NO_DISCARD c_abstract_http_error_t abstract_http_message_bus_process(
+    struct AbstractHttpMessageBus *bus, int *out_processed) {
   int count = 0;
   struct MessageNode *node;
 
@@ -182,7 +181,7 @@ abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus,
     }
 
     {
-      enum c_abstract_http_error h_rc =
+      c_abstract_http_error_t h_rc =
           node->msg.receiver->handler(node->msg.receiver, &node->msg);
       if (h_rc != C_ABSTRACT_HTTP_SUCCESS) {
         ABSTRACT_HTTP_FREE(node);
@@ -200,7 +199,7 @@ abstract_http_message_bus_process(struct AbstractHttpMessageBus *bus,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name,
                           abstract_http_actor_handler_cb handler, void *state,
                           struct AbstractHttpActor **actor) {
@@ -235,12 +234,12 @@ abstract_http_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name,
   a = (struct AbstractHttpActor *)ABSTRACT_HTTP_CALLOC(
       1, sizeof(struct AbstractHttpActor));
   if (!a) {
-    printf("abstract_http_actor_spawn: Error ENOMEM a is null\n");
+    LOG_DEBUG("abstract_http_actor_spawn: Error ENOMEM a is null");
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
   {
-    enum c_abstract_http_error dup_rc =
+    c_abstract_http_error_t dup_rc =
         c_abstract_http_strdup(name, &_ast_strdup_0);
     if (dup_rc != C_ABSTRACT_HTTP_SUCCESS) {
       ABSTRACT_HTTP_FREE(a);
@@ -260,9 +259,8 @@ abstract_http_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_actor_send(struct AbstractHttpMessageBus *bus,
-                         const struct AbstractHttpMessage *msg) {
+NO_DISCARD c_abstract_http_error_t abstract_http_actor_send(
+    struct AbstractHttpMessageBus *bus, const struct AbstractHttpMessage *msg) {
   struct MessageNode *node;
 
   LOG_DEBUG("abstract_http_actor_send: Entering");
@@ -297,7 +295,7 @@ abstract_http_actor_send(struct AbstractHttpMessageBus *bus,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_actor_get_state(struct AbstractHttpActor *actor, void **state) {
   LOG_DEBUG("abstract_http_actor_get_state: Entering");
   if (g_actor_hooks.actor_get_state) {
@@ -313,9 +311,8 @@ abstract_http_actor_get_state(struct AbstractHttpActor *actor, void **state) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
-abstract_http_actor_get_name(const struct AbstractHttpActor *actor,
-                             const char **name) {
+NO_DISCARD c_abstract_http_error_t abstract_http_actor_get_name(
+    const struct AbstractHttpActor *actor, const char **name) {
   LOG_DEBUG("abstract_http_actor_get_name: Entering");
   if (g_actor_hooks.actor_get_name) {
     LOG_DEBUG("abstract_http_actor_get_name: Hooking");

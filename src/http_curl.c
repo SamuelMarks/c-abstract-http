@@ -196,7 +196,7 @@ int g_mock_curl_check_multi_info_fail = 0;
  * @return C_ABSTRACT_HTTP_ERR_IO if failure is triggered,
  * C_ABSTRACT_HTTP_SUCCESS otherwise.
  */
-static enum c_abstract_http_error check_mock_setopt_fail(void) {
+NO_DISCARD static c_abstract_http_error_t check_mock_setopt_fail(void) {
   if (g_mock_curl_setopt_fail) {
     if (g_mock_curl_setopt_count == 0) {
       g_mock_curl_setopt_count--;
@@ -364,7 +364,7 @@ struct CurlWriteContext {
   /** @brief req (variable) of struct CurlWriteContext */
   const struct HttpRequest *req;
   /** @brief user_aborted (variable) of struct CurlWriteContext */
-  enum c_abstract_http_error user_aborted;
+  c_abstract_http_error_t user_aborted;
 };
 
 /**
@@ -375,13 +375,13 @@ struct CurlWriteContext {
  * @param out_written Output pointer receiving bytes processed.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on OOM/callback abort.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 write_memory_callback_impl(void *contents, size_t realsize,
                            struct CurlWriteContext *ctx, size_t *out_written) {
   char *ptr;
 
   if (ctx->req->on_chunk) {
-    enum c_abstract_http_error rc =
+    c_abstract_http_error_t rc =
         ctx->req->on_chunk(ctx->req->on_chunk_user_data, contents, realsize);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       ctx->user_aborted = rc;
@@ -421,7 +421,7 @@ static size_t math_write_memory_callback(void *contents, size_t size,
   size_t realsize = size * nmemb;
   size_t written = 0;
   struct CurlWriteContext *ctx = (struct CurlWriteContext *)userp;
-  enum c_abstract_http_error rc =
+  c_abstract_http_error_t rc =
       write_memory_callback_impl(contents, realsize, ctx, &written);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return (size_t)((int)rc * 0);
@@ -437,10 +437,10 @@ static size_t math_write_memory_callback(void *contents, size_t size,
  * @param out_read Output pointer receiving bytes read.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on callback failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 curl_read_callback_impl(char *buffer, size_t max_bytes,
                         const struct HttpRequest *req, size_t *out_read) {
-  enum c_abstract_http_error rc =
+  c_abstract_http_error_t rc =
       req->read_chunk(req->read_chunk_user_data, buffer, max_bytes, out_read);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
@@ -462,7 +462,7 @@ static size_t math_curl_read_callback(char *buffer, size_t size, size_t nitems,
   size_t max_bytes = size * nitems;
   size_t out_read = 0;
   size_t abort_val = CURL_READFUNC_ABORT;
-  enum c_abstract_http_error rc =
+  c_abstract_http_error_t rc =
       curl_read_callback_impl(buffer, max_bytes, req, &out_read);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return abort_val + (size_t)((int)rc * 0);
@@ -478,9 +478,9 @@ static size_t math_curl_read_callback(char *buffer, size_t size, size_t nitems,
  * @param _out_val Output pointer receiving allocated header string.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error ABSTRACT_HTTP_FORMAT_HEADER(const char *key,
-                                                              const char *value,
-                                                              char **_out_val) {
+NO_DISCARD static c_abstract_http_error_t
+ABSTRACT_HTTP_FORMAT_HEADER(const char *key, const char *value,
+                            char **_out_val) {
   size_t len = strlen(key) + 2 + strlen(value) + 1;
   char *buf = (char *)malloc(len);
   if (!buf) {
@@ -499,11 +499,12 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FORMAT_HEADER(const char *key,
 }
 
 /**
- * @brief Map a libcurl CURLcode to enum c_abstract_http_error.
+ * @brief Map a libcurl CURLcode to c_abstract_http_error_t.
  * @param res libcurl error code.
  * @return Mapped abstract HTTP error enum.
  */
-static enum c_abstract_http_error ABSTRACT_HTTP_MAP_CURL_ERROR(CURLcode res) {
+NO_DISCARD static c_abstract_http_error_t
+ABSTRACT_HTTP_MAP_CURL_ERROR(CURLcode res) {
   switch (res) {
   case CURLE_UNSUPPORTED_PROTOCOL:
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -533,7 +534,7 @@ static enum c_abstract_http_error ABSTRACT_HTTP_MAP_CURL_ERROR(CURLcode res) {
 static int g_curl_init_count = 0;
 
 /* Initialize global libcurl state */
-enum c_abstract_http_error http_curl_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_curl_global_init(void) {
   if (g_curl_init_count == 0) {
     CURLcode init_rc = ABSTRACT_HTTP_CURL_GLOBAL_INIT(CURL_GLOBAL_ALL);
     if (init_rc != CURLE_OK) {
@@ -545,7 +546,7 @@ enum c_abstract_http_error http_curl_global_init(void) {
 }
 
 /** @brief Clean up global libcurl state */
-enum c_abstract_http_error http_curl_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_curl_global_cleanup(void) {
   if (g_curl_init_count > 0) {
     g_curl_init_count--;
     if (g_curl_init_count == 0) {
@@ -556,7 +557,7 @@ enum c_abstract_http_error http_curl_global_cleanup(void) {
 }
 
 /** @brief Initialize a libcurl transport context */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_curl_context_init(struct HttpTransportContext **const ctx) {
   LOG_DEBUG("http_curl_context_init: Entering");
   if (!ctx) {
@@ -592,7 +593,7 @@ http_curl_context_init(struct HttpTransportContext **const ctx) {
 }
 
 /** @brief Free a libcurl transport context */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_curl_context_free(struct HttpTransportContext *const ctx) {
   LOG_DEBUG("http_curl_context_free: Entering");
   if (ctx) {
@@ -605,9 +606,8 @@ http_curl_context_free(struct HttpTransportContext *const ctx) {
 }
 
 /** @brief Apply HTTP configuration to a libcurl transport context */
-enum c_abstract_http_error
-http_curl_config_apply(struct HttpTransportContext *ctx,
-                       const struct HttpConfig *config) {
+NO_DISCARD c_abstract_http_error_t http_curl_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
   long ssl_version_max = 0;
 #if !defined(C_ABSTRACT_HTTP_TEST_OOM)
   long http_version = 0;
@@ -632,7 +632,7 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     {
-      enum c_abstract_http_error mock_rc = check_mock_setopt_fail();
+      c_abstract_http_error_t mock_rc = check_mock_setopt_fail();
       if (mock_rc != C_ABSTRACT_HTTP_SUCCESS)
         return mock_rc;
     }
@@ -652,7 +652,7 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
 #if LIBCURL_VERSION_NUM >= 0x072100 /* 7.33.0 */
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     {
-      enum c_abstract_http_error mock_rc = check_mock_setopt_fail();
+      c_abstract_http_error_t mock_rc = check_mock_setopt_fail();
       if (mock_rc != C_ABSTRACT_HTTP_SUCCESS)
         return mock_rc;
     }
@@ -802,11 +802,11 @@ http_curl_config_apply(struct HttpTransportContext *ctx,
  * @param out_headers Output pointer receiving built curl_slist header list.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum on OOM/setopt failure.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
                                  struct CurlWriteContext *write_ctx,
                                  struct curl_slist **out_headers) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   size_t i;
   void *payload = req->body;
   size_t payload_len = req->body_len;
@@ -922,7 +922,7 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
 
   for (i = 0; i < req->headers.count; ++i) {
     char *h_str = NULL;
-    enum c_abstract_http_error rc_h = ABSTRACT_HTTP_FORMAT_HEADER(
+    c_abstract_http_error_t rc_h = ABSTRACT_HTTP_FORMAT_HEADER(
         req->headers.headers[i].key, req->headers.headers[i].value, &h_str);
     if (rc_h != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("ABSTRACT_HTTP_SETUP_CURL_REQUEST: Error ENOMEM in "
@@ -974,11 +974,11 @@ ABSTRACT_HTTP_SETUP_CURL_REQUEST(CURL *curl, const struct HttpRequest *req,
  * @param out_res Output pointer receiving allocated HttpResponse.
  * @return C_ABSTRACT_HTTP_SUCCESS or mapped error enum.
  */
-static enum c_abstract_http_error ABSTRACT_HTTP_FINISH_CURL_REQUEST(
+NO_DISCARD static c_abstract_http_error_t ABSTRACT_HTTP_FINISH_CURL_REQUEST(
     struct HttpTransportContext *ctx, CURL *curl, const struct HttpRequest *req,
     struct CurlWriteContext *write_ctx, struct curl_slist *headers,
     CURLcode res_code, struct HttpResponse **out_res) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   long response_code = 0;
   struct HttpResponse *new_res = NULL;
 
@@ -1064,7 +1064,7 @@ static enum c_abstract_http_error ABSTRACT_HTTP_FINISH_CURL_REQUEST(
 cleanup:
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (new_res) {
-      enum c_abstract_http_error rch = http_response_free(new_res);
+      c_abstract_http_error_t rch = http_response_free(new_res);
       if (rch != C_ABSTRACT_HTTP_SUCCESS)
         return rch;
       free(new_res);
@@ -1082,10 +1082,10 @@ cleanup:
 }
 
 /** @brief Send an HTTP request via libcurl */
-enum c_abstract_http_error http_curl_send(struct HttpTransportContext *ctx,
-                                          const struct HttpRequest *req,
-                                          struct HttpResponse **const res) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+NO_DISCARD c_abstract_http_error_t
+http_curl_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+               struct HttpResponse **const res) {
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   CURLcode res_code;
   struct curl_slist *headers = NULL;
   struct CurlWriteContext write_ctx;
@@ -1139,7 +1139,7 @@ struct CurlMultiTask {
  * @param ctx Transport context owning the multi handle.
  * @return C_ABSTRACT_HTTP_SUCCESS or simulated error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 ABSTRACT_HTTP_CHECK_MULTI_INFO(struct HttpTransportContext *ctx) {
   CURLMsg *msg;
   int msgs_left;
@@ -1177,11 +1177,11 @@ ABSTRACT_HTTP_CHECK_MULTI_INFO(struct HttpTransportContext *ctx) {
  * @param user_data Pointer to struct HttpTransportContext.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum from check_multi_info.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 multi_timer_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)user_data;
   int running_handles;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)loop;
   (void)timer_id;
   ABSTRACT_HTTP_CURL_MULTI_SOCKET_ACTION(ctx->multi, CURL_SOCKET_TIMEOUT, 0,
@@ -1202,7 +1202,7 @@ multi_timer_cb(struct ModalityEventLoop *loop, int timer_id, void *user_data) {
  * @param user_data Pointer to struct HttpTransportContext.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum from check_multi_info.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
                 void *user_data);
 
@@ -1214,9 +1214,8 @@ multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
  * @param user_data Pointer to struct HttpTransportContext.
  * @return Result from multi_timer_cb.
  */
-enum c_abstract_http_error
-abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
-                                  void *user_data);
+NO_DISCARD c_abstract_http_error_t abstract_http_test_multi_timer_cb(
+    struct ModalityEventLoop *loop, int timer_id, void *user_data);
 /**
  * @brief Test wrapper exposing multi_timer_cb.
  * @param loop Active event loop.
@@ -1224,9 +1223,8 @@ abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
  * @param user_data Pointer to struct HttpTransportContext.
  * @return Result from multi_timer_cb.
  */
-enum c_abstract_http_error
-abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
-                                  void *user_data) {
+NO_DISCARD c_abstract_http_error_t abstract_http_test_multi_timer_cb(
+    struct ModalityEventLoop *loop, int timer_id, void *user_data) {
   return multi_timer_cb(loop, timer_id, user_data);
 }
 
@@ -1238,9 +1236,8 @@ abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
  * @param user_data Pointer to struct HttpTransportContext.
  * @return Result from multi_socket_cb.
  */
-enum c_abstract_http_error
-abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
-                                   int events, void *user_data);
+NO_DISCARD c_abstract_http_error_t abstract_http_test_multi_socket_cb(
+    struct ModalityEventLoop *loop, int fd, int events, void *user_data);
 /**
  * @brief Test wrapper exposing multi_socket_cb.
  * @param loop Active event loop.
@@ -1249,9 +1246,8 @@ abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
  * @param user_data Pointer to struct HttpTransportContext.
  * @return Result from multi_socket_cb.
  */
-enum c_abstract_http_error
-abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
-                                   int events, void *user_data) {
+NO_DISCARD c_abstract_http_error_t abstract_http_test_multi_socket_cb(
+    struct ModalityEventLoop *loop, int fd, int events, void *user_data) {
   return multi_socket_cb(loop, fd, events, user_data);
 }
 #endif
@@ -1264,13 +1260,13 @@ abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
  * @param user_data Pointer to struct HttpTransportContext.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum from check_multi_info.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
                 void *user_data) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)user_data;
   int action = 0;
   int running_handles;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   (void)loop;
   if (events & HTTP_LOOP_READ)
     action |= CURL_CSELECT_IN;
@@ -1295,9 +1291,9 @@ multi_socket_cb(struct ModalityEventLoop *loop, int fd, int events,
  * @param timeout_ms Requested timeout in milliseconds (-1 cancels timer).
  * @return C_ABSTRACT_HTTP_SUCCESS or event-loop error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 multi_timer_function_impl(struct HttpTransportContext *ctx, long timeout_ms) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
 
   if (ctx->timer_id > 0) {
     rc = http_loop_cancel_timer(ctx->loop, ctx->timer_id);
@@ -1313,7 +1309,6 @@ multi_timer_function_impl(struct HttpTransportContext *ctx, long timeout_ms) {
                              &ctx->timer_id);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("multi_timer_function: http_loop_add_timer failed (%d)", rc);
-      printf("TIMER ERROR %d\n", rc);
       return rc;
     }
   }
@@ -1349,7 +1344,7 @@ static int multi_timer_function(CURLM *multi, long timeout_ms, void *userp) {
 static int multi_socket_function(CURL *easy, curl_socket_t s, int what,
                                  void *userp, void *socketp) {
   struct HttpTransportContext *ctx = (struct HttpTransportContext *)userp;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
 
   (void)easy;
 
@@ -1400,9 +1395,8 @@ socket_error:
  * @param timeout_ms Timeout in milliseconds.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
-abstract_http_test_multi_timer_function(struct HttpTransportContext *ctx,
-                                        long timeout_ms);
+NO_DISCARD c_abstract_http_error_t abstract_http_test_multi_timer_function(
+    struct HttpTransportContext *ctx, long timeout_ms);
 
 /**
  * @brief Invoke multi_socket_function for unit test verification.
@@ -1412,7 +1406,7 @@ abstract_http_test_multi_timer_function(struct HttpTransportContext *ctx,
  * @param socketp Socket state pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error abstract_http_test_multi_socket_function(
+NO_DISCARD c_abstract_http_error_t abstract_http_test_multi_socket_function(
     struct HttpTransportContext *ctx, curl_socket_t s, int what, void *socketp);
 
 /**
@@ -1421,7 +1415,7 @@ enum c_abstract_http_error abstract_http_test_multi_socket_function(
  * @param timer_id Timer ID value.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 abstract_http_test_set_timer_id(struct HttpTransportContext *ctx, int timer_id);
 
 /**
@@ -1430,9 +1424,8 @@ abstract_http_test_set_timer_id(struct HttpTransportContext *ctx, int timer_id);
  * @param out_timer_id Output pointer for timer ID.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
-abstract_http_test_get_timer_id(struct HttpTransportContext *ctx,
-                                int *out_timer_id);
+NO_DISCARD c_abstract_http_error_t abstract_http_test_get_timer_id(
+    struct HttpTransportContext *ctx, int *out_timer_id);
 
 /**
  * @brief Set event loop for test verification.
@@ -1440,9 +1433,8 @@ abstract_http_test_get_timer_id(struct HttpTransportContext *ctx,
  * @param loop Event loop pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
-abstract_http_test_set_loop(struct HttpTransportContext *ctx,
-                            struct ModalityEventLoop *loop);
+NO_DISCARD c_abstract_http_error_t abstract_http_test_set_loop(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop);
 
 /**
  * @brief Invoke multi_timer_function for unit test verification.
@@ -1450,20 +1442,18 @@ abstract_http_test_set_loop(struct HttpTransportContext *ctx,
  * @param timeout_ms Timeout in milliseconds.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
-abstract_http_test_multi_timer_function(struct HttpTransportContext *ctx,
-                                        long timeout_ms) {
+NO_DISCARD c_abstract_http_error_t abstract_http_test_multi_timer_function(
+    struct HttpTransportContext *ctx, long timeout_ms) {
   int r = multi_timer_function(ctx->multi, timeout_ms, ctx);
-  return (enum c_abstract_http_error)r;
+  return (c_abstract_http_error_t)r;
 }
 
 /* Invoke multi_socket_function for unit test verification. */
-enum c_abstract_http_error
-abstract_http_test_multi_socket_function(struct HttpTransportContext *ctx,
-                                         curl_socket_t s, int what,
-                                         void *socketp) {
+NO_DISCARD c_abstract_http_error_t abstract_http_test_multi_socket_function(
+    struct HttpTransportContext *ctx, curl_socket_t s, int what,
+    void *socketp) {
   int r = multi_socket_function(ctx->curl, s, what, ctx, socketp);
-  return (enum c_abstract_http_error)r;
+  return (c_abstract_http_error_t)r;
 }
 
 /**
@@ -1472,9 +1462,8 @@ abstract_http_test_multi_socket_function(struct HttpTransportContext *ctx,
  * @param timer_id Timer ID value.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
-abstract_http_test_set_timer_id(struct HttpTransportContext *ctx,
-                                int timer_id) {
+NO_DISCARD c_abstract_http_error_t abstract_http_test_set_timer_id(
+    struct HttpTransportContext *ctx, int timer_id) {
   if (!ctx)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   ctx->timer_id = timer_id;
@@ -1487,9 +1476,8 @@ abstract_http_test_set_timer_id(struct HttpTransportContext *ctx,
  * @param out_timer_id Output pointer for timer ID.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
-abstract_http_test_get_timer_id(struct HttpTransportContext *ctx,
-                                int *out_timer_id) {
+NO_DISCARD c_abstract_http_error_t abstract_http_test_get_timer_id(
+    struct HttpTransportContext *ctx, int *out_timer_id) {
   if (!ctx || !out_timer_id)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   *out_timer_id = ctx->timer_id;
@@ -1502,9 +1490,8 @@ abstract_http_test_get_timer_id(struct HttpTransportContext *ctx,
  * @param loop Event loop pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-enum c_abstract_http_error
-abstract_http_test_set_loop(struct HttpTransportContext *ctx,
-                            struct ModalityEventLoop *loop) {
+NO_DISCARD c_abstract_http_error_t abstract_http_test_set_loop(
+    struct HttpTransportContext *ctx, struct ModalityEventLoop *loop) {
   if (!ctx)
     return C_ABSTRACT_HTTP_ERR_INVAL;
   ctx->loop = loop;
@@ -1513,10 +1500,10 @@ abstract_http_test_set_loop(struct HttpTransportContext *ctx,
 #endif
 
 /** @brief Dispatch multiple HTTP requests asynchronously via libcurl multi */
-enum c_abstract_http_error http_curl_send_multi(
+NO_DISCARD c_abstract_http_error_t http_curl_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   size_t i;
 
   LOG_DEBUG("http_curl_send_multi: Entering");

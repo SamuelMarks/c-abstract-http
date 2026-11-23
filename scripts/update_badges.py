@@ -16,6 +16,10 @@ def main():
         print("Not a git repository, exiting.")
         sys.exit(0)
 
+    for key in list(os.environ.keys()):
+        if key.startswith("GIT_"):
+            os.environ.pop(key, None)
+
     print("==> Running Coverage Badge Update Hook...")
 
     build_dir = ".build-coverage"

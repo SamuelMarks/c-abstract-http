@@ -9,8 +9,6 @@ RUN apk add --no-cache \
     git \
     pkgconf \
     openssl-dev \
-    sqlite \
-    sqlite-dev \
     valgrind \
     gdb \
     ninja \

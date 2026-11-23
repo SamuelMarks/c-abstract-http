@@ -11,12 +11,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <unistd.h>
+#endif
+
 #include <c_abstract_http/http_raw.h>
 #include <c_abstract_http/http_xquic.h>
 #include "c_abstract_http/log.h"
 #include "crypto_utils.h"
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
+    !defined(C_ABSTRACT_HTTP_HAVE_REAL_XQUIC)
 #include "mock_stubs/mock_xquic.h"
 #else
 #include <xquic/xquic.h>
@@ -34,6 +50,23 @@ struct HttpTransportContext {
   char *proxy_host;
   /** @brief Parsed MASQUE/HTTP3 proxy UDP port */
   int proxy_port;
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_XQUIC)
+  /** @brief Active UDP socket descriptor for real xquic packet I/O */
+  int udp_fd;
+  /** @brief Active stream receive buffer populated by xquic read callback */
+  struct xq_h3_buf *active_rx;
+  /** @brief Non-zero once FIN received on active stream */
+  int active_fin;
+  /** @brief Active stream error status */
+  c_abstract_http_error_t active_err;
+  /** @brief Active serialized request bytes to send on stream open */
+  const uint8_t *active_tx;
+  /** @brief Length of active_tx */
+  size_t active_tx_len;
+  /** @brief Non-zero once active_tx has been queued */
+  int active_tx_sent;
+#endif
   /** @brief Engine handle */
   xqc_engine_t *engine;
 };
@@ -55,8 +88,8 @@ struct xq_h3_buf {
  * @param n Byte count to append.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error xq_buf_append(struct xq_h3_buf *b,
-                                                const void *src, size_t n) {
+NO_DISCARD static c_abstract_http_error_t
+xq_buf_append(struct xq_h3_buf *b, const void *src, size_t n) {
   if (n == 0) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
@@ -89,9 +122,9 @@ static enum c_abstract_http_error xq_buf_append(struct xq_h3_buf *b,
  * @param val Non-negative integer value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error xq_write_varint(struct xq_h3_buf *b,
-                                                  size_t val) {
-  uint8_t tmp[4];
+NO_DISCARD static c_abstract_http_error_t xq_write_varint(struct xq_h3_buf *b,
+                                                          size_t val) {
+  uint8_t tmp[8];
   if (val < 64) {
     tmp[0] = (uint8_t)val;
     return xq_buf_append(b, tmp, 1);
@@ -101,11 +134,25 @@ static enum c_abstract_http_error xq_write_varint(struct xq_h3_buf *b,
     tmp[1] = (uint8_t)(val & 0xFFU);
     return xq_buf_append(b, tmp, 2);
   }
-  tmp[0] = (uint8_t)(0x80U | ((val >> 24) & 0x3FU));
-  tmp[1] = (uint8_t)((val >> 16) & 0xFFU);
-  tmp[2] = (uint8_t)((val >> 8) & 0xFFU);
-  tmp[3] = (uint8_t)(val & 0xFFU);
-  return xq_buf_append(b, tmp, 4);
+  if (val < 1073741824UL) {
+    tmp[0] = (uint8_t)(0x80U | ((val >> 24) & 0x3FU));
+    tmp[1] = (uint8_t)((val >> 16) & 0xFFU);
+    tmp[2] = (uint8_t)((val >> 8) & 0xFFU);
+    tmp[3] = (uint8_t)(val & 0xFFU);
+    return xq_buf_append(b, tmp, 4);
+  }
+  {
+    abstract_http_uint64_t v64 = (abstract_http_uint64_t)val;
+    tmp[0] = (uint8_t)(0xC0U | ((v64 >> 56) & 0x3FU));
+    tmp[1] = (uint8_t)((v64 >> 48) & 0xFFU);
+    tmp[2] = (uint8_t)((v64 >> 40) & 0xFFU);
+    tmp[3] = (uint8_t)((v64 >> 32) & 0xFFU);
+    tmp[4] = (uint8_t)((v64 >> 24) & 0xFFU);
+    tmp[5] = (uint8_t)((v64 >> 16) & 0xFFU);
+    tmp[6] = (uint8_t)((v64 >> 8) & 0xFFU);
+    tmp[7] = (uint8_t)(v64 & 0xFFU);
+    return xq_buf_append(b, tmp, 8);
+  }
 }
 
 /**
@@ -116,8 +163,8 @@ static enum c_abstract_http_error xq_write_varint(struct xq_h3_buf *b,
  * @param out_val Decoded integer output.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
  */
-static enum c_abstract_http_error xq_read_varint(const uint8_t *src, size_t len,
-                                                 size_t *off, size_t *out_val) {
+NO_DISCARD static c_abstract_http_error_t
+xq_read_varint(const uint8_t *src, size_t len, size_t *off, size_t *out_val) {
   uint8_t fb;
   unsigned int prefix;
   if (*off >= len) {
@@ -147,7 +194,22 @@ static enum c_abstract_http_error xq_read_varint(const uint8_t *src, size_t len,
     *off += 4;
     return C_ABSTRACT_HTTP_SUCCESS;
   }
-  return C_ABSTRACT_HTTP_ERR_IO;
+  if (*off + 8 > len) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  {
+    abstract_http_uint64_t v64 = ((abstract_http_uint64_t)(fb & 0x3FU) << 56) |
+                                 ((abstract_http_uint64_t)src[*off + 1] << 48) |
+                                 ((abstract_http_uint64_t)src[*off + 2] << 40) |
+                                 ((abstract_http_uint64_t)src[*off + 3] << 32) |
+                                 ((abstract_http_uint64_t)src[*off + 4] << 24) |
+                                 ((abstract_http_uint64_t)src[*off + 5] << 16) |
+                                 ((abstract_http_uint64_t)src[*off + 6] << 8) |
+                                 (abstract_http_uint64_t)src[*off + 7];
+    *out_val = (size_t)v64;
+    *off += 8;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
 }
 
 /**
@@ -157,9 +219,9 @@ static enum c_abstract_http_error xq_read_varint(const uint8_t *src, size_t len,
  * @param val Header field value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_write_qpack_field(struct xq_h3_buf *b, const char *name, const char *val) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   uint8_t marker = 0x20U;
   size_t nlen = strlen(name);
   size_t vlen = strlen(val);
@@ -189,8 +251,8 @@ xq_write_qpack_field(struct xq_h3_buf *b, const char *name, const char *val) {
  * @param out Output string pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-static enum c_abstract_http_error xq_method_str(enum HttpMethod method,
-                                                const char **out) {
+NO_DISCARD static c_abstract_http_error_t xq_method_str(enum HttpMethod method,
+                                                        const char **out) {
   switch ((int)method) {
   case HTTP_GET:
     *out = "GET";
@@ -234,17 +296,16 @@ static enum c_abstract_http_error xq_method_str(enum HttpMethod method,
  * @param out_path Newly allocated path string.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code on invalid URL / OOM.
  */
-static enum c_abstract_http_error xq_parse_url(const char *url,
-                                               char **out_scheme,
-                                               char **out_host, int *out_port,
-                                               char **out_path) {
+NO_DISCARD static c_abstract_http_error_t
+xq_parse_url(const char *url, char **out_scheme, char **out_host, int *out_port,
+             char **out_path) {
   const char *p;
   const char *host_start;
   const char *host_end;
   size_t scheme_len;
   size_t host_len;
   int default_port = 443;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!url) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -357,7 +418,7 @@ static int math_xq_strcasecmp(const char *a, const char *b) {
  * @param out_hdr Newly allocated "Basic <base64>" string.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
   const char *pw = pass ? pass : "";
   size_t ulen = strlen(user);
@@ -366,7 +427,7 @@ xq_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
   char *b64 = NULL;
   size_t b64_len = 0;
   char *hdr;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   raw = (char *)malloc(ulen + 1 + plen + 1);
   if (!raw) {
@@ -407,7 +468,7 @@ xq_build_proxy_auth(const char *user, const char *pass, char **out_hdr) {
  * @param out_stream Output buffer receiving encoded HTTP/3 stream bytes.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_serialize_request(const struct HttpTransportContext *ctx,
                      const struct HttpRequest *req, const char *scheme,
                      const char *host, const char *path,
@@ -418,7 +479,7 @@ xq_serialize_request(const struct HttpTransportContext *ctx,
   uint8_t prefix[2];
   size_t i;
   int has_ua = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   memset(&hdr_payload, 0, sizeof(hdr_payload));
   memset(&body_payload, 0, sizeof(body_payload));
@@ -622,15 +683,15 @@ xq_serialize_request(const struct HttpTransportContext *ctx,
  * @param header_val Raw Set-Cookie header value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error xq_store_set_cookie(struct HttpCookieJar *jar,
-                                                      const char *header_val) {
+NO_DISCARD static c_abstract_http_error_t
+xq_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
   const char *eq;
   const char *semi;
   size_t nlen;
   size_t vlen;
   char *cname;
   char *cval;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   eq = strchr(header_val, '=');
   if (!eq || eq == header_val) {
@@ -674,12 +735,12 @@ static enum c_abstract_http_error xq_store_set_cookie(struct HttpCookieJar *jar,
  * @param res Output response structure.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_decode_response(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, const uint8_t *buf,
                    size_t len, struct HttpResponse *res) {
   size_t off = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   while (off < len) {
     size_t ftype = 0;
@@ -791,24 +852,120 @@ xq_decode_response(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error http_xquic_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_xquic_global_init(void) {
   if (g_xquic_init_count++ == 0) {
     /* Reference-counted global xquic initialization */
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error http_xquic_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_xquic_global_cleanup(void) {
   if (g_xquic_init_count > 0 && --g_xquic_init_count == 0) {
     /* Reference-counted global xquic teardown */
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_XQUIC)
+/**
+ * @brief No-op timer callback registered with real Alibaba xquic engine.
+ * @param wake_after Microseconds until next engine tick.
+ * @param user_data Engine user context.
+ */
+static void xq_real_set_timer_cb(xqc_usec_t wake_after, void *user_data) {
+  (void)wake_after;
+  (void)user_data;
+}
+
+/**
+ * @brief UDP socket write callback registered with real Alibaba xquic engine.
+ * @param buf Outbound packet bytes.
+ * @param size Packet byte length.
+ * @param peer_addr Destination peer socket address.
+ * @param peer_addrlen Length of @p peer_addr.
+ * @param conn_user_data Connection user pointer (`ctx`).
+ * @return Bytes sent or `XQC_SOCKET_ERROR`.
+ */
+static ssize_t xq_real_write_socket_cb(const unsigned char *buf, size_t size,
+                                       const struct sockaddr *peer_addr,
+                                       socklen_t peer_addrlen,
+                                       void *conn_user_data) {
+  struct HttpTransportContext *ctx =
+      (struct HttpTransportContext *)conn_user_data;
+  if (!ctx || ctx->udp_fd < 0) {
+    return XQC_SOCKET_ERROR;
+  }
+  return (ssize_t)sendto(ctx->udp_fd, (const char *)buf, (int)size, 0,
+                         peer_addr, peer_addrlen);
+}
+
+/**
+ * @brief Stream write-ready callback transmitting serialized HTTP/3 frames.
+ * @param stream Active xquic stream.
+ * @param user_data Stream user pointer (`ctx`).
+ * @return 0 on success.
+ */
+static int xq_real_stream_write_notify(xqc_stream_t *stream, void *user_data) {
+  struct HttpTransportContext *ctx = (struct HttpTransportContext *)user_data;
+  if (ctx && !ctx->active_tx_sent && ctx->active_tx) {
+    if (xqc_stream_send(stream, (unsigned char *)(size_t)ctx->active_tx,
+                        ctx->active_tx_len, 1) >= 0) {
+      ctx->active_tx_sent = 1;
+    }
+  }
+  return 0;
+}
+
+/**
+ * @brief Stream read-ready callback accumulating HTTP/3 response bytes.
+ * @param stream Active xquic stream.
+ * @param user_data Stream user pointer (`ctx`).
+ * @return 0 on success, -1 on error.
+ */
+static int xq_real_stream_read_notify(xqc_stream_t *stream, void *user_data) {
+  struct HttpTransportContext *ctx = (struct HttpTransportContext *)user_data;
+  unsigned char rbuf[1024];
+  uint8_t fin = 0;
+  ssize_t n;
+  if (!ctx || !ctx->active_rx) {
+    return -1;
+  }
+  do {
+    n = xqc_stream_recv(stream, rbuf, sizeof(rbuf), &fin);
+    if (n > 0) {
+      c_abstract_http_error_t rc =
+          xq_buf_append(ctx->active_rx, rbuf, (size_t)n);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        ctx->active_err = rc;
+        return -1;
+      }
+    }
+    if (fin) {
+      ctx->active_fin = 1;
+      break;
+    }
+  } while (n > 0);
+  return 0;
+}
+
+/**
+ * @brief Stream close notification callback for real xquic engine.
+ * @param stream Active xquic stream.
+ * @param user_data Stream user pointer (`ctx`).
+ * @return 0.
+ */
+static int xq_real_stream_close_notify(xqc_stream_t *stream, void *user_data) {
+  (void)stream;
+  (void)user_data;
+  return 0;
+}
+#endif
+
+NO_DISCARD c_abstract_http_error_t
 http_xquic_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!ctx) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -832,11 +989,47 @@ http_xquic_context_init(struct HttpTransportContext **ctx) {
     return rc;
   }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
-    !defined(C_ABSTRACT_HTTP_HAVE_REAL_XQUIC)
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_XQUIC)
+  {
+    xqc_engine_ssl_config_t ssl_cfg;
+    xqc_engine_callback_t ecbs;
+    xqc_transport_callbacks_t tcbs;
+    xqc_config_t ecfg;
+    xqc_app_proto_callbacks_t ap_cbs;
+
+    c->udp_fd = -1;
+    memset(&ssl_cfg, 0, sizeof(ssl_cfg));
+    ssl_cfg.ciphers = XQC_TLS_CIPHERS;
+    ssl_cfg.groups = XQC_TLS_GROUPS;
+    memset(&ecbs, 0, sizeof(ecbs));
+    ecbs.set_event_timer = xq_real_set_timer_cb;
+    memset(&tcbs, 0, sizeof(tcbs));
+    tcbs.write_socket = xq_real_write_socket_cb;
+    if (xqc_engine_get_default_config(&ecfg, XQC_ENGINE_CLIENT) < 0) {
+      c_abstract_http_error_t free_rc = http_config_free(&c->config);
+      free(c);
+      return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc
+                                                : C_ABSTRACT_HTTP_ERR_IO;
+    }
+    c->engine =
+        xqc_engine_create(XQC_ENGINE_CLIENT, &ecfg, &ssl_cfg, &ecbs, &tcbs, c);
+    if (!c->engine) {
+      c_abstract_http_error_t free_rc = http_config_free(&c->config);
+      free(c);
+      return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc
+                                                : C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memset(&ap_cbs, 0, sizeof(ap_cbs));
+    ap_cbs.stream_cbs.stream_write_notify = xq_real_stream_write_notify;
+    ap_cbs.stream_cbs.stream_read_notify = xq_real_stream_read_notify;
+    ap_cbs.stream_cbs.stream_close_notify = xq_real_stream_close_notify;
+    xqc_engine_register_alpn(c->engine, "h3", 2, &ap_cbs);
+  }
+#else
   c->engine = xqc_engine_create_client(g_mock_xquic_engine_present == -1);
   if (!c->engine) {
-    enum c_abstract_http_error free_rc;
+    c_abstract_http_error_t free_rc;
     free_rc = http_config_free(&c->config);
     if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
       free(c);
@@ -855,7 +1048,7 @@ http_xquic_context_init(struct HttpTransportContext **ctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_xquic_context_free(struct HttpTransportContext *ctx) {
   if (ctx) {
     if (ctx->engine) {
@@ -865,7 +1058,7 @@ http_xquic_context_free(struct HttpTransportContext *ctx) {
     free(ctx->proxy_host);
     ctx->proxy_host = NULL;
     {
-      enum c_abstract_http_error rch = http_config_free(&ctx->config);
+      c_abstract_http_error_t rch = http_config_free(&ctx->config);
       if (rch != C_ABSTRACT_HTTP_SUCCESS) {
         return rch;
       }
@@ -881,7 +1074,8 @@ http_xquic_context_free(struct HttpTransportContext *ctx) {
  * @param src Optional source string to duplicate.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error xq_replace_str(char **dst, const char *src) {
+NO_DISCARD static c_abstract_http_error_t xq_replace_str(char **dst,
+                                                         const char *src) {
   free(*dst);
   *dst = NULL;
   if (!src) {
@@ -890,10 +1084,9 @@ static enum c_abstract_http_error xq_replace_str(char **dst, const char *src) {
   return c_abstract_http_strdup(src, dst);
 }
 
-enum c_abstract_http_error
-http_xquic_config_apply(struct HttpTransportContext *ctx,
-                        const struct HttpConfig *config) {
-  enum c_abstract_http_error rc;
+NO_DISCARD c_abstract_http_error_t http_xquic_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
   if (!ctx || !config) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -964,11 +1157,11 @@ http_xquic_config_apply(struct HttpTransportContext *ctx,
  * @param orig_rc Fallback error code if response cleanup succeeds.
  * @return Cleanup error code if cleanup failed, otherwise @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_cleanup_failed_res(struct HttpResponse **res,
-                      enum c_abstract_http_error orig_rc) {
+                      c_abstract_http_error_t orig_rc) {
   struct HttpResponse *tmp;
-  enum c_abstract_http_error free_rc;
+  c_abstract_http_error_t free_rc;
   if (!*res) {
     return orig_rc;
   }
@@ -991,12 +1184,12 @@ xq_cleanup_failed_res(struct HttpResponse **res,
  * @param out_eff Output pointer to the effective request to transmit.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_prepare_effective_request(const struct HttpRequest *req,
                              struct HttpRequest *flat_req, int *out_flattened,
                              const struct HttpRequest **out_eff) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   *out_flattened = 0;
   *out_eff = req;
@@ -1023,7 +1216,7 @@ xq_prepare_effective_request(const struct HttpRequest *req,
     rc = http_headers_add(&flat_req->headers, req->headers.headers[i].key,
                           req->headers.headers[i].value);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error frc;
+      c_abstract_http_error_t frc;
       frc = http_headers_free(&flat_req->headers);
       if (frc != C_ABSTRACT_HTTP_SUCCESS) {
         return frc;
@@ -1033,7 +1226,7 @@ xq_prepare_effective_request(const struct HttpRequest *req,
   }
   rc = http_request_flatten_parts(flat_req);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error frc;
+    c_abstract_http_error_t frc;
     free(flat_req->body);
     flat_req->body = NULL;
     frc = http_headers_free(&flat_req->headers);
@@ -1053,7 +1246,7 @@ xq_prepare_effective_request(const struct HttpRequest *req,
  * @param flattened Non-zero when @p flat_req owns allocated headers/body.
  * @return C_ABSTRACT_HTTP_SUCCESS or cleanup error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
   if (!flattened) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -1071,11 +1264,10 @@ xq_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
  * @param orig_rc Primary status from fallback send.
  * @return Cleanup error if context cleanup fails, otherwise @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_raw_ctx_cleanup(struct HttpTransportContext *raw_ctx,
-                   struct HttpResponse **res,
-                   enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error frc;
+                   struct HttpResponse **res, c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t frc;
   frc = http_raw_context_free(raw_ctx);
   if (frc != C_ABSTRACT_HTTP_SUCCESS) {
     return xq_cleanup_failed_res(res, frc);
@@ -1090,11 +1282,11 @@ xq_raw_ctx_cleanup(struct HttpTransportContext *raw_ctx,
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or fallback error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_fallback_tcp(const struct HttpConfig *cfg, const struct HttpRequest *eff_req,
                 struct HttpResponse **res) {
   struct HttpTransportContext *raw_ctx = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = http_raw_context_init(&raw_ctx);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1118,7 +1310,7 @@ xq_fallback_tcp(const struct HttpConfig *cfg, const struct HttpRequest *eff_req,
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_send_quic_once(struct HttpTransportContext *ctx,
                   const struct HttpRequest *req, struct HttpResponse **res) {
   char *scheme = NULL;
@@ -1133,7 +1325,7 @@ xq_send_quic_once(struct HttpTransportContext *ctx,
   xqc_conn_ssl_config_t conn_ssl_config;
   xqc_connection_t *conn = NULL;
   xqc_stream_t *stream = NULL;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   rc = xq_parse_url(req->url, &scheme, &host, &port, &path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1177,6 +1369,132 @@ xq_send_quic_once(struct HttpTransportContext *ctx,
   conn_host = ctx->proxy_host ? ctx->proxy_host : host;
   conn_port = ctx->proxy_host ? ctx->proxy_port : port;
 
+  memset(&rx_stream, 0, sizeof(rx_stream));
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) ||                                      \
+    defined(C_ABSTRACT_HTTP_HAVE_REAL_XQUIC)
+  {
+    struct addrinfo hints;
+    struct addrinfo *ai = NULL;
+    struct sockaddr_storage local_ss;
+    socklen_t local_len = (socklen_t)sizeof(local_ss);
+    char port_str[16];
+    int sfd;
+    const xqc_cid_t *cid;
+    long elapsed = 0;
+    long budget = ctx->config.timeout_ms > 0 ? ctx->config.timeout_ms : 15000L;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    sprintf(port_str, "%d", conn_port);
+    if (getaddrinfo(conn_host, port_str, &hints, &ai) != 0 || !ai) {
+      free(host);
+      free(tx_stream.data);
+      return xq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_HOSTUNREACH);
+    }
+    sfd = (int)socket(ai->ai_family, SOCK_DGRAM, 0);
+    if (sfd < 0) {
+      freeaddrinfo(ai);
+      free(host);
+      free(tx_stream.data);
+      return xq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    memset(&local_ss, 0, sizeof(local_ss));
+    local_ss.ss_family = ai->ai_family;
+    (void)bind(sfd, (struct sockaddr *)&local_ss, (socklen_t)ai->ai_addrlen);
+    (void)getsockname(sfd, (struct sockaddr *)&local_ss, &local_len);
+
+    ctx->udp_fd = sfd;
+    ctx->active_rx = &rx_stream;
+    ctx->active_fin = 0;
+    ctx->active_err = C_ABSTRACT_HTTP_SUCCESS;
+    ctx->active_tx = tx_stream.data;
+    ctx->active_tx_len = tx_stream.len;
+    ctx->active_tx_sent = 0;
+
+    cid = xqc_connect(ctx->engine, &conn_settings, NULL, 0, conn_host, 0,
+                      &conn_ssl_config, ai->ai_addr, (socklen_t)ai->ai_addrlen,
+                      "h3", ctx);
+    free(host);
+    if (!cid) {
+      ctx->udp_fd = -1;
+      ctx->active_rx = NULL;
+#if defined(_WIN32)
+      closesocket(sfd);
+#else
+      close(sfd);
+#endif
+      freeaddrinfo(ai);
+      free(tx_stream.data);
+      return xq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_CONNREFUSED);
+    }
+    stream = xqc_stream_create(ctx->engine, cid, NULL, ctx);
+    if (!stream) {
+      (void)xqc_conn_close(ctx->engine, cid);
+      ctx->udp_fd = -1;
+      ctx->active_rx = NULL;
+#if defined(_WIN32)
+      closesocket(sfd);
+#else
+      close(sfd);
+#endif
+      freeaddrinfo(ai);
+      free(tx_stream.data);
+      return xq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    xqc_engine_main_logic(ctx->engine);
+
+    while (!ctx->active_fin && ctx->active_err == C_ABSTRACT_HTTP_SUCCESS &&
+           elapsed < budget) {
+      fd_set rfds;
+      struct timeval tv;
+      int sel;
+      FD_ZERO(&rfds);
+      FD_SET(sfd, &rfds);
+      tv.tv_sec = 0;
+      tv.tv_usec = 50000;
+      sel = select(sfd + 1, &rfds, NULL, NULL, &tv);
+      if (sel > 0 && FD_ISSET(sfd, &rfds)) {
+        unsigned char rbuf[1500];
+        struct sockaddr_storage peer_from;
+        socklen_t from_len = (socklen_t)sizeof(peer_from);
+        long nr = (long)recvfrom(sfd, (char *)rbuf, sizeof(rbuf), 0,
+                                 (struct sockaddr *)&peer_from, &from_len);
+        if (nr > 0) {
+          (void)xqc_engine_packet_process(
+              ctx->engine, rbuf, (size_t)nr, (struct sockaddr *)&local_ss,
+              local_len, (struct sockaddr *)&peer_from, from_len,
+              (xqc_usec_t)(elapsed * 1000L), ctx);
+        }
+      } else {
+        elapsed += 50L;
+      }
+      xqc_engine_main_logic(ctx->engine);
+    }
+
+    free(tx_stream.data);
+    xqc_stream_close(stream);
+    (void)xqc_conn_close(ctx->engine, cid);
+    xqc_engine_main_logic(ctx->engine);
+    ctx->udp_fd = -1;
+    ctx->active_rx = NULL;
+#if defined(_WIN32)
+    closesocket(sfd);
+#else
+    close(sfd);
+#endif
+    freeaddrinfo(ai);
+    if (ctx->active_err != C_ABSTRACT_HTTP_SUCCESS) {
+      free(rx_stream.data);
+      return xq_cleanup_failed_res(res, ctx->active_err);
+    }
+    if (!ctx->active_fin) {
+      free(rx_stream.data);
+      return xq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_TIMEOUT);
+    }
+  }
+#else
+  (void)conn;
   conn = xqc_connect(ctx->engine, &conn_settings, NULL, 0, conn_host, 0,
                      &conn_ssl_config, NULL, (size_t)conn_port, "h3");
   free(host);
@@ -1200,7 +1518,6 @@ xq_send_quic_once(struct HttpTransportContext *ctx,
   }
   free(tx_stream.data);
 
-  memset(&rx_stream, 0, sizeof(rx_stream));
   for (;;) {
     unsigned char rbuf[1024];
     uint8_t fin = 0;
@@ -1227,6 +1544,7 @@ xq_send_quic_once(struct HttpTransportContext *ctx,
 
   xqc_stream_close(stream);
   xqc_conn_close(ctx->engine, conn);
+#endif
 
   rc = xq_decode_response(ctx, req, rx_stream.data, rx_stream.len, *res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1247,10 +1565,10 @@ xq_send_quic_once(struct HttpTransportContext *ctx,
  * @param orig_rc Primary send result.
  * @return Final status enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 xq_finish_send(struct HttpRequest *flat_req, int flattened,
-               struct HttpResponse **res, enum c_abstract_http_error orig_rc) {
-  enum c_abstract_http_error cl_rc;
+               struct HttpResponse **res, c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t cl_rc;
   cl_rc = xq_cleanup_effective_request(flat_req, flattened);
   if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
     return xq_cleanup_failed_res(res, cl_rc);
@@ -1258,13 +1576,13 @@ xq_finish_send(struct HttpRequest *flat_req, int flattened,
   return orig_rc;
 }
 
-enum c_abstract_http_error http_xquic_send(struct HttpTransportContext *ctx,
-                                           const struct HttpRequest *req,
-                                           struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_xquic_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+                struct HttpResponse **res) {
   struct HttpRequest flat_req;
   const struct HttpRequest *eff_req = NULL;
   int flattened = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!ctx || !req || !res) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -1282,7 +1600,7 @@ enum c_abstract_http_error http_xquic_send(struct HttpTransportContext *ctx,
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (ctx->config.http3_fallback && (rc == C_ABSTRACT_HTTP_ERR_CONNREFUSED ||
                                        rc == C_ABSTRACT_HTTP_ERR_IO)) {
-      enum c_abstract_http_error fb_rc;
+      c_abstract_http_error_t fb_rc;
       fb_rc = xq_fallback_tcp(&ctx->config, eff_req, res);
       if (fb_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return xq_finish_send(&flat_req, flattened, res, fb_rc);
@@ -1295,11 +1613,11 @@ enum c_abstract_http_error http_xquic_send(struct HttpTransportContext *ctx,
   return xq_finish_send(&flat_req, flattened, res, C_ABSTRACT_HTTP_SUCCESS);
 }
 
-enum c_abstract_http_error http_xquic_send_multi(
+NO_DISCARD c_abstract_http_error_t http_xquic_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!ctx || !multi || !futures) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -1328,3 +1646,29 @@ enum c_abstract_http_error http_xquic_send_multi(
 
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Internal test hook verifying 8-byte RFC 9000 varint round-trip.
+ * @return C_ABSTRACT_HTTP_SUCCESS on exact round-trip match.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_xquic_test_varint8(void);
+NO_DISCARD c_abstract_http_error_t c_abstract_http_xquic_test_varint8(void) {
+  struct xq_h3_buf b;
+  size_t off = 0;
+  size_t dec = 0;
+  c_abstract_http_error_t rc;
+  memset(&b, 0, sizeof(b));
+  rc = xq_write_varint(&b, (size_t)1073741824UL);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = xq_read_varint(b.data, b.len, &off, &dec);
+  free(b.data);
+  return (rc == C_ABSTRACT_HTTP_SUCCESS && off == 8 &&
+          dec == (size_t)1073741824UL)
+             ? C_ABSTRACT_HTTP_SUCCESS
+             : C_ABSTRACT_HTTP_ERR_INVAL;
+}
+#endif

@@ -22,7 +22,7 @@ struct TestActorState {
   int shutdown;
 };
 
- static enum c_abstract_http_error mock_actor_handler(struct AbstractHttpActor *actor, struct AbstractHttpMessage *msg) {
+ NO_DISCARD static c_abstract_http_error_t mock_actor_handler(struct AbstractHttpActor *actor, struct AbstractHttpMessage *msg) {
    struct TestActorState *state = NULL;
    if (msg) {}
    if (abstract_http_actor_get_state(actor, (void **)&state) != 0 || !state)
@@ -106,28 +106,28 @@ struct TestActorState {
    PASS();
  }
 
- static enum c_abstract_http_error mock_bus_init(struct AbstractHttpMessageBus **bus) {
+ NO_DISCARD static c_abstract_http_error_t mock_bus_init(struct AbstractHttpMessageBus **bus) {
    if (!bus)
      return C_ABSTRACT_HTTP_ERR_INVAL;
    *bus = (struct AbstractHttpMessageBus *)(size_t)1;
    return C_ABSTRACT_HTTP_SUCCESS;
  }
- static enum c_abstract_http_error mock_bus_free(struct AbstractHttpMessageBus *bus) {
+ NO_DISCARD static c_abstract_http_error_t mock_bus_free(struct AbstractHttpMessageBus *bus) {
    if (bus) {}
    return C_ABSTRACT_HTTP_SUCCESS;
  }
- static enum c_abstract_http_error mock_bus_free_fail(struct AbstractHttpMessageBus *bus) {
+ NO_DISCARD static c_abstract_http_error_t mock_bus_free_fail(struct AbstractHttpMessageBus *bus) {
    if (bus) {}
    return C_ABSTRACT_HTTP_ERR_IO;
  }
- static enum c_abstract_http_error mock_bus_process(struct AbstractHttpMessageBus *bus, int *out_processed) {
+ NO_DISCARD static c_abstract_http_error_t mock_bus_process(struct AbstractHttpMessageBus *bus, int *out_processed) {
 
    if (!bus || !out_processed)
      return C_ABSTRACT_HTTP_ERR_INVAL;
    *out_processed = 0;
    return 0;
  }
- static enum c_abstract_http_error mock_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name,
+ NO_DISCARD static c_abstract_http_error_t mock_actor_spawn(struct AbstractHttpMessageBus *bus, const char *name,
                             abstract_http_actor_handler_cb handler, void *state,
                             struct AbstractHttpActor **actor) {
 
@@ -137,21 +137,21 @@ struct TestActorState {
    *actor = (struct AbstractHttpActor *)(size_t)1;
    return 0;
  }
- static enum c_abstract_http_error mock_actor_send(struct AbstractHttpMessageBus *bus,
+ NO_DISCARD static c_abstract_http_error_t mock_actor_send(struct AbstractHttpMessageBus *bus,
                            const struct AbstractHttpMessage *msg) {
 
    if (!bus || !msg)
      return C_ABSTRACT_HTTP_ERR_INVAL;
    return 0;
  }
- static enum c_abstract_http_error mock_actor_get_state(struct AbstractHttpActor *actor, void **state) {
+ NO_DISCARD static c_abstract_http_error_t mock_actor_get_state(struct AbstractHttpActor *actor, void **state) {
 
    if (!actor || !state)
      return C_ABSTRACT_HTTP_ERR_INVAL;
    *state = NULL;
    return 0;
  }
- static enum c_abstract_http_error mock_actor_get_name(const struct AbstractHttpActor *actor,
+ NO_DISCARD static c_abstract_http_error_t mock_actor_get_name(const struct AbstractHttpActor *actor,
                                const char **name) {
    if (!actor || !name)
      return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -159,7 +159,7 @@ struct TestActorState {
    return 0;
  }
 
-static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg);
+NO_DISCARD static c_abstract_http_error_t dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg);
 
  TEST test_actor_hooks(void) {
   struct AbstractHttpActorHooks hooks;
@@ -179,7 +179,7 @@ static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, 
    hooks.actor_get_state = mock_actor_get_state;
    hooks.actor_get_name = mock_actor_get_name;
 
-   { enum c_abstract_http_error rc_test = abstract_http_actor_set_hooks(&hooks); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
+   { c_abstract_http_error_t rc_test = abstract_http_actor_set_hooks(&hooks); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
 
   {
      int out_processed = 0;
@@ -200,7 +200,7 @@ static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, 
   {
     struct AbstractHttpActorHooks z;
      memset(&z, 0, sizeof(z));
-     { enum c_abstract_http_error rc_test = abstract_http_actor_set_hooks(&z); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
+     { c_abstract_http_error_t rc_test = abstract_http_actor_set_hooks(&z); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
   }
    PASS();
  }
@@ -234,17 +234,17 @@ static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, 
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(bus));
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_message_bus_free(NULL));
 
-   { enum c_abstract_http_error rc_test = abstract_http_actor_set_hooks(NULL); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
+   { c_abstract_http_error_t rc_test = abstract_http_actor_set_hooks(NULL); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
 
    PASS();
  }
 
- static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg) {
+ NO_DISCARD static c_abstract_http_error_t dummy_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg) {
    if (self || msg) {}
    return 0;
  }
 
- static enum c_abstract_http_error fail_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg) {
+ NO_DISCARD static c_abstract_http_error_t fail_handler(struct AbstractHttpActor *self, struct AbstractHttpMessage *msg) {
    if (self || msg) {}
    return C_ABSTRACT_HTTP_ERR_INVAL;
  }
@@ -297,8 +297,8 @@ static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, 
    const char *name = NULL;
    if (bus) {}
 
-   { enum c_abstract_http_error rc_test = abstract_http_message_bus_init(&bus); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
-   { enum c_abstract_http_error rc_test = abstract_http_actor_spawn(bus, "myactor", dummy_handler, NULL, &actor); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
+   { c_abstract_http_error_t rc_test = abstract_http_message_bus_init(&bus); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
+   { c_abstract_http_error_t rc_test = abstract_http_actor_spawn(bus, "myactor", dummy_handler, NULL, &actor); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
 
    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_actor_get_state(actor, &state));
    ASSERT_EQ(NULL, state);
@@ -321,7 +321,7 @@ static enum c_abstract_http_error dummy_handler(struct AbstractHttpActor *self, 
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_actor_oom(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct AbstractHttpMessageBus *bus = NULL;
   struct AbstractHttpActor *actor = NULL;
   struct AbstractHttpMessage msg;

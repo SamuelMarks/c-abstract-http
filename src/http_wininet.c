@@ -18,6 +18,7 @@
 #ifdef _WIN32
 #include <c_abstract_http/win_compat_sym.h>
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
@@ -68,39 +69,86 @@
 #endif
 
 /**
- * @brief Convert an ASCII string into a wide-character buffer.
- * @param s Source NUL-terminated ASCII string.
+ * @brief Convert a UTF-8 string into a UTF-16 wide-character buffer.
+ * @param s Source NUL-terminated UTF-8 string.
  * @param ws Destination wide-character buffer.
  * @param buf_cap Capacity of @p ws in wchar_t elements.
  * @param out_len Receives written wide-character count.
  */
 static void ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
                           size_t *out_len) {
-  size_t i = 0;
-  while (s[i] != '\0' && i + 1 < buf_cap) {
-    ws[i] = (wchar_t)(unsigned char)s[i];
-    i++;
+  size_t si = 0;
+  size_t wi = 0;
+  while (s[si] != '\0' && wi + 1 < buf_cap) {
+    unsigned char b0 = (unsigned char)s[si];
+    if (b0 < 0x80U) {
+      ws[wi++] = (wchar_t)b0;
+      si += 1;
+    } else if ((b0 & 0xE0U) == 0xC0U &&
+               ((unsigned char)s[si + 1] & 0xC0U) == 0x80U) {
+      unsigned long cp = (((unsigned long)(b0 & 0x1FU)) << 6) |
+                         (unsigned long)((unsigned char)s[si + 1] & 0x3FU);
+      ws[wi++] = (wchar_t)cp;
+      si += 2;
+    } else if ((b0 & 0xF0U) == 0xE0U &&
+               ((unsigned char)s[si + 1] & 0xC0U) == 0x80U &&
+               ((unsigned char)s[si + 2] & 0xC0U) == 0x80U) {
+      unsigned long cp =
+          (((unsigned long)(b0 & 0x0FU)) << 12) |
+          (((unsigned long)((unsigned char)s[si + 1] & 0x3FU)) << 6) |
+          (unsigned long)((unsigned char)s[si + 2] & 0x3FU);
+      ws[wi++] = (wchar_t)cp;
+      si += 3;
+    } else if ((b0 & 0xF8U) == 0xF0U &&
+               ((unsigned char)s[si + 1] & 0xC0U) == 0x80U &&
+               ((unsigned char)s[si + 2] & 0xC0U) == 0x80U &&
+               ((unsigned char)s[si + 3] & 0xC0U) == 0x80U &&
+               wi + 2 < buf_cap) {
+      unsigned long cp =
+          (((unsigned long)(b0 & 0x07U)) << 18) |
+          (((unsigned long)((unsigned char)s[si + 1] & 0x3FU)) << 12) |
+          (((unsigned long)((unsigned char)s[si + 2] & 0x3FU)) << 6) |
+          (unsigned long)((unsigned char)s[si + 3] & 0x3FU);
+      cp -= 0x10000UL;
+      ws[wi++] = (wchar_t)(0xD800UL + ((cp >> 10) & 0x3FFUL));
+      ws[wi++] = (wchar_t)(0xDC00UL + (cp & 0x3FFUL));
+      si += 4;
+    } else {
+      ws[wi++] = (wchar_t)b0;
+      si += 1;
+    }
   }
-  ws[i] = L'\0';
-  *out_len = i;
+  ws[wi] = L'\0';
+  *out_len = wi;
 }
 
 /**
- * @brief Convert a wide-character string into an 8-bit ASCII buffer.
+ * @brief Convert a UTF-16 wide-character string into a UTF-8 buffer.
  * @param ws Source NUL-terminated wide string.
  * @param s Destination char buffer.
  * @param buf_cap Capacity of @p s in bytes.
- * @param out_len Receives written character count.
+ * @param out_len Receives written byte count.
  */
 static void wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
                           size_t *out_len) {
-  size_t i = 0;
-  while (ws[i] != L'\0' && i + 1 < buf_cap) {
-    s[i] = (char)(ws[i] & 0xFF);
-    i++;
+  size_t wi = 0;
+  size_t si = 0;
+  while (ws[wi] != L'\0' && si + 4 < buf_cap) {
+    unsigned long cp = (unsigned long)ws[wi] & 0xFFFFUL;
+    if (cp < 0x80UL) {
+      s[si++] = (char)cp;
+    } else if (cp < 0x800UL) {
+      s[si++] = (char)(0xC0UL | (cp >> 6));
+      s[si++] = (char)(0x80UL | (cp & 0x3FUL));
+    } else {
+      s[si++] = (char)(0xE0UL | (cp >> 12));
+      s[si++] = (char)(0x80UL | ((cp >> 6) & 0x3FUL));
+      s[si++] = (char)(0x80UL | (cp & 0x3FUL));
+    }
+    wi++;
   }
-  s[i] = '\0';
-  *out_len = i;
+  s[si] = '\0';
+  *out_len = si;
 }
 
 /** @brief Internal struct HttpTransportContext */
@@ -124,7 +172,7 @@ struct HttpTransportContext {
  * @param h In/out handle pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
  */
-static enum c_abstract_http_error safe_close_handle(HINTERNET *h) {
+NO_DISCARD static c_abstract_http_error_t safe_close_handle(HINTERNET *h) {
   if (*h) {
     if (!InternetCloseHandle(*h)) {
       *h = NULL;
@@ -184,7 +232,7 @@ static void method_to_wide(enum HttpMethod method, const wchar_t **out) {
  * @param out Receives newly allocated wide header block (or NULL if empty).
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
   size_t i;
   size_t total_wchars = 0;
@@ -235,7 +283,7 @@ headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error http_wininet_global_init(void) {
+NO_DISCARD c_abstract_http_error_t http_wininet_global_init(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -244,16 +292,16 @@ enum c_abstract_http_error http_wininet_global_init(void) {
  *
  * @return C_ABSTRACT_HTTP_SUCCESS on success.
  */
-enum c_abstract_http_error http_wininet_global_cleanup(void) {
+NO_DISCARD c_abstract_http_error_t http_wininet_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /* Create and initialize a new WinInet transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_wininet_context_init(struct HttpTransportContext **ctx) {
   HINTERNET hInternet;
   DWORD flags = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   LOG_DEBUG("http_wininet_context_init: Entering");
   if (!ctx) {
@@ -305,11 +353,11 @@ http_wininet_context_init(struct HttpTransportContext **ctx) {
 }
 
 /* Free the WinInet transport context and release associated resources. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_wininet_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wininet_context_free: Entering");
   if (ctx) {
-    enum c_abstract_http_error rch;
+    c_abstract_http_error_t rch;
     InternetCloseHandle(ctx->hInternet);
     ctx->hInternet = NULL;
     free(ctx->proxy_username);
@@ -317,8 +365,10 @@ http_wininet_context_free(struct HttpTransportContext *ctx) {
     free(ctx->proxy_password);
     ctx->proxy_password = NULL;
     rch = http_config_free(&ctx->config);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS)
+    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+      free(ctx);
       return rch;
+    }
     free(ctx);
   }
   LOG_DEBUG("http_wininet_context_free: Exiting");
@@ -326,9 +376,8 @@ http_wininet_context_free(struct HttpTransportContext *ctx) {
 }
 
 /* Apply configuration settings to an active WinInet context. */
-enum c_abstract_http_error
-http_wininet_config_apply(struct HttpTransportContext *ctx,
-                          const struct HttpConfig *config) {
+NO_DISCARD c_abstract_http_error_t http_wininet_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
   DWORD timeout_connect, timeout_send, timeout_recv;
   LOG_DEBUG("http_wininet_config_apply: Entering");
   if (!ctx) {
@@ -418,7 +467,7 @@ http_wininet_config_apply(struct HttpTransportContext *ctx,
   }
   if (config->proxy_username) {
     char *tmp = NULL;
-    enum c_abstract_http_error rc;
+    c_abstract_http_error_t rc;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_wininet_context_init_fail == 2) {
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -434,7 +483,7 @@ http_wininet_config_apply(struct HttpTransportContext *ctx,
   }
   if (config->proxy_password) {
     char *tmp = NULL;
-    enum c_abstract_http_error rc;
+    c_abstract_http_error_t rc;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_wininet_context_init_fail == 3) {
       rc = C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -455,7 +504,7 @@ http_wininet_config_apply(struct HttpTransportContext *ctx,
     free(ctx->config.user_agent);
     ctx->config.user_agent = NULL;
     {
-      enum c_abstract_http_error urc =
+      c_abstract_http_error_t urc =
           c_abstract_http_strdup(config->user_agent, &ctx->config.user_agent);
       if (urc != C_ABSTRACT_HTTP_SUCCESS) {
         return urc;
@@ -466,8 +515,7 @@ http_wininet_config_apply(struct HttpTransportContext *ctx,
                        (DWORD)strlen(ctx->config.user_agent));
   }
 
-  if (config->version_mask != 0 &&
-      config->version_mask != (unsigned int)HTTP_VERSION_DEFAULT &&
+  if (config->version_mask != (unsigned int)HTTP_VERSION_DEFAULT &&
       (config->version_mask & HTTP_VERSION_2)) {
     DWORD h2 = HTTP_PROTOCOL_FLAG_HTTP2;
     InternetSetOption(ctx->hInternet, INTERNET_OPTION_ENABLE_HTTP_PROTOCOL, &h2,
@@ -479,9 +527,9 @@ http_wininet_config_apply(struct HttpTransportContext *ctx,
 }
 
 /* Send an HTTP request synchronously using WinInet. */
-enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
-                                             const struct HttpRequest *req,
-                                             struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_wininet_send(struct HttpTransportContext *ctx,
+                  const struct HttpRequest *req, struct HttpResponse **res) {
   HINTERNET hConnect = NULL;
   HINTERNET hRequest = NULL;
   URL_COMPONENTSW urlComp;
@@ -500,7 +548,7 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
   char *readChunk = NULL;
   size_t bodySize = 0;
   DWORD bytesRead = 0;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
 
   LOG_DEBUG("http_wininet_send: Entering");
 
@@ -830,8 +878,8 @@ enum c_abstract_http_error http_wininet_send(struct HttpTransportContext *ctx,
   bodyBuf = NULL;
 
 cleanup: {
-  enum c_abstract_http_error close_req_rc;
-  enum c_abstract_http_error close_conn_rc;
+  c_abstract_http_error_t close_req_rc;
+  c_abstract_http_error_t close_conn_rc;
   close_req_rc = safe_close_handle(&hRequest);
   if (close_req_rc != C_ABSTRACT_HTTP_SUCCESS) {
     close_conn_rc = safe_close_handle(&hConnect);
@@ -902,22 +950,63 @@ struct WinInetAsyncSlot {
 };
 
 /**
+ * @brief Finalize and release an async WinINet slot with a terminal status.
+ * @param slot Active async slot (freed).
+ * @param res Completed response or NULL on error.
+ * @param status Terminal error code.
+ * @return Terminal status or wakeup error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+wininet_async_settle_and_free(struct WinInetAsyncSlot *slot,
+                              struct HttpResponse *res,
+                              c_abstract_http_error_t status) {
+  if (slot->hAsyncRoot) {
+    InternetSetStatusCallbackW(slot->hAsyncRoot, NULL);
+  }
+  if (slot->hRequest) {
+    InternetCloseHandle(slot->hRequest);
+  }
+  if (slot->hConnect) {
+    InternetCloseHandle(slot->hConnect);
+  }
+  if (slot->hAsyncRoot) {
+    InternetCloseHandle(slot->hAsyncRoot);
+  }
+  free(slot->wHeaders);
+
+  slot->future->response = res;
+  slot->future->error_code = status;
+  slot->future->is_ready = 1;
+  if (slot->loop) {
+    c_abstract_http_error_t wrc = http_loop_wakeup(slot->loop);
+    if (wrc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(slot);
+      return wrc;
+    }
+  }
+  free(slot);
+  return status;
+}
+
+/**
  * @brief Read completed response from `slot->hRequest`, populate future, and
  * wake loop.
  * @param slot Active async slot (freed before returning).
  * @param send_err Terminal send error if request failed before reading.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static void wininet_async_finish_slot(struct WinInetAsyncSlot *slot,
-                                      enum c_abstract_http_error send_err) {
+NO_DISCARD static c_abstract_http_error_t
+wininet_async_finish_slot(struct WinInetAsyncSlot *slot,
+                          c_abstract_http_error_t send_err) {
   struct HttpResponse *res = NULL;
   char *body = NULL;
   size_t body_len = 0;
   DWORD status_code = 0;
   DWORD sz = sizeof(status_code);
-  enum c_abstract_http_error final_rc = send_err;
+  c_abstract_http_error_t final_rc = send_err;
 
   if (!slot || slot->finished) {
-    return;
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
   slot->finished = 1;
 
@@ -938,11 +1027,11 @@ static void wininet_async_finish_slot(struct WinInetAsyncSlot *slot,
           break;
         }
         if (slot->req->on_chunk) {
-          enum c_abstract_http_error crc =
+          c_abstract_http_error_t crc =
               slot->req->on_chunk(slot->req->on_chunk_user_data, chunk, nread);
           if (crc != C_ABSTRACT_HTTP_SUCCESS) {
-            final_rc = crc;
-            break;
+            free(body);
+            return wininet_async_settle_and_free(slot, NULL, crc);
           }
         } else {
           char *nb = (char *)realloc(body, body_len + (size_t)nread + 1);
@@ -964,46 +1053,35 @@ static void wininet_async_finish_slot(struct WinInetAsyncSlot *slot,
     if (!res) {
       final_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
     } else {
-      final_rc = http_response_init(res);
-      if (final_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      c_abstract_http_error_t irc = http_response_init(res);
+      if (irc != C_ABSTRACT_HTTP_SUCCESS) {
         free(res);
-        res = NULL;
-      } else {
-        res->status_code = (int)status_code;
-        res->body = body;
-        res->body_len = body_len;
-        body = NULL;
+        free(body);
+        return wininet_async_settle_and_free(slot, NULL, irc);
       }
+      res->status_code = (int)status_code;
+      res->body = body;
+      res->body_len = body_len;
+      body = NULL;
     }
   }
 
   free(body);
-  if (slot->hAsyncRoot) {
-    InternetSetStatusCallbackW(slot->hAsyncRoot, NULL);
-  }
-  if (slot->hRequest) {
-    InternetCloseHandle(slot->hRequest);
-  }
-  if (slot->hConnect) {
-    InternetCloseHandle(slot->hConnect);
-  }
-  if (slot->hAsyncRoot) {
-    InternetCloseHandle(slot->hAsyncRoot);
-  }
-  free(slot->wHeaders);
-
-  slot->future->response = res;
-  slot->future->error_code = final_rc;
-  slot->future->is_ready = 1;
-  if (slot->loop) {
-    enum c_abstract_http_error wrc = http_loop_wakeup(slot->loop);
-    if (wrc != C_ABSTRACT_HTTP_SUCCESS) {
-      LOG_DEBUG("wininet_async_finish_slot: http_loop_wakeup returned %d",
-                (int)wrc);
-    }
-  }
-  free(slot);
+  return wininet_async_settle_and_free(slot, res, final_rc);
 }
+
+/**
+ * @brief Dispatch an enum-returning WinINet helper inside a void Win32
+ * callback.
+ * @param expr Expression returning `c_abstract_http_error_t`.
+ */
+#define WININET_VOID_CB_DISPATCH(expr)                                         \
+  do {                                                                         \
+    c_abstract_http_error_t _cb_rc = (expr);                                   \
+    if (_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
+      LOG_DEBUG("wininet_status_callback: error %d", (int)_cb_rc);             \
+    }                                                                          \
+  } while (0)
 
 /**
  * @brief `INTERNET_STATUS_CALLBACK` handling
@@ -1028,9 +1106,11 @@ static void CALLBACK wininet_status_callback(HINTERNET hInternet,
   if (dwInternetStatus == INTERNET_STATUS_REQUEST_COMPLETE) {
     INTERNET_ASYNC_RESULT *ar = (INTERNET_ASYNC_RESULT *)lpvStatusInformation;
     if (!ar || ar->dwResult == 0) {
-      wininet_async_finish_slot(slot, C_ABSTRACT_HTTP_ERR_IO);
+      WININET_VOID_CB_DISPATCH(
+          wininet_async_finish_slot(slot, C_ABSTRACT_HTTP_ERR_IO));
     } else {
-      wininet_async_finish_slot(slot, C_ABSTRACT_HTTP_SUCCESS);
+      WININET_VOID_CB_DISPATCH(
+          wininet_async_finish_slot(slot, C_ABSTRACT_HTTP_SUCCESS));
     }
   }
 }
@@ -1044,7 +1124,7 @@ static void CALLBACK wininet_status_callback(HINTERNET hInternet,
  * @param future Output future.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error wininet_submit_async_slot(
+NO_DISCARD static c_abstract_http_error_t wininet_submit_async_slot(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpRequest *req, struct HttpFuture *future) {
   struct WinInetAsyncSlot *slot;
@@ -1057,7 +1137,7 @@ static enum c_abstract_http_error wininet_submit_async_slot(
       INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE | ctx->security_flags;
   size_t wLen = 0;
   size_t cap;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!req || !req->url) {
     future->response = NULL;
@@ -1130,6 +1210,31 @@ static enum c_abstract_http_error wininet_submit_async_slot(
   if (urlComp.nScheme == INTERNET_SCHEME_HTTPS) {
     dwFlags |= INTERNET_FLAG_SECURE;
   }
+  dwFlags |= ctx->security_flags;
+
+  {
+    DWORD tc = ctx->config.connect_timeout_ms > 0
+                   ? (DWORD)ctx->config.connect_timeout_ms
+                   : (DWORD)ctx->config.timeout_ms;
+    DWORD ts = ctx->config.write_timeout_ms > 0
+                   ? (DWORD)ctx->config.write_timeout_ms
+                   : (DWORD)ctx->config.timeout_ms;
+    DWORD tr = ctx->config.read_timeout_ms > 0
+                   ? (DWORD)ctx->config.read_timeout_ms
+                   : (DWORD)ctx->config.timeout_ms;
+    if (tc > 0) {
+      InternetSetOption(slot->hAsyncRoot, INTERNET_OPTION_CONNECT_TIMEOUT, &tc,
+                        sizeof(tc));
+    }
+    if (ts > 0) {
+      InternetSetOption(slot->hAsyncRoot, INTERNET_OPTION_SEND_TIMEOUT, &ts,
+                        sizeof(ts));
+    }
+    if (tr > 0) {
+      InternetSetOption(slot->hAsyncRoot, INTERNET_OPTION_RECEIVE_TIMEOUT, &tr,
+                        sizeof(tr));
+    }
+  }
 
   slot->hConnect = InternetConnectW(slot->hAsyncRoot, urlComp.lpszHostName,
                                     (INTERNET_PORT)urlComp.nPort, NULL, NULL,
@@ -1158,6 +1263,11 @@ static enum c_abstract_http_error wininet_submit_async_slot(
     free(slot);
     return C_ABSTRACT_HTTP_ERR_IO;
   }
+  if (ctx->config.version_mask & HTTP_VERSION_2) {
+    DWORD h2 = HTTP_PROTOCOL_FLAG_HTTP2;
+    InternetSetOption(slot->hRequest, INTERNET_OPTION_ENABLE_HTTP_PROTOCOL, &h2,
+                      sizeof(h2));
+  }
 
   rc = headers_to_wide_block(&req->headers, &slot->wHeaders);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1176,19 +1286,17 @@ static enum c_abstract_http_error wininet_submit_async_slot(
   if (HttpSendRequestW(slot->hRequest, NULL, 0,
                        req->body ? (LPVOID)req->body : NULL,
                        (DWORD)req->body_len)) {
-    wininet_async_finish_slot(slot, C_ABSTRACT_HTTP_SUCCESS);
-    return C_ABSTRACT_HTTP_SUCCESS;
+    return wininet_async_finish_slot(slot, C_ABSTRACT_HTTP_SUCCESS);
   }
   if (GetLastError() != ERROR_IO_PENDING) {
-    wininet_async_finish_slot(slot, C_ABSTRACT_HTTP_ERR_IO);
-    return C_ABSTRACT_HTTP_ERR_IO;
+    return wininet_async_finish_slot(slot, C_ABSTRACT_HTTP_ERR_IO);
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /* Asynchronous multi-request dispatcher via InternetSetStatusCallbackW +
  * ModalityEventLoop. */
-enum c_abstract_http_error http_wininet_send_multi(
+NO_DISCARD c_abstract_http_error_t http_wininet_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   size_t i;
@@ -1202,7 +1310,7 @@ enum c_abstract_http_error http_wininet_send_multi(
     return C_ABSTRACT_HTTP_SUCCESS;
   }
   for (i = 0; i < multi->count; ++i) {
-    enum c_abstract_http_error rc =
+    c_abstract_http_error_t rc =
         wininet_submit_async_slot(ctx, loop, multi->requests[i], futures[i]);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
@@ -1210,3 +1318,24 @@ enum c_abstract_http_error http_wininet_send_multi(
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/**
+ * @brief Exercise `wininet_async_finish_slot` NULL/finished guards for tests.
+ * @param mode 0 to test NULL slot, non-zero to test already-finished slot.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_wininet_slot_guard(int mode);
+
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_wininet_slot_guard(int mode) {
+  struct WinInetAsyncSlot dummy;
+  if (mode == 0) {
+    return wininet_async_finish_slot(NULL, C_ABSTRACT_HTTP_SUCCESS);
+  }
+  memset(&dummy, 0, sizeof(dummy));
+  dummy.finished = 1;
+  return wininet_async_finish_slot(&dummy, C_ABSTRACT_HTTP_SUCCESS);
+}
+#endif

@@ -76,7 +76,7 @@ struct msh3_req_ctx {
   /** @brief Completion flag */
   int is_complete;
   /** @brief Error code */
-  enum c_abstract_http_error error_code;
+  c_abstract_http_error_t error_code;
 };
 
 /** @brief In-flight multiplexed MsH3 stream slot */
@@ -133,8 +133,8 @@ static int math_msh3_strcasecmp(const char *a, const char *b) {
 }
 
 /* Initialize the global MsH3 state. */
-enum c_abstract_http_error http_msh3_global_init(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+NO_DISCARD c_abstract_http_error_t http_msh3_global_init(void) {
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   if (!g_msh3_mutex) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_msh3_mutex_init_fail) {
@@ -167,7 +167,7 @@ enum c_abstract_http_error http_msh3_global_init(void) {
     }
   }
   {
-    enum c_abstract_http_error u_rc = abstract_http_mutex_unlock(g_msh3_mutex);
+    c_abstract_http_error_t u_rc = abstract_http_mutex_unlock(g_msh3_mutex);
     if (u_rc != C_ABSTRACT_HTTP_SUCCESS) {
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         return rc;
@@ -179,9 +179,9 @@ enum c_abstract_http_error http_msh3_global_init(void) {
 }
 
 /* Clean up global MsH3 state. */
-enum c_abstract_http_error http_msh3_global_cleanup(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  enum c_abstract_http_error unlock_rc;
+NO_DISCARD c_abstract_http_error_t http_msh3_global_cleanup(void) {
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t unlock_rc;
   if (!g_msh3_mutex) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -203,7 +203,7 @@ enum c_abstract_http_error http_msh3_global_cleanup(void) {
   }
   if (g_msh3_init_count == 0) {
     struct AbstractHttpMutex *m = g_msh3_mutex;
-    enum c_abstract_http_error free_rc;
+    c_abstract_http_error_t free_rc;
     g_msh3_mutex = NULL;
     unlock_rc = abstract_http_mutex_unlock(m);
     if (unlock_rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -223,7 +223,7 @@ enum c_abstract_http_error http_msh3_global_cleanup(void) {
  * @param cfg Target `HttpConfig` to initialize.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_init_cfg_checked(struct HttpConfig *cfg) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_msh3_config_init_fail) {
@@ -234,10 +234,10 @@ msh3_init_cfg_checked(struct HttpConfig *cfg) {
 }
 
 /* Initialize a new MsH3 transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_msh3_context_init(struct HttpTransportContext **ctx) {
   struct HttpTransportContext *c;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   LOG_DEBUG("http_msh3_context_init: Entering");
   if (!ctx) {
     LOG_DEBUG("http_msh3_context_init: Error EINVAL");
@@ -263,11 +263,11 @@ http_msh3_context_init(struct HttpTransportContext **ctx) {
 }
 
 /* Free MsH3 transport context. */
-enum c_abstract_http_error
+NO_DISCARD c_abstract_http_error_t
 http_msh3_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_msh3_context_free: Entering");
   if (ctx) {
-    enum c_abstract_http_error rch;
+    c_abstract_http_error_t rch;
     if (ctx->config) {
       MsH3ConfigurationClose(ctx->config);
       ctx->config = NULL;
@@ -284,12 +284,11 @@ http_msh3_context_free(struct HttpTransportContext *ctx) {
 }
 
 /* Apply configuration settings to MsH3 context. */
-enum c_abstract_http_error
-http_msh3_config_apply(struct HttpTransportContext *ctx,
-                       const struct HttpConfig *config) {
+NO_DISCARD c_abstract_http_error_t http_msh3_config_apply(
+    struct HttpTransportContext *ctx, const struct HttpConfig *config) {
   MSH3_SETTINGS settings;
   MSH3_CREDENTIAL_CONFIG cred;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   LOG_DEBUG("http_msh3_config_apply: Entering");
   if (!ctx || !config) {
     LOG_DEBUG("http_msh3_config_apply: Error EINVAL");
@@ -354,7 +353,7 @@ http_msh3_config_apply(struct HttpTransportContext *ctx,
  * @param header_val Raw Set-Cookie header value.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
   const char *eq;
   const char *semi;
@@ -362,7 +361,7 @@ msh3_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
   size_t vlen;
   char *cname;
   char *cval;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   eq = strchr(header_val, '=');
   if (!eq || eq == header_val) {
@@ -404,7 +403,7 @@ msh3_store_set_cookie(struct HttpCookieJar *jar, const char *header_val) {
  * @param ev Incoming MsH3 request event.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_request_cb_impl(MSH3_REQUEST *req, struct msh3_req_ctx *rctx,
                      MSH3_REQUEST_EVENT *ev) {
   char *nstr = NULL;
@@ -415,7 +414,7 @@ msh3_request_cb_impl(MSH3_REQUEST *req, struct msh3_req_ctx *rctx,
   size_t namelen = 0;
   size_t vallen = 0;
   size_t dlen = 0;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
 
   if (!req || !rctx || !ev) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -542,8 +541,8 @@ msh3_request_cb_impl(MSH3_REQUEST *req, struct msh3_req_ctx *rctx,
       rctx->error_code = C_ABSTRACT_HTTP_ERR_IO;
     }
     {
-      enum c_abstract_http_error sig_rc;
-      enum c_abstract_http_error unl_rc;
+      c_abstract_http_error_t sig_rc;
+      c_abstract_http_error_t unl_rc;
       sig_rc = abstract_http_cond_signal(rctx->cond);
       if (sig_rc != C_ABSTRACT_HTTP_SUCCESS) {
         unl_rc = abstract_http_mutex_unlock(rctx->mutex);
@@ -570,11 +569,11 @@ msh3_request_cb_impl(MSH3_REQUEST *req, struct msh3_req_ctx *rctx,
 /**
  * @brief Dispatch an enum-returning MsH3 helper inside an MSH3_STATUS ABI
  * callback.
- * @param expr Expression returning `enum c_abstract_http_error`.
+ * @param expr Expression returning `c_abstract_http_error_t`.
  */
 #define MSH3_CB_DISPATCH(expr)                                                 \
   do {                                                                         \
-    enum c_abstract_http_error _cb_rc = (expr);                                \
+    c_abstract_http_error_t _cb_rc = (expr);                                   \
     if (_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
       LOG_DEBUG("msh3_request_cb: helper returned %d", (int)_cb_rc);           \
     }                                                                          \
@@ -615,8 +614,8 @@ static MSH3_STATUS MSH3_CALL msh3_conn_cb(MSH3_CONNECTION *conn, void *ctx,
  * @param out Output pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error msh3_url_alloc(size_t cap, int step,
-                                                 char **out) {
+NO_DISCARD static c_abstract_http_error_t msh3_url_alloc(size_t cap, int step,
+                                                         char **out) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_msh3_parse_url_alloc_fail == step) {
     *out = NULL;
@@ -641,9 +640,10 @@ static enum c_abstract_http_error msh3_url_alloc(size_t cap, int step,
  * @param scheme Newly allocated scheme string.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error parse_url(const char *url, char **host,
-                                            char **port, char **path,
-                                            char **scheme) {
+NO_DISCARD static c_abstract_http_error_t parse_url(const char *url,
+                                                    char **host, char **port,
+                                                    char **path,
+                                                    char **scheme) {
   const char *p;
   const char *h;
   const char *slash;
@@ -653,7 +653,7 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
   size_t port_len;
   size_t path_len;
   size_t scheme_len;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   p = strstr(url, "://");
   if (!p) {
@@ -776,8 +776,8 @@ static enum c_abstract_http_error parse_url(const char *url, char **host,
  * @param out_str Output pointer receiving static method token.
  * @return C_ABSTRACT_HTTP_SUCCESS.
  */
-static enum c_abstract_http_error msh3_method_str(enum HttpMethod method,
-                                                  const char **out_str) {
+NO_DISCARD static c_abstract_http_error_t
+msh3_method_str(enum HttpMethod method, const char **out_str) {
   if ((int)method < 0) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
@@ -818,12 +818,12 @@ static enum c_abstract_http_error msh3_method_str(enum HttpMethod method,
  * @param out_eff Output pointer to the effective request to transmit.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_prepare_effective_request(const struct HttpRequest *req,
                                struct HttpRequest *flat_req, int *out_flattened,
                                const struct HttpRequest **out_eff) {
   size_t i;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   *out_flattened = 0;
   *out_eff = req;
@@ -850,7 +850,7 @@ msh3_prepare_effective_request(const struct HttpRequest *req,
     rc = http_headers_add(&flat_req->headers, req->headers.headers[i].key,
                           req->headers.headers[i].value);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error frc = http_headers_free(&flat_req->headers);
+      c_abstract_http_error_t frc = http_headers_free(&flat_req->headers);
       if (frc != C_ABSTRACT_HTTP_SUCCESS) {
         return frc;
       }
@@ -859,7 +859,7 @@ msh3_prepare_effective_request(const struct HttpRequest *req,
   }
   rc = http_request_flatten_parts(flat_req);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    enum c_abstract_http_error frc;
+    c_abstract_http_error_t frc;
     free(flat_req->body);
     flat_req->body = NULL;
     frc = http_headers_free(&flat_req->headers);
@@ -879,7 +879,7 @@ msh3_prepare_effective_request(const struct HttpRequest *req,
  * @param flattened Non-zero when @p flat_req owns allocated headers/body.
  * @return C_ABSTRACT_HTTP_SUCCESS or cleanup error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
   if (!flattened) {
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -903,7 +903,7 @@ msh3_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
  * @param out_cookie_buf Output pointer receiving allocated Cookie value buffer.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_build_headers(const struct HttpTransportContext *ctx,
                    const struct HttpRequest *eff_req, const char *method_str,
                    const char *path, const char *scheme, const char *authority,
@@ -1027,10 +1027,10 @@ msh3_build_headers(const struct HttpTransportContext *ctx,
  * @param hdr_count Number of headers in @p hdrs.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_send_stream_payload(MSH3_REQUEST *mreq, const struct HttpRequest *eff_req,
                          const MSH3_HEADER *hdrs, size_t hdr_count) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!eff_req->read_chunk) {
     const void *body_ptr =
@@ -1079,7 +1079,7 @@ msh3_send_stream_payload(MSH3_REQUEST *mreq, const struct HttpRequest *eff_req,
  * @param out_addr Output MsH3 address buffer.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_HOSTUNREACH.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_resolve_addr(const char *host, const char *port_str, MSH3_ADDR *out_addr) {
   struct addrinfo hints;
   struct addrinfo *result = NULL;
@@ -1127,12 +1127,12 @@ msh3_resolve_addr(const char *host, const char *port_str, MSH3_ADDR *out_addr) {
  * @param orig_rc Error code to return if response cleanup succeeds.
  * @return Cleanup error code or @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_cleanup_failed_res(struct HttpResponse **res,
-                        enum c_abstract_http_error orig_rc) {
+                        c_abstract_http_error_t orig_rc) {
   if (*res) {
     struct HttpResponse *tmp = *res;
-    enum c_abstract_http_error free_rc;
+    c_abstract_http_error_t free_rc;
     *res = NULL;
     free_rc = http_response_free(tmp);
     if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1152,9 +1152,9 @@ msh3_cleanup_failed_res(struct HttpResponse **res,
  * @param status Accumulated status enum.
  * @return Final status enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_finalize_slot_buffers(struct msh3_multi_slot *slot, int keep_res,
-                           enum c_abstract_http_error status) {
+                           c_abstract_http_error_t status) {
   free(slot->hdrs);
   slot->hdrs = NULL;
   free(slot->cookie_buf);
@@ -1183,10 +1183,10 @@ msh3_finalize_slot_buffers(struct msh3_multi_slot *slot, int keep_res,
  * @param status Accumulated status enum.
  * @return Final status enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_close_slot_eff(struct msh3_multi_slot *slot, int flattened, int keep_res,
-                    enum c_abstract_http_error status) {
-  enum c_abstract_http_error tmp_rc;
+                    c_abstract_http_error_t status) {
+  c_abstract_http_error_t tmp_rc;
   tmp_rc = msh3_cleanup_effective_request(&slot->flat_req, flattened);
   if (tmp_rc != C_ABSTRACT_HTTP_SUCCESS) {
     return msh3_finalize_slot_buffers(
@@ -1203,12 +1203,12 @@ msh3_close_slot_eff(struct msh3_multi_slot *slot, int flattened, int keep_res,
  * @param status Accumulated status enum.
  * @return Final status enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_close_slot_mutex(struct msh3_multi_slot *slot, int flattened, int keep_res,
-                      enum c_abstract_http_error status) {
+                      c_abstract_http_error_t status) {
   if (slot->rctx.mutex) {
     struct AbstractHttpMutex *m = slot->rctx.mutex;
-    enum c_abstract_http_error tmp_rc;
+    c_abstract_http_error_t tmp_rc;
     slot->rctx.mutex = NULL;
     tmp_rc = abstract_http_mutex_free(m);
     if (tmp_rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1227,9 +1227,9 @@ msh3_close_slot_mutex(struct msh3_multi_slot *slot, int flattened, int keep_res,
  * @param orig_rc Primary error code to preserve if cleanup succeeds.
  * @return Cleanup error code or @p orig_rc.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_close_slot(struct msh3_multi_slot *slot, int keep_res,
-                enum c_abstract_http_error orig_rc) {
+                c_abstract_http_error_t orig_rc) {
   int flattened = slot->flattened;
 
   if (slot->mreq) {
@@ -1243,7 +1243,7 @@ msh3_close_slot(struct msh3_multi_slot *slot, int keep_res,
   slot->flattened = 0;
   if (slot->rctx.cond) {
     struct AbstractHttpCond *c = slot->rctx.cond;
-    enum c_abstract_http_error tmp_rc;
+    c_abstract_http_error_t tmp_rc;
     slot->rctx.cond = NULL;
     tmp_rc = abstract_http_cond_free(c);
     if (tmp_rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1263,11 +1263,11 @@ msh3_close_slot(struct msh3_multi_slot *slot, int keep_res,
  * @param apply_rc Result of `http_msh3_config_apply`.
  * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_finish_default_cfg(struct HttpConfig *default_cfg,
                         struct msh3_multi_slot *slot,
-                        enum c_abstract_http_error apply_rc) {
-  enum c_abstract_http_error cfg_free_rc;
+                        c_abstract_http_error_t apply_rc) {
+  c_abstract_http_error_t cfg_free_rc;
   cfg_free_rc = http_config_free(default_cfg);
   if (cfg_free_rc != C_ABSTRACT_HTTP_SUCCESS) {
     return msh3_close_slot(
@@ -1287,7 +1287,7 @@ msh3_finish_default_cfg(struct HttpConfig *default_cfg,
  * @param slot Zero-initialized slot structure to populate.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_open_slot(struct HttpTransportContext *ctx, const struct HttpRequest *req,
                struct msh3_multi_slot *slot) {
   MSH3_ADDR addr;
@@ -1295,7 +1295,7 @@ msh3_open_slot(struct HttpTransportContext *ctx, const struct HttpRequest *req,
   const char *method_str = "GET";
   const struct HttpRequest *eff_req = NULL;
   size_t hdr_count = 0;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   if (!req || !req->url) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
@@ -1426,9 +1426,9 @@ msh3_open_slot(struct HttpTransportContext *ctx, const struct HttpRequest *req,
  * @param slot Active stream slot.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_await_slot(struct msh3_multi_slot *slot) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_msh3_send_lock_fail) {
@@ -1445,7 +1445,7 @@ msh3_await_slot(struct msh3_multi_slot *slot) {
   while (!slot->rctx.is_complete) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_msh3_cond_wait_fail) {
-      enum c_abstract_http_error unl_rc =
+      c_abstract_http_error_t unl_rc =
           abstract_http_mutex_unlock(slot->rctx.mutex);
       if (unl_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return unl_rc;
@@ -1459,7 +1459,7 @@ msh3_await_slot(struct msh3_multi_slot *slot) {
 #endif
     rc = abstract_http_cond_wait(slot->rctx.cond, slot->rctx.mutex);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error unl_rc =
+      c_abstract_http_error_t unl_rc =
           abstract_http_mutex_unlock(slot->rctx.mutex);
       if (unl_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return unl_rc;
@@ -1480,9 +1480,9 @@ msh3_await_slot(struct msh3_multi_slot *slot) {
  * @param slot Active stream slot.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_finish_slot(struct msh3_multi_slot *slot) {
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
   rc = msh3_await_slot(slot);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return msh3_close_slot(slot, 0, rc);
@@ -1491,11 +1491,11 @@ msh3_finish_slot(struct msh3_multi_slot *slot) {
 }
 
 /* Synchronously send HTTP request via MsH3. */
-enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
-                                          const struct HttpRequest *req,
-                                          struct HttpResponse **res) {
+NO_DISCARD c_abstract_http_error_t
+http_msh3_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
+               struct HttpResponse **res) {
   struct msh3_multi_slot slot;
-  enum c_abstract_http_error rc;
+  c_abstract_http_error_t rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
   if (!ctx || !req || !res || !req->url) {
@@ -1528,15 +1528,15 @@ enum c_abstract_http_error http_msh3_send(struct HttpTransportContext *ctx,
  * @param futures Array of futures receiving slot results.
  * @return C_ABSTRACT_HTTP_SUCCESS or failure enum.
  */
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 msh3_drain_slots_from(struct msh3_multi_slot *slots, size_t start_idx,
                       size_t opened, struct HttpFuture **futures) {
   size_t i;
   for (i = start_idx; i < opened; ++i) {
-    enum c_abstract_http_error wait_rc;
+    c_abstract_http_error_t wait_rc;
     wait_rc = msh3_finish_slot(&slots[i]);
     if (wait_rc != C_ABSTRACT_HTTP_SUCCESS) {
-      enum c_abstract_http_error rest_rc;
+      c_abstract_http_error_t rest_rc;
       futures[i]->response = NULL;
       futures[i]->error_code = wait_rc;
       futures[i]->is_ready = 1;
@@ -1554,14 +1554,14 @@ msh3_drain_slots_from(struct msh3_multi_slot *slots, size_t start_idx,
 }
 
 /* Asynchronously multiplex multi-requests concurrently via MsH3RequestOpen. */
-enum c_abstract_http_error http_msh3_send_multi(
+NO_DISCARD c_abstract_http_error_t http_msh3_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
   struct msh3_multi_slot *slots = NULL;
   size_t i;
   size_t opened = 0;
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
-  enum c_abstract_http_error drain_rc;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t drain_rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
   if (!ctx || !multi || !futures) {

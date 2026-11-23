@@ -43,7 +43,7 @@ extern "C" {
 #define TEST_APPLE_HAVE_CFSTREAM 0
 #endif
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   int *calls = (int *)user_data;
   (void)chunk;
@@ -52,7 +52,7 @@ mock_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_on_chunk_abort_cb(void *user_data, const void *chunk, size_t len) {
   (void)user_data;
   (void)chunk;
@@ -465,7 +465,7 @@ TEST test_apple_send_invalid(void) {
   /* Might fail with C_ABSTRACT_HTTP_ERR_IO due to no connection or return an
    * allocated res */
   {
-    enum c_abstract_http_error rc = http_apple_send(ctx, &req, &res);
+    c_abstract_http_error_t rc = http_apple_send(ctx, &req, &res);
     ASSERT(rc != 0);
   }
 #else
@@ -512,10 +512,10 @@ TEST test_apple_send_all_methods(void) {
 
     if (i == 8) {
       /* Invalid method may fail differently, let's just see if it crashes */
-      enum c_abstract_http_error rc_invalid = http_apple_send(ctx, &req, &res);
+      c_abstract_http_error_t rc_invalid = http_apple_send(ctx, &req, &res);
       ASSERT(rc_invalid != C_ABSTRACT_HTTP_SUCCESS);
     } else {
-      enum c_abstract_http_error rc = http_apple_send(ctx, &req, &res);
+      c_abstract_http_error_t rc = http_apple_send(ctx, &req, &res);
       ASSERT(rc != 0);
     }
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
@@ -525,7 +525,7 @@ TEST test_apple_send_all_methods(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 mock_read_chunk(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
   int *calls = (int *)user_data;
   if (*calls >= 2) {
@@ -540,10 +540,9 @@ mock_read_chunk(void *user_data, void *buf, size_t buf_len, size_t *out_read) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error mock_read_chunk_fail(void *user_data,
-                                                       void *buf,
-                                                       size_t buf_len,
-                                                       size_t *out_read) {
+NO_DISCARD static c_abstract_http_error_t
+mock_read_chunk_fail(void *user_data, void *buf, size_t buf_len,
+                     size_t *out_read) {
   (void)user_data;
   (void)buf;
   (void)buf_len;
@@ -618,7 +617,7 @@ TEST test_apple_read_chunk(void) {
 /** @brief Documented */
 TEST test_apple_send_multi(void) {
 #if defined(__APPLE__)
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req1, req2;
@@ -715,15 +714,14 @@ TEST test_apple_send_multi(void) {
   PASS();
 }
 
-static enum c_abstract_http_error dummy_apple_fail_wakeup(void *ctx) {
+NO_DISCARD static c_abstract_http_error_t dummy_apple_fail_wakeup(void *ctx) {
   (void)ctx;
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
-static enum c_abstract_http_error dummy_apple_add_fd_fail(void *ctx, int fd,
-                                                          int events,
-                                                          http_loop_cb cb,
-                                                          void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+dummy_apple_add_fd_fail(void *ctx, int fd, int events, http_loop_cb cb,
+                        void *user_data) {
   (void)ctx;
   (void)fd;
   (void)events;
@@ -732,10 +730,9 @@ static enum c_abstract_http_error dummy_apple_add_fd_fail(void *ctx, int fd,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
-static enum c_abstract_http_error dummy_apple_add_fd_capture(void *ctx, int fd,
-                                                             int events,
-                                                             http_loop_cb cb,
-                                                             void *user_data) {
+NO_DISCARD static c_abstract_http_error_t
+dummy_apple_add_fd_capture(void *ctx, int fd, int events, http_loop_cb cb,
+                           void *user_data) {
   void **pack = (void **)ctx;
   (void)events;
   *(http_loop_cb *)pack[0] = cb;
@@ -744,7 +741,8 @@ static enum c_abstract_http_error dummy_apple_add_fd_capture(void *ctx, int fd,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static enum c_abstract_http_error dummy_apple_rm_fd_fail(void *ctx, int fd) {
+NO_DISCARD static c_abstract_http_error_t dummy_apple_rm_fd_fail(void *ctx,
+                                                                 int fd) {
   (void)ctx;
   (void)fd;
   return C_ABSTRACT_HTTP_ERR_IO;
@@ -1269,6 +1267,32 @@ TEST test_apple_nsurlsession_bridge(void) {
   res = NULL;
   req.url = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  /* Exercise active_cf_workers drain wait in http_apple_context_free */
+  {
+    struct HttpTransportContext *ctx_drain = NULL;
+    struct HttpRequest slow_req;
+    struct HttpMultiRequest slow_multi;
+    struct HttpFuture slow_fut;
+    struct HttpFuture *slow_futs[1];
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx_drain));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_apple_set_use_nsurlsession(ctx_drain, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&slow_req));
+    slow_req.url = url_slow;
+    slow_req.method = HTTP_GET;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&slow_multi));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_multi_request_add(&slow_multi, &slow_req));
+    memset(&slow_fut, 0, sizeof(slow_fut));
+    slow_futs[0] = &slow_fut;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_apple_send_multi(ctx_drain, NULL, &slow_multi, slow_futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_free(ctx_drain));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&slow_fut));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&slow_multi));
+    slow_req.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&slow_req));
+  }
 #else
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
             http_apple_set_use_nsurlsession(ctx, 0));
@@ -1473,7 +1497,7 @@ TEST test_apple_nsurlsession_bridge(void) {
 
     req.url = url_ok;
     for (step = 0; step < 25; ++step) {
-      enum c_abstract_http_error orc;
+      c_abstract_http_error_t orc;
       res = NULL;
       g_mock_alloc_count = step;
       g_mock_alloc_fail = 1;
@@ -1598,7 +1622,7 @@ TEST test_apple_nsurlsession_bridge(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     req.url = url_ok;
     for (step = 0; step <= 10; ++step) {
-      enum c_abstract_http_error orc;
+      c_abstract_http_error_t orc;
       res = NULL;
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = step;
@@ -1636,7 +1660,7 @@ TEST test_apple_nsurlsession_bridge(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_headers_add(&req.headers, "X-Part", "1"));
     for (step = 0; step <= 12; ++step) {
-      enum c_abstract_http_error orc;
+      c_abstract_http_error_t orc;
       res = NULL;
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = step;

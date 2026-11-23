@@ -37,10 +37,10 @@ extern "C" {
 extern struct curl_slist *g_mock_curl_cookies;
 extern int g_mock_curl_init_fail;
 extern int g_mock_curl_check_multi_info_fail;
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_test_multi_timer_cb(struct ModalityEventLoop *loop, int timer_id,
                                   void *user_data);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
                                    int events, void *user_data);
 extern int g_mock_curl_setopt_fail;
@@ -49,24 +49,26 @@ extern CURLcode g_mock_curl_perform_res;
 extern int g_mock_http_response_init_fail;
 extern int g_mock_http_loop_fail;
 extern int g_mock_curl_multi_add_fail;
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_test_multi_timer_function(struct HttpTransportContext *ctx,
                                         long timeout_ms);
-extern enum c_abstract_http_error abstract_http_test_multi_socket_function(
-    struct HttpTransportContext *ctx, curl_socket_t s, int what, void *socketp);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
+abstract_http_test_multi_socket_function(struct HttpTransportContext *ctx,
+                                         curl_socket_t s, int what,
+                                         void *socketp);
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_test_set_timer_id(struct HttpTransportContext *ctx, int timer_id);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_test_get_timer_id(struct HttpTransportContext *ctx,
                                 int *out_timer_id);
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_test_set_loop(struct HttpTransportContext *ctx,
                             struct ModalityEventLoop *loop);
 #endif
 
-static enum c_abstract_http_error setup_request(struct HttpRequest *req,
-                                                int port) {
-  enum c_abstract_http_error rc;
+NO_DISCARD static c_abstract_http_error_t setup_request(struct HttpRequest *req,
+                                                        int port) {
+  c_abstract_http_error_t rc;
   char *_ast_strdup_0 = NULL;
   char url[64];
 
@@ -107,7 +109,7 @@ TEST test_curl_global_lifecycle(void) {
 
 /** @brief Documented */
 TEST test_curl_context_lifecycle(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpTransportContext *ctx = NULL;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());
@@ -129,7 +131,7 @@ TEST test_curl_context_lifecycle(void) {
 
 /** @brief Documented */
 TEST test_curl_config_application(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   char *_ast_strdup_proxy = NULL;
   char *_ast_strdup_user = NULL;
   char *_ast_strdup_pass = NULL;
@@ -174,7 +176,7 @@ TEST test_curl_config_application(void) {
 
 /** @brief Documented */
 TEST test_curl_send_connection_failure(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   /* Expect mapped error (ECONNREFUSED or C_ABSTRACT_HTTP_ERR_TIMEOUT or
    * EHOSTUNREACH) */
   struct HttpTransportContext *ctx = NULL;
@@ -269,7 +271,7 @@ struct curl_TestChunkState {
   int abort_on_call;
 };
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 curl_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
   struct curl_TestChunkState *state = (struct curl_TestChunkState *)user_data;
   (void)chunk;
@@ -283,7 +285,7 @@ curl_mock_chunk_cb(void *user_data, const void *chunk, size_t chunk_len) {
 
 /** @brief Documented */
 TEST test_curl_send_chunked(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -357,7 +359,7 @@ TEST test_curl_send_chunked(void) {
 
 /** @brief Documented */
 TEST test_curl_send_chunked_abort(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -409,9 +411,9 @@ struct curl_TestUploadState {
   size_t pos;
 };
 
-static enum c_abstract_http_error curl_mock_upload_cb(void *user_data,
-                                                      void *buf, size_t buf_len,
-                                                      size_t *out_read) {
+NO_DISCARD static c_abstract_http_error_t
+curl_mock_upload_cb(void *user_data, void *buf, size_t buf_len,
+                    size_t *out_read) {
   struct curl_TestUploadState *state = (struct curl_TestUploadState *)user_data;
   size_t remaining = state->len - state->pos;
   size_t to_copy = (remaining < buf_len) ? remaining : buf_len;
@@ -426,7 +428,7 @@ static enum c_abstract_http_error curl_mock_upload_cb(void *user_data,
 
 /** @brief Documented */
 TEST test_curl_send_upload_chunked(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
@@ -800,7 +802,7 @@ TEST test_curl_send_unsupported_protocol(void) {
 
 /** @brief Documented */
 TEST test_curl_send_resolve_error(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req;
   struct HttpResponse *res = NULL;
@@ -932,7 +934,7 @@ TEST test_curl_payload_methods(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 extern struct curl_slist *g_mock_curl_cookies;
 extern int g_mock_curl_init_fail;
-extern enum c_abstract_http_error
+NO_DISCARD extern c_abstract_http_error_t
 abstract_http_test_multi_socket_cb(struct ModalityEventLoop *loop, int fd,
                                    int events, void *user_data);
 extern int g_mock_curl_setopt_fail;
@@ -1044,7 +1046,7 @@ TEST test_curl_send_cookies(void) {
   PASS();
 }
 
-static enum c_abstract_http_error
+NO_DISCARD static c_abstract_http_error_t
 curl_mock_upload_cb_abort(void *user_data, void *buffer, size_t max_bytes,
                           size_t *out_bytes_read) {
   (void)user_data;
@@ -1298,7 +1300,7 @@ TEST test_curl_send_chunked_methods(void) {
 }
 
 TEST test_curl_send_multi(void) {
-  enum c_abstract_http_error rc = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   MockServerPtr server = NULL;
   struct HttpTransportContext *ctx = NULL;
   struct HttpRequest req1, req2;
