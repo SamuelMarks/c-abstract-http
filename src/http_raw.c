@@ -2751,7 +2751,11 @@ raw_sm_io_cb(struct ModalityEventLoop *loop, int fd, int events,
         }
 #else
         s_rc = (long)send(slot->sock, slot->tx_buf + slot->tx_off, rem, 0);
-        if (s_rc < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        if (s_rc < 0 && (errno == EAGAIN
+#if defined(EWOULDBLOCK) && (!defined(EAGAIN) || (EWOULDBLOCK != EAGAIN))
+                         || errno == EWOULDBLOCK
+#endif
+                         )) {
           return C_ABSTRACT_HTTP_SUCCESS;
         }
 #endif
@@ -2798,7 +2802,11 @@ raw_sm_io_cb(struct ModalityEventLoop *loop, int fd, int events,
           return raw_sm_complete_response(slot);
         }
 #else
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        if (errno == EAGAIN
+#if defined(EWOULDBLOCK) && (!defined(EAGAIN) || (EWOULDBLOCK != EAGAIN))
+            || errno == EWOULDBLOCK
+#endif
+        ) {
           return C_ABSTRACT_HTTP_SUCCESS;
         }
 #endif

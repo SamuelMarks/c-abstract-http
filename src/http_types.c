@@ -2902,13 +2902,17 @@ urldecode_alloc(const char *src, size_t src_len, char **out) {
       if (i + 2 < src_len) {
         int a = (unsigned char)src[i + 1];
         int b = (unsigned char)src[i + 2];
+        unsigned int ua;
+        unsigned int ub;
         a = (a >= '0' && a <= '9') ? a - '0'
 
                                    : (tolower(a) - 'a' + 10);
         b = (b >= '0' && b <= '9') ? b - '0'
 
                                    : (tolower(b) - 'a' + 10);
-        dst[j++] = (char)((a << 4) | b);
+        ua = (unsigned int)a & 0xFFU;
+        ub = (unsigned int)b & 0xFFU;
+        dst[j++] = (char)((ua << 4) | (ub & 0x0FU));
         i += 2;
       }
     } else if (src[i] == '+') {

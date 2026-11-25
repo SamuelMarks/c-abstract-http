@@ -1260,7 +1260,13 @@ static int math_ws_sock_would_block(void) {
 #if defined(_WIN32)
   return WSAGetLastError() == WSAEWOULDBLOCK ? 1 : 0;
 #else
-  return (errno == EAGAIN || errno == EWOULDBLOCK) ? 1 : 0;
+  return (errno == EAGAIN
+#if defined(EWOULDBLOCK) && (!defined(EAGAIN) || (EWOULDBLOCK != EAGAIN))
+          || errno == EWOULDBLOCK
+#endif
+          )
+             ? 1
+             : 0;
 #endif
 }
 
@@ -1471,10 +1477,14 @@ ws_perform_101_handshake(const struct HttpRequest *req, const char *host,
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   } else {
     struct hostent *he = gethostbyname(host);
-    if (!he || !he->h_addr_list[0]) {
+    char *first_addr = NULL;
+    if (he && he->h_addr_list) {
+      memcpy(&first_addr, he->h_addr_list, sizeof(first_addr));
+    }
+    if (!first_addr) {
       return C_ABSTRACT_HTTP_ERR_IO;
     }
-    memcpy(&addr.sin_addr, he->h_addr_list[0], (size_t)he->h_length);
+    memcpy(&addr.sin_addr, first_addr, (size_t)he->h_length);
   }
 
   sock_fd = (int)socket(AF_INET, SOCK_STREAM, 0);

@@ -1113,8 +1113,14 @@ TEST test_apple_send_multi_branches(void) {
     struct MockServerRequest mock_ext_req;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&srv_ext));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(srv_ext));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(ext_url, sizeof(ext_url),
+              "http://127.0.0.1:%d/fail_extract_response",
+              math_mock_server_get_port(srv_ext));
+#else
     sprintf(ext_url, "http://127.0.0.1:%d/fail_extract_response",
             math_mock_server_get_port(srv_ext));
+#endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               c_abstract_http_mock_strdup(ext_url, &req1.url));
@@ -1243,10 +1249,17 @@ TEST test_apple_nsurlsession_bridge(void) {
   port = (int)ntohs(sin.sin_port);
   ASSERT(port > 0);
 
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(url_ok, sizeof(url_ok), "http://127.0.0.1:%d/ok", port);
+  sprintf_s(url_empty, sizeof(url_empty), "http://127.0.0.1:%d/empty", port);
+  sprintf_s(url_large, sizeof(url_large), "http://127.0.0.1:%d/large", port);
+  sprintf_s(url_slow, sizeof(url_slow), "http://127.0.0.1:%d/slow", port);
+#else
   sprintf(url_ok, "http://127.0.0.1:%d/ok", port);
   sprintf(url_empty, "http://127.0.0.1:%d/empty", port);
   sprintf(url_large, "http://127.0.0.1:%d/large", port);
   sprintf(url_slow, "http://127.0.0.1:%d/slow", port);
+#endif
 
   srv.stop = 0;
   ASSERT_EQ(0, pthread_create(&srv_tid, NULL, apple_mini_srv_worker, &srv));
@@ -1521,7 +1534,11 @@ TEST test_apple_nsurlsession_bridge(void) {
               c_abstract_http_strdup("AppleBot/1.0", &cfg.user_agent));
     {
       char pbuf[128];
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      sprintf_s(pbuf, sizeof(pbuf), "http://127.0.0.1:%d", port);
+#else
       sprintf(pbuf, "http://127.0.0.1:%d", port);
+#endif
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 c_abstract_http_strdup(pbuf, &cfg.proxy_url));
     }

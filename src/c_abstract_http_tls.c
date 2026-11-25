@@ -146,6 +146,11 @@ abstract_http_tls_get(struct AbstractHttpTlsKey *key, void **out_value) {
 NO_DISCARD c_abstract_http_error_t
 abstract_http_tls_key_delete(struct AbstractHttpTlsKey *key) {
   if (key) {
+    if (key->destructor && key->value) {
+      void *val = key->value;
+      key->value = NULL;
+      key->destructor(val);
+    }
     free(key);
   }
   return C_ABSTRACT_HTTP_SUCCESS;

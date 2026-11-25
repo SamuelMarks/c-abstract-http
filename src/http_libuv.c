@@ -525,7 +525,7 @@ static void libuv_alloc_cb(uv_handle_t *handle, size_t suggested_size,
 
   avail = state->res_cap - state->res_len;
 
-  if (avail < 4096) {
+  if (!state->res_buf || avail < 4096) {
     size_t new_cap = state->res_cap == 0 ? 8192 : state->res_cap * 2;
     char *new_buf;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

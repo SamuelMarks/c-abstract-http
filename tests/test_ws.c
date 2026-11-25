@@ -2788,6 +2788,7 @@ static int ws_bind_ephemeral_listener(int *out_port) {
   return s;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 NO_DISCARD static c_abstract_http_error_t
 ws_ext_add_fail(void *ctx, int fd, int ev, http_loop_cb cb, void *ud) {
   (void)ctx;
@@ -2827,6 +2828,7 @@ NO_DISCARD static c_abstract_http_error_t ws_ext_wakeup_ok(void *ctx) {
   (void)ctx;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+#endif
 
 TEST test_ws_upgraded_socket_event_loop(void) {
   struct HttpClient client;

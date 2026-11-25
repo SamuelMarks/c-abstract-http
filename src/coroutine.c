@@ -25,20 +25,13 @@
 #include <dos.h>
 #include <setjmp.h>
 #else
-#if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN__)
+#if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__)
 /** @brief Disable ucontext backend when unavailable */
 #define ABSTRACT_HTTP_NO_UCONTEXT 1
 #endif
 #if defined(__APPLE__) && defined(__MACH__)
-/* ucontext is deprecated on macOS but still mostly works for simple cases on x86_64.
-   It is broken on arm64 and will cause a Bus Error. */
-#if defined(__aarch64__) || defined(__arm64__) || defined(__arm__) || defined(__aarch64) || defined(EMSCRIPTEN)
-/** @brief Disable ucontext backend on Apple Silicon and Emscripten */
+/** @brief Disable deprecated/broken ucontext backend on macOS */
 #define ABSTRACT_HTTP_NO_UCONTEXT 1
-#else
-/** @brief Enable X/Open ucontext declarations on x86_64 macOS */
-#define _XOPEN_SOURCE 600
-#endif
 #elif defined(__linux__) && !defined(__GLIBC__)
 /** @brief Disable ucontext backend on non-glibc Linux (e.g. musl) */
 #define ABSTRACT_HTTP_NO_UCONTEXT 1
@@ -652,15 +645,17 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
   }
 
   {
+    struct AbstractHttpCoroutine *prev_co;
     c_abstract_http_error_t tls_rc = init_tls_key();
     if (tls_rc != C_ABSTRACT_HTTP_SUCCESS) {
       LOG_DEBUG("abstract_http_coroutine_resume: Error init_tls_key failed");
       return tls_rc;
     }
+    prev_co = (struct AbstractHttpCoroutine *)pthread_getspecific(co_tls_key);
+    pthread_setspecific(co_tls_key, co);
+    swapcontext(&co->caller_ctx, &co->ctx);
+    pthread_setspecific(co_tls_key, prev_co);
   }
-  pthread_setspecific(co_tls_key, co);
-
-  swapcontext(&co->caller_ctx, &co->ctx);
   if (co->body_rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("abstract_http_coroutine_resume: Body failed with %d",
               (int)co->body_rc);

@@ -1047,7 +1047,11 @@ ngh3_open_h3_session(struct HttpTransportContext *ctx, const char *conn_host,
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(port_str, sizeof(port_str), "%u", (unsigned int)conn_port);
+#else
     sprintf(port_str, "%u", (unsigned int)conn_port);
+#endif
     if (getaddrinfo(conn_host, port_str, &hints, &ai) != 0 || !ai) {
       return C_ABSTRACT_HTTP_ERR_HOSTUNREACH;
     }

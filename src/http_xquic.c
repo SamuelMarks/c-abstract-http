@@ -1386,7 +1386,11 @@ xq_send_quic_once(struct HttpTransportContext *ctx,
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(port_str, sizeof(port_str), "%d", conn_port);
+#else
     sprintf(port_str, "%d", conn_port);
+#endif
     if (getaddrinfo(conn_host, port_str, &hints, &ai) != 0 || !ai) {
       free(host);
       free(tx_stream.data);

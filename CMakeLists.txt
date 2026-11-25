@@ -56,7 +56,18 @@ include(FetchContent)
 # ------------------------------------------------------------------------------
 # Build Options & Configuration
 # ------------------------------------------------------------------------------
-option(BUILD_TESTING_${PROJECT_NAME} "Build tests" ${C_ABSTRACT_HTTP_IS_TOP_LEVEL})
+option(C_ABSTRACT_HTTP_BUILD_TESTING "Build tests" ${C_ABSTRACT_HTTP_IS_TOP_LEVEL})
+option(BUILD_TESTING_${PROJECT_NAME} "Build tests" ${C_ABSTRACT_HTTP_BUILD_TESTING})
+if(NOT C_ABSTRACT_HTTP_BUILD_TESTING)
+    set(BUILD_TESTING_${PROJECT_NAME} OFF)
+endif()
+if(BUILD_TESTING_${PROJECT_NAME})
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.valgrind.supp" AND NOT MEMORYCHECK_SUPPRESSIONS_FILE)
+        set(MEMORYCHECK_SUPPRESSIONS_FILE "${CMAKE_CURRENT_SOURCE_DIR}/.valgrind.supp" CACHE FILEPATH "Valgrind suppressions file")
+    endif()
+    include(CTest)
+endif()
+set(_CAH_SAVED_BUILD_TESTING "${BUILD_TESTING}")
 option(BUILD_SHARED_LIBS "Build Shared Library" OFF)
 option(C_ABSTRACT_HTTP_HEADER_ONLY "Use header-only STB-style library" OFF)
 
@@ -295,6 +306,9 @@ function(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
             GIT_TAG ${FetchTag}
         )
         FetchContent_MakeAvailable(${PkgName})
+        if(DEFINED CACHE{BUILD_TESTING} AND NOT "${_CAH_SAVED_BUILD_TESTING}" STREQUAL "")
+            set(BUILD_TESTING "${_CAH_SAVED_BUILD_TESTING}" CACHE BOOL "Build the testing tree." FORCE)
+        endif()
 
         c_abstract_http_suppress_target_warnings(${PkgName})
         if("${PkgName}" STREQUAL "CURL" AND TARGET libcurl)
@@ -810,8 +824,6 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/c_abstract_http"
 # Testing & OOM-Instrumented Library Target
 # ------------------------------------------------------------------------------
 if(BUILD_TESTING_${PROJECT_NAME})
-    include(CTest)
-
     if(BUILD_TESTING)
         set(C_ABSTRACT_HTTP_MOCK_DEFS
             C_ABSTRACT_HTTP_TEST_OOM=1

@@ -117,6 +117,18 @@ TEST test_coroutine_execution(void) {
   }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_coroutine_free(co));
 
+  /* Regression check: yielding outside any active coroutine after resuming and
+   * freeing prior coroutines must return C_ABSTRACT_HTTP_ERR_INVAL rather than
+   * dereferencing a dangling thread-local coroutine pointer. */
+  {
+    void *churn = malloc(2048);
+    if (churn) {
+      memset(churn, 0xA5, 2048);
+      free(churn);
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, abstract_http_coroutine_yield());
+  }
+
   PASS();
 }
 

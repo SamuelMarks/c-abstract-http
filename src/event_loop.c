@@ -318,8 +318,11 @@ timer_heap_down(struct ModalityEventLoop *loop, size_t idx) {
 extern int g_mock_select_fail;
 /** @brief Fault-injection flag for select error-fd readiness tests */
 extern int g_mock_select_error_fds;
+#if defined(CAH_HAVE_EPOLL) || defined(CAH_HAVE_KQUEUE) ||                     \
+    defined(CAH_HAVE_IOCP_WSAPOLL)
 /** @brief Fault-injection flag for native multiplexer init failure */
 static int g_mock_native_mux_fail = 0;
+#endif
 /** @brief Fault-injection operation code for event-loop op failures */
 static int g_mock_loop_op_fail = 0;
 /** @brief Countdown before `g_mock_loop_op_fail` triggers */
@@ -336,7 +339,12 @@ c_abstract_http_test_set_native_mux_fail(int v);
 
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_test_set_native_mux_fail(int v) {
+#if defined(CAH_HAVE_EPOLL) || defined(CAH_HAVE_KQUEUE) ||                     \
+    defined(CAH_HAVE_IOCP_WSAPOLL)
   g_mock_native_mux_fail = v;
+#else
+  (void)v;
+#endif
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -434,6 +442,11 @@ static int math_resolve_loop_backend(enum HttpLoopBackend requested) {
 NO_DISCARD static c_abstract_http_error_t
 epoll_sync_fd(struct ModalityEventLoop *loop, int op, int fd, int events) {
   struct epoll_event ev;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (math_loop_should_fail_op(9)) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
   if (loop->backend != HTTP_LOOP_BACKEND_EPOLL || loop->epoll_fd < 0 ||
       loop->fallback_to_select) {
     return C_ABSTRACT_HTTP_SUCCESS;

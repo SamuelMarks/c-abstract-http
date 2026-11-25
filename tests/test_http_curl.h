@@ -625,6 +625,34 @@ TEST test_curl_http3_config(void) {
   config.connect_timeout_ms = 0;
   config.write_timeout_ms = 0;
 
+  /* Custom TLS CA, mTLS client cert/key, and SPKI SHA-256 pinning */
+  {
+    unsigned char mock_ca_pem[] = "-----BEGIN CERTIFICATE-----\n";
+    int step;
+    config.ca_path = "/tmp/mock-ca.pem";
+    config.ca_buffer = mock_ca_pem;
+    config.ca_buffer_len = sizeof(mock_ca_pem) - 1U;
+    config.client_cert_path = "/tmp/mock-client.pem";
+    config.client_key_path = "/tmp/mock-client.key";
+    config.cert_pin_sha256 =
+        "sha256//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
+    for (step = 0; step < 12; ++step) {
+      g_mock_curl_setopt_fail = 1;
+      g_mock_curl_setopt_count = step;
+      ret = http_curl_config_apply(ctx, &config);
+      g_mock_curl_setopt_fail = 0;
+      ASSERT(ret == C_ABSTRACT_HTTP_SUCCESS || ret == C_ABSTRACT_HTTP_ERR_IO);
+    }
+    config.ca_path = NULL;
+    config.ca_buffer_len = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_config_apply(ctx, &config));
+    config.ca_buffer = NULL;
+    config.client_cert_path = NULL;
+    config.client_key_path = NULL;
+    config.cert_pin_sha256 = NULL;
+  }
+
   /* ctx->curl == NULL */
   {
     void *saved = *(void **)ctx;

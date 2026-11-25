@@ -35,6 +35,25 @@ struct sha256_ctx {
   uint8_t buffer[64]; /**< @brief Partial 512-bit block buffer */
 };
 
+/** @brief Namespace alias for sha1_init */
+#define sha1_init c_abstract_http_sha1_init
+/** @brief Namespace alias for sha1_update */
+#define sha1_update c_abstract_http_sha1_update
+/** @brief Namespace alias for sha1_final */
+#define sha1_final c_abstract_http_sha1_final
+/** @brief Namespace alias for sha256_init */
+#define sha256_init c_abstract_http_sha256_init
+/** @brief Namespace alias for sha256_update */
+#define sha256_update c_abstract_http_sha256_update
+/** @brief Namespace alias for sha256_final */
+#define sha256_final c_abstract_http_sha256_final
+/** @brief Namespace alias for base64_encode */
+#define base64_encode c_abstract_http_base64_encode
+/** @brief Namespace alias for base64_decode */
+#define base64_decode c_abstract_http_base64_decode
+/** @brief Namespace alias for math_is_const_time_streq */
+#define math_is_const_time_streq math_c_abstract_http_is_const_time_streq
+
 /**
  * @brief Initialize a SHA-1 context.
  * @param ctx The context to initialize.

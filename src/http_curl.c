@@ -749,6 +749,40 @@ NO_DISCARD c_abstract_http_error_t http_curl_config_apply(
                                      config->verify_host ? 2L : 0L) != CURLE_OK)
     return C_ABSTRACT_HTTP_ERR_IO;
 
+  if (config->ca_path) {
+    if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_CAINFO,
+                                       config->ca_path) != CURLE_OK)
+      return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#if defined(CURLOPT_CAINFO_BLOB)
+  if (config->ca_buffer && config->ca_buffer_len > 0) {
+    struct curl_blob ca_blob;
+    ca_blob.data = (void *)config->ca_buffer;
+    ca_blob.len = config->ca_buffer_len;
+    ca_blob.flags = CURL_BLOB_COPY;
+    if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_CAINFO_BLOB,
+                                       &ca_blob) != CURLE_OK)
+      return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+  if (config->client_cert_path) {
+    if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_SSLCERT,
+                                       config->client_cert_path) != CURLE_OK)
+      return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (config->client_key_path) {
+    if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_SSLKEY,
+                                       config->client_key_path) != CURLE_OK)
+      return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#if defined(CURLOPT_PINNEDPUBLICKEY)
+  if (config->cert_pin_sha256) {
+    if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_PINNEDPUBLICKEY,
+                                       config->cert_pin_sha256) != CURLE_OK)
+      return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+
   if (ABSTRACT_HTTP_CURL_EASY_SETOPT(ctx->curl, CURLOPT_FOLLOWLOCATION,
                                      config->follow_redirects ? 1L : 0L) !=
       CURLE_OK)

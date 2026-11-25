@@ -878,6 +878,7 @@ struct raw_mock_tls_cfg {
   int calls;
 };
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 struct raw_mock_tls_sess {
   int sock_fd;
   struct raw_mock_tls_cfg cfg;
@@ -1053,7 +1054,6 @@ NO_DISCARD static c_abstract_http_error_t raw_upload_read_cb(void *user_data,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
 static int g_redir_counter = 0;
 
 TEST test_http_raw_features_and_coverage(void) {
