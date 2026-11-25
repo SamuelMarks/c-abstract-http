@@ -16,6 +16,8 @@ extern "C" {
 
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
+#elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+#include <time.h>
 #else
 #if !defined(_MSC_VER)
 #include <unistd.h>
@@ -43,7 +45,13 @@ NO_DISCARD static c_abstract_http_error_t test_tls_task_cb(void *arg) {
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   Sleep(5);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-  delay(5);
+  {
+    clock_t start_t = clock();
+    clock_t wait_t =
+        (clock_t)((5UL * (unsigned long)CLOCKS_PER_SEC + 999UL) / 1000UL);
+    while ((clock_t)(clock() - start_t) < wait_t) {
+    }
+  }
 #else
   usleep(5 * 1000);
 #endif

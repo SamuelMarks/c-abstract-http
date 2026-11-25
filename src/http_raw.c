@@ -393,11 +393,13 @@ NO_DISCARD static c_abstract_http_error_t parse_url(const char *url,
   }
 
   if (port_start) {
+    long parsed_port;
     host_len = (size_t)(port_start - p);
-    *port = atoi(port_start + 1);
-    if (*port <= 0 || *port > 65535) {
+    parsed_port = strtol(port_start + 1, NULL, 10);
+    if (parsed_port <= 0L || parsed_port > 65535L) {
       return C_ABSTRACT_HTTP_ERR_INVAL;
     }
+    *port = (int)parsed_port;
   } else if (path_start) {
     host_len = (size_t)(path_start - p);
   } else {
@@ -1293,11 +1295,18 @@ static int math_raw_response_complete(const char *buf, size_t len,
     return 1;
   }
 
-  line = strstr(buf, "\r\n");
-  while (line && line < hdr_end) {
+  line = buf;
+  while (line < hdr_end && !(line[0] == '\r' && line[1] == '\n')) {
+    line++;
+  }
+  while (line < hdr_end) {
     const char *ls = line + 2;
-    const char *le = strstr(ls, "\r\n");
-    const char *colon = (const char *)memchr(ls, ':', (size_t)(le - ls));
+    const char *le = ls;
+    const char *colon;
+    while (le < hdr_end + 2 && !(le[0] == '\r' && le[1] == '\n')) {
+      le++;
+    }
+    colon = (const char *)memchr(ls, ':', (size_t)(le - ls));
     if (colon) {
       size_t klen = (size_t)(colon - ls);
       const char *vs = colon + 1;
@@ -3565,9 +3574,16 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_test_raw_edges(int step) {
 
   if (step == 39) {
     struct HttpRequest freq;
+    c_abstract_http_error_t fin_rc;
     memset(&freq, 0, sizeof(freq));
     res_ptr = (struct HttpResponse *)calloc(1, sizeof(*res_ptr));
-    return raw_finish_send(NULL, &freq, 1, &res_ptr, C_ABSTRACT_HTTP_SUCCESS);
+    fin_rc = raw_finish_send(NULL, &freq, 1, &res_ptr, C_ABSTRACT_HTTP_SUCCESS);
+    if (fin_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(res_ptr);
+      return fin_rc;
+    }
+    free(res_ptr);
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   rc = http_loop_init(&loop);
@@ -3577,6 +3593,9 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_test_raw_edges(int step) {
 
   if (step == 40) {
     struct RawMultiSlot *ms = (struct RawMultiSlot *)calloc(1, sizeof(*ms));
+    if (!ms) {
+      return raw_edge_close_fds_loop(loop, -1, -1, C_ABSTRACT_HTTP_ERR_NOMEM);
+    }
     memset(&batch, 0, sizeof(batch));
     batch.loop = loop;
     ms[0].batch = &batch;

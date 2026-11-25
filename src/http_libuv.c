@@ -30,17 +30,20 @@
 #include <wolfssl/options.h>
 #include <wolfssl/openssl/ssl.h>
 #include <wolfssl/openssl/x509.h>
+/** @brief Indicator that OpenSSL memory-BIO TLS framing is enabled for libuv */
 #define CAH_UV_HAVE_OSSL_BIO 1
 #elif defined(C_ABSTRACT_HTTP_USE_OPENSSL) || defined(C_ABSTRACT_HTTP_USE_LIBRESSL) || defined(C_ABSTRACT_HTTP_USE_BORINGSSL)
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
 #include <openssl/x509.h>
+/** @brief Indicator that OpenSSL memory-BIO TLS framing is enabled for libuv */
 #define CAH_UV_HAVE_OSSL_BIO 1
 #elif defined(C_ABSTRACT_HTTP_USE_MBEDTLS)
 #include <mbedtls/ssl.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/x509_crt.h>
+/** @brief Indicator that mbedTLS custom-BIO TLS framing is enabled for libuv */
 #define CAH_UV_HAVE_MBED_BIO 1
 #endif
 #endif

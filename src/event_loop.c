@@ -1659,9 +1659,6 @@ http_loop_run(struct ModalityEventLoop *loop) {
     if (loop->timer_count == 0) {
       break;
     }
-    if (!loop->wakeup_pending) {
-      delay(1);
-    }
     loop->wakeup_pending = 0;
   }
   loop->running = 0;

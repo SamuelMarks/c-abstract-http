@@ -1950,6 +1950,8 @@ TEST test_http_raw_features_and_coverage(void) {
         } else if (st == 34 || st == 36) {
           g_mock_select_fail = 1;
         } else if (st == 39) {
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    c_abstract_http_test_raw_edges(39));
           g_mock_headers_free_fail = 1;
         } else if (st == 55) {
           ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -2059,6 +2061,17 @@ TEST test_http_raw_features_and_coverage(void) {
       {
         c_abstract_http_error_t erc = c_abstract_http_test_raw_edges(40);
         ASSERT((int)erc >= -2000 && (int)erc <= 2000);
+      }
+      {
+        int ac;
+        for (ac = 0; ac <= 6; ++ac) {
+          c_abstract_http_error_t orc;
+          g_mock_alloc_fail = 1;
+          g_mock_alloc_count = ac;
+          orc = c_abstract_http_test_raw_edges(40);
+          g_mock_alloc_fail = 0;
+          ASSERT((int)orc >= -2000 && (int)orc <= 2000);
+        }
       }
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 c_abstract_http_test_set_loop_op_fail(3, 0));

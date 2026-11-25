@@ -27,6 +27,7 @@
 #if defined(C_ABSTRACT_HTTP_USE_OPENSSL) || defined(C_ABSTRACT_HTTP_USE_LIBRESSL) || defined(C_ABSTRACT_HTTP_USE_BORINGSSL)
 #include <event2/bufferevent_ssl.h>
 #include <openssl/ssl.h>
+/** @brief Indicator that libevent OpenSSL bufferevent TLS support is enabled */
 #define CAH_LIBEVENT_HAVE_OPENSSL 1
 #endif
 #endif

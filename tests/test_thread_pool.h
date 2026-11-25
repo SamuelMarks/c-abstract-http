@@ -19,6 +19,7 @@ extern "C" {
 #include <winsock2.h>
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
 #include <dos.h>
+#include <time.h>
 #else
 #if !defined(_MSC_VER)
 #include <unistd.h>
@@ -78,7 +79,14 @@ static void sleep_ms(int ms) {
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   Sleep((unsigned long)ms);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-  delay(ms);
+  if (ms > 0) {
+    clock_t start_t = clock();
+    clock_t wait_t =
+        (clock_t)(((unsigned long)ms * (unsigned long)CLOCKS_PER_SEC + 999UL) /
+                  1000UL);
+    while ((clock_t)(clock() - start_t) < wait_t) {
+    }
+  }
 #else
   usleep((unsigned int)ms * 1000U);
 #endif

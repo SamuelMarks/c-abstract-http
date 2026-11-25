@@ -157,7 +157,6 @@ TEST test_abstract_http_serialize_errors(void) {
   struct HttpResponse res;
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
-  (void)res;
 
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             abstract_http_ipc_serialize_request(NULL, &buf, &len));
@@ -404,7 +403,6 @@ TEST test_process_serialize_failures(void) {
   struct HttpResponse res;
   char *buf = NULL;
   size_t len = 0;
-  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
@@ -462,7 +460,6 @@ TEST test_process_deserialization_edge_cases(void) {
   struct HttpResponse res;
   char *buf = NULL;
   size_t len = 0;
-  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));
@@ -575,12 +572,9 @@ TEST test_process_deserialization_edge_cases(void) {
 
 TEST test_process_more_edge_cases(void) {
   struct HttpRequest req;
-  struct HttpResponse res;
   char buf[100] = {0};
 
   memset(&req, 0, sizeof(req));
-  memset(&res, 0, sizeof(res));
-  (void)res;
 
   /* 429: read_size > end */
   /* Try to read size from an empty buffer (0 bytes) */
@@ -637,7 +631,6 @@ TEST test_process_final_edge_cases(void) {
   struct HttpResponse res;
   char *buf = NULL;
   size_t len = 0;
-  (void)res;
 
   memset(&req, 0, sizeof(req));
   memset(&res, 0, sizeof(res));

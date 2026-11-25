@@ -26,6 +26,11 @@ extern "C" {
 #include "mock_alloc.h"
 /* clang-format on */
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_xquic_test_varint8(void);
+#endif
+
 struct xq_chunk_state {
   int calls;
   size_t total;
@@ -751,14 +756,11 @@ TEST test_http_xquic_fallback_proxy_and_parts(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_context_free(ctx));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_xquic_global_cleanup());
-  {
-    extern c_abstract_http_error_t c_abstract_http_xquic_test_varint8(void);
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_xquic_test_varint8());
-    g_mock_alloc_count = 0;
-    g_mock_alloc_fail = 1;
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, c_abstract_http_xquic_test_varint8());
-    g_mock_alloc_fail = 0;
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_xquic_test_varint8());
+  g_mock_alloc_count = 0;
+  g_mock_alloc_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, c_abstract_http_xquic_test_varint8());
+  g_mock_alloc_fail = 0;
   PASS();
 }
 #endif

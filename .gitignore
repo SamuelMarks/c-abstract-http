@@ -266,3 +266,8 @@ run_*.sh
 run_*.txt
 run_*.py
 test_*_oom.py
+
+# DOS OpenWatcom & QEMU matrix artifacts
+.vagrant/
+.watcom/
+.dos_watcom_matrix/

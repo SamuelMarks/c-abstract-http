@@ -67,6 +67,21 @@
 /** @brief Win32 error code indicating overlapped asynchronous I/O in flight */
 #define ERROR_IO_PENDING 997
 #endif
+#ifndef CALLBACK
+#if defined(_WIN32)
+/** @brief Win32 stdcall callback calling convention */
+#define CALLBACK __stdcall
+#else
+/** @brief Calling convention macro fallback for non-Win32 analysis */
+#define CALLBACK
+#endif
+#endif
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Countdown before `ascii_to_wide`/`wide_to_ascii`/`method_to_wide`
+ * fail */
+static int g_mock_wininet_conv_fail = 0;
+#endif
 
 /**
  * @brief Convert a UTF-8 string into a UTF-16 wide-character buffer.
@@ -74,11 +89,20 @@
  * @param ws Destination wide-character buffer.
  * @param buf_cap Capacity of @p ws in wchar_t elements.
  * @param out_len Receives written wide-character count.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-static void ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
-                          size_t *out_len) {
+NO_DISCARD static c_abstract_http_error_t
+ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap, size_t *out_len) {
   size_t si = 0;
   size_t wi = 0;
+  if (!s || !ws || buf_cap == 0 || !out_len) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_wininet_conv_fail > 0 && --g_mock_wininet_conv_fail == 0) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+#endif
   while (s[si] != '\0' && wi + 1 < buf_cap) {
     unsigned char b0 = (unsigned char)s[si];
     if (b0 < 0x80U) {
@@ -120,6 +144,7 @@ static void ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
   }
   ws[wi] = L'\0';
   *out_len = wi;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -128,11 +153,20 @@ static void ascii_to_wide(const char *s, wchar_t *ws, size_t buf_cap,
  * @param s Destination char buffer.
  * @param buf_cap Capacity of @p s in bytes.
  * @param out_len Receives written byte count.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-static void wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
-                          size_t *out_len) {
+NO_DISCARD static c_abstract_http_error_t
+wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap, size_t *out_len) {
   size_t wi = 0;
   size_t si = 0;
+  if (!ws || !s || buf_cap == 0 || !out_len) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_wininet_conv_fail > 0 && --g_mock_wininet_conv_fail == 0) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+#endif
   while (ws[wi] != L'\0' && si + 4 < buf_cap) {
     unsigned long cp = (unsigned long)ws[wi] & 0xFFFFUL;
     if (cp < 0x80UL) {
@@ -149,6 +183,7 @@ static void wide_to_ascii(const wchar_t *ws, char *s, size_t buf_cap,
   }
   s[si] = '\0';
   *out_len = si;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /** @brief Internal struct HttpTransportContext */
@@ -187,8 +222,18 @@ NO_DISCARD static c_abstract_http_error_t safe_close_handle(HINTERNET *h) {
  * @brief Map an HttpMethod enum to a wide-character HTTP verb string.
  * @param method Input HTTP method enum.
  * @param out Receives wide literal string pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
  */
-static void method_to_wide(enum HttpMethod method, const wchar_t **out) {
+NO_DISCARD static c_abstract_http_error_t method_to_wide(enum HttpMethod method,
+                                                         const wchar_t **out) {
+  if (!out) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_wininet_conv_fail > 0 && --g_mock_wininet_conv_fail == 0) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+#endif
   switch ((int)method) {
   case HTTP_GET:
     *out = L"GET";
@@ -224,6 +269,7 @@ static void method_to_wide(enum HttpMethod method, const wchar_t **out) {
     *out = L"GET";
     break;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -259,15 +305,23 @@ headers_to_wide_block(const struct HttpHeaders *headers, wchar_t **out) {
   p = buf;
   for (i = 0; i < headers->count; ++i) {
     size_t written = 0;
-    ascii_to_wide(headers->headers[i].key, p, total_wchars - (size_t)(p - buf),
-                  &written);
+    c_abstract_http_error_t rc = ascii_to_wide(
+        headers->headers[i].key, p, total_wchars - (size_t)(p - buf), &written);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      return rc;
+    }
     p += written;
     p[0] = L':';
     p[1] = L' ';
     p += 2;
 
-    ascii_to_wide(headers->headers[i].value, p,
-                  total_wchars - (size_t)(p - buf), &written);
+    rc = ascii_to_wide(headers->headers[i].value, p,
+                       total_wchars - (size_t)(p - buf), &written);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(buf);
+      return rc;
+    }
     p += written;
     p[0] = L'\r';
     p[1] = L'\n';
@@ -570,7 +624,11 @@ http_wininet_send(struct HttpTransportContext *ctx,
       LOG_DEBUG("http_wininet_send: Error ENOMEM for wUrl");
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
-    ascii_to_wide(req->url, wUrl, cap, &wLen);
+    rc = ascii_to_wide(req->url, wUrl, cap, &wLen);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(wUrl);
+      return rc;
+    }
   }
 
   /* 2. Crack URL */
@@ -637,7 +695,10 @@ http_wininet_send(struct HttpTransportContext *ctx,
     dwFlags |= ctx->security_flags;
   }
 
-  method_to_wide(req->method, &wmethod);
+  rc = method_to_wide(req->method, &wmethod);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    goto cleanup;
+  }
 
   hRequest = HttpOpenRequestW(hConnect, wmethod, urlComp.lpszUrlPath, NULL,
                               NULL, NULL, dwFlags, 0);
@@ -663,7 +724,10 @@ http_wininet_send(struct HttpTransportContext *ctx,
               ctx->cookie_jar->cookies[i].value);
 #endif
 
-      ascii_to_wide(cbuf, wcbuf, 4096, &written);
+      rc = ascii_to_wide(cbuf, wcbuf, 4096, &written);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto cleanup;
+      }
       HttpAddRequestHeadersW(hRequest, wcbuf, (DWORD)-1L, HTTP_ADDREQ_FLAG_ADD);
     }
   }
@@ -758,7 +822,11 @@ http_wininet_send(struct HttpTransportContext *ctx,
       {
         char cbuf[4096];
         size_t cwritten = 0;
-        wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten);
+        rc = wide_to_ascii(pwszCookie, cbuf, sizeof(cbuf), &cwritten);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(pwszCookie);
+          goto cleanup;
+        }
         {
           char *eq = strchr(cbuf, '=');
           const char *name = cbuf;
@@ -1177,7 +1245,14 @@ NO_DISCARD static c_abstract_http_error_t wininet_submit_async_slot(
     free(slot);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
-  ascii_to_wide(req->url, wUrl, cap, &wLen);
+  rc = ascii_to_wide(req->url, wUrl, cap, &wLen);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(wUrl);
+    InternetSetStatusCallbackW(slot->hAsyncRoot, NULL);
+    InternetCloseHandle(slot->hAsyncRoot);
+    free(slot);
+    return rc;
+  }
 
   memset(&urlComp, 0, sizeof(urlComp));
   urlComp.dwStructSize = sizeof(urlComp);
@@ -1239,7 +1314,19 @@ NO_DISCARD static c_abstract_http_error_t wininet_submit_async_slot(
   slot->hConnect = InternetConnectW(slot->hAsyncRoot, urlComp.lpszHostName,
                                     (INTERNET_PORT)urlComp.nPort, NULL, NULL,
                                     INTERNET_SERVICE_HTTP, 0, (DWORD_PTR)slot);
-  method_to_wide(req->method, &wmethod);
+  rc = method_to_wide(req->method, &wmethod);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(wUrl);
+    free(wHost);
+    free(wPath);
+    if (slot->hConnect) {
+      InternetCloseHandle(slot->hConnect);
+    }
+    InternetSetStatusCallbackW(slot->hAsyncRoot, NULL);
+    InternetCloseHandle(slot->hAsyncRoot);
+    free(slot);
+    return rc;
+  }
   if (!slot->hConnect) {
     free(wUrl);
     free(wHost);
@@ -1321,9 +1408,11 @@ NO_DISCARD c_abstract_http_error_t http_wininet_send_multi(
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /**
- * @brief Exercise `wininet_async_finish_slot` NULL/finished guards for tests.
- * @param mode 0 to test NULL slot, non-zero to test already-finished slot.
- * @return C_ABSTRACT_HTTP_SUCCESS.
+ * @brief Exercise `wininet_async_finish_slot` and wide-conversion guards for
+ * tests.
+ * @param mode 0=NULL slot, 1=finished slot, 2=conversion NULL guards,
+ * <0=arm `g_mock_wininet_conv_fail = -mode` (`-999` resets to 0).
+ * @return C_ABSTRACT_HTTP_SUCCESS or expected error code.
  */
 NO_DISCARD c_abstract_http_error_t
 c_abstract_http_test_wininet_slot_guard(int mode);
@@ -1331,8 +1420,42 @@ c_abstract_http_test_wininet_slot_guard(int mode);
 NO_DISCARD c_abstract_http_error_t
 c_abstract_http_test_wininet_slot_guard(int mode) {
   struct WinInetAsyncSlot dummy;
+  if (mode < 0) {
+    g_mock_wininet_conv_fail = (mode == -999) ? 0 : -mode;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
   if (mode == 0) {
     return wininet_async_finish_slot(NULL, C_ABSTRACT_HTTP_SUCCESS);
+  }
+  if (mode >= 2 && mode <= 10) {
+    wchar_t wbuf[8];
+    char cbuf[8];
+    size_t len = 0;
+    if (mode == 2) {
+      return ascii_to_wide(NULL, wbuf, 8, &len);
+    }
+    if (mode == 3) {
+      return ascii_to_wide("a", NULL, 8, &len);
+    }
+    if (mode == 4) {
+      return ascii_to_wide("a", wbuf, 0, &len);
+    }
+    if (mode == 5) {
+      return ascii_to_wide("a", wbuf, 8, NULL);
+    }
+    if (mode == 6) {
+      return wide_to_ascii(NULL, cbuf, 8, &len);
+    }
+    if (mode == 7) {
+      return wide_to_ascii(L"a", NULL, 8, &len);
+    }
+    if (mode == 8) {
+      return wide_to_ascii(L"a", cbuf, 0, &len);
+    }
+    if (mode == 9) {
+      return wide_to_ascii(L"a", cbuf, 8, NULL);
+    }
+    return method_to_wide(HTTP_GET, NULL);
   }
   memset(&dummy, 0, sizeof(dummy));
   dummy.finished = 1;

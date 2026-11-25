@@ -266,11 +266,11 @@ thread_join(abstract_http_thread_t thread) {
 
 /** @brief Internal struct AbstractHttpMutex */
 struct AbstractHttpMutex {
-  int dummy;
+  int dummy; /**< Non-empty C89 struct placeholder */
 };
 /** @brief Internal struct AbstractHttpCond */
 struct AbstractHttpCond {
-  int dummy;
+  int dummy; /**< Non-empty C89 struct placeholder */
 };
 
 NO_DISCARD c_abstract_http_error_t
@@ -333,24 +333,41 @@ abstract_http_cond_free(struct AbstractHttpCond *cond) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Cooperative MS-DOS thread identifier */
 typedef int abstract_http_thread_t;
+/** @brief MS-DOS thread start routine return type */
 #define ABSTRACT_HTTP_THREAD_FUNC void *
+/** @brief MS-DOS thread start routine argument type */
 typedef void *abstract_http_thread_arg_t;
 
+/**
+ * @brief Stub thread creation helper for cooperative MS-DOS targets.
+ * @param thread Receives synthetic thread handle.
+ * @param start_routine Thread entry callback (unused on DOS).
+ * @param arg Thread argument pointer (unused on DOS).
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
+ */
 NO_DISCARD static c_abstract_http_error_t thread_create(
     abstract_http_thread_t *thread,
     ABSTRACT_HTTP_THREAD_FUNC (*start_routine)(abstract_http_thread_arg_t),
     abstract_http_thread_arg_t arg) {
-  (void)thread;
   (void)start_routine;
   (void)arg;
-  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  if (!thread)
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  *thread = 1;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
+/**
+ * @brief Stub thread join helper for cooperative MS-DOS targets.
+ * @param thread Synthetic thread handle.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
+ */
 NO_DISCARD static c_abstract_http_error_t
 thread_join(abstract_http_thread_t thread) {
   if (!thread)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #else /* POSIX */
@@ -465,11 +482,7 @@ abstract_http_cond_signal(struct AbstractHttpCond *cond) {
                                                : C_ABSTRACT_HTTP_ERR_IO;
 }
 
-/**
- * @brief Wake all threads waiting on a condition variable.
- * @param cond Condition variable pointer.
- * @return C_ABSTRACT_HTTP_SUCCESS on success, or error code on failure.
- */
+/* Wake all threads waiting on a condition variable. */
 NO_DISCARD c_abstract_http_error_t
 ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   if (!cond)
@@ -873,6 +886,18 @@ abstract_http_thread_pool_push(struct AbstractHttpThreadPool *pool,
       }
     }
   }
+
+#if defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
+  while (pool->head && !pool->stop) {
+    struct TaskNode *run_node = pool->head;
+    pool->head = run_node->next;
+    if (!pool->head) {
+      pool->tail = NULL;
+    }
+    THREAD_POOL_RUN_TASK(run_node->cb, run_node->arg);
+    free(run_node);
+  }
+#endif
 
   LOG_DEBUG("abstract_http_thread_pool_push: Success");
   return C_ABSTRACT_HTTP_SUCCESS;

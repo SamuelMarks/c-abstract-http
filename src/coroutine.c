@@ -306,6 +306,8 @@ struct AbstractHttpCoroutine {
   void *arg;
   /** @brief Result enum from coroutine callback */
   c_abstract_http_error_t body_rc;
+  /** @brief Pending error from `yield` stack buffer allocation */
+  c_abstract_http_error_t yield_rc;
   /** @brief Non-zero once coroutine has entered `cb` */
   int started;
   /** @brief Non-zero once coroutine body completed */
@@ -316,55 +318,91 @@ struct AbstractHttpCoroutine {
 static struct AbstractHttpCoroutine *g_dos_current_co = NULL;
 
 /**
- * @brief Reserve 512 bytes of stack headroom below `caller_env` so resume/yield
- * frame copies never overlap the caller's `setjmp` frame, then run `co->cb`.
- * @return C_ABSTRACT_HTTP_SUCCESS (unreachable; satisfies enum return rule).
+ * @brief Execute coroutine callback below `stack_high` and jump to caller.
+ * @return Coroutine callback status (unreachable; satisfies enum return rule).
  */
-NO_DISCARD static c_abstract_http_error_t dos_co_start_padded(void) {
-  struct AbstractHttpCoroutine *co = g_dos_current_co;
-  volatile unsigned char headroom[512];
-  volatile unsigned char anchor = 0;
+NO_DISCARD static c_abstract_http_error_t dos_co_enter_body(void) {
   c_abstract_http_error_t rc;
-  headroom[0] = 0;
-  headroom[sizeof(headroom) - 1] = 0;
-  co->stack_high = (const unsigned char *)&anchor;
+  struct AbstractHttpCoroutine *co = g_dos_current_co;
   rc = co->cb(co->arg);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    co->body_rc = rc;
-    co->stack_high = NULL;
-    co->is_done = 1;
-    longjmp(co->caller_env, 2);
-    return rc;
-  }
-  co->body_rc = C_ABSTRACT_HTTP_SUCCESS;
+  co = g_dos_current_co;
+  co->body_rc = rc;
   co->stack_high = NULL;
   co->is_done = 1;
   longjmp(co->caller_env, 2);
+  return rc;
+}
+
+/**
+ * @brief Reserve 512 bytes of stack headroom below `caller_env` so resume/yield
+ * frame copies never overlap the caller's `setjmp` frame, then enter body.
+ * @return C_ABSTRACT_HTTP_SUCCESS (unreachable; satisfies enum return rule).
+ */
+NO_DISCARD static c_abstract_http_error_t dos_co_start_padded(void) {
+  volatile unsigned char headroom[512];
+  headroom[0] = 0;
+  headroom[sizeof(headroom) - 1] = 0;
+  g_dos_current_co->stack_high = (const unsigned char *)&headroom[256];
+  return dos_co_enter_body();
+}
+
+/**
+ * @brief Recursively advance hardware stack pointer strictly below
+ * `saved_low`, restore saved stack slice, and jump back into `co_env`.
+ * @return C_ABSTRACT_HTTP_SUCCESS (unreachable; satisfies enum return rule).
+ */
+NO_DISCARD static c_abstract_http_error_t dos_co_restore_and_jump(void) {
+  volatile unsigned char pad[256];
+  const unsigned char *frame_top = (const unsigned char *)&pad[sizeof(pad) - 1];
+  struct AbstractHttpCoroutine *co = g_dos_current_co;
+  pad[0] = 0;
+  pad[sizeof(pad) - 1] = 0;
+  if (co->saved_len > 0 && co->saved_stack != NULL) {
+    if ((unsigned long)frame_top + 64UL >= (unsigned long)co->saved_low) {
+      return dos_co_restore_and_jump();
+    }
+    memcpy(co->saved_low, co->saved_stack, co->saved_len);
+  }
+  longjmp(g_dos_current_co->co_env, 1);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
- * @brief Recursively advance hardware stack pointer past `co->saved_low`,
- * restore saved stack slice, and jump back into `co->co_env`.
- * @param co Yielded coroutine to restore.
- * @return C_ABSTRACT_HTTP_SUCCESS (unreachable; satisfies enum return rule).
+ * @brief Copy the active coroutine stack slice below `yield`'s `setjmp` frame
+ * and jump back to `caller_env`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or `C_ABSTRACT_HTTP_ERR_NOMEM` on OOM.
  */
-NO_DISCARD static c_abstract_http_error_t
-dos_co_restore_and_jump(struct AbstractHttpCoroutine *co) {
-  volatile unsigned char pad[256];
-  const unsigned char *probe = (const unsigned char *)&pad[0];
-  pad[0] = 0;
-  pad[sizeof(pad) - 1] = 0;
-  if (co->saved_len > 0 && co->saved_stack != NULL) {
-    if (probe >= co->saved_low && probe < co->saved_low + co->saved_len + 64U) {
-      return dos_co_restore_and_jump(co);
-    }
-    if (probe > co->saved_low) {
-      return dos_co_restore_and_jump(co);
-    }
-    memcpy(co->saved_low, co->saved_stack, co->saved_len);
+NO_DISCARD static c_abstract_http_error_t dos_co_save_and_jump_caller(void) {
+  volatile unsigned char sp_marker = 0;
+  struct AbstractHttpCoroutine *co = g_dos_current_co;
+  const unsigned char *cur_sp = (const unsigned char *)&sp_marker;
+  const unsigned char *lo;
+  const unsigned char *hi;
+  size_t slice_len;
+
+  if ((unsigned long)cur_sp <= (unsigned long)co->stack_high) {
+    lo = cur_sp;
+    hi = co->stack_high;
+  } else {
+    lo = co->stack_high;
+    hi = cur_sp;
   }
-  longjmp(co->co_env, 1);
+  slice_len = (size_t)(hi - lo);
+  if (slice_len > co->saved_cap) {
+    unsigned char *nbuf = (unsigned char *)realloc(co->saved_stack, slice_len);
+    if (!nbuf) {
+      co->yield_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    co->saved_stack = nbuf;
+    co->saved_cap = slice_len;
+  }
+  if (slice_len > 0) {
+    memcpy(co->saved_stack, lo, slice_len);
+  }
+  co->saved_low = (unsigned char *)lo;
+  co->saved_len = slice_len;
+  longjmp(co->caller_env, 1);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -394,6 +432,7 @@ NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_init(
   c->cb = cb;
   c->arg = arg;
   c->body_rc = C_ABSTRACT_HTTP_SUCCESS;
+  c->yield_rc = C_ABSTRACT_HTTP_SUCCESS;
   c->started = 0;
   c->is_done = 0;
   *co = c;
@@ -428,7 +467,7 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
       co->started = 1;
       return dos_co_start_padded();
     }
-    return dos_co_restore_and_jump(co);
+    return dos_co_restore_and_jump();
   }
   g_dos_current_co = prev;
   if (co->is_done) {
@@ -439,11 +478,6 @@ abstract_http_coroutine_resume(struct AbstractHttpCoroutine *co) {
 
 NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_yield(void) {
   struct AbstractHttpCoroutine *co;
-  volatile unsigned char sp_marker = 0;
-  const unsigned char *cur_sp;
-  const unsigned char *lo;
-  const unsigned char *hi;
-  size_t slice_len;
 
   if (g_coroutine_hooks.yield) {
     return g_coroutine_hooks.yield();
@@ -452,32 +486,11 @@ NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_yield(void) {
   if (!co || !co->stack_high) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  cur_sp = (const unsigned char *)&sp_marker;
-  if (cur_sp <= co->stack_high) {
-    lo = cur_sp;
-    hi = co->stack_high;
-  } else {
-    lo = co->stack_high;
-    hi = cur_sp;
-  }
-  slice_len = (size_t)(hi - lo);
-  if (slice_len > co->saved_cap) {
-    unsigned char *nbuf = (unsigned char *)realloc(co->saved_stack, slice_len);
-    if (!nbuf) {
-      return C_ABSTRACT_HTTP_ERR_NOMEM;
-    }
-    co->saved_stack = nbuf;
-    co->saved_cap = slice_len;
-  }
-  if (slice_len > 0) {
-    memcpy(co->saved_stack, lo, slice_len);
-  }
-  co->saved_low = (unsigned char *)lo;
-  co->saved_len = slice_len;
+  co->yield_rc = C_ABSTRACT_HTTP_SUCCESS;
   if (setjmp(co->co_env) == 0) {
-    longjmp(co->caller_env, 1);
+    return dos_co_save_and_jump_caller();
   }
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return g_dos_current_co->yield_rc;
 }
 
 NO_DISCARD c_abstract_http_error_t abstract_http_coroutine_is_done(

@@ -1105,10 +1105,10 @@ mock_client_send(struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 }
 
-NO_DISCARD static c_abstract_http_error_t mock_on_err(int rc, void *user_data) {
+NO_DISCARD static c_abstract_http_error_t mock_on_err(int err_code,
+                                                      void *user_data) {
   int *called = (int *)user_data;
-  (void)rc;
-  *called = 1;
+  *called = (err_code != 0) ? 1 : 1;
   return 0;
 }
 
@@ -2854,6 +2854,14 @@ TEST test_ws_upgraded_socket_event_loop(void) {
       C_ABSTRACT_HTTP_ERR_INVAL,
       c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
   req.url = "ws://:0/ws";
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  req.url = "ws://:80/ws";
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_INVAL,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  req.url = "ws:///ws";
   ASSERT_EQ(
       C_ABSTRACT_HTTP_ERR_INVAL,
       c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));

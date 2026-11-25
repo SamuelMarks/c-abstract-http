@@ -243,6 +243,7 @@ ws_close_upgraded_socket(struct ws_stream_ctx *sctx) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 /**
  * @brief Close upgraded socket and propagate cleanup or primary error enum.
  * @param sctx WebSocket stream context.
@@ -259,6 +260,7 @@ ws_fail_upgraded_socket(struct ws_stream_ctx *sctx,
   }
   return orig_rc;
 }
+#endif
 
 /**
  * @brief Destroy and free a WebSocket streaming queue context.
@@ -513,7 +515,7 @@ NO_DISCARD c_abstract_http_error_t ws_pack_header_medium(
     unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode,
     int mask, size_t len, size_t *out_len) {
   uint16_t net_len;
-  if (!buf || len <= 125 || len > 65535)
+  if (!buf || len <= 125 || (unsigned long)len > 65535UL)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_pack_header_fail == 2)
@@ -532,7 +534,7 @@ NO_DISCARD c_abstract_http_error_t ws_pack_header_large(
     unsigned char *buf, int fin, enum c_abstract_http_ws_opcode opcode,
     int mask, size_t len, size_t *out_len) {
   uint64_t net_len;
-  if (!buf || len <= 65535)
+  if (!buf || (unsigned long)len <= 65535UL)
     return C_ABSTRACT_HTTP_ERR_INVAL;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_pack_header_fail == 3)
@@ -813,17 +815,22 @@ NO_DISCARD c_abstract_http_error_t ws_parser_feed(struct ws_parser_ctx *ctx,
             }
 
             /* Expand reassembly buffer */
-            if (ctx->reassembly_offset + ctx->current_frame.payload_len >
-                ctx->reassembly_capacity) {
-              size_t new_cap = ctx->reassembly_capacity == 0
-                                   ? 4096
-                                   : ctx->reassembly_capacity * 2;
-              while (new_cap <
-                     ctx->reassembly_offset + ctx->current_frame.payload_len)
-                new_cap *= 2;
+            if ((uint64_t)ctx->reassembly_offset +
+                    ctx->current_frame.payload_len >
+                (uint64_t)ctx->reassembly_capacity) {
+              uint64_t needed_cap = (uint64_t)ctx->reassembly_offset +
+                                    ctx->current_frame.payload_len;
+              uint64_t new_cap64 =
+                  ctx->reassembly_capacity == 0
+                      ? (uint64_t)4096U
+                      : (uint64_t)ctx->reassembly_capacity * (uint64_t)2U;
+              size_t new_cap;
+              while (new_cap64 < needed_cap)
+                new_cap64 *= (uint64_t)2U;
 
               /* Memory limit bounds check */
-              if (new_cap > C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE) {
+              if (new_cap64 > (uint64_t)C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE ||
+                  new_cap64 > (uint64_t)((size_t)-1)) {
                 if (ctx->on_error) {
                   c_abstract_http_error_t cb_rc = ctx->on_error(
                       C_ABSTRACT_HTTP_ERR_MSGSIZE, ctx->user_data);
@@ -832,6 +839,7 @@ NO_DISCARD c_abstract_http_error_t ws_parser_feed(struct ws_parser_ctx *ctx,
                 }
                 return C_ABSTRACT_HTTP_ERR_MSGSIZE;
               }
+              new_cap = (size_t)new_cap64;
 
               {
                 unsigned char *new_buf =
@@ -1214,13 +1222,17 @@ ws_parse_connect_url(const char *url, char **out_host, int *out_port,
   slash = strchr(p, '/');
   colon = strchr(p, ':');
   if (colon && (!slash || colon < slash)) {
+    long parsed_port = strtol(colon + 1, NULL, 10);
     host_len = (size_t)(colon - p);
-    *out_port = atoi(colon + 1);
+    if (parsed_port <= 0L || parsed_port > 65535L) {
+      return C_ABSTRACT_HTTP_ERR_INVAL;
+    }
+    *out_port = (int)parsed_port;
   } else {
     host_len = slash ? (size_t)(slash - p) : strlen(p);
     *out_port = 80;
   }
-  if (host_len == 0 || *out_port <= 0 || *out_port > 65535) {
+  if (host_len == 0) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
@@ -1783,7 +1795,7 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_ws_send(
       free(masked_payload);
       return rc;
     }
-  } else if (len <= 65535) {
+  } else if ((unsigned long)len <= 65535UL) {
     rc = ws_pack_header_medium(header, 1, opcode, 1, len, &header_len);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       free(masked_payload);

@@ -13,6 +13,7 @@
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>

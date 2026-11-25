@@ -1434,7 +1434,6 @@ TEST test_curl_send_multi_oom(void) {
   }
 
   {
-    extern int g_mock_http_loop_fail;
     g_mock_http_loop_fail = 1;
     /* Force timer functions to fail during a multi_socket callback by directly
      * invoking it */

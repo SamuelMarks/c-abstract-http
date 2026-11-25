@@ -53,6 +53,31 @@ struct HttpTransportContext {
 static int g_fetch_init_count = 0;
 
 /**
+ * @brief Pure case-insensitive ASCII string comparison for header lookup.
+ * @param a First NUL-terminated string.
+ * @param b Second NUL-terminated string.
+ * @return Difference between first non-matching lowercased characters, or 0.
+ */
+static int math_fetch_strcasecmp(const char *a, const char *b) {
+  while (*a && *b) {
+    unsigned char ca = (unsigned char)*a;
+    unsigned char cb = (unsigned char)*b;
+    if (ca >= 'A' && ca <= 'Z') {
+      ca = (unsigned char)(ca + ('a' - 'A'));
+    }
+    if (cb >= 'A' && cb <= 'Z') {
+      cb = (unsigned char)(cb + ('a' - 'A'));
+    }
+    if (ca != cb) {
+      return (int)ca - (int)cb;
+    }
+    a++;
+    b++;
+  }
+  return (int)(unsigned char)*a - (int)(unsigned char)*b;
+}
+
+/**
  * @brief Map a libfetch error code to `c_abstract_http_error_t`.
  * @param err Libfetch error code.
  * @return Corresponding `c_abstract_http_error_t` value.
@@ -584,9 +609,14 @@ http_fetch_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
     const char *flags_str = ctx->config.verify_peer
                                 ? (ctx->config.proxy_url ? "" : "d")
                                 : (ctx->config.proxy_url ? "i" : "di");
-    if (http_headers_get(&req->headers, "Content-Type", &content_type) !=
-        C_ABSTRACT_HTTP_SUCCESS) {
-      content_type = NULL;
+    size_t hi;
+    for (hi = 0; hi < req->headers.count; ++hi) {
+      if (req->headers.headers[hi].key &&
+          math_fetch_strcasecmp(req->headers.headers[hi].key, "Content-Type") ==
+              0) {
+        content_type = req->headers.headers[hi].value;
+        break;
+      }
     }
     f = fetchReqHTTP(u, method_str, flags_str, content_type, body_ptr);
   }

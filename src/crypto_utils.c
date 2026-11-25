@@ -23,6 +23,7 @@
 #include <wolfssl/openssl/ssl.h>
 #include <wolfssl/openssl/x509.h>
 #include <wolfssl/openssl/err.h>
+/** @brief Active OpenSSL-compatible TLS provider indicator */
 #define CAH_HAVE_OPENSSL_COMPAT_TLS 1
 #elif defined(C_ABSTRACT_HTTP_USE_OPENSSL) || defined(C_ABSTRACT_HTTP_USE_LIBRESSL) || defined(C_ABSTRACT_HTTP_USE_BORINGSSL)
 #include <openssl/ssl.h>
@@ -30,6 +31,7 @@
 #include <openssl/pem.h>
 #include <openssl/err.h>
 #include <openssl/sha.h>
+/** @brief Active OpenSSL-compatible TLS provider indicator */
 #define CAH_HAVE_OPENSSL_COMPAT_TLS 1
 #elif defined(C_ABSTRACT_HTTP_USE_MBEDTLS)
 #include <mbedtls/ssl.h>
@@ -42,18 +44,21 @@
 #include <mbedtls/version.h>
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <winsock2.h>
 #else
 #include <sys/socket.h>
 #endif
+/** @brief Active mbedTLS provider indicator */
 #define CAH_HAVE_MBEDTLS_TLS 1
 #elif defined(C_ABSTRACT_HTTP_USE_GNUTLS)
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
 #include <gnutls/abstract.h>
 #include <gnutls/crypto.h>
+/** @brief Active GnuTLS provider indicator */
 #define CAH_HAVE_GNUTLS_TLS 1
 #elif defined(C_ABSTRACT_HTTP_USE_COMMONCRYPTO) && defined(__APPLE__)
 #include <CommonCrypto/CommonDigest.h>
@@ -62,6 +67,12 @@
 /* clang-format on */
 
 #if defined(_WIN32)
+/**
+ * @brief Win32 RtlGenRandom (`SystemFunction036`) CSPRNG entry point.
+ * @param RandomBuffer Destination buffer to fill with random bytes.
+ * @param RandomBufferLength Number of random bytes to generate.
+ * @return Non-zero on success, zero on failure.
+ */
 __declspec(dllimport) unsigned char __stdcall SystemFunction036(
     void *RandomBuffer, unsigned long RandomBufferLength);
 #endif
@@ -193,10 +204,13 @@ NO_DISCARD c_abstract_http_error_t sha1_update(struct sha1_ctx *ctx,
     return C_ABSTRACT_HTTP_ERR_INVAL;
 
   j = (ctx->count[0] >> 3) & 63;
-  if ((ctx->count[0] += (uint32_t)(len << 3)) < (len << 3)) {
-    ctx->count[1]++;
+  {
+    uint32_t bit_lo = (uint32_t)(((unsigned long)len & 0x1FFFFFFFUL) << 3);
+    if ((ctx->count[0] += bit_lo) < bit_lo) {
+      ctx->count[1]++;
+    }
+    ctx->count[1] += (uint32_t)((len >> 15) >> 14);
   }
-  ctx->count[1] += (uint32_t)(len >> 29);
 
   if ((j + len) > 63) {
     i = 64 - j;
@@ -390,10 +404,13 @@ NO_DISCARD c_abstract_http_error_t sha256_update(struct sha256_ctx *ctx,
   }
 
   j = (ctx->count[0] >> 3) & 63U;
-  if ((ctx->count[0] += (uint32_t)(len << 3)) < (uint32_t)(len << 3)) {
-    ctx->count[1]++;
+  {
+    uint32_t bit_lo = (uint32_t)(((unsigned long)len & 0x1FFFFFFFUL) << 3);
+    if ((ctx->count[0] += bit_lo) < bit_lo) {
+      ctx->count[1]++;
+    }
+    ctx->count[1] += (uint32_t)((len >> 15) >> 14);
   }
-  ctx->count[1] += (uint32_t)(len >> 29);
 
   if ((j + len) > 63U) {
     i = 64U - j;
@@ -850,13 +867,22 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_tls_verify_handshake_config(
 #if !defined(C_ABSTRACT_HTTP_TEST_OOM) && defined(CAH_HAVE_OPENSSL_COMPAT_TLS)
 /** @brief OpenSSL/LibreSSL/BoringSSL/WolfSSL concrete TLS session state */
 struct cah_ossl_tls_session {
-  SSL_CTX *ssl_ctx;
-  SSL *ssl;
-  char *cert_pin;
-  int verify_peer;
-  int handshake_done;
+  SSL_CTX *ssl_ctx;   /**< OpenSSL context handle */
+  SSL *ssl;           /**< OpenSSL connection state */
+  char *cert_pin;     /**< Optional SPKI SHA-256 pin string */
+  int verify_peer;    /**< Non-zero when peer verification is enabled */
+  int handshake_done; /**< Non-zero once TLS handshake completed */
 };
 
+/**
+ * @brief Open an OpenSSL-compatible client TLS session over @p sock_fd.
+ * @param provider_data Unused provider context pointer.
+ * @param sock_fd Connected underlying TCP socket descriptor.
+ * @param host Target server hostname for SNI and X.509 verification.
+ * @param config Optional HTTP transport configuration.
+ * @param out_session Receives allocated TLS session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
 NO_DISCARD static c_abstract_http_error_t
 cah_ossl_tls_open(void *provider_data, int sock_fd, const char *host,
                   const struct HttpConfig *config, void **out_session) {
@@ -966,6 +992,12 @@ cah_ossl_tls_open(void *provider_data, int sock_fd, const char *host,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Drive non-blocking OpenSSL client handshake and SPKI pin check.
+ * @param session Active OpenSSL TLS session.
+ * @param out_want Receives 0=done, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or TLS error code.
+ */
 NO_DISCARD static c_abstract_http_error_t
 cah_ossl_tls_handshake(void *session, int *out_want) {
   struct cah_ossl_tls_session *s = (struct cah_ossl_tls_session *)session;
@@ -1013,6 +1045,15 @@ cah_ossl_tls_handshake(void *session, int *out_want) {
   return s->verify_peer ? C_ABSTRACT_HTTP_ERR_ACCES : C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/**
+ * @brief Read decrypted application bytes from an OpenSSL TLS session.
+ * @param session Active OpenSSL TLS session.
+ * @param buf Destination buffer.
+ * @param cap Maximum bytes to read.
+ * @param out_n Receives byte count read (0 on clean EOF or want I/O).
+ * @param out_want Receives 0=ok/eof, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
 NO_DISCARD static c_abstract_http_error_t
 cah_ossl_tls_read(void *session, void *buf, size_t cap, size_t *out_n,
                   int *out_want) {
@@ -1041,6 +1082,15 @@ cah_ossl_tls_read(void *session, void *buf, size_t cap, size_t *out_n,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/**
+ * @brief Write plaintext application bytes into an OpenSSL TLS session.
+ * @param session Active OpenSSL TLS session.
+ * @param buf Source plaintext buffer.
+ * @param len Byte length to transmit.
+ * @param out_n Receives byte count accepted by TLS record layer.
+ * @param out_want Receives 0=ok, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
 NO_DISCARD static c_abstract_http_error_t
 cah_ossl_tls_write(void *session, const void *buf, size_t len, size_t *out_n,
                    int *out_want) {
@@ -1066,6 +1116,11 @@ cah_ossl_tls_write(void *session, const void *buf, size_t len, size_t *out_n,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/**
+ * @brief Shut down and free an OpenSSL TLS session.
+ * @param session OpenSSL TLS session to release.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
 NO_DISCARD static c_abstract_http_error_t cah_ossl_tls_close(void *session) {
   struct cah_ossl_tls_session *s = (struct cah_ossl_tls_session *)session;
   if (!s) {
@@ -1085,6 +1140,7 @@ NO_DISCARD static c_abstract_http_error_t cah_ossl_tls_close(void *session) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Default OpenSSL-backed raw TLS hook table */
 static const struct HttpRawTlsHooks g_cah_default_tls_hooks = {
     NULL,
     cah_ossl_tls_open,
@@ -1092,23 +1148,31 @@ static const struct HttpRawTlsHooks g_cah_default_tls_hooks = {
     cah_ossl_tls_read,
     cah_ossl_tls_write,
     cah_ossl_tls_close};
+/** @brief Indicator that default compile-time TLS hooks are available */
 #define CAH_HAS_DEFAULT_TLS_HOOKS 1
 #elif !defined(C_ABSTRACT_HTTP_TEST_OOM) && defined(CAH_HAVE_MBEDTLS_TLS)
 /** @brief mbedTLS concrete TLS session state */
 struct cah_mbed_tls_session {
-  int sock_fd;
-  mbedtls_entropy_context entropy;
-  mbedtls_ctr_drbg_context ctr_drbg;
-  mbedtls_ssl_context ssl;
-  mbedtls_ssl_config conf;
-  mbedtls_x509_crt cacert;
-  mbedtls_x509_crt clicert;
-  mbedtls_pk_context clikey;
-  char *cert_pin;
-  int verify_peer;
-  int handshake_done;
+  int sock_fd;                       /**< Underlying socket descriptor */
+  mbedtls_entropy_context entropy;   /**< Entropy pool context */
+  mbedtls_ctr_drbg_context ctr_drbg; /**< CTR-DRBG CSPRNG context */
+  mbedtls_ssl_context ssl;           /**< mbedTLS session state */
+  mbedtls_ssl_config conf;           /**< mbedTLS configuration */
+  mbedtls_x509_crt cacert;           /**< Trusted CA certificate chain */
+  mbedtls_x509_crt clicert;          /**< Client mTLS certificate */
+  mbedtls_pk_context clikey;         /**< Client mTLS private key */
+  char *cert_pin;                    /**< Optional SPKI SHA-256 pin string */
+  int verify_peer;                   /**< Non-zero if peer verification on */
+  int handshake_done;                /**< Non-zero once handshake succeeded */
 };
 
+/**
+ * @brief mbedTLS BIO socket send callback.
+ * @param ctx Pointer to socket file descriptor.
+ * @param buf Ciphertext buffer to transmit.
+ * @param len Number of bytes to send.
+ * @return Bytes sent or `MBEDTLS_ERR_SSL_WANT_WRITE`.
+ */
 static int cah_mbed_bio_send(void *ctx, const unsigned char *buf, size_t len) {
   int fd = *(int *)ctx;
   long rv = (long)send(fd, (const char *)buf, (int)len, 0);
@@ -1118,6 +1182,13 @@ static int cah_mbed_bio_send(void *ctx, const unsigned char *buf, size_t len) {
   return (int)rv;
 }
 
+/**
+ * @brief mbedTLS BIO socket receive callback.
+ * @param ctx Pointer to socket file descriptor.
+ * @param buf Destination buffer for incoming ciphertext.
+ * @param len Maximum bytes to read.
+ * @return Bytes read or `MBEDTLS_ERR_SSL_WANT_READ`.
+ */
 static int cah_mbed_bio_recv(void *ctx, unsigned char *buf, size_t len) {
   int fd = *(int *)ctx;
   long rv = (long)recv(fd, (char *)buf, (int)len, 0);
@@ -1127,6 +1198,11 @@ static int cah_mbed_bio_recv(void *ctx, unsigned char *buf, size_t len) {
   return (int)rv;
 }
 
+/**
+ * @brief Tear down and free an mbedTLS session.
+ * @param session mbedTLS session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
 NO_DISCARD static c_abstract_http_error_t cah_mbed_tls_close(void *session) {
   struct cah_mbed_tls_session *s = (struct cah_mbed_tls_session *)session;
   if (!s) {
@@ -1144,6 +1220,15 @@ NO_DISCARD static c_abstract_http_error_t cah_mbed_tls_close(void *session) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Open an mbedTLS client session over @p sock_fd.
+ * @param provider_data Unused provider context pointer.
+ * @param sock_fd Connected socket descriptor.
+ * @param host Target server hostname.
+ * @param config Optional HTTP transport configuration.
+ * @param out_session Receives allocated mbedTLS session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
 NO_DISCARD static c_abstract_http_error_t
 cah_mbed_tls_open(void *provider_data, int sock_fd, const char *host,
                   const struct HttpConfig *config, void **out_session) {
@@ -1255,6 +1340,12 @@ cah_mbed_tls_open(void *provider_data, int sock_fd, const char *host,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Drive non-blocking mbedTLS client handshake and SPKI pin check.
+ * @param session Active mbedTLS session.
+ * @param out_want Receives 0=done, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or TLS error code.
+ */
 NO_DISCARD static c_abstract_http_error_t
 cah_mbed_tls_handshake(void *session, int *out_want) {
   struct cah_mbed_tls_session *s = (struct cah_mbed_tls_session *)session;
@@ -1297,6 +1388,15 @@ cah_mbed_tls_handshake(void *session, int *out_want) {
   return s->verify_peer ? C_ABSTRACT_HTTP_ERR_ACCES : C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/**
+ * @brief Read decrypted application bytes from an mbedTLS session.
+ * @param session Active mbedTLS session.
+ * @param buf Destination buffer.
+ * @param cap Maximum bytes to read.
+ * @param out_n Receives byte count read.
+ * @param out_want Receives 0=ok/eof, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
 NO_DISCARD static c_abstract_http_error_t
 cah_mbed_tls_read(void *session, void *buf, size_t cap, size_t *out_n,
                   int *out_want) {
@@ -1322,6 +1422,15 @@ cah_mbed_tls_read(void *session, void *buf, size_t cap, size_t *out_n,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/**
+ * @brief Write plaintext application bytes into an mbedTLS session.
+ * @param session Active mbedTLS session.
+ * @param buf Source plaintext buffer.
+ * @param len Byte length to transmit.
+ * @param out_n Receives byte count written.
+ * @param out_want Receives 0=ok, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
 NO_DISCARD static c_abstract_http_error_t
 cah_mbed_tls_write(void *session, const void *buf, size_t len, size_t *out_n,
                    int *out_want) {
@@ -1344,6 +1453,7 @@ cah_mbed_tls_write(void *session, const void *buf, size_t len, size_t *out_n,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/** @brief Default mbedTLS-backed raw TLS hook table */
 static const struct HttpRawTlsHooks g_cah_default_tls_hooks = {
     NULL,
     cah_mbed_tls_open,
@@ -1351,17 +1461,23 @@ static const struct HttpRawTlsHooks g_cah_default_tls_hooks = {
     cah_mbed_tls_read,
     cah_mbed_tls_write,
     cah_mbed_tls_close};
+/** @brief Indicator that default compile-time TLS hooks are available */
 #define CAH_HAS_DEFAULT_TLS_HOOKS 1
 #elif !defined(C_ABSTRACT_HTTP_TEST_OOM) && defined(CAH_HAVE_GNUTLS_TLS)
 /** @brief GnuTLS concrete TLS session state */
 struct cah_gtls_session {
-  gnutls_certificate_credentials_t xcred;
-  gnutls_session_t session;
-  char *cert_pin;
-  int verify_peer;
-  int handshake_done;
+  gnutls_certificate_credentials_t xcred; /**< X.509 credentials store */
+  gnutls_session_t session;               /**< GnuTLS session handle */
+  char *cert_pin;                         /**< Optional SPKI SHA-256 pin */
+  int verify_peer;                        /**< Non-zero if peer verify on */
+  int handshake_done;                     /**< Non-zero once handshake done */
 };
 
+/**
+ * @brief Tear down and free a GnuTLS session.
+ * @param session GnuTLS session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
 NO_DISCARD static c_abstract_http_error_t cah_gtls_close(void *session) {
   struct cah_gtls_session *s = (struct cah_gtls_session *)session;
   if (!s) {
@@ -1374,6 +1490,15 @@ NO_DISCARD static c_abstract_http_error_t cah_gtls_close(void *session) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Open a GnuTLS client session over @p sock_fd.
+ * @param provider_data Unused provider context pointer.
+ * @param sock_fd Connected socket descriptor.
+ * @param host Target server hostname.
+ * @param config Optional HTTP transport configuration.
+ * @param out_session Receives allocated GnuTLS session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
 NO_DISCARD static c_abstract_http_error_t
 cah_gtls_open(void *provider_data, int sock_fd, const char *host,
               const struct HttpConfig *config, void **out_session) {
@@ -1458,6 +1583,12 @@ cah_gtls_open(void *provider_data, int sock_fd, const char *host,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Drive non-blocking GnuTLS client handshake and SPKI pin check.
+ * @param session Active GnuTLS session.
+ * @param out_want Receives 0=done, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or TLS error code.
+ */
 NO_DISCARD static c_abstract_http_error_t cah_gtls_handshake(void *session,
                                                              int *out_want) {
   struct cah_gtls_session *s = (struct cah_gtls_session *)session;
@@ -1509,6 +1640,15 @@ NO_DISCARD static c_abstract_http_error_t cah_gtls_handshake(void *session,
   return s->verify_peer ? C_ABSTRACT_HTTP_ERR_ACCES : C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/**
+ * @brief Read decrypted application bytes from a GnuTLS session.
+ * @param session Active GnuTLS session.
+ * @param buf Destination buffer.
+ * @param cap Maximum bytes to read.
+ * @param out_n Receives byte count read.
+ * @param out_want Receives 0=ok/eof, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
 NO_DISCARD static c_abstract_http_error_t cah_gtls_read(void *session,
                                                         void *buf, size_t cap,
                                                         size_t *out_n,
@@ -1531,6 +1671,15 @@ NO_DISCARD static c_abstract_http_error_t cah_gtls_read(void *session,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/**
+ * @brief Write plaintext application bytes into a GnuTLS session.
+ * @param session Active GnuTLS session.
+ * @param buf Source plaintext buffer.
+ * @param len Byte length to transmit.
+ * @param out_n Receives byte count written.
+ * @param out_want Receives 0=ok, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
 NO_DISCARD static c_abstract_http_error_t
 cah_gtls_write(void *session, const void *buf, size_t len, size_t *out_n,
                int *out_want) {
@@ -1549,13 +1698,15 @@ cah_gtls_write(void *session, const void *buf, size_t len, size_t *out_n,
   return C_ABSTRACT_HTTP_ERR_IO;
 }
 
+/** @brief Default GnuTLS-backed raw TLS hook table */
 static const struct HttpRawTlsHooks g_cah_default_tls_hooks = {
     NULL,          cah_gtls_open,  cah_gtls_handshake,
     cah_gtls_read, cah_gtls_write, cah_gtls_close};
+/** @brief Indicator that default compile-time TLS hooks are available */
 #define CAH_HAS_DEFAULT_TLS_HOOKS 1
 #endif
 
-/** @brief Retrieve active compile-time TLS socket provider hooks */
+/* Retrieve active compile-time TLS socket provider hooks. */
 NO_DISCARD c_abstract_http_error_t c_abstract_http_get_default_tls_hooks(
     const struct HttpRawTlsHooks **out_hooks) {
   if (!out_hooks) {
@@ -1569,7 +1720,7 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_get_default_tls_hooks(
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-/** @brief Fill a buffer with cryptographically unpredictable random bytes */
+/* Fill a buffer with cryptographically unpredictable random bytes. */
 NO_DISCARD c_abstract_http_error_t
 c_abstract_http_random_bytes(unsigned char *buf, size_t len) {
   static abstract_http_uint64_t fallback_state = 0;

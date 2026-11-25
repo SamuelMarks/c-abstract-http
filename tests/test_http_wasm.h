@@ -953,6 +953,11 @@ TEST test_wasm_async_timeouts_ua_and_limits(void) {
         }
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                   c_abstract_http_test_set_wasm_op_fail(14, 0));
+        g_mock_alloc_fail = 1;
+        g_mock_alloc_count = 0;
+        ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+                  c_abstract_http_test_wasm_helpers());
+        g_mock_alloc_fail = 0;
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_wasm_helpers());
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                   c_abstract_http_test_set_wasm_op_fail(0, 0));

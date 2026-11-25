@@ -132,7 +132,13 @@ TEST test_oauth2_localhost_intercept(void) {
 #if defined(_WIN32)
     Sleep(10);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-    delay(10);
+    {
+      clock_t start_t = clock();
+      clock_t wait_t =
+          (clock_t)((10UL * (unsigned long)CLOCKS_PER_SEC + 999UL) / 1000UL);
+      while ((clock_t)(clock() - start_t) < wait_t) {
+      }
+    }
 #else
     usleep(10000);
 #endif
@@ -925,8 +931,6 @@ TEST test_http_types_errors(void) {
   struct HttpRequest req;
   struct HttpResponse res;
   memset(&res, 0, sizeof(res));
-  (void)res;
-  (void)res;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
             http_request_add_part(NULL, "n", "f", "ct", NULL, 0));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
@@ -1132,8 +1136,6 @@ TEST test_http_send_multi(void) {
 TEST test_http_response_save_to_file(void) {
   struct HttpResponse res;
   memset(&res, 0, sizeof(res));
-  (void)res;
-  (void)res;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(&res));
   res.body = "test";
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1165,8 +1167,6 @@ TEST test_http_types_leftover_errs(void) {
   memset(&res, 0, sizeof(res));
   (void)multi;
   (void)boundary;
-  (void)res;
-  (void)res;
 
   /* flatten missing */
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
@@ -3654,7 +3654,7 @@ NO_DISCARD static c_abstract_http_error_t
 mock_co_init_hook(struct AbstractHttpCoroutine **co, size_t stack_size,
                   abstract_http_coroutine_cb cb, void *arg) {
   (void)stack_size;
-  *co = (struct AbstractHttpCoroutine *)calloc(2, sizeof(void *));
+  *co = (struct AbstractHttpCoroutine *)calloc(256, sizeof(void *));
   if (!*co)
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   ((void **)*co)[0] = (void *)(size_t)cb;
@@ -3706,7 +3706,7 @@ static int g_actor_hook_mode = 0;
 
 NO_DISCARD static c_abstract_http_error_t
 mock_bus_init_hook(struct AbstractHttpMessageBus **bus) {
-  *bus = (struct AbstractHttpMessageBus *)calloc(1, sizeof(int));
+  *bus = (struct AbstractHttpMessageBus *)calloc(32, sizeof(void *));
   return *bus ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_NOMEM;
 }
 

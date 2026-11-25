@@ -935,6 +935,8 @@ TEST test_fetch_proxy_auth_timeouts_and_loop(void) {
   res = NULL;
 
   cfg.read_timeout_ms = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "X-Custom", "1"));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_config_apply(ctx, &cfg));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_fetch_send(ctx, &req, &res));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));

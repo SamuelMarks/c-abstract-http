@@ -1820,6 +1820,70 @@ TEST test_winhttp_utf8_and_async_timeouts(void) {
             http_winhttp_send_multi(ctx, NULL, &multi, futs));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut));
 
+  {
+    int cd;
+    for (cd = 2; cd <= 10; ++cd) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+                c_abstract_http_test_winhttp_slot_guard(cd));
+    }
+    cfg.proxy_url = "http://127.0.0.1:8888";
+    cfg.proxy_username = "u";
+    cfg.proxy_password = "p";
+    cfg.user_agent = "custom-winhttp/2.0";
+    for (cd = 1; cd <= 5; ++cd) {
+      c_abstract_http_error_t crc;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_winhttp_slot_guard(-cd));
+      crc = http_winhttp_config_apply(ctx, &cfg);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_winhttp_slot_guard(-999));
+      ASSERT((int)crc >= -2000 && (int)crc <= 2000);
+    }
+    cfg.proxy_password = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_winhttp_slot_guard(-2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_winhttp_config_apply(ctx, &cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_winhttp_slot_guard(-999));
+    cfg.proxy_url = NULL;
+    cfg.proxy_username = NULL;
+    cfg.user_agent = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_set(&jar, "ck", "cv"));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_headers_add(&req.headers, "X-K", "V"));
+    g_mock_winhttp_cookie_count = 1;
+    for (cd = 1; cd <= 12; ++cd) {
+      struct HttpResponse *r2 = NULL;
+      c_abstract_http_error_t src;
+      g_mock_winhttp_cookie_count = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_winhttp_slot_guard(-cd));
+      src = http_winhttp_send(ctx, &req, &r2);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_winhttp_slot_guard(-999));
+      if (r2) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(r2));
+        free(r2);
+      }
+      ASSERT((int)src >= -2000 && (int)src <= 2000);
+    }
+    g_mock_winhttp_cookie_count = 0;
+
+    for (cd = 1; cd <= 3; ++cd) {
+      c_abstract_http_error_t mrc;
+      memset(&fut, 0, sizeof(fut));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_winhttp_slot_guard(-cd));
+      mrc = http_winhttp_send_multi(ctx, NULL, &multi, futs);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_winhttp_slot_guard(-999));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut));
+      ASSERT((int)mrc >= -2000 && (int)mrc <= 2000);
+    }
+  }
+
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));

@@ -49,6 +49,10 @@
 /* clang-format on */
 
 #if defined(_WIN32)
+/**
+ * @brief Suspend the calling Win32 thread for the specified interval.
+ * @param dwMilliseconds Duration in milliseconds.
+ */
 __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #endif
 
@@ -3523,7 +3527,15 @@ NO_DISCARD c_abstract_http_error_t http_client_send(struct HttpClient *client,
 #if defined(_WIN32)
       Sleep((unsigned long)delay_ms);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-      delay((unsigned int)delay_ms);
+      if (delay_ms > 0) {
+        clock_t start_t = clock();
+        clock_t wait_t =
+            (clock_t)(((unsigned long)delay_ms * (unsigned long)CLOCKS_PER_SEC +
+                       999UL) /
+                      1000UL);
+        while ((clock_t)(clock() - start_t) < wait_t) {
+        }
+      }
 #else
       {
         struct timeval tv;

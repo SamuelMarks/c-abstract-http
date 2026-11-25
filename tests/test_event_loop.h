@@ -428,7 +428,13 @@ TEST test_event_loop_heap_down(void) {
 #if defined(_WIN32)
   Sleep(250);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-  delay(250);
+  {
+    clock_t start_t = clock();
+    clock_t wait_t =
+        (clock_t)((250UL * (unsigned long)CLOCKS_PER_SEC + 999UL) / 1000UL);
+    while ((clock_t)(clock() - start_t) < wait_t) {
+    }
+  }
 #else
   {
     struct timespec ts;

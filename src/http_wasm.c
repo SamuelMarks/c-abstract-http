@@ -1213,6 +1213,9 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_test_wasm_helpers(void) {
   if (g_mock_wasm_op_fail == 14) {
     emscripten_fetch_t *ef =
         (emscripten_fetch_t *)calloc(1, sizeof(emscripten_fetch_t));
+    if (!ef) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
     memset(&mb, 0, sizeof(mb));
     memset(&ms, 0, sizeof(ms));
     memset(&req, 0, sizeof(req));

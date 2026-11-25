@@ -28,6 +28,22 @@ endif()
 
 project(c-abstract-http LANGUAGES C)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "DOS" AND WATCOM)
+    string(REPLACE "-d2" "-os -d0" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+    string(REPLACE "debug all" "" CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG}")
+    if(NOT CMAKE_EXE_LINKER_FLAGS MATCHES "opt eliminate")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} opt eliminate")
+    endif()
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "DOS" AND WATCOM
+   AND NOT CMAKE_C_COMPILER MATCHES "wcl386"
+   AND NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "I386")
+    set(_CAH_DOS_16BIT ON)
+else()
+    set(_CAH_DOS_16BIT OFF)
+endif()
+
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(C_ABSTRACT_HTTP_IS_TOP_LEVEL ON)
 else()
@@ -147,6 +163,7 @@ if(C_ABSTRACT_HTTP_IS_TOP_LEVEL)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/bin" "${CMAKE_BINARY_DIR}/lib")
 endif()
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
@@ -269,6 +286,9 @@ function(c_abstract_http_resolve_dependency PkgName FetchRepo FetchTag)
         if(MSVC AND _CAH_MSVC_RUNTIME_LIBRARY)
             set(CMAKE_MSVC_RUNTIME_LIBRARY "${_CAH_MSVC_RUNTIME_LIBRARY}")
         endif()
+        unset(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+        unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+        unset(CMAKE_ARCHIVE_OUTPUT_DIRECTORY)
 
         FetchContent_Declare(${PkgName}
             GIT_REPOSITORY ${FetchRepo}
@@ -305,7 +325,7 @@ function(c_abstract_http_resolve_core_dependencies)
         set(CFS_MULTITHREADED OFF CACHE BOOL "" FORCE)
         set(C89STRINGUTILS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
         c_abstract_http_resolve_dependency(c89stringutils https://github.com/offscale/c89stringutils.git master)
-        if(TARGET c89stringutils AND CMAKE_C_COMPILER MATCHES "wcl([.]exe)?$")
+        if(TARGET c89stringutils AND _CAH_DOS_16BIT)
             get_target_property(_c89_type c89stringutils TYPE)
             if(NOT _c89_type STREQUAL "INTERFACE_LIBRARY")
                 target_compile_options(c89stringutils PRIVATE -ml)
@@ -505,7 +525,7 @@ if(WIN32 OR CYGWIN)
     endif()
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "DOS" AND CMAKE_C_COMPILER MATCHES "wcl([.]exe)?$")
+if(_CAH_DOS_16BIT)
     target_compile_options(c-abstract-http ${_CAH_PUB_SCOPE} -ml)
     target_link_options(c-abstract-http ${_CAH_PUB_SCOPE} -ml)
 endif()
@@ -558,7 +578,8 @@ if(NOT C_ABSTRACT_HTTP_HEADER_ONLY)
             "-Wcast-qual" "-Wswitch-default" "-Wbad-function-cast"
             "-Wstrict-prototypes" "-Wmissing-prototypes" "-Wmissing-declarations"
             "-Wpointer-arith" "-Wwrite-strings" "-Wold-style-definition"
-            "-Wdeclaration-after-statement" "-Wformat=2" "-Wformat-security"
+            "-Wdeclaration-after-statement" "-Wnested-externs" "-Wvla"
+            "-Wformat=2" "-Wformat-security"
             "-Wundef" "-Wdouble-promotion" "-Winit-self"
         )
         foreach(_cah_flag

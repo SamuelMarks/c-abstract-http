@@ -25,7 +25,7 @@ typedef int MOCK_SOCKET_T;
 #else
 typedef SOCKET MOCK_SOCKET_T;
 #endif
-/* extern int g_mock_recv_fail; */
+extern int g_mock_server_cond_wait_fail;
 
 TEST test_mock_alloc_coverage(void) {
 
@@ -567,7 +567,6 @@ TEST test_mock_server_coverage(void) {
 
     {
       struct MockServerRequest req2;
-      extern int g_mock_server_cond_wait_fail;
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 abstract_http_mock_server_clear_request((MockServerPtr)srv));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -944,13 +943,13 @@ TEST test_fuzz_harness_coverage(void) {
   PASS();
 }
 
-TEST test_mock_socket_coverage(void) {
 #ifdef __APPLE__
-  int c_abstract_http_mock_select_darwin_extsn(
-      int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds,
-      struct timeval
-          *timeout) __asm("_c_abstract_http_mock_select$DARWIN_EXTSN");
+int c_abstract_http_mock_select_darwin_extsn(
+    int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds,
+    struct timeval *timeout) __asm("_c_abstract_http_mock_select$DARWIN_EXTSN");
 #endif
+
+TEST test_mock_socket_coverage(void) {
 #if defined(_WIN32) && !defined(__CYGWIN__)
   SOCKET fd;
 #else
