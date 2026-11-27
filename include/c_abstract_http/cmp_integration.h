@@ -46,7 +46,7 @@ struct CmpAppConfig {
  */
 struct CmpProgressBinding {
   void *ui_component; /**< Pointer to UI component state */
-  c_abstract_http_error_t (*update_progress)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*update_progress)(
       void *ui_component,
       float percentage); /**< Callback for updating progress */
   int cancel_requested; /**< 1 if the user closed the UI view and wants to abort
@@ -79,6 +79,16 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t cmp_http_inject_config(
     const struct CmpAppConfig *cmp_config, struct HttpConfig *http_config);
 
 /**
+ * @brief Optional framework-level UI thread dispatch callback signature.
+ * @param context Generic contextual payload from `CmpProgressBinding::context`.
+ * @param ui_component Target UI component pointer.
+ * @param percentage Normalized progress ratio in `[0.0f, 1.0f]`.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error enum to abort transfer.
+ */
+typedef NO_DISCARD_FN_PTR c_abstract_http_error_t (*CmpFrameworkUiHookFn)(
+    void *context, void *ui_component, float percentage);
+
+/**
  * @brief Default progress callback that hooks into the CmpProgressBinding.
  * @param current_bytes Bytes transferred so far.
  * @param total_bytes Total bytes expected.
@@ -88,6 +98,22 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t cmp_http_inject_config(
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 cmp_http_progress_adapter(size_t current_bytes, size_t total_bytes,
                           void *user_data);
+
+/**
+ * @brief Bind a `CmpProgressBinding` (progress hook + cooperative cancellation
+ * flag) onto an `HttpRequest`.
+ *
+ * Configures `req->on_progress`, `req->on_progress_user_data`, and
+ * `req->cancel_token` (`&binding->cancel_requested`). Passing `binding == NULL`
+ * detaches any active CMP binding from `req`.
+ *
+ * @param req Target HTTP request to configure.
+ * @param binding Optional CMP progress/cancellation state (must outlive `req`).
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or C_ABSTRACT_HTTP_ERR_INVAL if
+ * `req` is NULL.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t cmp_http_bind_request(
+    struct HttpRequest *req, struct CmpProgressBinding *binding);
 
 #ifdef __cplusplus
 }

@@ -1,3 +1,7 @@
+/**
+ * @file test_tls.h
+ * @brief Unit and concurrency tests for cross-platform Thread-Local Storage.
+ */
 
 #ifndef TEST_TLS_H
 #define TEST_TLS_H
@@ -23,8 +27,39 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #include <unistd.h>
 #endif
 #endif
+#include "mock_alloc.h"
+/* clang-format on */
 
 static struct AbstractHttpTlsKey *tls_key = NULL;
+static struct AbstractHttpTlsKey *tls_dtor_key = NULL;
+static int g_tls_dtor_count = 0;
+
+static void test_tls_dtor_cb(void *ptr) {
+  int *flag = (int *)ptr;
+  if (flag) {
+    *flag += 1;
+  }
+  g_tls_dtor_count++;
+}
+
+NO_DISCARD static c_abstract_http_error_t test_tls_dtor_task(void *arg) {
+  void *got = NULL;
+  c_abstract_http_error_t rc;
+  rc = abstract_http_tls_set(tls_dtor_key, arg);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = abstract_http_tls_get(tls_dtor_key, &got);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS || got != arg) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  /* Overwrite with same pointer to exercise slot update path */
+  rc = abstract_http_tls_set(tls_dtor_key, arg);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 NO_DISCARD static c_abstract_http_error_t test_tls_task_cb(void *arg) {
   int *result = (int *)arg;
@@ -41,7 +76,7 @@ NO_DISCARD static c_abstract_http_error_t test_tls_task_cb(void *arg) {
     return rc;
   }
 
-/* simulate some context switch */
+  /* simulate some context switch */
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
   Sleep(5);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
@@ -63,31 +98,70 @@ NO_DISCARD static c_abstract_http_error_t test_tls_task_cb(void *arg) {
   return rc;
 }
 
- TEST test_tls_isolation(void) {
-   struct AbstractHttpThreadPool *pool = NULL;
-   int results[4] = {10, 20, 30, 40};
+TEST test_tls_isolation(void) {
+  struct AbstractHttpThreadPool *pool = NULL;
+  int results[4] = {10, 20, 30, 40};
   int i;
 
-   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_tls_key_create(&tls_key, NULL));
-   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 4));
-   for (i = 0; i < 4; i++) {
-     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_push(pool, test_tls_task_cb, &results[i]));
-   }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_tls_key_create(&tls_key, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 4));
+  for (i = 0; i < 4; i++) {
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        abstract_http_thread_pool_push(pool, test_tls_task_cb, &results[i]));
+  }
 
-   { c_abstract_http_error_t rc_test = abstract_http_thread_pool_free(pool); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
 
-   ASSERT_EQ(10, results[0]);
-   ASSERT_EQ(20, results[1]);
-   ASSERT_EQ(30, results[2]);
-   ASSERT_EQ(40, results[3]);
+  ASSERT_EQ(10, results[0]);
+  ASSERT_EQ(20, results[1]);
+  ASSERT_EQ(30, results[2]);
+  ASSERT_EQ(40, results[3]);
 
-   { c_abstract_http_error_t rc_test = abstract_http_tls_key_delete(tls_key); if (rc_test != C_ABSTRACT_HTTP_SUCCESS) { printf("Error: %d\n", (int)rc_test); } }
-   tls_key = NULL;
-   PASS();
- }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_tls_key_delete(tls_key));
+  tls_key = NULL;
+  PASS();
+}
 
-#include "mock_alloc.h"
-/* clang-format on */
+TEST test_tls_destructor(void) {
+  struct AbstractHttpThreadPool *pool = NULL;
+  int local_flag = 0;
+  int main_flag = 0;
+  void *got = NULL;
+
+  g_tls_dtor_count = 0;
+  tls_dtor_key = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_tls_key_create(&tls_dtor_key, test_tls_dtor_cb));
+
+  /* Setting and clearing on main thread */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_tls_set(tls_dtor_key, &main_flag));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_tls_get(tls_dtor_key, &got));
+  ASSERT_EQ(&main_flag, got);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_tls_set(tls_dtor_key, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_tls_get(tls_dtor_key, &got));
+  ASSERT_EQ(NULL, got);
+
+  /* Worker thread exit triggers destructor on POSIX & Win32 FLS */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      abstract_http_thread_pool_push(pool, test_tls_dtor_task, &local_flag));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
+
+#if !defined(__EMSCRIPTEN__) && !defined(__MSDOS__) && !defined(__DOS__) &&    \
+    !defined(DOS) && !defined(C_ABSTRACT_HTTP_SINGLE_THREADED)
+  ASSERT_EQ(1, local_flag);
+  ASSERT_EQ(1, g_tls_dtor_count);
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_tls_key_delete(tls_dtor_key));
+  tls_dtor_key = NULL;
+  PASS();
+}
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 TEST test_tls_oom(void) {
@@ -97,7 +171,6 @@ TEST test_tls_oom(void) {
   g_mock_alloc_fail = 1;
   g_mock_alloc_count = 0;
   rc = abstract_http_tls_key_create(&key, NULL);
-  printf("tls_key_create returned %d\n", rc);
   {
     int rc_test_tmp = rc;
     g_mock_alloc_fail = 0;
@@ -148,10 +221,11 @@ SUITE(tls_suite) {
   RUN_TEST(test_tls_oom);
 #endif
   RUN_TEST(test_tls_isolation);
+  RUN_TEST(test_tls_destructor);
 }
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-#endif
+#endif /* TEST_TLS_H */

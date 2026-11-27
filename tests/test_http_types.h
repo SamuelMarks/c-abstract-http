@@ -1414,6 +1414,36 @@ TEST test_http_client_errs(void) {
   PASS();
 }
 
+typedef NO_DISCARD_FN_PTR
+    c_abstract_http_error_t (*cah_test_nodiscard_cb_t)(int val, int *out_val);
+
+struct CahTestNoDiscardHooks {
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*invoke)(int val, int *out_val);
+};
+
+static NO_DISCARD c_abstract_http_error_t
+cah_test_nodiscard_impl(int val, int *out_val) {
+  if (!out_val) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *out_val = val + 1;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_no_discard_error_typedef_and_fn_ptrs(void) {
+  cah_test_nodiscard_cb_t cb = cah_test_nodiscard_impl;
+  struct CahTestNoDiscardHooks hooks;
+  int out_val = 0;
+
+  hooks.invoke = cah_test_nodiscard_impl;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, cah_test_nodiscard_impl(1, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, cb(10, &out_val));
+  ASSERT_EQ(11, out_val);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, hooks.invoke(20, &out_val));
+  ASSERT_EQ(21, out_val);
+  PASS();
+}
+
 TEST test_http_modality_errs(void) {
   struct ModalityContext ctx = {0};
   (void)ctx;
@@ -4504,6 +4534,7 @@ SUITE(http_types_suite) {
   RUN_TEST(test_http_cookie_jar_set_val_oom);
 #endif
   RUN_TEST(test_http_client_errs);
+  RUN_TEST(test_no_discard_error_typedef_and_fn_ptrs);
   RUN_TEST(test_http_modality_errs);
   RUN_TEST(test_http_response_save_to_file);
   RUN_TEST(test_http_send_multi);

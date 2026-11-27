@@ -1506,6 +1506,11 @@ TEST test_sse_callback_error_percolation(void) {
             c_abstract_http_sse_sync_read_loop(
                 &client, &req, test_sse_on_event_abort, test_sse_on_error_abort,
                 NULL, NULL, NULL));
+  g_mock_cond_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_sse_sync_read_loop(
+                                        &client, &req, test_sse_on_event_abort,
+                                        NULL, NULL, NULL, NULL));
+  g_mock_cond_free_fail = 0;
   g_mock_response_free_fail = 0;
 
   /* 4c. sync_read_loop sse_init OOM and sse_parser_init OOM with on_err abort
@@ -1697,7 +1702,7 @@ TEST test_sse_auto_reconnect(void) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   {
     int k;
-    for (k = 0; k < 14; ++k) {
+    for (k = 0; k < 18; ++k) {
       struct HttpRequest oreq;
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&oreq));
       /* Pre-populate Last-Event-ID on odd k to cover in-place sse_strdup OOM */
@@ -1711,7 +1716,7 @@ TEST test_sse_auto_reconnect(void) {
       {
         c_abstract_http_error_t orc = c_abstract_http_sse_sync_read_loop(
             &client, &oreq, test_sse_reconn_on_evt,
-            (k == 11) ? test_sse_on_error_abort : test_sse_on_error,
+            (k >= 11 && k <= 13) ? test_sse_on_error_abort : test_sse_on_error,
             test_sse_on_close, &tctx, NULL);
         ASSERT(orc == C_ABSTRACT_HTTP_SUCCESS ||
                orc != C_ABSTRACT_HTTP_SUCCESS);
@@ -1722,7 +1727,7 @@ TEST test_sse_auto_reconnect(void) {
 
     /* Cover sse_parser_destroy failure on Last-Event-ID OOM and response_free
      */
-    for (k = 6; k <= 12; ++k) {
+    for (k = 6; k <= 15; ++k) {
       struct HttpRequest oreq;
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&oreq));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1758,6 +1763,886 @@ TEST test_sse_auto_reconnect(void) {
   PASS();
 }
 
+/** @brief Trace state for incremental SSE chunk and event-loop tests */
+struct sse_live_trace {
+  /** @brief Number of SSE events observed */
+  int events;
+  /** @brief Number of raw chunks forwarded to user on_chunk */
+  int user_chunks;
+  /** @brief Non-zero to fail inside user on_chunk */
+  int fail_user_chunk;
+  /** @brief Non-zero to set exit_flag inside on_event */
+  int stop_on_event;
+  /** @brief Pointer to cooperative exit_flag */
+  volatile int *exit_ptr;
+  /** @brief Close callback count */
+  int closes;
+  /** @brief Last error code received */
+  int last_err;
+  /** @brief Last event ID received */
+  char last_id[64];
+  /** @brief Last event payload received */
+  char last_data[128];
+  /** @brief Last-Event-ID header observed on server reconnect */
+  char seen_req_last_id[64];
+  /** @brief Mock transport call counter */
+  int call_idx;
+  /** @brief Mock mode selector */
+  int mode;
+  /** @brief Non-zero to attach HttpFutureState on fut for mutex_free_fail */
+  int attach_future_state;
+  /** @brief Pending future for deferred readiness test */
+  struct HttpFuture *deferred_future;
+  /** @brief Loop for deferred readiness timer */
+  struct ModalityEventLoop *loop;
+};
+
+static struct sse_live_trace *g_sse_live_tr = NULL;
+
+NO_DISCARD static c_abstract_http_error_t
+sse_live_user_chunk_cb(void *user_data, const void *chunk, size_t len) {
+  struct sse_live_trace *tr = (struct sse_live_trace *)user_data;
+  (void)chunk;
+  (void)len;
+  tr->user_chunks++;
+  if (tr->fail_user_chunk) {
+    return C_ABSTRACT_HTTP_ERR_CANCELED;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD static c_abstract_http_error_t
+sse_live_on_event(const struct c_abstract_http_sse_event *ev, void *user_data) {
+  struct sse_live_trace *tr = (struct sse_live_trace *)user_data;
+  tr->events++;
+  if (ev->id) {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    strncpy_s(tr->last_id, sizeof(tr->last_id), ev->id,
+              sizeof(tr->last_id) - 1);
+#else
+    strncpy(tr->last_id, ev->id, sizeof(tr->last_id) - 1);
+#endif
+  }
+  if (ev->data && ev->data_len < sizeof(tr->last_data)) {
+    memcpy(tr->last_data, ev->data, ev->data_len);
+    tr->last_data[ev->data_len] = '\0';
+  }
+  if (tr->stop_on_event && tr->exit_ptr) {
+    *(tr->exit_ptr) = 1;
+  }
+  if (tr->mode == 99) {
+    return C_ABSTRACT_HTTP_ERR_WS_FRAMING;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD static c_abstract_http_error_t sse_live_on_err(int error_code,
+                                                          void *user_data) {
+  struct sse_live_trace *tr = (struct sse_live_trace *)user_data;
+  tr->last_err = error_code;
+  if (tr->mode == 88) {
+    return C_ABSTRACT_HTTP_ERR_CANCELED;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD static c_abstract_http_error_t sse_live_on_close(void *user_data) {
+  struct sse_live_trace *tr = (struct sse_live_trace *)user_data;
+  tr->closes++;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD static c_abstract_http_error_t
+sse_live_sync_send(struct HttpTransportContext *tctx,
+                   const struct HttpRequest *req, struct HttpResponse **res) {
+  struct sse_live_trace *tr = g_sse_live_tr;
+  const char *c1 = "id: s1\nretry: 1\ndata: live-";
+  const char *c2 = "stream\n\n";
+  c_abstract_http_error_t rc;
+  struct HttpResponse *r;
+  (void)tctx;
+
+  tr->call_idx++;
+  {
+    const char *hdr_id = NULL;
+    if (http_headers_get(&req->headers, "Last-Event-ID", &hdr_id) ==
+            C_ABSTRACT_HTTP_SUCCESS &&
+        hdr_id) {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      strncpy_s(tr->seen_req_last_id, sizeof(tr->seen_req_last_id), hdr_id,
+                sizeof(tr->seen_req_last_id) - 1);
+#else
+      strncpy(tr->seen_req_last_id, hdr_id, sizeof(tr->seen_req_last_id) - 1);
+#endif
+    }
+  }
+
+  if (tr->mode == 1 && tr->call_idx == 1) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+
+  r = (struct HttpResponse *)calloc(1, sizeof(*r));
+  if (!r) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  rc = http_response_init(r);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(r);
+    return rc;
+  }
+  r->status_code = (tr->call_idx >= 2) ? 204 : 200;
+
+  if (req->on_chunk) {
+    /* Zero-len chunk check + two incremental chunks */
+    rc = req->on_chunk(req->on_chunk_user_data, "", 0);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (tr->mode == 2) {
+        *res = r;
+        return rc;
+      }
+      rc = http_response_free(r);
+      free(r);
+      return C_ABSTRACT_HTTP_ERR_CANCELED;
+    }
+    rc = req->on_chunk(req->on_chunk_user_data, c1, strlen(c1));
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      *res = r;
+      return rc;
+    }
+    /* Verify event has NOT fired yet before trailing \n\n chunk */
+    if (tr->call_idx == 1 && tr->events != 0 && tr->mode == 0) {
+      *res = r;
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    rc = req->on_chunk(req->on_chunk_user_data, c2, strlen(c2));
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (tr->mode == 3) {
+        /* Return NULL *res on exit_flag stop */
+        c_abstract_http_error_t frc = http_response_free(r);
+        free(r);
+        if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+          return frc;
+        }
+        *res = NULL;
+        return rc;
+      }
+      *res = r;
+      return rc;
+    }
+  }
+
+  /* Populate body as well to ensure chunks_fed > 0 prevents double-feeding */
+  r->body = malloc(strlen(c1) + strlen(c2) + 1);
+  if (r->body) {
+    memcpy(r->body, c1, strlen(c1));
+    memcpy((char *)r->body + strlen(c1), c2, strlen(c2) + 1);
+    r->body_len = strlen(c1) + strlen(c2);
+  }
+  *res = r;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD static c_abstract_http_error_t
+sse_live_deferred_ready_timer(struct ModalityEventLoop *loop, int timer_id,
+                              void *user_data) {
+  struct sse_live_trace *tr = (struct sse_live_trace *)user_data;
+  (void)loop;
+  (void)timer_id;
+  if (tr->deferred_future) {
+    tr->deferred_future->is_ready = 1;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD static c_abstract_http_error_t sse_live_send_multi(
+    struct HttpTransportContext *tctx, struct ModalityEventLoop *loop,
+    const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
+  struct sse_live_trace *tr = g_sse_live_tr;
+  const struct HttpRequest *req = multi->requests[0];
+  struct HttpFuture *fut = futures[0];
+  struct HttpResponse *r = NULL;
+  c_abstract_http_error_t rc;
+  (void)tctx;
+
+  tr->call_idx++;
+  {
+    const char *hdr_id = NULL;
+    if (http_headers_get(&req->headers, "Last-Event-ID", &hdr_id) ==
+            C_ABSTRACT_HTTP_SUCCESS &&
+        hdr_id) {
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      strncpy_s(tr->seen_req_last_id, sizeof(tr->seen_req_last_id), hdr_id,
+                sizeof(tr->seen_req_last_id) - 1);
+#else
+      strncpy(tr->seen_req_last_id, hdr_id, sizeof(tr->seen_req_last_id) - 1);
+#endif
+    }
+  }
+
+  if (tr->attach_future_state) {
+    fut->is_ready = 1;
+    rc = http_future_cancel(fut);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    fut->is_ready = 0;
+  }
+
+  if (tr->mode == 10) {
+    /* Dispatch failure */
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (tr->mode == 11) {
+    /* Immediate ready with response so timer-add failure cleans up response */
+    r = (struct HttpResponse *)calloc(1, sizeof(*r));
+    if (!r) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    rc = http_response_init(r);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(r);
+      return rc;
+    }
+    fut->response = r;
+    fut->is_ready = 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (tr->mode == 12) {
+    /* Future fails with non-recoverable error + non-NULL response */
+    r = (struct HttpResponse *)calloc(1, sizeof(*r));
+    if (!r) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    rc = http_response_init(r);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(r);
+      return rc;
+    }
+    fut->response = r;
+    fut->error_code = C_ABSTRACT_HTTP_ERR_ACCES;
+    fut->is_ready = 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (tr->mode == 13) {
+    /* Buffered fallback body (no on_chunk call) */
+    const char *buf_ev = "id: b1\ndata: buffered\n\n";
+    r = (struct HttpResponse *)calloc(1, sizeof(*r));
+    if (!r) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    rc = http_response_init(r);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(r);
+      return rc;
+    }
+    r->status_code = 204;
+    r->body = malloc(strlen(buf_ev) + 1);
+    if (!r->body) {
+      c_abstract_http_error_t frc = http_response_free(r);
+      free(r);
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        return frc;
+      }
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(r->body, buf_ev, strlen(buf_ev) + 1);
+    r->body_len = strlen(buf_ev);
+    fut->response = r;
+    fut->error_code = C_ABSTRACT_HTTP_SUCCESS;
+    fut->is_ready = 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (tr->mode == 14) {
+    /* Stay pending so c_abstract_http_sse_free cleans active future + timer */
+    r = (struct HttpResponse *)calloc(1, sizeof(*r));
+    if (!r) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    rc = http_response_init(r);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(r);
+      return rc;
+    }
+    fut->response = r;
+    fut->is_ready = 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  /* Full multi-attempt streaming flow:
+   * call 1 -> streams id: a1 + retry: 2 + data: first via on_chunk, deferred
+   * ready (status 200) call 2 -> fails with ERR_TIMEOUT (triggers retry timer)
+   * call 3 -> streams data: second via on_chunk, status 204 (closes cleanly)
+   */
+  if (tr->call_idx == 2) {
+    fut->error_code = C_ABSTRACT_HTTP_ERR_TIMEOUT;
+    fut->is_ready = 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  r = (struct HttpResponse *)calloc(1, sizeof(*r));
+  if (!r) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  rc = http_response_init(r);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(r);
+    return rc;
+  }
+  r->status_code = (tr->call_idx >= 3) ? 204 : 200;
+
+  if (req->on_chunk) {
+    const char *msg = (tr->call_idx == 1)
+                          ? "id: a1\nretry: 2\ndata: async-one\n\n"
+                          : "data: async-two\n\n";
+    rc = req->on_chunk(req->on_chunk_user_data, "", 0);
+    if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+      rc = req->on_chunk(req->on_chunk_user_data, msg, strlen(msg));
+    }
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      /* recorded in lctx->stream_err for poll timer verification */
+    }
+  }
+
+  fut->response = r;
+  fut->error_code = C_ABSTRACT_HTTP_SUCCESS;
+  if (tr->call_idx == 1) {
+    int tid = 0;
+    fut->is_ready = 0;
+    tr->deferred_future = fut;
+    rc = http_loop_add_timer(loop, 8, sse_live_deferred_ready_timer, tr, &tid);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  } else {
+    fut->is_ready = 1;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+struct sse_ext_timer_capture {
+  int cnt;
+  http_timer_cb last_cb;
+  void *last_ud;
+};
+
+static struct sse_ext_timer_capture g_sse_ext_cap = {0, NULL, NULL};
+static int g_sse_ext_timer_fail_after = -1;
+static int g_sse_ext_cancel_fail = 0;
+
+NO_DISCARD static c_abstract_http_error_t
+sse_ext_add_timer_hook(void *ctx, long ms, http_timer_cb cb, void *ud,
+                       int *out_id) {
+  int *cnt = (int *)ctx;
+  (void)ms;
+  if (g_sse_ext_timer_fail_after >= 0 && *cnt >= g_sse_ext_timer_fail_after) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  (*cnt)++;
+  *out_id = *cnt;
+  g_sse_ext_cap.last_cb = cb;
+  g_sse_ext_cap.last_ud = ud;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD static c_abstract_http_error_t sse_ext_cancel_timer_hook(void *ctx,
+                                                                    int id) {
+  (void)ctx;
+  (void)id;
+  if (g_sse_ext_cancel_fail) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
+TEST test_sse_incremental_on_chunk_and_async_loop(void) {
+  struct HttpClient client;
+  struct HttpRequest req;
+  struct sse_live_trace tr;
+  struct c_abstract_http_sse_config cfg;
+  volatile int exit_flag = 0;
+
+  /* 1. Sync incremental on_chunk + pre-initialized Last-Event-ID + user
+   * on_chunk */
+  memset(&client, 0, sizeof(client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
+  client.send = sse_live_sync_send;
+  client.config.retry_count = 2;
+
+  memset(&tr, 0, sizeof(tr));
+  tr.mode = 1;
+  g_sse_live_tr = &tr;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  memset(&cfg, 0, sizeof(cfg));
+  cfg.last_event_id = "seed-id-0";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_init(&req, &cfg));
+  req.on_chunk = sse_live_user_chunk_cb;
+  req.on_chunk_user_data = &tr;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_sync_read_loop(
+                &client, &req, sse_live_on_event, sse_live_on_err,
+                sse_live_on_close, &tr, &exit_flag));
+  ASSERT_EQ(1, tr.events);
+  ASSERT_EQ(3, tr.user_chunks);
+  ASSERT_STR_EQ("live-stream", tr.last_data);
+  ASSERT_STR_EQ("seed-id-0", tr.seen_req_last_id);
+  ASSERT_EQ(1, tr.closes);
+  ASSERT(req.on_chunk == sse_live_user_chunk_cb);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 2. Sync user on_chunk error abort + event error abort during streaming */
+  memset(&tr, 0, sizeof(tr));
+  tr.mode = 2;
+  tr.fail_user_chunk = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.on_chunk = sse_live_user_chunk_cb;
+  req.on_chunk_user_data = &tr;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+            c_abstract_http_sse_sync_read_loop(&client, &req, sse_live_on_event,
+                                               sse_live_on_err, NULL, &tr,
+                                               NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  memset(&tr, 0, sizeof(tr));
+  tr.mode = 99;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
+            c_abstract_http_sse_sync_read_loop(&client, &req, sse_live_on_event,
+                                               sse_live_on_err, NULL, &tr,
+                                               NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 3. Sync cooperative exit_flag stop mid-stream (with non-NULL res and NULL
+   * res) */
+  memset(&tr, 0, sizeof(tr));
+  exit_flag = 0;
+  tr.stop_on_event = 1;
+  tr.exit_ptr = &exit_flag;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_sync_read_loop(
+                &client, &req, sse_live_on_event, sse_live_on_err,
+                sse_live_on_close, &tr, &exit_flag));
+  ASSERT_EQ(1, tr.events);
+  ASSERT_EQ(1, tr.closes);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  exit_flag = 0;
+  tr.call_idx = 0;
+  g_mock_response_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_sse_sync_read_loop(&client, &req, sse_live_on_event,
+                                               NULL, NULL, &tr, &exit_flag));
+  exit_flag = 0;
+  tr.call_idx = 0;
+  g_mock_cond_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_sse_sync_read_loop(&client, &req, sse_live_on_event,
+                                               NULL, NULL, &tr, &exit_flag));
+  g_mock_cond_free_fail = 0;
+  g_mock_response_free_fail = 0;
+#endif
+  exit_flag = 0;
+  tr.mode = 3;
+  tr.call_idx = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_sync_read_loop(
+                                         &client, &req, sse_live_on_event, NULL,
+                                         sse_live_on_close, &tr, &exit_flag));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 4. Non-blocking ModalityEventLoop async SSE registration, deferred poll,
+   * retry timer backoff, Last-Event-ID update, and 204 close */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&client.loop));
+  client.send_multi = sse_live_send_multi;
+  client.config.retry_count = 3;
+
+  memset(&tr, 0, sizeof(tr));
+  g_sse_live_tr = &tr;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Last-Event-ID", "init-async"));
+  req.on_chunk = sse_live_user_chunk_cb;
+  req.on_chunk_user_data = &tr;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_async_register(&client, &req, sse_live_on_event,
+                                               sse_live_on_err,
+                                               sse_live_on_close, &tr));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(client.loop));
+  ASSERT_EQ(2, tr.events);
+  ASSERT_EQ(1, tr.closes);
+  ASSERT_STR_EQ("a1", tr.seen_req_last_id);
+  ASSERT_STR_EQ("async-two", tr.last_data);
+  ASSERT(req.on_chunk == sse_live_user_chunk_cb);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 5. Async loop buffered body fallback (success + parser error + NULL close)
+   */
+  memset(&tr, 0, sizeof(tr));
+  tr.mode = 13;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_async_register(&client, &req, sse_live_on_event,
+                                               sse_live_on_err, NULL, &tr));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(client.loop));
+  ASSERT_EQ(1, tr.events);
+  ASSERT_STR_EQ("buffered", tr.last_data);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  memset(&tr, 0, sizeof(tr));
+  tr.mode = 13;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_async_register(
+                                         &client, &req, test_sse_on_event_abort,
+                                         sse_live_on_err, NULL, &tr));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED, http_loop_run(client.loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  memset(&tr, 0, sizeof(tr));
+  tr.mode = 13;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_async_register(
+                                         &client, &req, test_sse_on_event_abort,
+                                         sse_live_on_err, NULL, &tr));
+  g_mock_response_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_run(client.loop));
+  g_mock_response_free_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+#endif
+
+  /* 6. Async loop user chunk error, parser stream error, non-retryable send_rc,
+   * and mid-flight c_abstract_http_sse_free */
+  memset(&tr, 0, sizeof(tr));
+  tr.fail_user_chunk = 1;
+  tr.call_idx = 2; /* single ready attempt */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.on_chunk = sse_live_user_chunk_cb;
+  req.on_chunk_user_data = &tr;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_async_register(
+                                         &client, &req, sse_live_on_event,
+                                         test_sse_on_error_abort, NULL, &tr));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED, http_loop_run(client.loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  memset(&tr, 0, sizeof(tr));
+  tr.mode = 99;
+  tr.call_idx = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_async_register(&client, &req, sse_live_on_event,
+                                               NULL, NULL, &tr));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING, http_loop_run(client.loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  memset(&tr, 0, sizeof(tr));
+  tr.mode = 12;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_async_register(&client, &req, sse_live_on_event,
+                                               sse_live_on_err, NULL, &tr));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_loop_run(client.loop));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, tr.last_err);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  memset(&tr, 0, sizeof(tr));
+  tr.mode = 10;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+            c_abstract_http_sse_async_register(&client, &req, sse_live_on_event,
+                                               test_sse_on_error_abort, NULL,
+                                               &tr));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_sse_async_register(&client, &req, sse_live_on_event,
+                                               sse_live_on_err, NULL, &tr));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  memset(&tr, 0, sizeof(tr));
+  tr.mode = 14;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sse_async_register(&client, &req, sse_live_on_event,
+                                               NULL, NULL, &tr));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* 7. Exhaustive OOM + fault injection across async loop SSE */
+  {
+    int k;
+    int timer_cnt = 0;
+    struct HttpLoopHooks lhooks;
+    struct HttpClient ext_cli;
+
+    for (k = 0; k < 34; ++k) {
+      struct HttpRequest oreq;
+      c_abstract_http_error_t arc;
+      memset(&tr, 0, sizeof(tr));
+      tr.mode = 13;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&oreq));
+      if (k >= 17) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_headers_add(&oreq.headers, "Last-Event-ID", "s"));
+      }
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = k % 17;
+      arc = c_abstract_http_sse_async_register(
+          &client, &oreq, sse_live_on_event, NULL, NULL, &tr);
+      g_mock_alloc_fail = 0;
+      if (arc == C_ABSTRACT_HTTP_SUCCESS) {
+        c_abstract_http_error_t lrc = http_loop_run(client.loop);
+        ASSERT(lrc == C_ABSTRACT_HTTP_SUCCESS ||
+               lrc != C_ABSTRACT_HTTP_SUCCESS);
+      }
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&oreq));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&oreq));
+    }
+
+    /* Prior req.sse_ctx destroy failure + start_attempt cleanup failure */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    req.sse_ctx = calloc(1, sizeof(struct sse_parser_ctx));
+    ASSERT(req.sse_ctx != NULL);
+    g_mock_cond_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
+                                                 NULL, NULL));
+    g_mock_cond_free_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+    tr.mode = 10;
+    g_mock_cond_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_cond_free_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+    tr.mode = 10;
+    tr.attach_future_state = 1;
+    g_mock_mutex_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_mutex_free_fail = 0;
+    tr.attach_future_state = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* External loop timer hook failures (start_attempt add_timer fail +
+     * cancel_timer fail + poll re-arm fail + schedule_reconnect fail) */
+    memset(&lhooks, 0, sizeof(lhooks));
+    memset(&ext_cli, 0, sizeof(ext_cli));
+    ext_cli.send_multi = sse_live_send_multi;
+    ext_cli.config.retry_count = 2;
+    lhooks.external_context = &timer_cnt;
+    lhooks.add_timer = sse_ext_add_timer_hook;
+    lhooks.cancel_timer = sse_ext_cancel_timer_hook;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_init_external(&ext_cli.loop, &lhooks));
+
+    /* add_timer fail in start_attempt with non-NULL response (+ response_free &
+     * future_free failures) */
+    tr.mode = 11;
+    timer_cnt = 0;
+    g_sse_ext_timer_fail_after = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+              c_abstract_http_sse_async_register(&ext_cli, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_sse_async_register(&ext_cli, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_response_free_fail = 0;
+    tr.attach_future_state = 1;
+    g_mock_mutex_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_sse_async_register(&ext_cli, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_mutex_free_fail = 0;
+    tr.attach_future_state = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+    /* cancel_timer fail + response_free fail + future_free fail in sse_free */
+    g_sse_ext_timer_fail_after = -1;
+    tr.mode = 14;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(&ext_cli, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_sse_ext_cancel_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_sse_free(&req));
+    g_sse_ext_cancel_fail = 0;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(&ext_cli, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_sse_free(&req));
+    g_mock_response_free_fail = 0;
+
+    tr.attach_future_state = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(&ext_cli, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_mutex_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_sse_free(&req));
+    g_mock_mutex_free_fail = 0;
+    tr.attach_future_state = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(ext_cli.loop));
+
+    /* Poll timer future_free / response_free / reconnect OOM & dispatch
+     * failures on real loop */
+    memset(&tr, 0, sizeof(tr));
+    tr.mode = 13;
+    tr.attach_future_state = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_mutex_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_run(client.loop));
+    g_mock_mutex_free_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_mutex_free_fail = 1;
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_run(client.loop));
+    g_mock_response_free_fail = 0;
+    g_mock_mutex_free_fail = 0;
+    tr.attach_future_state = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+    /* stream_err + response_free_fail, send_rc + response_free_fail, ok +
+     * response_free_fail */
+    tr.mode = 99;
+    tr.call_idx = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(
+                  &client, &req, sse_live_on_event, NULL, NULL, &tr));
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_run(client.loop));
+    g_mock_response_free_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+    tr.mode = 12;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_run(client.loop));
+    g_mock_response_free_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+    tr.mode = 13;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_run(client.loop));
+    g_mock_response_free_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+    /* Reconnect timer Last-Event-ID OOM and start_attempt fail on reconnect */
+    memset(&tr, 0, sizeof(tr));
+    tr.call_idx = 1; /* next call is idx 2 -> ERR_TIMEOUT -> schedules reconnect
+                      */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_headers_add(&req.headers, "Last-Event-ID", "seed"));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(client.loop));
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = 0;
+    {
+      c_abstract_http_error_t lrc = http_loop_run(client.loop);
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, lrc);
+    }
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+    memset(&tr, 0, sizeof(tr));
+    tr.call_idx = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(client.loop));
+    tr.mode = 10; /* fail on reconnect start_attempt */
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_run(client.loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+    /* Poll timer re-arm OOM and schedule_reconnect OOM */
+    memset(&tr, 0, sizeof(tr));
+    tr.mode = 14;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_sse_async_register(&client, &req, NULL, NULL,
+                                                 NULL, &tr));
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = 0;
+    /* Force loop timer array realloc or test via external hook */
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* Exercise poll re-arm failure and schedule_reconnect failure via external
+     * loop */
+    {
+      memset(&lhooks, 0, sizeof(lhooks));
+      memset(&ext_cli, 0, sizeof(ext_cli));
+      ext_cli.send_multi = sse_live_send_multi;
+      ext_cli.config.retry_count = 2;
+      lhooks.external_context = &timer_cnt;
+      lhooks.add_timer = sse_ext_add_timer_hook;
+      lhooks.cancel_timer = sse_ext_cancel_timer_hook;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_init_external(&ext_cli.loop, &lhooks));
+
+      /* 1. !is_ready poll timer re-arm failure */
+      tr.mode = 14;
+      timer_cnt = 0;
+      g_sse_ext_timer_fail_after = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_sse_async_register(&ext_cli, &req, NULL, NULL,
+                                                   NULL, &tr));
+      ASSERT(g_sse_ext_cap.last_cb != NULL);
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+                g_sse_ext_cap.last_cb(ext_cli.loop, 1, g_sse_ext_cap.last_ud));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+
+      /* 2. schedule_reconnect add_timer failure */
+      memset(&tr, 0, sizeof(tr));
+      tr.call_idx = 1; /* idx 2 -> ERR_TIMEOUT -> schedule_reconnect */
+      timer_cnt = 0;
+      g_sse_ext_timer_fail_after = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_sse_async_register(&ext_cli, &req, NULL, NULL,
+                                                   NULL, &tr));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+                g_sse_ext_cap.last_cb(ext_cli.loop, 1, g_sse_ext_cap.last_ud));
+      g_sse_ext_timer_fail_after = -1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_sse_free(&req));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(ext_cli.loop));
+    }
+  }
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&client));
+  g_sse_live_tr = NULL;
+  PASS();
+}
+
 TEST test_sse_id_embedded_nul(void) {
   struct sse_parser_ctx nul_parser;
   struct test_sse_ctx nul_ctx = {0};
@@ -1773,7 +2658,69 @@ TEST test_sse_id_embedded_nul(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+static c_abstract_http_error_t
+mock_sse_send_short_ok(struct HttpTransportContext *client,
+                       const struct HttpRequest *req,
+                       struct HttpResponse **out_res) {
+  struct HttpResponse *r;
+  (void)client;
+  (void)req;
+  r = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
+  if (!r) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  if (http_response_init(r) != C_ABSTRACT_HTTP_SUCCESS) {
+    free(r);
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  r->status_code = 200;
+  if (c_abstract_http_strdup("retry: 1\ndata: hi\n\n", (char **)&r->body) !=
+      C_ABSTRACT_HTTP_SUCCESS) {
+    if (http_response_free(r) != C_ABSTRACT_HTTP_SUCCESS) {
+    }
+    free(r);
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  r->body_len = strlen((const char *)r->body);
+  *out_res = r;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_sse_reconnect_time_fail(void) {
+  struct HttpClient client;
+  struct HttpRequest req;
+  struct test_sse_ctx ctx = {0};
+
+  memset(&client, 0, sizeof(client));
+  client.send = mock_sse_send_short_ok;
+  client.config.retry_count = 1;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+
+  /* Fail 1st clock call in sse_sleep_ms */
+  g_mock_time_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_sse_sync_read_loop(&client, &req, test_sse_on_event,
+                                               test_sse_on_error,
+                                               test_sse_on_close, &ctx, NULL));
+  g_mock_time_fail = 0;
+
+  /* Fail 2nd clock call in sse_sleep_ms */
+  g_mock_time_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            c_abstract_http_sse_sync_read_loop(&client, &req, test_sse_on_event,
+                                               test_sse_on_error,
+                                               test_sse_on_close, &ctx, NULL));
+  g_mock_time_fail = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  PASS();
+}
+#endif
+
 SUITE(sse_suite) {
+  RUN_TEST(test_sse_incremental_on_chunk_and_async_loop);
   RUN_TEST(test_sse_id_embedded_nul);
   RUN_TEST(test_sse_auto_reconnect);
   RUN_TEST(test_sse_free_helper);
@@ -1826,6 +2773,7 @@ SUITE(sse_suite) {
   RUN_TEST(test_sse_parser_feed_current_data_capacity_limit);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_sse_sync_loop_oom_branches);
+  RUN_TEST(test_sse_reconnect_time_fail);
 #endif
   RUN_TEST(test_sse_parser_feed_data_capacity_limit_real);
   RUN_TEST(test_sse_parser_feed_current_data_limit_real);

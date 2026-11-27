@@ -113,15 +113,17 @@ abstract_http_cond_free(struct AbstractHttpCond *cond);
  * @param[in] arg User-provided argument.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, error code on failure.
  */
-typedef c_abstract_http_error_t (*abstract_http_thread_task_cb)(void *arg);
+typedef NO_DISCARD_FN_PTR
+    c_abstract_http_error_t (*abstract_http_thread_task_cb)(void *arg);
 
 /**
  * @brief Hooks for integrating with an external thread pool.
  */
 struct AbstractHttpThreadPoolHooks {
   void *external_context; /**< Context passed to hooks */
-  c_abstract_http_error_t (*push)(void *ctx, abstract_http_thread_task_cb cb,
-                                  void *arg); /**< Hook for pushing a task */
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*push)(
+      void *ctx, abstract_http_thread_task_cb cb,
+      void *arg); /**< Hook for pushing a task */
 };
 
 /**

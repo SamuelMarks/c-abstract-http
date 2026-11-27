@@ -52,9 +52,8 @@ enum HttpLoopBackend {
  * @param[in] user_data User context pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-typedef c_abstract_http_error_t (*http_loop_cb)(struct ModalityEventLoop *loop,
-                                                int fd, int events,
-                                                void *user_data);
+typedef NO_DISCARD_FN_PTR c_abstract_http_error_t (*http_loop_cb)(
+    struct ModalityEventLoop *loop, int fd, int events, void *user_data);
 
 /**
  * @brief Callback for timeout events.
@@ -63,8 +62,9 @@ typedef c_abstract_http_error_t (*http_loop_cb)(struct ModalityEventLoop *loop,
  * @param[in] user_data User context pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-typedef c_abstract_http_error_t (*http_timer_cb)(struct ModalityEventLoop *loop,
-                                                 int timer_id, void *user_data);
+typedef NO_DISCARD_FN_PTR
+    c_abstract_http_error_t (*http_timer_cb)(struct ModalityEventLoop *loop,
+                                             int timer_id, void *user_data);
 
 /**
  * @brief Hooks for integrating with an external framework's event loop (e.g.,
@@ -74,23 +74,23 @@ struct HttpLoopHooks {
   void *external_context; /**< Context passed to hooks */
 
   /* Polling Hooks */
-  c_abstract_http_error_t (*add_fd)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*add_fd)(
       void *ctx, int fd, int events, http_loop_cb cb,
       void *user_data); /**< Register file descriptor */
-  c_abstract_http_error_t (*mod_fd)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*mod_fd)(
       void *ctx, int fd, int events); /**< Modify file descriptor events */
-  c_abstract_http_error_t (*remove_fd)(void *ctx,
-                                       int fd); /**< Remove file descriptor */
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*remove_fd)(
+      void *ctx, int fd); /**< Remove file descriptor */
 
   /* Timer Hooks */
-  c_abstract_http_error_t (*add_timer)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*add_timer)(
       void *ctx, long timeout_ms, http_timer_cb cb, void *user_data,
       int *out_timer_id); /**< Register a timer */
-  c_abstract_http_error_t (*cancel_timer)(void *ctx,
-                                          int timer_id); /**< Cancel a timer */
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*cancel_timer)(
+      void *ctx, int timer_id); /**< Cancel a timer */
 
   /* Wakeup Hook */
-  c_abstract_http_error_t (*wakeup)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*wakeup)(
       void *ctx); /**< Wake up the event loop thread */
 };
 
@@ -230,10 +230,22 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 http_loop_wakeup(struct ModalityEventLoop *loop);
 
 /**
- * @brief Return the current monotonic/wall clock timestamp in milliseconds.
- * @return Current timestamp in milliseconds.
+ * @brief Retrieve the current monotonic/wall clock timestamp in milliseconds.
+ * @param[out] out_ms Pointer to receive the current timestamp in milliseconds.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or C_ABSTRACT_HTTP_ERR_INVAL if
+ * out_ms is NULL.
  */
-C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void);
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_get_time_ms(abstract_http_int64_t *out_ms);
+
+/**
+ * @brief Unmocked implementation of `c_abstract_http_get_time_ms`.
+ * @param[out] out_ms Pointer to receive the current timestamp in milliseconds.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or C_ABSTRACT_HTTP_ERR_INVAL if
+ * out_ms is NULL.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+real_c_abstract_http_get_time_ms(abstract_http_int64_t *out_ms);
 
 /**
  * @brief Clear the stop_requested flag on an event loop for test reuse.

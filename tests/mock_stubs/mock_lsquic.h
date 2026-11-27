@@ -12,6 +12,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #if defined(_WIN32)
@@ -88,6 +89,7 @@ struct lsquic_stream {
   uint8_t *rx_buf;
   size_t rx_len;
   size_t rx_off;
+  int stream_idx;
   int want_write;
   int want_read;
   int write_fin;
@@ -101,6 +103,7 @@ struct lsquic_conn {
   char sni[128];
   lsquic_conn_ctx_t *conn_ctx;
   int pending_streams;
+  int opened_count;
   int closed;
   lsquic_stream_t *streams;
 };
@@ -373,12 +376,14 @@ static int mock_lsq_read_varint(const uint8_t *src, size_t len, size_t *off,
 }
 
 static void mock_lsq_build_response(lsquic_stream_t *s) {
+  char method[16];
   char path[128];
   char ua[128];
+  char clen[32];
   char masque[128];
   char pauth[128];
-  const uint8_t *req_body = NULL;
-  size_t req_body_len = 0;
+  uint8_t acc_body[18432];
+  size_t acc_body_len = 0;
   size_t off = 0;
   uint8_t resp[20480];
   size_t rpos = 0;
@@ -388,9 +393,11 @@ static void mock_lsq_build_response(lsquic_stream_t *s) {
   const uint8_t *out_body;
   size_t out_body_len;
 
+  method[0] = '\0';
   path[0] = '/';
   path[1] = '\0';
   ua[0] = '\0';
+  clen[0] = '\0';
   masque[0] = '\0';
   pauth[0] = '\0';
 
@@ -425,7 +432,11 @@ static void mock_lsq_build_response(lsquic_stream_t *s) {
         }
         vp = s->tx_buf + hoff;
         hoff += vl;
-        if (kl == 5 && memcmp(kp, ":path", 5) == 0 && vl < sizeof(path)) {
+        if (kl == 7 && memcmp(kp, ":method", 7) == 0 && vl < sizeof(method)) {
+          memcpy(method, vp, vl);
+          method[vl] = '\0';
+        } else if (kl == 5 && memcmp(kp, ":path", 5) == 0 &&
+                   vl < sizeof(path)) {
           memcpy(path, vp, vl);
           path[vl] = '\0';
         } else if (kl == 10 &&
@@ -434,6 +445,12 @@ static void mock_lsq_build_response(lsquic_stream_t *s) {
                    vl < sizeof(ua)) {
           memcpy(ua, vp, vl);
           ua[vl] = '\0';
+        } else if (kl == 14 &&
+                   (memcmp(kp, "content-length", 14) == 0 ||
+                    memcmp(kp, "Content-Length", 14) == 0) &&
+                   vl < sizeof(clen)) {
+          memcpy(clen, vp, vl);
+          clen[vl] = '\0';
         } else if (kl == 15 && memcmp(kp, "x-masque-target", 15) == 0 &&
                    vl < sizeof(masque)) {
           memcpy(masque, vp, vl);
@@ -444,9 +461,15 @@ static void mock_lsq_build_response(lsquic_stream_t *s) {
           pauth[vl] = '\0';
         }
       }
-    } else if (ftype == 0x00U) {
-      req_body = s->tx_buf + off;
-      req_body_len = flen;
+    } else if (ftype == 0x00U && flen > 0) {
+      size_t take = flen;
+      if (acc_body_len + take > sizeof(acc_body)) {
+        take = sizeof(acc_body) - acc_body_len;
+      }
+      if (take > 0) {
+        memcpy(acc_body + acc_body_len, s->tx_buf + off, take);
+        acc_body_len += take;
+      }
     }
     off += flen;
   }
@@ -526,7 +549,33 @@ static void mock_lsq_build_response(lsquic_stream_t *s) {
     }
     hblock[hpos++] = 0x00U;
     hblock[hpos++] = 0x00U;
-    mock_lsq_write_hdr(hblock, &hpos, ":status", "200");
+    if (strcmp(path, "/redir-301") == 0) {
+      mock_lsq_write_hdr(hblock, &hpos, ":status", "301");
+      mock_lsq_write_hdr(hblock, &hpos, "location", "/final");
+    } else if (strcmp(path, "/redir-307") == 0) {
+      mock_lsq_write_hdr(hblock, &hpos, ":status", "307");
+      mock_lsq_write_hdr(hblock, &hpos, "location", "/final");
+    } else if (strcmp(path, "/redir-loop") == 0) {
+      mock_lsq_write_hdr(hblock, &hpos, ":status", "302");
+      mock_lsq_write_hdr(hblock, &hpos, "location", "/redir-loop");
+    } else {
+      mock_lsq_write_hdr(hblock, &hpos, ":status", "200");
+    }
+    {
+      char idx_buf[32];
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      sprintf_s(idx_buf, sizeof(idx_buf), "%d", s->stream_idx);
+#else
+      sprintf(idx_buf, "%d", s->stream_idx);
+#endif
+      mock_lsq_write_hdr(hblock, &hpos, "x-echo-stream-idx", idx_buf);
+    }
+    if (method[0] != '\0') {
+      mock_lsq_write_hdr(hblock, &hpos, "x-echo-method", method);
+    }
+    if (clen[0] != '\0') {
+      mock_lsq_write_hdr(hblock, &hpos, "x-echo-clen", clen);
+    }
     mock_lsq_write_hdr(hblock, &hpos, "content-type", "text/plain");
     mock_lsq_write_hdr(hblock, &hpos, "set-cookie", "lsq_sid=abc; Path=/");
     mock_lsq_write_hdr(hblock, &hpos, "Set-Cookie", "lsq_plain=xyz");
@@ -553,10 +602,8 @@ static void mock_lsq_build_response(lsquic_stream_t *s) {
     resp[rpos++] = 0xBBU;
 
     if (strcmp(path, "/empty") != 0) {
-      out_body = (req_body && req_body_len > 0) ? req_body
-                                                : (const uint8_t *)default_body;
-      out_body_len =
-          (req_body && req_body_len > 0) ? req_body_len : strlen(default_body);
+      out_body = (acc_body_len > 0) ? acc_body : (const uint8_t *)default_body;
+      out_body_len = (acc_body_len > 0) ? acc_body_len : strlen(default_body);
       mock_lsq_write_varint(resp, &rpos, 0x00U);
       mock_lsq_write_varint(resp, &rpos, out_body_len);
       memcpy(resp + rpos, out_body, out_body_len);
@@ -574,6 +621,16 @@ static void mock_lsq_build_response(lsquic_stream_t *s) {
   }
 }
 
+static int lsquic_engine_earliest_adv_tick(lsquic_engine_t *eng, int *diff) {
+  if (!eng || !eng->active_conn) {
+    return 0;
+  }
+  if (diff) {
+    *diff = 0;
+  }
+  return 1;
+}
+
 static void lsquic_engine_process_conns(lsquic_engine_t *eng) {
   lsquic_conn_t *c;
   lsquic_stream_t *st;
@@ -588,6 +645,7 @@ static void lsquic_engine_process_conns(lsquic_engine_t *eng) {
       continue;
     }
     ns->conn = c;
+    ns->stream_idx = c->opened_count++;
     ns->next = c->streams;
     c->streams = ns;
     if (eng->stream_if->on_new_stream) {

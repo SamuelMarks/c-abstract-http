@@ -181,6 +181,11 @@ abstract_http_cond_signal(struct AbstractHttpCond *cond) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/**
+ * @brief Wake all threads waiting on a condition variable.
+ * @param cond Condition variable handle.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error enum on failure.
+ */
 NO_DISCARD c_abstract_http_error_t
 ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   if (!cond)
@@ -318,6 +323,12 @@ abstract_http_cond_signal(struct AbstractHttpCond *cond) {
   (void)cond;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+/**
+ * @brief Wake all threads waiting on a condition variable.
+ * @param cond Condition variable handle.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error enum on failure.
+ */
 NO_DISCARD c_abstract_http_error_t
 ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   (void)cond;
@@ -482,7 +493,11 @@ abstract_http_cond_signal(struct AbstractHttpCond *cond) {
                                                : C_ABSTRACT_HTTP_ERR_IO;
 }
 
-/* Wake all threads waiting on a condition variable. */
+/**
+ * @brief Wake all threads waiting on a condition variable.
+ * @param cond Condition variable handle.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or error enum on failure.
+ */
 NO_DISCARD c_abstract_http_error_t
 ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
   if (!cond)

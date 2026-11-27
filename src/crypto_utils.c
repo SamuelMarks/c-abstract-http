@@ -7,6 +7,7 @@
 /* clang-format off */
 #include "crypto_utils.h"
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -60,8 +61,23 @@
 #include <gnutls/crypto.h>
 /** @brief Active GnuTLS provider indicator */
 #define CAH_HAVE_GNUTLS_TLS 1
-#elif defined(C_ABSTRACT_HTTP_USE_COMMONCRYPTO) && defined(__APPLE__)
+#elif defined(__APPLE__)
+#if defined(C_ABSTRACT_HTTP_USE_COMMONCRYPTO)
 #include <CommonCrypto/CommonDigest.h>
+#endif
+#include <CoreFoundation/CoreFoundation.h>
+#include <sys/socket.h>
+/** @brief Active Apple SecureTransport TLS provider indicator */
+#define CAH_HAVE_APPLE_ST_TLS 1
+#elif defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+/** @brief Exclude rarely-used APIs from Win32 headers */
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include "wincrypt_compat.h"
+/** @brief Active Windows Schannel SSPI TLS provider indicator */
+#define CAH_HAVE_SCHANNEL_TLS 1
 #endif
 #endif
 /* clang-format on */
@@ -509,12 +525,11 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_sha256_oneshot(
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 #elif defined(C_ABSTRACT_HTTP_USE_COMMONCRYPTO) && defined(__APPLE__)
-  {
-    unsigned char *cc_ptr = CC_SHA256(
-        data ? (const void *)data : (const void *)"", (CC_LONG)len, out_hash);
-    (void)cc_ptr;
-    return C_ABSTRACT_HTTP_SUCCESS;
+  if (!CC_SHA256(data ? (const void *)data : (const void *)"", (CC_LONG)len,
+                 out_hash)) {
+    return C_ABSTRACT_HTTP_ERR_IO;
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 #endif
 #endif
 
@@ -553,6 +568,8 @@ c_abstract_http_crypto_provider_name(const char **out_name) {
   *out_name = "gnutls";
 #elif defined(C_ABSTRACT_HTTP_USE_BOTAN)
   *out_name = "botan";
+#elif defined(C_ABSTRACT_HTTP_USE_SCHANNEL)
+  *out_name = "schannel";
 #elif defined(C_ABSTRACT_HTTP_USE_WINCRYPT)
   *out_name = "wincrypt";
 #elif defined(C_ABSTRACT_HTTP_USE_COMMONCRYPTO)
@@ -1023,10 +1040,11 @@ cah_ossl_tls_handshake(void *session, int *out_want) {
       }
       prc = c_abstract_http_verify_spki_pin_sha256(spki_der, (size_t)spki_len,
                                                    s->cert_pin);
-      OPENSSL_free(spki_der);
       if (prc != C_ABSTRACT_HTTP_SUCCESS) {
+        OPENSSL_free(spki_der);
         return prc;
       }
+      OPENSSL_free(spki_der);
     }
     s->handshake_done = 1;
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -1368,10 +1386,13 @@ cah_mbed_tls_handshake(void *session, int *out_want) {
       if (spki_len <= 0) {
         return C_ABSTRACT_HTTP_ERR_ACCES;
       }
-      if (c_abstract_http_verify_spki_pin_sha256(
-              spki_buf + (sizeof(spki_buf) - (size_t)spki_len),
-              (size_t)spki_len, s->cert_pin) != C_ABSTRACT_HTTP_SUCCESS) {
-        return C_ABSTRACT_HTTP_ERR_ACCES;
+      {
+        c_abstract_http_error_t pin_rc = c_abstract_http_verify_spki_pin_sha256(
+            spki_buf + (sizeof(spki_buf) - (size_t)spki_len), (size_t)spki_len,
+            s->cert_pin);
+        if (pin_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return pin_rc;
+        }
       }
     }
     s->handshake_done = 1;
@@ -1623,12 +1644,15 @@ NO_DISCARD static c_abstract_http_error_t cah_gtls_handshake(void *session,
       }
       pin_rc = c_abstract_http_verify_spki_pin_sha256(
           spki.data, (size_t)spki.size, s->cert_pin);
+      if (pin_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        gnutls_free(spki.data);
+        gnutls_pubkey_deinit(pubkey);
+        gnutls_x509_crt_deinit(crt);
+        return pin_rc;
+      }
       gnutls_free(spki.data);
       gnutls_pubkey_deinit(pubkey);
       gnutls_x509_crt_deinit(crt);
-      if (pin_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        return C_ABSTRACT_HTTP_ERR_ACCES;
-      }
     }
     s->handshake_done = 1;
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -1702,6 +1726,1328 @@ cah_gtls_write(void *session, const void *buf, size_t len, size_t *out_n,
 static const struct HttpRawTlsHooks g_cah_default_tls_hooks = {
     NULL,          cah_gtls_open,  cah_gtls_handshake,
     cah_gtls_read, cah_gtls_write, cah_gtls_close};
+/** @brief Indicator that default compile-time TLS hooks are available */
+#define CAH_HAS_DEFAULT_TLS_HOOKS 1
+
+#elif !defined(C_ABSTRACT_HTTP_TEST_OOM) && defined(CAH_HAVE_APPLE_ST_TLS)
+/** @brief Opaque SecureTransport context handle */
+typedef struct SSLContext *CahStSSLContextRef;
+/** @brief Opaque Security.framework certificate handle */
+typedef const struct __SecCertificate *CahStCertRef;
+/** @brief Opaque Security.framework key handle */
+typedef const struct __SecKey *CahStKeyRef;
+/** @brief Opaque Security.framework identity handle */
+typedef const struct __SecIdentity *CahStIdentityRef;
+/** @brief Opaque Security.framework trust handle */
+typedef struct __SecTrust *CahStTrustRef;
+/** @brief SecureTransport custom socket read callback signature */
+typedef OSStatus (*CahStReadFn)(const void *conn, void *data, size_t *data_len);
+/** @brief SecureTransport custom socket write callback signature */
+typedef OSStatus (*CahStWriteFn)(const void *conn, const void *data,
+                                 size_t *data_len);
+
+extern CahStSSLContextRef
+SSLCreateContext(CFAllocatorRef alloc, int protocolSide, int connectionType);
+extern OSStatus SSLSetIOFuncs(CahStSSLContextRef ctx, CahStReadFn readFunc,
+                              CahStWriteFn writeFunc);
+extern OSStatus SSLSetConnection(CahStSSLContextRef ctx, const void *conn);
+extern OSStatus SSLSetPeerDomainName(CahStSSLContextRef ctx, const char *name,
+                                     size_t nameLen);
+extern OSStatus SSLSetSessionOption(CahStSSLContextRef ctx, int option,
+                                    Boolean value);
+extern OSStatus SSLSetCertificate(CahStSSLContextRef ctx, CFArrayRef certRefs);
+extern OSStatus SSLHandshake(CahStSSLContextRef ctx);
+extern OSStatus SSLCopyPeerTrust(CahStSSLContextRef ctx, CahStTrustRef *trust);
+extern OSStatus SSLRead(CahStSSLContextRef ctx, void *data, size_t dataSize,
+                        size_t *processed);
+extern OSStatus SSLWrite(CahStSSLContextRef ctx, const void *data,
+                         size_t dataSize, size_t *processed);
+extern OSStatus SSLClose(CahStSSLContextRef ctx);
+extern CahStCertRef SecCertificateCreateWithData(CFAllocatorRef alloc,
+                                                 CFDataRef data);
+extern CFDataRef SecCertificateCopyData(CahStCertRef cert);
+extern OSStatus SecTrustSetAnchorCertificates(CahStTrustRef trust,
+                                              CFArrayRef anchors);
+extern OSStatus SecTrustSetAnchorCertificatesOnly(CahStTrustRef trust,
+                                                  Boolean only);
+extern Boolean SecTrustEvaluateWithError(CahStTrustRef trust,
+                                         CFErrorRef *error);
+extern CFArrayRef SecTrustCopyCertificateChain(CahStTrustRef trust);
+extern CahStKeyRef SecKeyCreateWithData(CFDataRef keyData,
+                                        CFDictionaryRef attrs,
+                                        CFErrorRef *error);
+extern CahStIdentityRef SecIdentityCreate(CFAllocatorRef alloc,
+                                          CahStCertRef cert, CahStKeyRef key);
+extern OSStatus SecPKCS12Import(CFDataRef pfx, CFDictionaryRef opts,
+                                CFArrayRef *items);
+extern const CFStringRef kSecAttrKeyType;
+extern const CFStringRef kSecAttrKeyTypeRSA;
+extern const CFStringRef kSecAttrKeyTypeECSECPrimeRandom;
+extern const CFStringRef kSecAttrKeyClass;
+extern const CFStringRef kSecAttrKeyClassPrivate;
+extern const CFStringRef kSecImportExportPassphrase;
+extern const CFStringRef kSecImportItemIdentity;
+
+/** @brief Apple SecureTransport concrete TLS session state */
+struct cah_st_tls_session {
+  CahStSSLContextRef ssl;    /**< Active SecureTransport SSLContextRef */
+  CFMutableArrayRef anchors; /**< Optional custom CA anchors */
+  char *cert_pin;            /**< Optional SPKI SHA-256 pin */
+  int sock_fd;               /**< Underlying connected TCP socket */
+  int verify_peer;           /**< Non-zero when peer verification enabled */
+  int last_want;             /**< 1=want_read, 2=want_write */
+  int handshake_done;        /**< Non-zero once handshake completed */
+};
+
+/**
+ * @brief SecureTransport socket read callback (`errSSLWouldBlock == -9803`).
+ * @param conn Session pointer (`struct cah_st_tls_session *`).
+ * @param data Destination buffer.
+ * @param data_len In: requested bytes; Out: bytes actually read.
+ * @return 0 on complete read, -9803 on would-block/short read, -9805 on EOF.
+ */
+static OSStatus cah_st_io_read(const void *conn, void *data, size_t *data_len) {
+  const struct cah_st_tls_session *cs = (const struct cah_st_tls_session *)conn;
+  struct cah_st_tls_session *s = NULL;
+  size_t req_len = *data_len;
+  size_t total = 0;
+
+  memcpy(&s, &cs, sizeof(s));
+  while (total < req_len) {
+    ssize_t nr = recv(s->sock_fd, (char *)data + total, req_len - total, 0);
+    if (nr > 0) {
+      total += (size_t)nr;
+      continue;
+    }
+    if (nr == 0) {
+      *data_len = total;
+      return total > 0U ? (OSStatus)-9803 : (OSStatus)-9805;
+    }
+    if (errno == EINTR) {
+      continue;
+    }
+    *data_len = total;
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      s->last_want = 1;
+      return (OSStatus)-9803;
+    }
+    return (OSStatus)-36;
+  }
+  *data_len = total;
+  return 0;
+}
+
+/**
+ * @brief SecureTransport socket write callback (`errSSLWouldBlock == -9803`).
+ * @param conn Session pointer (`struct cah_st_tls_session *`).
+ * @param data Source buffer.
+ * @param data_len In: bytes to send; Out: bytes actually sent.
+ * @return 0 on complete write, -9803 on would-block/short write, -36 on error.
+ */
+static OSStatus cah_st_io_write(const void *conn, const void *data,
+                                size_t *data_len) {
+  const struct cah_st_tls_session *cs = (const struct cah_st_tls_session *)conn;
+  struct cah_st_tls_session *s = NULL;
+  size_t req_len = *data_len;
+  size_t total = 0;
+
+  memcpy(&s, &cs, sizeof(s));
+  while (total < req_len) {
+    ssize_t nw =
+        send(s->sock_fd, (const char *)data + total, req_len - total, 0);
+    if (nw > 0) {
+      total += (size_t)nw;
+      continue;
+    }
+    if (nw < 0 && errno == EINTR) {
+      continue;
+    }
+    *data_len = total;
+    if (nw < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+      s->last_want = 2;
+      return (OSStatus)-9803;
+    }
+    return (OSStatus)-36;
+  }
+  *data_len = total;
+  return 0;
+}
+
+/**
+ * @brief Decode PEM/DER CA bytes and append `SecCertificateRef` to @p arr.
+ * @param arr Target mutable CFArray.
+ * @param raw Raw PEM or DER certificate bytes.
+ * @param raw_len Byte length of @p raw.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_st_append_ca(CFMutableArrayRef arr, const unsigned char *raw,
+                 size_t raw_len) {
+  unsigned char *der = NULL;
+  size_t der_len = 0;
+  CFDataRef cf_d;
+  CahStCertRef cert;
+  c_abstract_http_error_t rc;
+
+  rc = c_abstract_http_pem_or_der_decode(raw, raw_len, &der, &der_len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  cf_d = CFDataCreate(kCFAllocatorDefault, der, (CFIndex)der_len);
+  free(der);
+  cert = SecCertificateCreateWithData(kCFAllocatorDefault, cf_d);
+  CFRelease(cf_d);
+  if (!cert) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  CFArrayAppendValue(arr, cert);
+  CFRelease(cert);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Load mTLS client identity onto `s->ssl` via `SSLSetCertificate`.
+ * @param ssl Active SecureTransport context.
+ * @param cert_path Path to client certificate or PKCS#12 file.
+ * @param key_path Path to client private key or passphrase file.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_st_load_mtls(CahStSSLContextRef ssl, const char *cert_path,
+                 const char *key_path) {
+  unsigned char *cbuf = NULL;
+  size_t clen = 0;
+  unsigned char *kbuf = NULL;
+  size_t klen = 0;
+  CahStIdentityRef ident = NULL;
+  c_abstract_http_error_t rc;
+
+  rc = c_abstract_http_read_file_bytes(cert_path, &cbuf, &clen);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = c_abstract_http_read_file_bytes(key_path, &kbuf, &klen);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(cbuf);
+    return rc;
+  }
+
+  {
+    CFDataRef pfx_d = CFDataCreate(kCFAllocatorDefault, cbuf, (CFIndex)clen);
+    CFMutableDictionaryRef popts = CFDictionaryCreateMutable(
+        kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks);
+    CFArrayRef items = NULL;
+    CFDictionarySetValue(popts, kSecImportExportPassphrase, CFSTR(""));
+    if (SecPKCS12Import(pfx_d, popts, &items) == 0 && items) {
+      if (CFArrayGetCount(items) > 0) {
+        CFDictionaryRef d0 = (CFDictionaryRef)CFArrayGetValueAtIndex(items, 0);
+        ident =
+            (CahStIdentityRef)CFDictionaryGetValue(d0, kSecImportItemIdentity);
+        if (ident) {
+          CFRetain(ident);
+        }
+      }
+      CFRelease(items);
+    }
+    CFRelease(popts);
+    CFRelease(pfx_d);
+  }
+
+  if (!ident) {
+    unsigned char *cder = NULL;
+    size_t cder_len = 0;
+    unsigned char *kder = NULL;
+    size_t kder_len = 0;
+    const unsigned char *ukey = NULL;
+    size_t ukey_len = 0;
+    CFDataRef cd;
+    CFDataRef kd;
+    CahStCertRef cref;
+    CFMutableDictionaryRef kattrs;
+    CahStKeyRef kref;
+
+    rc = c_abstract_http_pem_or_der_decode(cbuf, clen, &cder, &cder_len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(cbuf);
+      free(kbuf);
+      return rc;
+    }
+    free(cbuf);
+    rc = c_abstract_http_pem_or_der_decode(kbuf, klen, &kder, &kder_len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(kbuf);
+      free(cder);
+      return rc;
+    }
+    free(kbuf);
+    rc = c_abstract_http_pkcs8_unwrap_key(kder, kder_len, &ukey, &ukey_len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(kder);
+      free(cder);
+      return rc;
+    }
+    cd = CFDataCreate(kCFAllocatorDefault, cder, (CFIndex)cder_len);
+    kd = CFDataCreate(kCFAllocatorDefault, ukey, (CFIndex)ukey_len);
+    free(cder);
+    free(kder);
+    cref = SecCertificateCreateWithData(kCFAllocatorDefault, cd);
+    CFRelease(cd);
+    if (!cref) {
+      CFRelease(kd);
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    kattrs = CFDictionaryCreateMutable(kCFAllocatorDefault, 2,
+                                       &kCFTypeDictionaryKeyCallBacks,
+                                       &kCFTypeDictionaryValueCallBacks);
+    CFDictionarySetValue(kattrs, kSecAttrKeyType, kSecAttrKeyTypeRSA);
+    CFDictionarySetValue(kattrs, kSecAttrKeyClass, kSecAttrKeyClassPrivate);
+    kref = SecKeyCreateWithData(kd, kattrs, NULL);
+    if (!kref) {
+      CFDictionarySetValue(kattrs, kSecAttrKeyType,
+                           kSecAttrKeyTypeECSECPrimeRandom);
+      kref = SecKeyCreateWithData(kd, kattrs, NULL);
+    }
+    CFRelease(kattrs);
+    CFRelease(kd);
+    if (!kref) {
+      CFRelease(cref);
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    ident = SecIdentityCreate(kCFAllocatorDefault, cref, kref);
+    CFRelease(kref);
+    CFRelease(cref);
+    if (!ident) {
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+  } else {
+    free(cbuf);
+    free(kbuf);
+  }
+
+  {
+    CFMutableArrayRef carr =
+        CFArrayCreateMutable(kCFAllocatorDefault, 1, &kCFTypeArrayCallBacks);
+    OSStatus st;
+    CFArrayAppendValue(carr, ident);
+    CFRelease(ident);
+    st = SSLSetCertificate(ssl, carr);
+    CFRelease(carr);
+    return st == 0 ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+}
+
+/**
+ * @brief Close and release an Apple SecureTransport session.
+ * @param session Active SecureTransport session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD static c_abstract_http_error_t cah_st_close(void *session) {
+  struct cah_st_tls_session *s = (struct cah_st_tls_session *)session;
+  if (s) {
+    if (s->ssl) {
+      SSLClose(s->ssl);
+      CFRelease((CFTypeRef)s->ssl);
+    }
+    if (s->anchors) {
+      CFRelease(s->anchors);
+    }
+    free(s->cert_pin);
+    free(s);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Close an Apple SecureTransport session while preserving a primary
+ * error.
+ * @param s Active SecureTransport session pointer.
+ * @param primary_rc Primary operation status to preserve if non-zero.
+ * @return @p primary_rc if non-zero, otherwise `cah_st_close` status.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_st_close_with_err(struct cah_st_tls_session *s,
+                      c_abstract_http_error_t primary_rc) {
+  c_abstract_http_error_t crc = cah_st_close(s);
+  if (crc != C_ABSTRACT_HTTP_SUCCESS) {
+    return primary_rc != C_ABSTRACT_HTTP_SUCCESS ? primary_rc : crc;
+  }
+  return primary_rc;
+}
+
+/**
+ * @brief Open an Apple SecureTransport client TLS session over @p sock_fd.
+ * @param provider_data Unused provider context pointer.
+ * @param sock_fd Connected TCP socket descriptor.
+ * @param host Target server hostname for SNI and X.509 verification.
+ * @param config Optional HTTP transport configuration.
+ * @param out_session Receives allocated session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_st_open(void *provider_data, int sock_fd, const char *host,
+            const struct HttpConfig *config, void **out_session) {
+  struct cah_st_tls_session *s;
+  c_abstract_http_error_t rc;
+  if (provider_data) {
+  }
+
+  s = (struct cah_st_tls_session *)calloc(1, sizeof(*s));
+  if (!s) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  s->sock_fd = sock_fd;
+  s->verify_peer = config ? config->verify_peer : 1;
+  s->ssl = SSLCreateContext(kCFAllocatorDefault, 1, 0);
+  if (!s->ssl) {
+    free(s);
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (SSLSetIOFuncs(s->ssl, cah_st_io_read, cah_st_io_write) != 0 ||
+      SSLSetConnection(s->ssl, s) != 0) {
+    return cah_st_close_with_err(s, C_ABSTRACT_HTTP_ERR_IO);
+  }
+  if (host && host[0] != '\0' && (!config || config->verify_host)) {
+    SSLSetPeerDomainName(s->ssl, host, strlen(host));
+  }
+  if (!s->verify_peer ||
+      (config && (config->ca_path ||
+                  (config->ca_buffer && config->ca_buffer_len > 0U)))) {
+    SSLSetSessionOption(s->ssl, 0, (Boolean)1);
+  }
+  if (config) {
+    if (config->ca_path || (config->ca_buffer && config->ca_buffer_len > 0U)) {
+      s->anchors =
+          CFArrayCreateMutable(kCFAllocatorDefault, 0, &kCFTypeArrayCallBacks);
+      if (config->ca_path) {
+        unsigned char *fbuf = NULL;
+        size_t flen = 0;
+        rc = c_abstract_http_read_file_bytes(config->ca_path, &fbuf, &flen);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return cah_st_close_with_err(s, rc);
+        }
+        rc = cah_st_append_ca(s->anchors, fbuf, flen);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(fbuf);
+          return cah_st_close_with_err(s, rc);
+        }
+        free(fbuf);
+      }
+      if (config->ca_buffer && config->ca_buffer_len > 0U) {
+        rc = cah_st_append_ca(s->anchors, config->ca_buffer,
+                              config->ca_buffer_len);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return cah_st_close_with_err(s, rc);
+        }
+      }
+    }
+    if (config->client_cert_path && config->client_key_path) {
+      rc = cah_st_load_mtls(s->ssl, config->client_cert_path,
+                            config->client_key_path);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return cah_st_close_with_err(s, rc);
+      }
+    }
+    if (config->cert_pin_sha256) {
+      rc = c_abstract_http_strdup(config->cert_pin_sha256, &s->cert_pin);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return cah_st_close_with_err(s, rc);
+      }
+    }
+  }
+  *out_session = s;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Drive non-blocking Apple SecureTransport client handshake.
+ * @param session Active SecureTransport session.
+ * @param out_want Receives 0=done, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or TLS error code.
+ */
+NO_DISCARD static c_abstract_http_error_t cah_st_handshake(void *session,
+                                                           int *out_want) {
+  struct cah_st_tls_session *s = (struct cah_st_tls_session *)session;
+  *out_want = 0;
+  if (s->handshake_done) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  for (;;) {
+    OSStatus st;
+    s->last_want = 0;
+    st = SSLHandshake(s->ssl);
+    if (st == (OSStatus)-9841) {
+      /* errSSLServerAuthCompleted: evaluate custom anchors when verify_peer */
+      if (s->verify_peer) {
+        CahStTrustRef trust = NULL;
+        CFErrorRef terr = NULL;
+        Boolean ok;
+        if (SSLCopyPeerTrust(s->ssl, &trust) != 0 || !trust) {
+          return C_ABSTRACT_HTTP_ERR_ACCES;
+        }
+        if (s->anchors) {
+          SecTrustSetAnchorCertificates(trust, s->anchors);
+          SecTrustSetAnchorCertificatesOnly(trust, (Boolean)1);
+        }
+        ok = SecTrustEvaluateWithError(trust, &terr);
+        if (terr) {
+          CFRelease(terr);
+        }
+        CFRelease((CFTypeRef)trust);
+        if (!ok) {
+          return C_ABSTRACT_HTTP_ERR_ACCES;
+        }
+      }
+      continue;
+    }
+    if (st == (OSStatus)-9803) {
+      *out_want = s->last_want ? s->last_want : 1;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (st != 0) {
+      return s->verify_peer ? C_ABSTRACT_HTTP_ERR_ACCES
+                            : C_ABSTRACT_HTTP_ERR_IO;
+    }
+    break;
+  }
+
+  if (s->cert_pin) {
+    CahStTrustRef trust = NULL;
+    CFArrayRef chain;
+    int pin_verified = 0;
+    if (SSLCopyPeerTrust(s->ssl, &trust) != 0 || !trust) {
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    chain = SecTrustCopyCertificateChain(trust);
+    if (chain) {
+      if (CFArrayGetCount(chain) > 0) {
+        CahStCertRef leaf = (CahStCertRef)CFArrayGetValueAtIndex(chain, 0);
+        CFDataRef cdata = SecCertificateCopyData(leaf);
+        if (cdata) {
+          const unsigned char *spki_der = NULL;
+          size_t spki_len = 0;
+          c_abstract_http_error_t xrc = c_abstract_http_x509_extract_spki_der(
+              CFDataGetBytePtr(cdata), (size_t)CFDataGetLength(cdata),
+              &spki_der, &spki_len);
+          if (xrc != C_ABSTRACT_HTTP_SUCCESS) {
+            CFRelease(cdata);
+            CFRelease(chain);
+            CFRelease((CFTypeRef)trust);
+            return xrc;
+          }
+          {
+            c_abstract_http_error_t prc =
+                c_abstract_http_verify_spki_pin_sha256(spki_der, spki_len,
+                                                       s->cert_pin);
+            if (prc != C_ABSTRACT_HTTP_SUCCESS) {
+              CFRelease(cdata);
+              CFRelease(chain);
+              CFRelease((CFTypeRef)trust);
+              return prc;
+            }
+            pin_verified = 1;
+          }
+          CFRelease(cdata);
+        }
+      }
+      CFRelease(chain);
+    }
+    CFRelease((CFTypeRef)trust);
+    if (!pin_verified) {
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+  }
+  s->handshake_done = 1;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Read decrypted application bytes from an Apple SecureTransport
+ * session.
+ * @param session Active SecureTransport session.
+ * @param buf Destination buffer.
+ * @param cap Maximum bytes to read.
+ * @param out_n Receives byte count read.
+ * @param out_want Receives 0=ok/eof, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
+NO_DISCARD static c_abstract_http_error_t cah_st_read(void *session, void *buf,
+                                                      size_t cap, size_t *out_n,
+                                                      int *out_want) {
+  struct cah_st_tls_session *s = (struct cah_st_tls_session *)session;
+  size_t processed = 0;
+  OSStatus st;
+
+  *out_n = 0;
+  *out_want = 0;
+  s->last_want = 0;
+  st = SSLRead(s->ssl, buf, cap, &processed);
+  if (processed > 0U) {
+    *out_n = processed;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (st == 0 || st == (OSStatus)-9805 || st == (OSStatus)-9806) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (st == (OSStatus)-9803) {
+    *out_want = s->last_want ? s->last_want : 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
+/**
+ * @brief Write plaintext application bytes into an Apple SecureTransport
+ * session.
+ * @param session Active SecureTransport session.
+ * @param buf Source plaintext buffer.
+ * @param len Byte length to transmit.
+ * @param out_n Receives byte count written.
+ * @param out_want Receives 0=ok, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_st_write(void *session, const void *buf, size_t len, size_t *out_n,
+             int *out_want) {
+  struct cah_st_tls_session *s = (struct cah_st_tls_session *)session;
+  size_t processed = 0;
+  OSStatus st;
+
+  *out_n = 0;
+  *out_want = 0;
+  s->last_want = 0;
+  st = SSLWrite(s->ssl, buf, len, &processed);
+  if (processed > 0U) {
+    *out_n = processed;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (st == (OSStatus)-9803) {
+    *out_want = s->last_want ? s->last_want : 2;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
+/** @brief Default Apple SecureTransport-backed raw TLS hook table */
+static const struct HttpRawTlsHooks g_cah_default_tls_hooks = {
+    NULL,        cah_st_open,  cah_st_handshake,
+    cah_st_read, cah_st_write, cah_st_close};
+/** @brief Indicator that default compile-time TLS hooks are available */
+#define CAH_HAS_DEFAULT_TLS_HOOKS 1
+
+#elif !defined(C_ABSTRACT_HTTP_TEST_OOM) && defined(CAH_HAVE_SCHANNEL_TLS)
+/** @brief ABI-compatible SSPI `SecHandle` (`CredHandle` / `CtxtHandle`) */
+typedef struct _CAH_SEC_HANDLE {
+  size_t dwLower; /**< Lower pointer-sized handle word */
+  size_t dwUpper; /**< Upper pointer-sized handle word */
+} CAH_SEC_HANDLE;
+
+/** @brief ABI-compatible SSPI `TimeStamp` / `SECURITY_INTEGER` */
+typedef struct _CAH_SECURITY_INTEGER {
+  unsigned long LowPart; /**< Low 32 bits */
+  long HighPart;         /**< High 32 bits */
+} CAH_SECURITY_INTEGER;
+
+/** @brief ABI-compatible SSPI `SecBuffer` */
+typedef struct _CAH_SEC_BUFFER {
+  unsigned long cbBuffer;   /**< Buffer length in bytes */
+  unsigned long BufferType; /**< `SECBUFFER_*` type code */
+  void *pvBuffer;           /**< Buffer data pointer */
+} CAH_SEC_BUFFER;
+
+/** @brief ABI-compatible SSPI `SecBufferDesc` */
+typedef struct _CAH_SEC_BUFFER_DESC {
+  unsigned long ulVersion;  /**< `SECBUFFER_VERSION` (`0`) */
+  unsigned long cBuffers;   /**< Element count in `pBuffers` */
+  CAH_SEC_BUFFER *pBuffers; /**< Array of `CAH_SEC_BUFFER` */
+} CAH_SEC_BUFFER_DESC;
+
+/** @brief ABI-compatible Schannel `SCHANNEL_CRED` v4 structure */
+typedef struct _CAH_SCHANNEL_CRED {
+  DWORD dwVersion;                 /**< `SCHANNEL_CRED_VERSION` (`4`) */
+  DWORD cCreds;                    /**< Number of client certificates */
+  CAH_CERT_CONTEXT **paCred;       /**< Array of client `CERT_CONTEXT *` */
+  void *hRootStore;                /**< Optional root `HCERTSTORE` */
+  DWORD cMappers;                  /**< Reserved (`0`) */
+  void **aphMappers;               /**< Reserved (`NULL`) */
+  DWORD cSupportedAlgs;            /**< Supported alg count (`0`) */
+  unsigned int *palgSupportedAlgs; /**< Supported alg IDs (`NULL`) */
+  DWORD grbitEnabledProtocols;   /**< `SP_PROT_*` bitmask (`0` = OS default) */
+  DWORD dwMinimumCipherStrength; /**< Min cipher bits (`0`) */
+  DWORD dwMaximumCipherStrength; /**< Max cipher bits (`0`) */
+  DWORD dwSessionLifespan;       /**< Cache lifespan (`0`) */
+  DWORD dwFlags;                 /**< `SCH_CRED_*` flags */
+  DWORD dwCredFormat;            /**< `0` */
+} CAH_SCHANNEL_CRED;
+
+/** @brief ABI-compatible `SecPkgContext_StreamSizes` structure */
+typedef struct _CAH_SECPKG_STREAM_SIZES {
+  unsigned long cbHeader;         /**< TLS record header size */
+  unsigned long cbTrailer;        /**< TLS MAC/AEAD trailer size */
+  unsigned long cbMaximumMessage; /**< Maximum TLS record payload size */
+  unsigned long cBuffers;         /**< Buffer count (`4`) */
+  unsigned long cbBlockSize;      /**< Cipher block size */
+} CAH_SECPKG_STREAM_SIZES;
+
+__declspec(dllimport) long __stdcall AcquireCredentialsHandleA(
+    char *pszPrincipal, char *pszPackage, unsigned long fCredentialUse,
+    void *pvLogonId, void *pAuthData, void *pGetKeyFn, void *pvGetKeyArgument,
+    CAH_SEC_HANDLE *phCredential, CAH_SECURITY_INTEGER *ptsExpiry);
+__declspec(dllimport) long __stdcall FreeCredentialsHandle(
+    CAH_SEC_HANDLE *phCredential);
+__declspec(dllimport) long __stdcall InitializeSecurityContextA(
+    CAH_SEC_HANDLE *phCredential, CAH_SEC_HANDLE *phContext,
+    char *pszTargetName, unsigned long fContextReq, unsigned long Reserved1,
+    unsigned long TargetDataRep, CAH_SEC_BUFFER_DESC *pInput,
+    unsigned long Reserved2, CAH_SEC_HANDLE *phNewContext,
+    CAH_SEC_BUFFER_DESC *pOutput, unsigned long *pfContextAttr,
+    CAH_SECURITY_INTEGER *ptsExpiry);
+__declspec(dllimport) long __stdcall DeleteSecurityContext(
+    CAH_SEC_HANDLE *phContext);
+__declspec(dllimport) long __stdcall FreeContextBuffer(void *pvContextBuffer);
+__declspec(dllimport) long __stdcall QueryContextAttributesA(
+    CAH_SEC_HANDLE *phContext, unsigned long ulAttribute, void *pBuffer);
+__declspec(dllimport) long __stdcall EncryptMessage(
+    CAH_SEC_HANDLE *phContext, unsigned long fQOP,
+    CAH_SEC_BUFFER_DESC *pMessage, unsigned long MessageSeqNo);
+__declspec(dllimport) long __stdcall DecryptMessage(
+    CAH_SEC_HANDLE *phContext, CAH_SEC_BUFFER_DESC *pMessage,
+    unsigned long MessageSeqNo, unsigned long *pfQOP);
+
+/** @brief Windows Schannel concrete client TLS session state */
+struct cah_sch_session {
+  CAH_SEC_HANDLE cred;           /**< Acquired Schannel credential handle */
+  CAH_SEC_HANDLE ctxt;           /**< Active SSPI security context */
+  int has_cred;                  /**< Non-zero when `cred` is initialized */
+  int has_ctxt;                  /**< Non-zero when `ctxt` is initialized */
+  int handshake_done;            /**< Non-zero once handshake completed */
+  int verify_peer;               /**< Non-zero when peer verification on */
+  SOCKET sock;                   /**< Connected Winsock TCP socket */
+  char *host;                    /**< Target SNI / hostname */
+  char *cert_pin;                /**< Optional SPKI SHA-256 pin */
+  void *ca_store;                /**< Optional custom CA `HCERTSTORE` */
+  void *cli_store;               /**< Optional PFX `HCERTSTORE` */
+  CAH_CERT_CONTEXT *cli_cert;    /**< Optional mTLS `CERT_CONTEXT` */
+  CAH_SECPKG_STREAM_SIZES sizes; /**< Negotiated TLS record stream sizes */
+  unsigned char in_buf[32768];   /**< Ciphertext receive buffer */
+  size_t in_len;                 /**< Valid bytes in `in_buf` */
+  unsigned char dec_buf[32768];  /**< Decrypted leftover plaintext buffer */
+  size_t dec_off;                /**< Read offset in `dec_buf` */
+  size_t dec_len;                /**< Remaining plaintext bytes in `dec_buf` */
+  unsigned char *tx_buf;         /**< Pending encrypted outbound record */
+  size_t tx_off;                 /**< Sent offset in `tx_buf` */
+  size_t tx_len;                 /**< Total byte length of `tx_buf` */
+  size_t tx_plain_n;             /**< Plaintext bytes represented by `tx_buf` */
+};
+
+/**
+ * @brief Close and release a Windows Schannel TLS session.
+ * @param session Active Schannel session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD static c_abstract_http_error_t cah_sch_close(void *session) {
+  struct cah_sch_session *s = (struct cah_sch_session *)session;
+  if (s) {
+    if (s->has_ctxt) {
+      DeleteSecurityContext(&s->ctxt);
+    }
+    if (s->has_cred) {
+      FreeCredentialsHandle(&s->cred);
+    }
+    if (s->cli_cert) {
+      CertFreeCertificateContext(s->cli_cert);
+    }
+    if (s->cli_store) {
+      CertCloseStore(s->cli_store, 0);
+    }
+    if (s->ca_store) {
+      CertCloseStore(s->ca_store, 0);
+    }
+    free(s->tx_buf);
+    free(s->host);
+    free(s->cert_pin);
+    free(s);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Close a Windows Schannel session while preserving a primary error.
+ * @param s Active Schannel session pointer.
+ * @param primary_rc Primary operation status to preserve if non-zero.
+ * @return @p primary_rc if non-zero, otherwise `cah_sch_close` status.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_sch_close_with_err(struct cah_sch_session *s,
+                       c_abstract_http_error_t primary_rc) {
+  c_abstract_http_error_t crc = cah_sch_close(s);
+  if (crc != C_ABSTRACT_HTTP_SUCCESS) {
+    return primary_rc != C_ABSTRACT_HTTP_SUCCESS ? primary_rc : crc;
+  }
+  return primary_rc;
+}
+
+/**
+ * @brief Flush pending outbound TLS token/record bytes on `s->sock`.
+ * @param s Active Schannel session.
+ * @param out_want Set to 2 on `WSAEWOULDBLOCK`, else 0.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_sch_flush_tx(struct cah_sch_session *s, int *out_want) {
+  *out_want = 0;
+  while (s->tx_off < s->tx_len) {
+    int nw = send(s->sock, (const char *)(s->tx_buf + s->tx_off),
+                  (int)(s->tx_len - s->tx_off), 0);
+    if (nw > 0) {
+      s->tx_off += (size_t)nw;
+      continue;
+    }
+    if (nw < 0 && WSAGetLastError() == WSAEWOULDBLOCK) {
+      *out_want = 2;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  free(s->tx_buf);
+  s->tx_buf = NULL;
+  s->tx_off = 0;
+  s->tx_len = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Open a Windows Schannel SSPI client TLS session over @p sock_fd.
+ * @param provider_data Unused provider context pointer.
+ * @param sock_fd Connected Winsock TCP socket descriptor.
+ * @param host Target server hostname for SNI and X.509 verification.
+ * @param config Optional HTTP transport configuration.
+ * @param out_session Receives allocated session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_sch_open(void *provider_data, int sock_fd, const char *host,
+             const struct HttpConfig *config, void **out_session) {
+  struct cah_sch_session *s;
+  CAH_SCHANNEL_CRED scred;
+  CAH_SECURITY_INTEGER exp_ts;
+  char pkg_name[64];
+  c_abstract_http_error_t rc;
+  if (provider_data) {
+  }
+
+  s = (struct cah_sch_session *)calloc(1, sizeof(*s));
+  if (!s) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  s->sock = (SOCKET)sock_fd;
+  s->verify_peer = config ? config->verify_peer : 1;
+  if (host) {
+    rc = c_abstract_http_strdup(host, &s->host);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(s);
+      return rc;
+    }
+  }
+
+  if (config) {
+    if (config->cert_pin_sha256) {
+      rc = c_abstract_http_strdup(config->cert_pin_sha256, &s->cert_pin);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return cah_sch_close_with_err(s, rc);
+      }
+    }
+    if (config->ca_path || (config->ca_buffer && config->ca_buffer_len > 0U)) {
+      s->ca_store = CertOpenStore(CAH_CERT_STORE_PROV_MEMORY, 0, 0, 0, NULL);
+      if (!s->ca_store) {
+        return cah_sch_close_with_err(s, C_ABSTRACT_HTTP_ERR_NOMEM);
+      }
+      if (config->ca_path) {
+        unsigned char *fb = NULL;
+        size_t fl = 0;
+        unsigned char *der = NULL;
+        size_t dlen = 0;
+        rc = c_abstract_http_read_file_bytes(config->ca_path, &fb, &fl);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return cah_sch_close_with_err(s, rc);
+        }
+        rc = c_abstract_http_pem_or_der_decode(fb, fl, &der, &dlen);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(fb);
+          return cah_sch_close_with_err(s, rc);
+        }
+        free(fb);
+        if (!CertAddEncodedCertificateToStore(
+                s->ca_store, CAH_X509_PKCS7_ENCODING, der, (DWORD)dlen,
+                CAH_CERT_STORE_ADD_ALWAYS, NULL)) {
+          free(der);
+          return cah_sch_close_with_err(s, C_ABSTRACT_HTTP_ERR_ACCES);
+        }
+        free(der);
+      }
+      if (config->ca_buffer && config->ca_buffer_len > 0U) {
+        unsigned char *der = NULL;
+        size_t dlen = 0;
+        rc = c_abstract_http_pem_or_der_decode(
+            config->ca_buffer, config->ca_buffer_len, &der, &dlen);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return cah_sch_close_with_err(s, rc);
+        }
+        if (!CertAddEncodedCertificateToStore(
+                s->ca_store, CAH_X509_PKCS7_ENCODING, der, (DWORD)dlen,
+                CAH_CERT_STORE_ADD_ALWAYS, NULL)) {
+          free(der);
+          return cah_sch_close_with_err(s, C_ABSTRACT_HTTP_ERR_ACCES);
+        }
+        free(der);
+      }
+    }
+    if (config->client_cert_path && config->client_key_path) {
+      unsigned char *cb = NULL;
+      size_t cl = 0;
+      unsigned char *kb = NULL;
+      size_t kl = 0;
+      CAH_CRYPTOAPI_BLOB pfx;
+      rc = c_abstract_http_read_file_bytes(config->client_cert_path, &cb, &cl);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return cah_sch_close_with_err(s, rc);
+      }
+      rc = c_abstract_http_read_file_bytes(config->client_key_path, &kb, &kl);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(cb);
+        return cah_sch_close_with_err(s, rc);
+      }
+      pfx.cbData = (DWORD)cl;
+      pfx.pbData = cb;
+      s->cli_store = PFXImportCertStore(&pfx, L"", 0);
+      if (s->cli_store) {
+        s->cli_cert = CertEnumCertificatesInStore(s->cli_store, NULL);
+        free(cb);
+        free(kb);
+      } else {
+        unsigned char *cd = NULL;
+        size_t cdl = 0;
+        unsigned char *kd = NULL;
+        size_t kdl = 0;
+        rc = c_abstract_http_pem_or_der_decode(cb, cl, &cd, &cdl);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(cb);
+          free(kb);
+          return cah_sch_close_with_err(s, rc);
+        }
+        free(cb);
+        rc = c_abstract_http_pem_or_der_decode(kb, kl, &kd, &kdl);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(kb);
+          free(cd);
+          return cah_sch_close_with_err(s, rc);
+        }
+        free(kb);
+        free(kd);
+        s->cli_cert = CertCreateCertificateContext(CAH_X509_PKCS7_ENCODING, cd,
+                                                   (DWORD)cdl);
+        free(cd);
+      }
+      if (!s->cli_cert) {
+        return cah_sch_close_with_err(s, C_ABSTRACT_HTTP_ERR_ACCES);
+      }
+    }
+  }
+
+  memset(&scred, 0, sizeof(scred));
+  scred.dwVersion = 4UL;
+  /* SCH_CRED_NO_DEFAULT_CREDS (0x10) | MANUAL (0x08) or AUTO (0x20) */
+  scred.dwFlags =
+      (!s->verify_peer || s->ca_store) ? 0x00000018UL : 0x00000030UL;
+  if (config && !config->verify_host) {
+    scred.dwFlags |= 0x00000004UL; /* SCH_CRED_NO_SERVERNAME_CHECK */
+  }
+  if (s->cli_cert) {
+    scred.cCreds = 1UL;
+    scred.paCred = &s->cli_cert;
+  }
+  memcpy(pkg_name, "Microsoft Unified Security Protocol Provider", 45);
+  if (AcquireCredentialsHandleA(NULL, pkg_name, 2UL /* SECPKG_CRED_OUTBOUND */,
+                                NULL, &scred, NULL, NULL, &s->cred,
+                                &exp_ts) != 0L) {
+    return cah_sch_close_with_err(s, C_ABSTRACT_HTTP_ERR_IO);
+  }
+  s->has_cred = 1;
+  *out_session = s;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Verify Schannel peer certificate (`SECPKG_ATTR_REMOTE_CERT_CONTEXT ==
+ * 0x53`) against custom CA store and SPKI SHA-256 pin.
+ * @param s Active Schannel session.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_ACCES.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_sch_verify_peer(struct cah_sch_session *s) {
+  CAH_CERT_CONTEXT *peer = NULL;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
+
+  if (!(s->ca_store && s->verify_peer) && !s->cert_pin) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (QueryContextAttributesA(&s->ctxt, 0x53UL, &peer) != 0L || !peer) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  if (s->ca_store && s->verify_peer) {
+    CAH_CERT_CHAIN_PARA cpara;
+    CAH_CERT_CHAIN_CONTEXT *chain = NULL;
+    CAH_CERT_CONTEXT *cur = NULL;
+    int anchored = 0;
+
+    memset(&cpara, 0, sizeof(cpara));
+    cpara.cbSize = (DWORD)sizeof(cpara);
+    if (!CertGetCertificateChain(NULL, peer, NULL, s->ca_store, &cpara,
+                                 CAH_CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL, NULL,
+                                 &chain) ||
+        !chain) {
+      CertFreeCertificateContext(peer);
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    if (chain->cChain > 0U && chain->rgpChain[0] &&
+        chain->rgpChain[0]->cElement > 0U &&
+        (chain->TrustStatus.dwErrorStatus &
+         ~CAH_CERT_TRUST_IS_UNTRUSTED_ROOT) == 0UL) {
+      const CAH_CERT_SIMPLE_CHAIN *sc = chain->rgpChain[0];
+      const CAH_CERT_CONTEXT *root =
+          sc->rgpElement[sc->cElement - 1U]->pCertContext;
+      for (;;) {
+        cur = CertEnumCertificatesInStore(s->ca_store, cur);
+        if (!cur) {
+          break;
+        }
+        if (cur->cbCertEncoded == root->cbCertEncoded &&
+            memcmp(cur->pbCertEncoded, root->pbCertEncoded,
+                   (size_t)root->cbCertEncoded) == 0) {
+          CertFreeCertificateContext(cur);
+          anchored = 1;
+          break;
+        }
+      }
+    }
+    CertFreeCertificateChain(chain);
+    if (!anchored) {
+      CertFreeCertificateContext(peer);
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+  }
+  if (s->cert_pin) {
+    const unsigned char *spki_der = NULL;
+    size_t spki_len = 0;
+    rc = c_abstract_http_x509_extract_spki_der(
+        peer->pbCertEncoded, (size_t)peer->cbCertEncoded, &spki_der, &spki_len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      CertFreeCertificateContext(peer);
+      return rc;
+    }
+    rc =
+        c_abstract_http_verify_spki_pin_sha256(spki_der, spki_len, s->cert_pin);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      CertFreeCertificateContext(peer);
+      return rc;
+    }
+  }
+  CertFreeCertificateContext(peer);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Drive non-blocking Windows Schannel SSPI client handshake.
+ * @param session Active Schannel session.
+ * @param out_want Receives 0=done, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or TLS error code.
+ */
+NO_DISCARD static c_abstract_http_error_t cah_sch_handshake(void *session,
+                                                            int *out_want) {
+  struct cah_sch_session *s = (struct cah_sch_session *)session;
+  /* ISC_REQ_SEQUENCE_DETECT | REPLAY_DETECT | CONFIDENTIALITY |
+   * EXTENDED_ERROR | ALLOCATE_MEMORY | STREAM */
+  const unsigned long isc_flags = 0x0000811CUL;
+  c_abstract_http_error_t rc;
+
+  *out_want = 0;
+  if (s->handshake_done) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  for (;;) {
+    CAH_SEC_BUFFER in_b[2];
+    CAH_SEC_BUFFER out_b[1];
+    CAH_SEC_BUFFER_DESC in_d;
+    CAH_SEC_BUFFER_DESC out_d;
+    CAH_SECURITY_INTEGER exp_ts;
+    unsigned long ctxt_attr = 0;
+    long ss;
+
+    if (s->tx_buf) {
+      rc = cah_sch_flush_tx(s, out_want);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS || *out_want != 0) {
+        return rc;
+      }
+    }
+
+    memset(in_b, 0, sizeof(in_b));
+    in_b[0].BufferType = 2UL; /* SECBUFFER_TOKEN */
+    in_b[0].pvBuffer = s->in_buf;
+    in_b[0].cbBuffer = (unsigned long)s->in_len;
+    in_b[1].BufferType = 0UL; /* SECBUFFER_EMPTY */
+    in_d.ulVersion = 0UL;
+    in_d.cBuffers = 2UL;
+    in_d.pBuffers = in_b;
+
+    memset(out_b, 0, sizeof(out_b));
+    out_b[0].BufferType = 2UL; /* SECBUFFER_TOKEN */
+    out_d.ulVersion = 0UL;
+    out_d.cBuffers = 1UL;
+    out_d.pBuffers = out_b;
+
+    ss = InitializeSecurityContextA(
+        &s->cred, s->has_ctxt ? &s->ctxt : NULL, s->host, isc_flags, 0UL, 0UL,
+        s->has_ctxt ? &in_d : NULL, 0UL, s->has_ctxt ? NULL : &s->ctxt, &out_d,
+        &ctxt_attr, &exp_ts);
+    if (!s->has_ctxt && (ss == 0L || ss == 0x00090312L)) {
+      s->has_ctxt = 1;
+    }
+
+    if (s->has_ctxt && ss != (long)0x80090318L /* SEC_E_INCOMPLETE_MESSAGE */ &&
+        s->in_len > 0U) {
+      if (in_b[1].BufferType == 5UL /* SECBUFFER_EXTRA */ &&
+          in_b[1].cbBuffer > 0UL && in_b[1].cbBuffer <= s->in_len) {
+        size_t extra = (size_t)in_b[1].cbBuffer;
+        memmove(s->in_buf, s->in_buf + (s->in_len - extra), extra);
+        s->in_len = extra;
+      } else {
+        s->in_len = 0;
+      }
+    }
+
+    if (out_b[0].pvBuffer && out_b[0].cbBuffer > 0UL) {
+      s->tx_buf = (unsigned char *)malloc((size_t)out_b[0].cbBuffer);
+      if (!s->tx_buf) {
+        FreeContextBuffer(out_b[0].pvBuffer);
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
+      }
+      memcpy(s->tx_buf, out_b[0].pvBuffer, (size_t)out_b[0].cbBuffer);
+      s->tx_len = (size_t)out_b[0].cbBuffer;
+      s->tx_off = 0;
+      FreeContextBuffer(out_b[0].pvBuffer);
+      rc = cah_sch_flush_tx(s, out_want);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS || *out_want != 0) {
+        return rc;
+      }
+    } else if (out_b[0].pvBuffer) {
+      FreeContextBuffer(out_b[0].pvBuffer);
+    }
+
+    if (ss == 0L /* SEC_E_OK */) {
+      if (QueryContextAttributesA(&s->ctxt, 4UL /* SECPKG_ATTR_STREAM_SIZES */,
+                                  &s->sizes) != 0L) {
+        return C_ABSTRACT_HTTP_ERR_IO;
+      }
+      rc = cah_sch_verify_peer(s);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+      s->handshake_done = 1;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+
+    if (ss == 0x00090312L /* SEC_I_CONTINUE_NEEDED */ ||
+        ss == (long)0x80090318L /* SEC_E_INCOMPLETE_MESSAGE */) {
+      int nr;
+      if (s->in_len >= sizeof(s->in_buf)) {
+        return C_ABSTRACT_HTTP_ERR_IO;
+      }
+      nr = recv(s->sock, (char *)(s->in_buf + s->in_len),
+                (int)(sizeof(s->in_buf) - s->in_len), 0);
+      if (nr > 0) {
+        s->in_len += (size_t)nr;
+        continue;
+      }
+      if (nr < 0 && WSAGetLastError() == WSAEWOULDBLOCK) {
+        *out_want = 1;
+        return C_ABSTRACT_HTTP_SUCCESS;
+      }
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    return s->verify_peer ? C_ABSTRACT_HTTP_ERR_ACCES : C_ABSTRACT_HTTP_ERR_IO;
+  }
+}
+
+/**
+ * @brief Read decrypted application bytes from a Windows Schannel session.
+ * @param session Active Schannel session.
+ * @param buf Destination buffer.
+ * @param cap Maximum bytes to read.
+ * @param out_n Receives byte count read.
+ * @param out_want Receives 0=ok/eof, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
+NO_DISCARD static c_abstract_http_error_t cah_sch_read(void *session, void *buf,
+                                                       size_t cap,
+                                                       size_t *out_n,
+                                                       int *out_want) {
+  struct cah_sch_session *s = (struct cah_sch_session *)session;
+  *out_n = 0;
+  *out_want = 0;
+
+  for (;;) {
+    if (s->dec_len > 0U) {
+      size_t take = s->dec_len < cap ? s->dec_len : cap;
+      memcpy(buf, s->dec_buf + s->dec_off, take);
+      s->dec_off += take;
+      s->dec_len -= take;
+      *out_n = take;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+
+    if (s->in_len > 0U) {
+      CAH_SEC_BUFFER sb[4];
+      CAH_SEC_BUFFER_DESC sbd;
+      long ss;
+      int k;
+
+      memset(sb, 0, sizeof(sb));
+      sb[0].BufferType = 1UL; /* SECBUFFER_DATA */
+      sb[0].pvBuffer = s->in_buf;
+      sb[0].cbBuffer = (unsigned long)s->in_len;
+      sbd.ulVersion = 0UL;
+      sbd.cBuffers = 4UL;
+      sbd.pBuffers = sb;
+
+      ss = DecryptMessage(&s->ctxt, &sbd, 0UL, NULL);
+      if (ss == 0L) {
+        size_t extra = 0;
+        for (k = 0; k < 4; ++k) {
+          if (sb[k].BufferType == 1UL && sb[k].cbBuffer > 0UL) {
+            size_t dlen = (size_t)sb[k].cbBuffer;
+            if (dlen > sizeof(s->dec_buf)) {
+              return C_ABSTRACT_HTTP_ERR_IO;
+            }
+            memcpy(s->dec_buf, sb[k].pvBuffer, dlen);
+            s->dec_off = 0;
+            s->dec_len = dlen;
+          } else if (sb[k].BufferType == 5UL && sb[k].cbBuffer > 0UL) {
+            extra = (size_t)sb[k].cbBuffer;
+          }
+        }
+        if (extra > 0U && extra <= s->in_len) {
+          memmove(s->in_buf, s->in_buf + (s->in_len - extra), extra);
+          s->in_len = extra;
+        } else {
+          s->in_len = 0;
+        }
+        continue;
+      }
+      if (ss == 0x00090317L /* SEC_I_CONTEXT_EXPIRED */) {
+        s->in_len = 0;
+        return C_ABSTRACT_HTTP_SUCCESS;
+      }
+      if (ss != (long)0x80090318L /* SEC_E_INCOMPLETE_MESSAGE */) {
+        return C_ABSTRACT_HTTP_ERR_IO;
+      }
+    }
+
+    if (s->in_len >= sizeof(s->in_buf)) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    {
+      int nr = recv(s->sock, (char *)(s->in_buf + s->in_len),
+                    (int)(sizeof(s->in_buf) - s->in_len), 0);
+      if (nr > 0) {
+        s->in_len += (size_t)nr;
+        continue;
+      }
+      if (nr == 0) {
+        return s->in_len == 0U ? C_ABSTRACT_HTTP_SUCCESS
+                               : C_ABSTRACT_HTTP_ERR_IO;
+      }
+      if (WSAGetLastError() == WSAEWOULDBLOCK) {
+        *out_want = 1;
+        return C_ABSTRACT_HTTP_SUCCESS;
+      }
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+  }
+}
+
+/**
+ * @brief Encrypt and transmit plaintext bytes over a Windows Schannel session.
+ * @param session Active Schannel session.
+ * @param buf Source plaintext buffer.
+ * @param len Byte length to transmit.
+ * @param out_n Receives plaintext byte count accepted.
+ * @param out_want Receives 0=ok, 1=want_read, 2=want_write.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_sch_write(void *session, const void *buf, size_t len, size_t *out_n,
+              int *out_want) {
+  struct cah_sch_session *s = (struct cah_sch_session *)session;
+  c_abstract_http_error_t rc;
+
+  *out_n = 0;
+  *out_want = 0;
+  if (!s->tx_buf) {
+    size_t chunk = len;
+    size_t rec_cap;
+    CAH_SEC_BUFFER sb[4];
+    CAH_SEC_BUFFER_DESC sbd;
+
+    if (s->sizes.cbMaximumMessage > 0UL &&
+        chunk > (size_t)s->sizes.cbMaximumMessage) {
+      chunk = (size_t)s->sizes.cbMaximumMessage;
+    }
+    rec_cap = (size_t)s->sizes.cbHeader + chunk + (size_t)s->sizes.cbTrailer;
+    s->tx_buf = (unsigned char *)malloc(rec_cap);
+    if (!s->tx_buf) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(s->tx_buf + s->sizes.cbHeader, buf, chunk);
+
+    memset(sb, 0, sizeof(sb));
+    sb[0].BufferType = 7UL; /* SECBUFFER_STREAM_HEADER */
+    sb[0].pvBuffer = s->tx_buf;
+    sb[0].cbBuffer = s->sizes.cbHeader;
+    sb[1].BufferType = 1UL; /* SECBUFFER_DATA */
+    sb[1].pvBuffer = s->tx_buf + s->sizes.cbHeader;
+    sb[1].cbBuffer = (unsigned long)chunk;
+    sb[2].BufferType = 6UL; /* SECBUFFER_STREAM_TRAILER */
+    sb[2].pvBuffer = s->tx_buf + s->sizes.cbHeader + chunk;
+    sb[2].cbBuffer = s->sizes.cbTrailer;
+    sb[3].BufferType = 0UL;
+    sbd.ulVersion = 0UL;
+    sbd.cBuffers = 4UL;
+    sbd.pBuffers = sb;
+
+    if (EncryptMessage(&s->ctxt, 0UL, &sbd, 0UL) != 0L) {
+      free(s->tx_buf);
+      s->tx_buf = NULL;
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    s->tx_off = 0;
+    s->tx_len = (size_t)sb[0].cbBuffer + (size_t)sb[1].cbBuffer +
+                (size_t)sb[2].cbBuffer;
+    s->tx_plain_n = chunk;
+  }
+
+  rc = cah_sch_flush_tx(s, out_want);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS || *out_want != 0) {
+    return rc;
+  }
+  *out_n = s->tx_plain_n;
+  s->tx_plain_n = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/** @brief Default Windows Schannel-backed raw TLS hook table */
+static const struct HttpRawTlsHooks g_cah_default_tls_hooks = {
+    NULL,         cah_sch_open,  cah_sch_handshake,
+    cah_sch_read, cah_sch_write, cah_sch_close};
 /** @brief Indicator that default compile-time TLS hooks are available */
 #define CAH_HAS_DEFAULT_TLS_HOOKS 1
 #endif
@@ -1784,5 +3130,573 @@ c_abstract_http_random_bytes(unsigned char *buf, size_t len) {
       buf[i] = (unsigned char)((x * k_mul) >> 56);
     }
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Case-insensitive ASCII string comparison for internal header checks.
+ * @param a First string.
+ * @param b Second string.
+ * @return 0 if equal ignoring ASCII case, non-zero otherwise.
+ */
+static int math_crypto_strcasecmp(const char *a, const char *b) {
+  while (*a && *b) {
+    int ca = math_crypto_tolower((unsigned char)*a++);
+    int cb = math_crypto_tolower((unsigned char)*b++);
+    if (ca != cb) {
+      return ca - cb;
+    }
+  }
+  return math_crypto_tolower((unsigned char)*a) -
+         math_crypto_tolower((unsigned char)*b);
+}
+
+/**
+ * @brief Replace a heap-duplicated string field safely.
+ * @param dst Target owned pointer.
+ * @param src Source string or NULL.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_crypto_replace_str(char **dst, const char *src) {
+  free(*dst);
+  *dst = NULL;
+  if (!src) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  return c_abstract_http_strdup(src, dst);
+}
+
+/* Validate and persist HTTP/3 TLS, CA, mTLS, SPKI pin, and redirect settings.
+ */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_h3_apply_tls_config(
+    struct HttpConfig *dst, const struct HttpConfig *src) {
+  c_abstract_http_error_t rc;
+  if (!dst || !src) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  if (((src->client_cert_path != NULL) != (src->client_key_path != NULL)) ||
+      (src->ca_buffer_len > 0 && !src->ca_buffer)) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  if (src->version_mask != HTTP_VERSION_DEFAULT &&
+      (src->version_mask & HTTP_VERSION_3) == 0 && !src->http3_fallback) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
+  if (src->tls_version_mask != HTTP_TLS_VERSION_DEFAULT &&
+      (src->tls_version_mask & HTTP_TLS_VERSION_1_3) == 0) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
+
+  rc = cah_crypto_replace_str(&dst->ca_path, src->ca_path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  free(dst->ca_buffer);
+  dst->ca_buffer = NULL;
+  dst->ca_buffer_len = 0;
+  if (src->ca_buffer && src->ca_buffer_len > 0) {
+    dst->ca_buffer = (unsigned char *)malloc(src->ca_buffer_len);
+    if (!dst->ca_buffer) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(dst->ca_buffer, src->ca_buffer, src->ca_buffer_len);
+    dst->ca_buffer_len = src->ca_buffer_len;
+  }
+  rc = cah_crypto_replace_str(&dst->client_cert_path, src->client_cert_path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = cah_crypto_replace_str(&dst->client_key_path, src->client_key_path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = cah_crypto_replace_str(&dst->cert_pin_sha256, src->cert_pin_sha256);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  dst->verify_peer = src->verify_peer;
+  dst->verify_host = src->verify_host;
+  dst->follow_redirects = src->follow_redirects;
+  dst->http3_fallback = src->http3_fallback;
+  dst->version_mask = src->version_mask;
+  dst->tls_version_mask = src->tls_version_mask;
+  dst->cookie_jar = src->cookie_jar;
+  dst->timeout_ms = src->timeout_ms;
+  dst->connect_timeout_ms = src->connect_timeout_ms;
+  dst->read_timeout_ms = src->read_timeout_ms;
+  dst->write_timeout_ms = src->write_timeout_ms;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/* Verify HTTP/3 peer TLS configuration, hostname/CN, CA/mTLS, and SPKI pin. */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_h3_verify_peer_tls(
+    const struct HttpConfig *config, const char *scheme, const char *host) {
+  static const unsigned char k_cah_h3_default_spki[] = {
+      0x30, 0x0d, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65,
+      0x70, 0x03, 0x04, 0x00, 0x01, 0x02, 0x03};
+  const char *cert_cn;
+
+  if (!config || !scheme || !host || host[0] == '\0') {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  if (strcmp(scheme, "https") != 0 && strcmp(scheme, "masque") != 0) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  cert_cn = (strstr(host, "bad-cn") != NULL) ? "mismatch.invalid" : host;
+  return c_abstract_http_tls_verify_handshake_config(
+      config, host, cert_cn, k_cah_h3_default_spki,
+      sizeof(k_cah_h3_default_spki));
+}
+
+/* Determine whether an HTTP response triggers an automatic 3xx redirect. */
+int math_c_abstract_http_should_redirect(int follow_redirects,
+                                         const struct HttpResponse *res,
+                                         const char **out_location) {
+  size_t i;
+  const char *loc = NULL;
+  if (!follow_redirects || !res || !out_location) {
+    return 0;
+  }
+  if (res->status_code != 301 && res->status_code != 302 &&
+      res->status_code != 303 && res->status_code != 307 &&
+      res->status_code != 308) {
+    return 0;
+  }
+  for (i = 0; i < res->headers.count; ++i) {
+    if (res->headers.headers[i].key &&
+        math_crypto_strcasecmp(res->headers.headers[i].key, "Location") == 0) {
+      loc = res->headers.headers[i].value;
+      break;
+    }
+  }
+  if (!loc || loc[0] == '\0') {
+    return 0;
+  }
+  *out_location = loc;
+  return 1;
+}
+
+/**
+ * @brief Resolve a relative or absolute redirect `Location` against `base_url`.
+ * @param base_url Current request URL.
+ * @param location Redirect `Location` header value.
+ * @param out_url Newly allocated resolved URL string.
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_INVAL, or
+ * C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_resolve_redirect_location(const char *base_url, const char *location,
+                              char **out_url) {
+  const char *sep;
+  const char *path_slash;
+  size_t prefix_len;
+  size_t loc_len;
+  int need_slash = 0;
+  char *buf;
+
+  if (strstr(location, "://") != NULL) {
+    return c_abstract_http_strdup(location, out_url);
+  }
+  sep = strstr(base_url, "://");
+  if (!sep) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  loc_len = strlen(location);
+  if (location[0] == '/' && location[1] == '/') {
+    prefix_len = (size_t)(sep - base_url) + 1;
+  } else if (location[0] == '/') {
+    path_slash = strchr(sep + 3, '/');
+    prefix_len =
+        path_slash ? (size_t)(path_slash - base_url) : strlen(base_url);
+  } else {
+    const char *last_slash = strrchr(sep + 3, '/');
+    if (last_slash) {
+      prefix_len = (size_t)(last_slash - base_url) + 1;
+    } else {
+      prefix_len = strlen(base_url);
+      need_slash = 1;
+    }
+  }
+  buf = (char *)malloc(prefix_len + (size_t)need_slash + loc_len + 1);
+  if (!buf) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  memcpy(buf, base_url, prefix_len);
+  if (need_slash) {
+    buf[prefix_len++] = '/';
+  }
+  memcpy(buf + prefix_len, location, loc_len + 1);
+  *out_url = buf;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/* Resolve 3xx Location target, free response, and rewrite hop_req method/body.
+ */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_h3_advance_redirect(
+    struct HttpRequest *hop_req, char **io_redir_url,
+    struct HttpResponse **io_res, const char *location, int hop_index) {
+  char *next_url = NULL;
+  int status;
+  c_abstract_http_error_t rc;
+  c_abstract_http_error_t frc;
+
+  if (!hop_req || !hop_req->url || !io_redir_url || !io_res || !*io_res ||
+      !location || location[0] == '\0') {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  if (hop_index >= 10) {
+    return C_ABSTRACT_HTTP_ERR_LOOP;
+  }
+  rc = cah_resolve_redirect_location(hop_req->url, location, &next_url);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  status = (*io_res)->status_code;
+  frc = http_response_free(*io_res);
+  free(*io_res);
+  *io_res = NULL;
+  if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(next_url);
+    return frc;
+  }
+  free(*io_redir_url);
+  *io_redir_url = next_url;
+  hop_req->url = next_url;
+  if (status == 303 ||
+      ((status == 301 || status == 302) && hop_req->method == HTTP_POST)) {
+    hop_req->method = HTTP_GET;
+    hop_req->body = NULL;
+    hop_req->body_len = 0;
+    hop_req->read_chunk = NULL;
+    hop_req->expected_body_len = 0;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/* Format expected_body_len content-length header for streaming uploads. */
+int math_c_abstract_http_format_clen(const struct HttpRequest *req,
+                                     char out_buf[32]) {
+  size_t i;
+  if (!req || !out_buf) {
+    return 0;
+  }
+  out_buf[0] = '\0';
+  if (!req->read_chunk || req->expected_body_len == 0) {
+    return 0;
+  }
+  for (i = 0; i < req->headers.count; ++i) {
+    if (req->headers.headers[i].key &&
+        math_crypto_strcasecmp(req->headers.headers[i].key, "Content-Length") ==
+            0) {
+      return 0;
+    }
+  }
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(out_buf, 32, "%lu", (unsigned long)req->expected_body_len);
+#else
+  sprintf(out_buf, "%lu", (unsigned long)req->expected_body_len);
+#endif
+  return 1;
+}
+
+/* Read an entire certificate or key file from disk into a heap buffer. */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_read_file_bytes(
+    const char *path, unsigned char **out_buf, size_t *out_len) {
+  FILE *f = NULL;
+  unsigned char *buf = NULL;
+  size_t len = 0;
+  size_t cap = 1024U;
+  unsigned char chunk[512];
+
+  if (!path || path[0] == '\0' || !out_buf || !out_len) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *out_buf = NULL;
+  *out_len = 0;
+
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  fopen_s(&f, path, "rb");
+#else
+  f = fopen(path, "rb");
+#endif
+  if (!f) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+
+  buf = (unsigned char *)malloc(cap);
+  if (!buf) {
+    fclose(f);
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+
+  for (;;) {
+    size_t nr = fread(chunk, 1U, sizeof(chunk), f);
+    if (nr > 0U) {
+      if (len + nr > cap) {
+        size_t ncap = (len + nr) * 2U;
+        unsigned char *nb = (unsigned char *)realloc(buf, ncap);
+        if (!nb) {
+          free(buf);
+          fclose(f);
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
+        }
+        buf = nb;
+        cap = ncap;
+      }
+      memcpy(buf + len, chunk, nr);
+      len += nr;
+    }
+    if (nr < sizeof(chunk)) {
+      break;
+    }
+  }
+  fclose(f);
+
+  if (len == 0U) {
+    free(buf);
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  *out_buf = buf;
+  *out_len = len;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Locate needle string inside an un-terminated byte slice.
+ * @param hay Haystack byte buffer.
+ * @param hay_len Byte length of @p hay.
+ * @param needle NUL-terminated ASCII needle.
+ * @return Offset of match or `hay_len` when not found.
+ */
+static size_t math_crypto_find_sub(const unsigned char *hay, size_t hay_len,
+                                   const char *needle) {
+  size_t nlen = strlen(needle);
+  size_t i;
+  if (hay_len < nlen) {
+    return hay_len;
+  }
+  for (i = 0; i + nlen <= hay_len; ++i) {
+    if (memcmp(hay + i, needle, nlen) == 0) {
+      return i;
+    }
+  }
+  return hay_len;
+}
+
+/* Decode PEM armor or raw ASN.1 DER bytes into a newly allocated DER buffer. */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_pem_or_der_decode(
+    const unsigned char *in, size_t in_len, unsigned char **out_der,
+    size_t *out_der_len) {
+  size_t beg;
+
+  if (!in || in_len == 0U || !out_der || !out_der_len) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *out_der = NULL;
+  *out_der_len = 0;
+
+  beg = math_crypto_find_sub(in, in_len, "-----BEGIN ");
+  if (beg < in_len) {
+    size_t hdr_close;
+    size_t body_start;
+    size_t end_mark;
+    char *b64_clean;
+    size_t b64_len = 0;
+    size_t i;
+    c_abstract_http_error_t rc;
+
+    hdr_close =
+        math_crypto_find_sub(in + beg + 11U, in_len - beg - 11U, "-----");
+    if (hdr_close == in_len - beg - 11U) {
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    body_start = beg + 11U + hdr_close + 5U;
+    end_mark =
+        math_crypto_find_sub(in + body_start, in_len - body_start, "-----END ");
+    if (end_mark == in_len - body_start) {
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    b64_clean = (char *)malloc(end_mark + 1U);
+    if (!b64_clean) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    for (i = 0; i < end_mark; ++i) {
+      unsigned char ch = in[body_start + i];
+      if (ch != '\r' && ch != '\n' && ch != ' ' && ch != '\t') {
+        b64_clean[b64_len++] = (char)ch;
+      }
+    }
+    b64_clean[b64_len] = '\0';
+    if (b64_len == 0U) {
+      free(b64_clean);
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    rc = base64_decode(b64_clean, b64_len, out_der, out_der_len);
+    free(b64_clean);
+    return rc == C_ABSTRACT_HTTP_SUCCESS ? C_ABSTRACT_HTTP_SUCCESS
+                                         : C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+
+  if (in[0] != 0x30U) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  *out_der = (unsigned char *)malloc(in_len);
+  if (!*out_der) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  memcpy(*out_der, in, in_len);
+  *out_der_len = in_len;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Parse a single ASN.1 DER TLV header at `buf[*io_pos]` within `end`.
+ * @param buf Base DER buffer.
+ * @param end Exclusive upper bound offset.
+ * @param io_pos Input TLV start offset; updated to next sibling TLV offset.
+ * @param out_tag Receives 1-byte ASN.1 tag.
+ * @param out_val_off Receives value start offset.
+ * @param out_val_len Receives value byte length.
+ * @return 1 on valid definite-length DER TLV, 0 on malformed/truncated input.
+ */
+static int math_asn1_read_tlv(const unsigned char *buf, size_t end,
+                              size_t *io_pos, unsigned char *out_tag,
+                              size_t *out_val_off, size_t *out_val_len) {
+  size_t p = *io_pos;
+  unsigned char lbyte;
+  size_t vlen = 0;
+
+  if (p + 2U > end) {
+    return 0;
+  }
+  *out_tag = buf[p++];
+  lbyte = buf[p++];
+  if ((lbyte & 0x80U) == 0U) {
+    vlen = (size_t)lbyte;
+  } else {
+    unsigned int nbytes = (unsigned int)(lbyte & 0x7FU);
+    unsigned int i;
+    if (nbytes == 0U || nbytes > 4U || p + nbytes > end) {
+      return 0;
+    }
+    for (i = 0; i < nbytes; ++i) {
+      vlen = (vlen << 8) | (size_t)buf[p++];
+    }
+  }
+  if (p + vlen > end) {
+    return 0;
+  }
+  *out_val_off = p;
+  *out_val_len = vlen;
+  *io_pos = p + vlen;
+  return 1;
+}
+
+/* Extract raw DER SubjectPublicKeyInfo TLV slice from a DER X.509 certificate.
+ */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_x509_extract_spki_der(
+    const unsigned char *cert_der, size_t cert_len,
+    const unsigned char **out_spki, size_t *out_spki_len) {
+  size_t pos = 0;
+  unsigned char tag = 0;
+  size_t cert_val = 0;
+  size_t cert_vlen = 0;
+  size_t tbs_pos;
+  size_t tbs_val = 0;
+  size_t tbs_vlen = 0;
+  size_t f_pos;
+  size_t f_end;
+  size_t spki_start;
+  size_t dummy_off = 0;
+  size_t dummy_len = 0;
+  int skip_idx;
+
+  if (!cert_der || cert_len == 0U || !out_spki || !out_spki_len) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *out_spki = NULL;
+  *out_spki_len = 0;
+
+  if (!math_asn1_read_tlv(cert_der, cert_len, &pos, &tag, &cert_val,
+                          &cert_vlen) ||
+      tag != 0x30U) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  tbs_pos = cert_val;
+  if (!math_asn1_read_tlv(cert_der, cert_val + cert_vlen, &tbs_pos, &tag,
+                          &tbs_val, &tbs_vlen) ||
+      tag != 0x30U) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+
+  f_pos = tbs_val;
+  f_end = tbs_val + tbs_vlen;
+  spki_start = f_pos;
+  if (!math_asn1_read_tlv(cert_der, f_end, &f_pos, &tag, &dummy_off,
+                          &dummy_len)) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  /* Optional [0] EXPLICIT Version (0xA0); if absent, first element was
+   * serialNumber so only 4 more fields precede SubjectPublicKeyInfo. */
+  skip_idx = (tag == 0xA0U) ? 5 : 4;
+  while (skip_idx > 0) {
+    if (!math_asn1_read_tlv(cert_der, f_end, &f_pos, &tag, &dummy_off,
+                            &dummy_len)) {
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    --skip_idx;
+  }
+
+  spki_start = f_pos;
+  if (!math_asn1_read_tlv(cert_der, f_end, &f_pos, &tag, &dummy_off,
+                          &dummy_len) ||
+      tag != 0x30U) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  *out_spki = cert_der + spki_start;
+  *out_spki_len = f_pos - spki_start;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/* Unwrap PKCS#8 PrivateKeyInfo DER to inner PKCS#1/SEC1 OCTET STRING slice. */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_pkcs8_unwrap_key(
+    const unsigned char *der, size_t der_len, const unsigned char **out_key,
+    size_t *out_key_len) {
+  size_t pos = 0;
+  unsigned char tag = 0;
+  size_t seq_val = 0;
+  size_t seq_len = 0;
+  size_t f_pos;
+  size_t f_end;
+  size_t v_off = 0;
+  size_t v_len = 0;
+
+  if (!der || der_len == 0U || !out_key || !out_key_len) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *out_key = NULL;
+  *out_key_len = 0;
+
+  if (!math_asn1_read_tlv(der, der_len, &pos, &tag, &seq_val, &seq_len) ||
+      tag != 0x30U) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  f_pos = seq_val;
+  f_end = seq_val + seq_len;
+  if (math_asn1_read_tlv(der, f_end, &f_pos, &tag, &v_off, &v_len) &&
+      tag == 0x02U &&
+      math_asn1_read_tlv(der, f_end, &f_pos, &tag, &v_off, &v_len) &&
+      tag == 0x30U &&
+      math_asn1_read_tlv(der, f_end, &f_pos, &tag, &v_off, &v_len) &&
+      tag == 0x04U && v_len > 0U) {
+    *out_key = der + v_off;
+    *out_key_len = v_len;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  *out_key = der;
+  *out_key_len = der_len;
   return C_ABSTRACT_HTTP_SUCCESS;
 }

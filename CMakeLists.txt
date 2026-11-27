@@ -735,6 +735,18 @@ elseif(C_ABSTRACT_HTTP_USE_NGHTTP3)
     c_abstract_http_resolve_dependency(ngtcp2 https://github.com/ngtcp2/ngtcp2.git main)
     c_abstract_http_resolve_dependency(nghttp3 https://github.com/ngtcp2/nghttp3.git main)
     target_link_libraries(c-abstract-http ${_CAH_PRIV_SCOPE} nghttp3 ngtcp2)
+    foreach(_ngc_lib ngtcp2_crypto_quictls ngtcp2_crypto_ossl ngtcp2_crypto_gnutls ngtcp2_crypto_picotls)
+        if(TARGET ${_ngc_lib})
+            target_link_libraries(c-abstract-http ${_CAH_PRIV_SCOPE} ${_ngc_lib})
+            break()
+        else()
+            find_library(_CAH_NGC_${_ngc_lib} NAMES ${_ngc_lib})
+            if(_CAH_NGC_${_ngc_lib})
+                target_link_libraries(c-abstract-http ${_CAH_PRIV_SCOPE} "${_CAH_NGC_${_ngc_lib}}")
+                break()
+            endif()
+        endif()
+    endforeach()
     target_compile_definitions(c-abstract-http ${_CAH_PUB_SCOPE} C_ABSTRACT_HTTP_USE_NGHTTP3 C_ABSTRACT_HTTP_HAVE_REAL_NGHTTP3)
 elseif(C_ABSTRACT_HTTP_USE_LIBSOUP3)
     c_abstract_http_add_compiled_source(src/http_libsoup3.c)
@@ -802,7 +814,7 @@ c_abstract_http_apply_crypto(c-abstract-http ${_CAH_PUB_SCOPE} ${_CAH_PRIV_SCOPE
 
 if(WIN32)
     target_link_libraries(c-abstract-http ${_CAH_PRIV_SCOPE} ws2_32 secur32 crypt32)
-elseif(APPLE AND CMAKE_C_COMPILER_ID MATCHES "Clang|AppleClang")
+elseif(APPLE)
     find_library(SECURITY_FRAMEWORK Security REQUIRED)
     find_library(COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
     target_link_libraries(c-abstract-http ${_CAH_PRIV_SCOPE} "${SECURITY_FRAMEWORK}" "${COREFOUNDATION_FRAMEWORK}")
@@ -850,7 +862,7 @@ if(BUILD_TESTING_${PROJECT_NAME})
             fork=c_abstract_http_mock_fork
             waitpid=c_abstract_http_mock_waitpid
             select=c_abstract_http_mock_select
-            math_get_current_time_ms=c_abstract_http_mock_math_get_current_time_ms
+            c_abstract_http_get_time_ms=c_abstract_http_mock_get_time_ms
             pthread_setspecific=c_abstract_http_mock_pthread_setspecific
             pthread_getspecific=c_abstract_http_mock_pthread_getspecific
         )

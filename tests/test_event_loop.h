@@ -1490,8 +1490,11 @@ TEST test_event_loop_scalable_backends(void) {
 #endif
 #endif
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(__MSDOS__) &&                \
-    !defined(__DOS__) && !defined(DOS)
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
+    (defined(__linux__) || (defined(__APPLE__) && defined(__MACH__)) ||        \
+     defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) ||    \
+     defined(__DragonFly__) ||                                                 \
+     (defined(_WIN32) && (!defined(_MSC_VER) || _MSC_VER >= 1500)))
   {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               c_abstract_http_test_set_native_mux_fail(1));
@@ -1574,6 +1577,79 @@ TEST test_event_loop_scalable_backends(void) {
   PASS();
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) && defined(CAH_TEST_POSIX_PIPE)
+static c_abstract_http_error_t time_fail_fd_cb(struct ModalityEventLoop *loop,
+                                               int fd, int events,
+                                               void *user_data) {
+  char b;
+  (void)loop;
+  (void)events;
+  (void)user_data;
+  if (read(fd, &b, 1) < 0) {
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+static c_abstract_http_error_t
+time_fail_timer_cb(struct ModalityEventLoop *loop, int timer_id,
+                   void *user_data) {
+  (void)loop;
+  (void)timer_id;
+  (void)user_data;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_event_loop_time_fail_percolation(void) {
+  struct ModalityEventLoop *loop = NULL;
+  int pfd[2] = {-1, -1};
+  int tid = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+
+  /* 1. http_loop_add_timer clock failure */
+  g_mock_time_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+            http_loop_add_timer(loop, 10, time_fail_timer_cb, NULL, &tid));
+  g_mock_time_fail = 0;
+
+  /* 2. process_timers clock failure in http_loop_tick */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_loop_add_timer(loop, 1000, time_fail_timer_cb, NULL, &tid));
+  g_mock_time_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_tick(loop));
+  g_mock_time_fail = 0;
+
+  /* 3. http_loop_run clock failure when computing next timer timeout */
+  g_mock_time_fail =
+      2; /* 1st: process_timers ok, 2nd: http_loop_run timer timeout! */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_run(loop));
+  g_mock_time_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_cancel_timer(loop, tid));
+
+  /* 4. dispatch_pending_fd_callbacks start_cb & end_cb clock failures */
+  ASSERT_EQ(0, pipe(pfd));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      http_loop_add_fd(loop, pfd[0], HTTP_LOOP_READ, time_fail_fd_cb, NULL));
+  ASSERT(write(pfd[1], "x", 1) == 1);
+  g_mock_time_fail = 2; /* 1st: process_timers ok, 2nd: start_cb fails! */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_tick(loop));
+  g_mock_time_fail = 0;
+
+  /* Drain byte was NOT read since start_cb failed before cb; now fail end_cb!
+   */
+  g_mock_time_fail = 3; /* 1st: process_timers, 2nd: start_cb, 3rd: end_cb! */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_loop_tick(loop));
+  g_mock_time_fail = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_remove_fd(loop, pfd[0]));
+  close(pfd[0]);
+  close(pfd[1]);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+  PASS();
+}
+#endif
+
 SUITE(event_loop_suite) {
   RUN_TEST(test_event_loop_scalable_backends);
   RUN_TEST(test_event_loop_callback_error_percolation);
@@ -1614,6 +1690,7 @@ SUITE(event_loop_suite) {
 #endif
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && defined(CAH_TEST_POSIX_PIPE)
   RUN_TEST(test_event_loop_pipe_fail);
+  RUN_TEST(test_event_loop_time_fail_percolation);
 #endif
 }
 

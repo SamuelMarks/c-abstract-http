@@ -1235,6 +1235,9 @@ NO_DISCARD c_abstract_http_error_t http_config_init(struct HttpConfig *config) {
   config->client_cert_path = NULL;
   config->client_key_path = NULL;
   config->cert_pin_sha256 = NULL;
+  config->keep_alive_enabled = 0;
+  config->keep_alive_idle_ms = 0;
+  config->max_idle_conns = 0;
 
   rc = c_abstract_http_strdup("c_abstract_http/0.1.0", &config->user_agent);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
@@ -1313,17 +1316,8 @@ NO_DISCARD c_abstract_http_error_t http_request_init(struct HttpRequest *req) {
   c_abstract_http_error_t rc;
   if (!req)
     return C_ABSTRACT_HTTP_ERR_INVAL;
-  req->url = NULL;
+  memset(req, 0, sizeof(*req));
   req->method = HTTP_GET;
-  req->body = NULL;
-  req->body_len = 0;
-  req->on_chunk = NULL;
-  req->on_chunk_user_data = NULL;
-  req->read_chunk = NULL;
-  req->read_chunk_user_data = NULL;
-  req->expected_body_len = 0;
-  req->ws_ctx = NULL;
-  req->sse_ctx = NULL;
   rc = http_headers_init(&req->headers);
   if (rc != C_ABSTRACT_HTTP_SUCCESS)
     return rc;
@@ -3347,19 +3341,6 @@ http_response_save_to_file(const struct HttpResponse *res, const char *path) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-#ifndef CAH_MATH_TIME_DECLARED
-/** @brief Guard macro for math_get_current_time_ms declaration */
-#define CAH_MATH_TIME_DECLARED 1
-/** @brief Return current monotonic/wall time in milliseconds */
-abstract_http_int64_t math_get_current_time_ms(void);
-/** @brief Real monotonic/wall time implementation */
-C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void);
-#ifndef math_get_current_time_ms
-/** @brief Default mapping of math_get_current_time_ms to real implementation */
-#define math_get_current_time_ms real_math_get_current_time_ms
-#endif
-#endif
-
 /**
  * @brief Build a normalized joined URL from `base_url` and relative `rel_url`.
  * @param base_url Base URL prefix.
@@ -3425,6 +3406,114 @@ static long math_compute_retry_delay_ms(enum HttpRetryPolicy policy,
   return (long)(attempt + 1);
 }
 
+/** @brief Stack-scoped progress and cancellation proxy state for client send */
+struct CahClientProgressState {
+  /** @brief Original download chunk callback */
+  http_on_chunk_fn orig_on_chunk;
+  /** @brief Original download chunk user data */
+  void *orig_on_chunk_ud;
+  /** @brief Original upload chunk callback */
+  http_read_chunk_fn orig_read_chunk;
+  /** @brief Original upload chunk user data */
+  void *orig_read_chunk_ud;
+  /** @brief Active progress callback */
+  http_on_progress_fn on_progress;
+  /** @brief Active progress user data */
+  void *on_progress_ud;
+  /** @brief Optional cooperative cancellation flag */
+  const volatile int *cancel_token;
+  /** @brief Expected upload total size */
+  size_t expected_upload_len;
+  /** @brief Cumulative uploaded bytes */
+  size_t uploaded_bytes;
+  /** @brief Cumulative downloaded bytes */
+  size_t downloaded_bytes;
+};
+
+/**
+ * @brief Proxy `on_chunk` callback enforcing `cancel_token` and `on_progress`.
+ * @param user_data Pointer to `struct CahClientProgressState`.
+ * @param chunk Received body bytes.
+ * @param len Byte length of `chunk`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or cancellation/error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+client_progress_on_chunk_cb(void *user_data, const void *chunk, size_t len) {
+  struct CahClientProgressState *st =
+      (struct CahClientProgressState *)user_data;
+  c_abstract_http_error_t rc;
+  if (st->cancel_token && *st->cancel_token) {
+    return C_ABSTRACT_HTTP_ERR_CANCELED;
+  }
+  st->downloaded_bytes += len;
+  if (st->on_progress) {
+    rc = st->on_progress(st->downloaded_bytes, st->downloaded_bytes,
+                         st->on_progress_ud);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return (rc == C_ABSTRACT_HTTP_ERR_NOMEM) ? rc
+                                               : C_ABSTRACT_HTTP_ERR_CANCELED;
+    }
+  }
+  return st->orig_on_chunk(st->orig_on_chunk_ud, chunk, len);
+}
+
+/**
+ * @brief Proxy `read_chunk` callback enforcing `cancel_token` and
+ * `on_progress`.
+ * @param user_data Pointer to `struct CahClientProgressState`.
+ * @param buf Destination upload buffer.
+ * @param buf_len Capacity of `buf`.
+ * @param out_read Output bytes produced.
+ * @return C_ABSTRACT_HTTP_SUCCESS or cancellation/error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+client_progress_read_chunk_cb(void *user_data, void *buf, size_t buf_len,
+                              size_t *out_read) {
+  struct CahClientProgressState *st =
+      (struct CahClientProgressState *)user_data;
+  c_abstract_http_error_t rc;
+  if (st->cancel_token && *st->cancel_token) {
+    return C_ABSTRACT_HTTP_ERR_CANCELED;
+  }
+  rc = st->orig_read_chunk(st->orig_read_chunk_ud, buf, buf_len, out_read);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  if (*out_read > 0) {
+    size_t total = st->expected_upload_len > 0
+                       ? st->expected_upload_len
+                       : (st->uploaded_bytes + *out_read);
+    st->uploaded_bytes += *out_read;
+    if (st->on_progress) {
+      rc = st->on_progress(st->uploaded_bytes, total, st->on_progress_ud);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return (rc == C_ABSTRACT_HTTP_ERR_NOMEM) ? rc
+                                                 : C_ABSTRACT_HTTP_ERR_CANCELED;
+      }
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Invoke `req->on_progress` for a buffered response and normalize
+ * cancellation errors.
+ * @param req Completed HTTP request.
+ * @param total Total body bytes (clamped to >= 1).
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_NOMEM, or
+ * C_ABSTRACT_HTTP_ERR_CANCELED.
+ */
+NO_DISCARD static c_abstract_http_error_t
+client_notify_final_progress(const struct HttpRequest *req, size_t total) {
+  c_abstract_http_error_t rc =
+      req->on_progress(total, total, req->on_progress_user_data);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return (rc == C_ABSTRACT_HTTP_ERR_NOMEM) ? rc
+                                             : C_ABSTRACT_HTTP_ERR_CANCELED;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 /** @brief Send a single HTTP request through the unified client pipeline */
 NO_DISCARD c_abstract_http_error_t http_client_send(struct HttpClient *client,
                                                     struct HttpRequest *req,
@@ -3434,6 +3523,8 @@ NO_DISCARD c_abstract_http_error_t http_client_send(struct HttpClient *client,
   char *resolved_url = NULL;
   char *cookie_hdr = NULL;
   int added_cookie = 0;
+  int wrapped_progress = 0;
+  struct CahClientProgressState prog_state;
   size_t max_retries = 0;
   size_t attempt = 0;
   struct HttpResponse *attempt_res = NULL;
@@ -3445,7 +3536,11 @@ NO_DISCARD c_abstract_http_error_t http_client_send(struct HttpClient *client,
   if (!client->send) {
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
+  if (req->cancel_token && *req->cancel_token) {
+    return C_ABSTRACT_HTTP_ERR_CANCELED;
+  }
 
+  memset(&prog_state, 0, sizeof(prog_state));
   orig_url = req->url;
   if (client->base_url && !strstr(req->url, "://")) {
     rc = client_join_base_url(client->base_url, req->url, &resolved_url);
@@ -3460,6 +3555,26 @@ NO_DISCARD c_abstract_http_error_t http_client_send(struct HttpClient *client,
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       goto cleanup;
     }
+  }
+
+  if (req->on_progress || req->cancel_token) {
+    prog_state.orig_on_chunk = req->on_chunk;
+    prog_state.orig_on_chunk_ud = req->on_chunk_user_data;
+    prog_state.orig_read_chunk = req->read_chunk;
+    prog_state.orig_read_chunk_ud = req->read_chunk_user_data;
+    prog_state.on_progress = req->on_progress;
+    prog_state.on_progress_ud = req->on_progress_user_data;
+    prog_state.cancel_token = req->cancel_token;
+    prog_state.expected_upload_len = req->expected_body_len;
+    if (req->on_chunk) {
+      req->on_chunk = client_progress_on_chunk_cb;
+      req->on_chunk_user_data = &prog_state;
+    }
+    if (req->read_chunk) {
+      req->read_chunk = client_progress_read_chunk_cb;
+      req->read_chunk_user_data = &prog_state;
+    }
+    wrapped_progress = 1;
   }
 
   if (client->config.cookie_jar) {
@@ -3499,6 +3614,12 @@ NO_DISCARD c_abstract_http_error_t http_client_send(struct HttpClient *client,
 
   for (attempt = 0; attempt <= max_retries; ++attempt) {
     int should_retry = 0;
+    if (req->cancel_token && *req->cancel_token) {
+      rc = C_ABSTRACT_HTTP_ERR_CANCELED;
+      goto cleanup;
+    }
+    prog_state.uploaded_bytes = 0;
+    prog_state.downloaded_bytes = 0;
     attempt_res = NULL;
     rc = client->send(client->transport, req, &attempt_res);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -3573,12 +3694,32 @@ NO_DISCARD c_abstract_http_error_t http_client_send(struct HttpClient *client,
     }
   }
 
+  if (rc == C_ABSTRACT_HTTP_SUCCESS && attempt_res) {
+    if (req->cancel_token && *req->cancel_token) {
+      rc = C_ABSTRACT_HTTP_ERR_CANCELED;
+      goto cleanup;
+    }
+    if (req->on_progress && !prog_state.orig_on_chunk) {
+      size_t total = attempt_res->body_len > 0 ? attempt_res->body_len : 1U;
+      rc = client_notify_final_progress(req, total);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        goto cleanup;
+      }
+    }
+  }
+
   if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     *res = attempt_res;
     attempt_res = NULL;
   }
 
 cleanup:
+  if (wrapped_progress) {
+    req->on_chunk = prog_state.orig_on_chunk;
+    req->on_chunk_user_data = prog_state.orig_on_chunk_ud;
+    req->read_chunk = prog_state.orig_read_chunk;
+    req->read_chunk_user_data = prog_state.orig_read_chunk_ud;
+  }
   if (added_cookie && req->headers.count > 0) {
     size_t ci = req->headers.count - 1;
     free(req->headers.headers[ci].key);

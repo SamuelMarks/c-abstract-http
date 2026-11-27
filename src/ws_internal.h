@@ -8,6 +8,7 @@
 
 /* clang-format off */
 #include <c_abstract_http/event_loop.h>
+#include <c_abstract_http/http_raw.h>
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/thread_pool.h>
 #include "c_abstract_http/http_ws.h"
@@ -89,6 +90,10 @@ struct ws_stream_ctx {
   c_abstract_http_ws_on_error user_on_err;   /**< User error callback */
   c_abstract_http_ws_on_close user_on_close; /**< User close callback */
   void *user_cb_data;                        /**< User callback context */
+  int has_custom_tls;               /**< Non-zero when custom TLS hooks set */
+  struct HttpRawTlsHooks tls_hooks; /**< Active or custom TLS hook table */
+  void *tls_session;                /**< Active TLS session for `wss://` */
+  int tls_want;                     /**< Pending TLS I/O interest (0/1=R/2=W) */
 };
 
 /**

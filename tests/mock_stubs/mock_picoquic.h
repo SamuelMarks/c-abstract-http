@@ -227,12 +227,14 @@ static int mock_pq_read_varint(const uint8_t *src, size_t len, size_t *off,
 }
 
 static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
+  char method[16];
   char path[128];
   char ua[128];
+  char clen[32];
   char masque[128];
   char pauth[128];
-  const uint8_t *req_body = NULL;
-  size_t req_body_len = 0;
+  static uint8_t acc_body[18432];
+  size_t acc_body_len = 0;
   size_t off = 0;
   static uint8_t resp[20480];
   size_t rpos = 0;
@@ -246,9 +248,11 @@ static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
     return;
   }
 
+  method[0] = '\0';
   path[0] = '/';
   path[1] = '\0';
   ua[0] = '\0';
+  clen[0] = '\0';
   masque[0] = '\0';
   pauth[0] = '\0';
 
@@ -284,7 +288,11 @@ static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
         }
         vp = cnx->tx_buf + hoff;
         hoff += vl;
-        if (kl == 5 && memcmp(kp, ":path", 5) == 0 && vl < sizeof(path)) {
+        if (kl == 7 && memcmp(kp, ":method", 7) == 0 && vl < sizeof(method)) {
+          memcpy(method, vp, vl);
+          method[vl] = '\0';
+        } else if (kl == 5 && memcmp(kp, ":path", 5) == 0 &&
+                   vl < sizeof(path)) {
           memcpy(path, vp, vl);
           path[vl] = '\0';
         } else if (kl == 10 &&
@@ -293,6 +301,12 @@ static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
                    vl < sizeof(ua)) {
           memcpy(ua, vp, vl);
           ua[vl] = '\0';
+        } else if (kl == 14 &&
+                   (memcmp(kp, "content-length", 14) == 0 ||
+                    memcmp(kp, "Content-Length", 14) == 0) &&
+                   vl < sizeof(clen)) {
+          memcpy(clen, vp, vl);
+          clen[vl] = '\0';
         } else if (kl == 15 && memcmp(kp, "x-masque-target", 15) == 0 &&
                    vl < sizeof(masque)) {
           memcpy(masque, vp, vl);
@@ -303,9 +317,15 @@ static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
           pauth[vl] = '\0';
         }
       }
-    } else if (ftype == 0x00) {
-      req_body = cnx->tx_buf + off;
-      req_body_len = flen;
+    } else if (ftype == 0x00 && flen > 0) {
+      size_t take = flen;
+      if (acc_body_len + take > sizeof(acc_body)) {
+        take = sizeof(acc_body) - acc_body_len;
+      }
+      if (take > 0) {
+        memcpy(acc_body + acc_body_len, cnx->tx_buf + off, take);
+        acc_body_len += take;
+      }
     }
     off += flen;
   }
@@ -418,7 +438,24 @@ static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
   /* QPACK prefix */
   hblock[hpos++] = 0x00;
   hblock[hpos++] = 0x00;
-  mock_pq_write_hdr(hblock, &hpos, ":status", "200");
+  if (strcmp(path, "/redir-301") == 0) {
+    mock_pq_write_hdr(hblock, &hpos, ":status", "301");
+    mock_pq_write_hdr(hblock, &hpos, "location", "/final");
+  } else if (strcmp(path, "/redir-307") == 0) {
+    mock_pq_write_hdr(hblock, &hpos, ":status", "307");
+    mock_pq_write_hdr(hblock, &hpos, "location", "/final");
+  } else if (strcmp(path, "/redir-loop") == 0) {
+    mock_pq_write_hdr(hblock, &hpos, ":status", "302");
+    mock_pq_write_hdr(hblock, &hpos, "location", "/redir-loop");
+  } else {
+    mock_pq_write_hdr(hblock, &hpos, ":status", "200");
+  }
+  if (method[0] != '\0') {
+    mock_pq_write_hdr(hblock, &hpos, "x-echo-method", method);
+  }
+  if (clen[0] != '\0') {
+    mock_pq_write_hdr(hblock, &hpos, "x-echo-clen", clen);
+  }
   mock_pq_write_hdr(hblock, &hpos, "content-type", "text/plain");
   mock_pq_write_hdr(hblock, &hpos, "set-cookie", "pq_sid=abc; Path=/");
   mock_pq_write_hdr(hblock, &hpos, "Set-Cookie", "pq_plain=xyz");
@@ -447,10 +484,8 @@ static void picoquic_MockDriveLoopback(picoquic_cnx_t *cnx) {
   resp[rpos++] = 0xBB;
 
   if (strcmp(path, "/empty") != 0) {
-    out_body = (req_body && req_body_len > 0) ? req_body
-                                              : (const uint8_t *)default_body;
-    out_body_len =
-        (req_body && req_body_len > 0) ? req_body_len : strlen(default_body);
+    out_body = (acc_body_len > 0) ? acc_body : (const uint8_t *)default_body;
+    out_body_len = (acc_body_len > 0) ? acc_body_len : strlen(default_body);
     mock_pq_write_varint(resp, &rpos, 0x00);
     mock_pq_write_varint(resp, &rpos, out_body_len);
     memcpy(resp + rpos, out_body, out_body_len);

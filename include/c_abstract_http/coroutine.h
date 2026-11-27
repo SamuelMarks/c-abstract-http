@@ -31,22 +31,24 @@ struct AbstractHttpCoroutine;
  * @param[in] arg User context argument.
  * @return C_ABSTRACT_HTTP_SUCCESS on success, or an error code.
  */
-typedef c_abstract_http_error_t (*abstract_http_coroutine_cb)(void *arg);
+typedef NO_DISCARD_FN_PTR
+    c_abstract_http_error_t (*abstract_http_coroutine_cb)(void *arg);
 
 /**
  * @brief External hooks for overriding coroutine management.
  */
 struct AbstractHttpCoroutineHooks {
-  c_abstract_http_error_t (*init)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*init)(
       struct AbstractHttpCoroutine **co, size_t stack_size,
       abstract_http_coroutine_cb cb,
       void *arg); /**< Hook for coroutine initialization */
-  c_abstract_http_error_t (*free)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*free)(
       struct AbstractHttpCoroutine *co); /**< Hook for coroutine destruction */
-  c_abstract_http_error_t (*resume)(
-      struct AbstractHttpCoroutine *co);  /**< Hook for resuming execution */
-  c_abstract_http_error_t (*yield)(void); /**< Hook for yielding execution */
-  c_abstract_http_error_t (*is_done)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*resume)(
+      struct AbstractHttpCoroutine *co); /**< Hook for resuming execution */
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*yield)(
+      void); /**< Hook for yielding execution */
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*is_done)(
       const struct AbstractHttpCoroutine *co,
       int *out_is_done); /**< Hook for checking status */
 };

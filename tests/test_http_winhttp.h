@@ -35,6 +35,8 @@ __declspec(dllimport) void __stdcall Sleep(unsigned long dwMilliseconds);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_winhttp_slot_guard(int mode);
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_winhttp_wincrypt_fault(int kind, int val);
 #endif
 
 /** @brief Helper structure for chunk testing */
@@ -1212,42 +1214,43 @@ TEST test_winhttp_coverage_branches(void) {
 
   /* 11g. Config timeouts and proxy permutations */
   {
-    struct HttpConfig cfg;
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
-    cfg.timeout_ms = 0;
-    cfg.connect_timeout_ms = 10;
-    rc = http_winhttp_config_apply(ctx, &cfg);
+    struct HttpConfig tcfg_perm;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&tcfg_perm));
+    tcfg_perm.timeout_ms = 0;
+    tcfg_perm.connect_timeout_ms = 10;
+    rc = http_winhttp_config_apply(ctx, &tcfg_perm);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-    cfg.connect_timeout_ms = 0;
-    cfg.read_timeout_ms = 10;
-    rc = http_winhttp_config_apply(ctx, &cfg);
+    tcfg_perm.connect_timeout_ms = 0;
+    tcfg_perm.read_timeout_ms = 10;
+    rc = http_winhttp_config_apply(ctx, &tcfg_perm);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-    cfg.read_timeout_ms = 0;
-    cfg.write_timeout_ms = 10;
-    rc = http_winhttp_config_apply(ctx, &cfg);
+    tcfg_perm.read_timeout_ms = 0;
+    tcfg_perm.write_timeout_ms = 10;
+    rc = http_winhttp_config_apply(ctx, &tcfg_perm);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-    cfg.write_timeout_ms = 0;
-    rc = http_winhttp_config_apply(ctx, &cfg);
+    tcfg_perm.write_timeout_ms = 0;
+    rc = http_winhttp_config_apply(ctx, &tcfg_perm);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     /* Proxy username without password */
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        c_abstract_http_strdup("http://127.0.0.1:8080", &tcfg_perm.proxy_url));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              c_abstract_http_strdup("http://127.0.0.1:8080", &cfg.proxy_url));
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
-              c_abstract_http_strdup("user", &cfg.proxy_username));
-    cfg.proxy_password = NULL;
-    rc = http_winhttp_config_apply(ctx, &cfg);
+              c_abstract_http_strdup("user", &tcfg_perm.proxy_username));
+    tcfg_perm.proxy_password = NULL;
+    rc = http_winhttp_config_apply(ctx, &tcfg_perm);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&tcfg_perm));
   }
 
   /* 11h. Cookie jar with count == 0 */
   {
     struct HttpCookieJar empty_jar;
-    struct HttpConfig cfg;
+    struct HttpConfig jcfg;
     memset(&empty_jar, 0, sizeof(empty_jar));
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
-    cfg.cookie_jar = &empty_jar;
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&jcfg));
+    jcfg.cookie_jar = &empty_jar;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &jcfg));
     rc = http_winhttp_send(ctx, &req, &res);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
     if (res) {
@@ -1255,9 +1258,9 @@ TEST test_winhttp_coverage_branches(void) {
       free(res);
       res = NULL;
     }
-    cfg.cookie_jar = NULL;
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+    jcfg.cookie_jar = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &jcfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&jcfg));
   }
 
   /* 12. Send multi with loop wakeup failure and queue fail */
@@ -1891,6 +1894,277 @@ TEST test_winhttp_utf8_and_async_timeouts(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_free(ctx));
   PASS();
 }
+
+/** @brief Verify WinHTTP custom CA, mTLS client certs, and SPKI SHA-256 pin */
+TEST test_winhttp_tls_ca_mtls_and_spki_pinning(void) {
+  static const unsigned char k_srv_cert[] = {
+      0x30, 0x1C, 0x30, 0x15, 0xA0, 0x03, 0x02, 0x01, 0x02, 0x02,
+      0x01, 0x01, 0x30, 0x00, 0x30, 0x00, 0x30, 0x00, 0x30, 0x00,
+      0x30, 0x03, 0x61, 0x62, 0x63, 0x30, 0x00, 0x03, 0x01, 0x00};
+  static const unsigned char k_other_cert[] = {
+      0x30, 0x1C, 0x30, 0x15, 0xA0, 0x03, 0x02, 0x01, 0x02, 0x02,
+      0x01, 0x02, 0x30, 0x00, 0x30, 0x00, 0x30, 0x00, 0x30, 0x00,
+      0x30, 0x03, 0x78, 0x79, 0x7A, 0x30, 0x00, 0x03, 0x01, 0x00};
+  static const unsigned char k_pfx_valid[] = {0x30, 0x06, 'P',  'F',
+                                              'X',  '1',  0x00, 0x00};
+  static const unsigned char k_pfx_empty[] = {0x30, 0x06, 'P', 'F',
+                                              'X',  '1',  'E', 0x00};
+  static const unsigned char k_bad_bytes[] = {'B', 'A', 'D'};
+  const char *ca_file = "cah_winhttp_ca_tmp.der";
+  const char *cert_file = "cah_winhttp_cli_tmp.der";
+  const char *key_file = "cah_winhttp_key_tmp.der";
+  const char *pfx_file = "cah_winhttp_cli_tmp.pfx";
+  const char *pfx_empty_file = "cah_winhttp_empty_tmp.pfx";
+  const char *bad_file = "cah_winhttp_bad_tmp.bin";
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpMultiRequest multi;
+  struct HttpFuture fut;
+  struct HttpFuture *futs[1];
+  FILE *fp = NULL;
+
+  fp = fopen(ca_file, "wb");
+  ASSERT(fp != NULL);
+  ASSERT_EQ(sizeof(k_other_cert),
+            fwrite(k_other_cert, 1, sizeof(k_other_cert), fp));
+  fclose(fp);
+
+  fp = fopen(cert_file, "wb");
+  ASSERT(fp != NULL);
+  ASSERT_EQ(sizeof(k_srv_cert), fwrite(k_srv_cert, 1, sizeof(k_srv_cert), fp));
+  fclose(fp);
+
+  fp = fopen(key_file, "wb");
+  ASSERT(fp != NULL);
+  ASSERT_EQ(sizeof(k_srv_cert), fwrite(k_srv_cert, 1, sizeof(k_srv_cert), fp));
+  fclose(fp);
+
+  fp = fopen(pfx_file, "wb");
+  ASSERT(fp != NULL);
+  ASSERT_EQ(sizeof(k_pfx_valid),
+            fwrite(k_pfx_valid, 1, sizeof(k_pfx_valid), fp));
+  fclose(fp);
+
+  fp = fopen(pfx_empty_file, "wb");
+  ASSERT(fp != NULL);
+  ASSERT_EQ(sizeof(k_pfx_empty),
+            fwrite(k_pfx_empty, 1, sizeof(k_pfx_empty), fp));
+  fclose(fp);
+
+  fp = fopen(bad_file, "wb");
+  ASSERT(fp != NULL);
+  ASSERT_EQ(sizeof(k_bad_bytes),
+            fwrite(k_bad_bytes, 1, sizeof(k_bad_bytes), fp));
+  fclose(fp);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)"https://127.0.0.1:8443/tls";
+
+  /* 1. Validation errors in winhttp_apply_tls_materials */
+  cfg.client_cert_path = (char *)cert_file;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_winhttp_config_apply(ctx, &cfg));
+  cfg.client_cert_path = NULL;
+  cfg.client_key_path = (char *)key_file;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_winhttp_config_apply(ctx, &cfg));
+  cfg.client_key_path = NULL;
+  cfg.ca_buffer_len = 4;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_winhttp_config_apply(ctx, &cfg));
+  cfg.ca_buffer_len = 0;
+
+  /* Missing/bad CA & mTLS files */
+  cfg.ca_path = (char *)"nonexistent_winhttp_ca.der";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_config_apply(ctx, &cfg));
+  cfg.ca_path = (char *)bad_file;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_config_apply(ctx, &cfg));
+  cfg.ca_path = NULL;
+  cfg.ca_buffer = (unsigned char *)k_bad_bytes;
+  cfg.ca_buffer_len = sizeof(k_bad_bytes);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_config_apply(ctx, &cfg));
+  cfg.ca_buffer = NULL;
+  cfg.ca_buffer_len = 0;
+
+  cfg.client_cert_path = (char *)"nonexistent_cli.der";
+  cfg.client_key_path = (char *)key_file;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_config_apply(ctx, &cfg));
+  cfg.client_cert_path = (char *)cert_file;
+  cfg.client_key_path = (char *)"nonexistent_key.der";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_config_apply(ctx, &cfg));
+  cfg.client_cert_path = (char *)bad_file;
+  cfg.client_key_path = (char *)key_file;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_config_apply(ctx, &cfg));
+  cfg.client_cert_path = (char *)cert_file;
+  cfg.client_key_path = (char *)bad_file;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_config_apply(ctx, &cfg));
+  cfg.client_cert_path = (char *)pfx_empty_file;
+  cfg.client_key_path = (char *)key_file;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_config_apply(ctx, &cfg));
+
+  /* CryptoAPI fault injections during config_apply */
+  cfg.client_cert_path = NULL;
+  cfg.client_key_path = NULL;
+  cfg.ca_buffer = (unsigned char *)k_srv_cert;
+  cfg.ca_buffer_len = sizeof(k_srv_cert);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(1, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_winhttp_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(1, 0));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(2, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(2, 0));
+
+  cfg.ca_buffer = NULL;
+  cfg.ca_buffer_len = 0;
+  cfg.client_cert_path = (char *)cert_file;
+  cfg.client_key_path = (char *)key_file;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(3, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(3, 0));
+
+  /* 2.Untrusted custom CA (ca_file has k_other_cert != server's k_srv_cert) */
+  cfg.client_cert_path = NULL;
+  cfg.client_key_path = NULL;
+  cfg.ca_path = (char *)ca_file;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_send(ctx, &req, &res));
+
+  /* 3. Multi-anchor CA store (ca_file = k_other_cert + ca_buffer = k_srv_cert)
+   * + PFX mTLS + valid SPKI SHA-256 pin! */
+  cfg.ca_buffer = (unsigned char *)k_srv_cert;
+  cfg.ca_buffer_len = sizeof(k_srv_cert);
+  cfg.client_cert_path = (char *)pfx_file;
+  cfg.client_key_path = (char *)key_file;
+  cfg.cert_pin_sha256 =
+      (char *)"sha256//Ex7vOCsDJdr7kko0gFFm0sy5PMSgMpcBc1RY2ieing0=";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Also re-apply with PEM/DER client_cert_ctx (replaces PFX client_store!) */
+  cfg.client_cert_path = (char *)cert_file;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Client cert WinHttpSetOption failure in send and send_multi */
+  g_mock_winhttp_set_option_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req));
+  futs[0] = &fut;
+  memset(&fut, 0, sizeof(fut));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            http_winhttp_send_multi(ctx, NULL, &multi, futs));
+  g_mock_winhttp_set_option_fail = 0;
+
+  /* Async send_multi success with CA + mTLS + SPKI pin */
+  memset(&fut, 0, sizeof(fut));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_winhttp_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, fut.error_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut));
+
+  /* 4. SPKI pin mismatch & server cert query / chain fault modes */
+  cfg.cert_pin_sha256 =
+      (char *)"sha256//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_send(ctx, &req, &res));
+  memset(&fut, 0, sizeof(fut));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_winhttp_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, fut.error_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut));
+
+  cfg.cert_pin_sha256 =
+      (char *)"sha256//Ex7vOCsDJdr7kko0gFFm0sy5PMSgMpcBc1RY2ieing0=";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+
+  /* query_cert_mode = 1 (WinHttpQueryOption fail) & 2 (malformed DER SPKI) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(5, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_send(ctx, &req, &res));
+  cfg.ca_path = NULL;
+  cfg.ca_buffer = NULL;
+  cfg.ca_buffer_len = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(5, 2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(5, 0));
+
+  /* chain_mode = 1 (CertGetCertificateChain fail), 2 (bad trust status),
+   * 3 (empty chain) */
+  cfg.ca_buffer = (unsigned char *)k_srv_cert;
+  cfg.ca_buffer_len = sizeof(k_srv_cert);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_winhttp_config_apply(ctx, &cfg));
+  {
+    int cm;
+    for (cm = 1; cm <= 3; ++cm) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_winhttp_wincrypt_fault(4, cm));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_winhttp_send(ctx, &req, &res));
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_winhttp_wincrypt_fault(4, 0));
+  }
+
+  /* 5. OOM sweep across winhttp_apply_tls_materials & release_tls_fail */
+  {
+    int step;
+    cfg.ca_path = (char *)cert_file;
+    for (step = 0; step < 16; ++step) {
+      c_abstract_http_error_t orc;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      orc = http_winhttp_config_apply(ctx, &cfg);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      ASSERT((int)orc >= -2000 && (int)orc <= 2000);
+    }
+  }
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(6, 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_winhttp_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_winhttp_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_winhttp_wincrypt_fault(6, 0));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  cfg.ca_path = NULL;
+  cfg.ca_buffer = NULL;
+  cfg.ca_buffer_len = 0;
+  cfg.client_cert_path = NULL;
+  cfg.client_key_path = NULL;
+  cfg.cert_pin_sha256 = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+
+  remove(ca_file);
+  remove(cert_file);
+  remove(key_file);
+  remove(pfx_file);
+  remove(pfx_empty_file);
+  remove(bad_file);
+  PASS();
+}
 #endif
 
 /** @brief WinHTTP test suite */
@@ -1910,6 +2184,7 @@ SUITE(http_winhttp_suite) {
   RUN_TEST(test_winhttp_utf8_and_async_timeouts);
   RUN_TEST(test_winhttp_send_mock_failures);
   RUN_TEST(test_winhttp_coverage_branches);
+  RUN_TEST(test_winhttp_tls_ca_mtls_and_spki_pinning);
 #endif
 }
 

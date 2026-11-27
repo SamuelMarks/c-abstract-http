@@ -12,6 +12,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 /* clang-format off */
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <c_abstract_http/http_types.h>
@@ -100,10 +101,12 @@ typedef struct ngtcp2_conn {
 struct mock_nghttp3_stream {
   int64_t stream_id;
   void *stream_user_data;
+  char method[16];
   char path[128];
   char ua[128];
   char masque[128];
   char pauth[128];
+  char clen[32];
   uint8_t *req_body;
   size_t req_body_len;
   int active;
@@ -269,8 +272,12 @@ static int nghttp3_conn_submit_request(nghttp3_conn *conn, int64_t stream_id,
   st->active = 1;
 
   for (i = 0; i < nvlen; ++i) {
-    if (nva[i].namelen == 5 && memcmp(nva[i].name, ":path", 5) == 0 &&
-        nva[i].valuelen < sizeof(st->path)) {
+    if (nva[i].namelen == 7 && memcmp(nva[i].name, ":method", 7) == 0 &&
+        nva[i].valuelen < sizeof(st->method)) {
+      memcpy(st->method, nva[i].value, nva[i].valuelen);
+      st->method[nva[i].valuelen] = '\0';
+    } else if (nva[i].namelen == 5 && memcmp(nva[i].name, ":path", 5) == 0 &&
+               nva[i].valuelen < sizeof(st->path)) {
       memcpy(st->path, nva[i].value, nva[i].valuelen);
       st->path[nva[i].valuelen] = '\0';
     } else if (nva[i].namelen == 10 &&
@@ -279,6 +286,12 @@ static int nghttp3_conn_submit_request(nghttp3_conn *conn, int64_t stream_id,
                nva[i].valuelen < sizeof(st->ua)) {
       memcpy(st->ua, nva[i].value, nva[i].valuelen);
       st->ua[nva[i].valuelen] = '\0';
+    } else if (nva[i].namelen == 14 &&
+               (memcmp(nva[i].name, "content-length", 14) == 0 ||
+                memcmp(nva[i].name, "Content-Length", 14) == 0) &&
+               nva[i].valuelen < sizeof(st->clen)) {
+      memcpy(st->clen, nva[i].value, nva[i].valuelen);
+      st->clen[nva[i].valuelen] = '\0';
     } else if (nva[i].namelen == 15 &&
                memcmp(nva[i].name, "x-masque-target", 15) == 0 &&
                nva[i].valuelen < sizeof(st->masque)) {
@@ -355,7 +368,41 @@ static int mock_nghttp3_drive_loopback(nghttp3_conn *conn, ngtcp2_conn *qconn) {
     if (strcmp(st->path, "/net-err") == 0) {
       return -1;
     }
-    if (mock_ngh3_emit_hdr(conn, st, ":status", "200") != 0) {
+    if (strcmp(st->path, "/redir-301") == 0) {
+      if (mock_ngh3_emit_hdr(conn, st, ":status", "301") != 0 ||
+          mock_ngh3_emit_hdr(conn, st, "location", "/final") != 0) {
+        return -1;
+      }
+    } else if (strcmp(st->path, "/redir-307") == 0) {
+      if (mock_ngh3_emit_hdr(conn, st, ":status", "307") != 0 ||
+          mock_ngh3_emit_hdr(conn, st, "location", "/final") != 0) {
+        return -1;
+      }
+    } else if (strcmp(st->path, "/redir-loop") == 0) {
+      if (mock_ngh3_emit_hdr(conn, st, ":status", "302") != 0 ||
+          mock_ngh3_emit_hdr(conn, st, "location", "/redir-loop") != 0) {
+        return -1;
+      }
+    } else if (mock_ngh3_emit_hdr(conn, st, ":status", "200") != 0) {
+      return -1;
+    }
+    {
+      char sid_buf[32];
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      sprintf_s(sid_buf, sizeof(sid_buf), "%ld", (long)st->stream_id);
+#else
+      sprintf(sid_buf, "%ld", (long)st->stream_id);
+#endif
+      if (mock_ngh3_emit_hdr(conn, st, "x-echo-stream-id", sid_buf) != 0) {
+        return -1;
+      }
+    }
+    if (st->method[0] != '\0' &&
+        mock_ngh3_emit_hdr(conn, st, "x-echo-method", st->method) != 0) {
+      return -1;
+    }
+    if (st->clen[0] != '\0' &&
+        mock_ngh3_emit_hdr(conn, st, "x-echo-clen", st->clen) != 0) {
       return -1;
     }
     if (mock_ngh3_emit_hdr(conn, st, "content-type", "text/plain") != 0) {

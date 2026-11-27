@@ -539,6 +539,16 @@ pq_serialize_request(const struct HttpTransportContext *ctx,
       return rc;
     }
   }
+  {
+    char clen_buf[32];
+    if (math_c_abstract_http_format_clen(req, clen_buf)) {
+      rc = pq_write_qpack_field(&hdr_payload, "content-length", clen_buf);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(hdr_payload.data);
+        return rc;
+      }
+    }
+  }
 
   if (ctx->proxy_host) {
     rc = pq_write_qpack_field(&hdr_payload, "x-masque-target", host);
@@ -631,52 +641,21 @@ pq_serialize_request(const struct HttpTransportContext *ctx,
   }
   free(hdr_payload.data);
 
-  /* Assemble optional request body / streaming upload */
-  if (req->read_chunk) {
-    for (;;) {
-      uint8_t chunk[4096];
-      size_t nread = 0;
-      rc = req->read_chunk(req->read_chunk_user_data, chunk, sizeof(chunk),
-                           &nread);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(body_payload.data);
-        return rc;
-      }
-      if (nread == 0) {
-        break;
-      }
-      rc = pq_buf_append(&body_payload, chunk, nread);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(body_payload.data);
-        return rc;
-      }
-    }
-  } else if (req->body && req->body_len > 0) {
-    rc = pq_buf_append(&body_payload, req->body, req->body_len);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(body_payload.data);
-      return rc;
-    }
-  }
-
-  if (body_payload.len > 0) {
+  if (!req->read_chunk && req->body && req->body_len > 0) {
     rc = pq_write_varint(out_stream, 0x00U);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(body_payload.data);
       return rc;
     }
-    rc = pq_write_varint(out_stream, body_payload.len);
+    rc = pq_write_varint(out_stream, req->body_len);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(body_payload.data);
       return rc;
     }
-    rc = pq_buf_append(out_stream, body_payload.data, body_payload.len);
+    rc = pq_buf_append(out_stream, req->body, req->body_len);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(body_payload.data);
       return rc;
     }
   }
-  free(body_payload.data);
+  (void)body_payload;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -1079,24 +1058,13 @@ NO_DISCARD c_abstract_http_error_t http_picoquic_config_apply(
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
+  rc = c_abstract_http_h3_apply_tls_config(&ctx->config, config);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
   ctx->verify_peer = config->verify_peer;
   ctx->timeout_ms = (unsigned int)config->timeout_ms;
-
-  if (config->version_mask != HTTP_VERSION_DEFAULT &&
-      !(config->version_mask & HTTP_VERSION_3)) {
-    LOG_DEBUG("http_picoquic_config_apply: Non-H3 mask requested");
-  }
-
-  ctx->config.timeout_ms = config->timeout_ms;
-  ctx->config.connect_timeout_ms = config->connect_timeout_ms;
-  ctx->config.read_timeout_ms = config->read_timeout_ms;
-  ctx->config.write_timeout_ms = config->write_timeout_ms;
-  ctx->config.verify_peer = config->verify_peer;
-  ctx->config.verify_host = config->verify_host;
-  ctx->config.follow_redirects = config->follow_redirects;
-  ctx->config.cookie_jar = config->cookie_jar;
-  ctx->config.http3_fallback = config->http3_fallback;
   ctx->is_configured = 1;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -1267,6 +1235,58 @@ static unsigned short math_pq_htons(unsigned short hostshort) {
 }
 
 /**
+ * @brief Submit serialized HTTP/3 HEADERS and incremental `read_chunk` DATA
+ * frames onto a picoquic stream without heap pre-buffering.
+ * @param cnx Open picoquic connection.
+ * @param req Outgoing HTTP request.
+ * @param tx_data Serialized HEADERS (+ optional static body) buffer.
+ * @param tx_len Byte length of @p tx_data.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+pq_submit_stream_frames(picoquic_cnx_t *cnx, const struct HttpRequest *req,
+                        const uint8_t *tx_data, size_t tx_len) {
+  if (picoquic_add_to_stream(cnx, 0, tx_data, tx_len,
+                             req->read_chunk ? 0 : 1) != 0) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (!req->read_chunk) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  for (;;) {
+    uint8_t fbuf[3 + 1024];
+    size_t nread = 0;
+    const uint8_t *fptr;
+    size_t flen;
+    c_abstract_http_error_t rc =
+        req->read_chunk(req->read_chunk_user_data, fbuf + 3, 1024, &nread);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    if (nread == 0) {
+      return picoquic_add_to_stream(cnx, 0, NULL, 0, 1) == 0
+                 ? C_ABSTRACT_HTTP_SUCCESS
+                 : C_ABSTRACT_HTTP_ERR_IO;
+    }
+    if (nread < 64) {
+      fbuf[1] = 0x00U;
+      fbuf[2] = (uint8_t)nread;
+      fptr = fbuf + 1;
+      flen = nread + 2;
+    } else {
+      fbuf[0] = 0x00U;
+      fbuf[1] = (uint8_t)(0x40U | ((nread >> 8) & 0x3FU));
+      fbuf[2] = (uint8_t)(nread & 0xFFU);
+      fptr = fbuf;
+      flen = nread + 3;
+    }
+    if (picoquic_add_to_stream(cnx, 0, fptr, flen, 0) != 0) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+  }
+}
+
+/**
  * @brief Execute a single HTTP/3 transaction over picoquic UDP QUIC.
  * @param ctx Transport context.
  * @param req Effective HTTP request.
@@ -1290,6 +1310,13 @@ pq_send_quic_once(struct HttpTransportContext *ctx,
 
   rc = pq_parse_url(req->url, &scheme, &host, &port, &path);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = c_abstract_http_h3_verify_peer_tls(&ctx->config, scheme, host);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(scheme);
+    free(host);
+    free(path);
     return rc;
   }
 
@@ -1396,8 +1423,7 @@ pq_send_quic_once(struct HttpTransportContext *ctx,
       free(tx_stream.data);
       return pq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_CONNREFUSED);
     }
-    if (picoquic_start_client_cnx(cnx) != 0 ||
-        picoquic_add_to_stream(cnx, 0, tx_stream.data, tx_stream.len, 1) != 0) {
+    if (picoquic_start_client_cnx(cnx) != 0) {
       picoquic_delete_cnx(cnx);
 #if defined(_WIN32)
       closesocket(sfd);
@@ -1407,6 +1433,18 @@ pq_send_quic_once(struct HttpTransportContext *ctx,
       freeaddrinfo(ai);
       free(tx_stream.data);
       return pq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    rc = pq_submit_stream_frames(cnx, req, tx_stream.data, tx_stream.len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(tx_stream.data);
+      picoquic_delete_cnx(cnx);
+#if defined(_WIN32)
+      closesocket(sfd);
+#else
+      close(sfd);
+#endif
+      freeaddrinfo(ai);
+      return pq_cleanup_failed_res(res, rc);
     }
     free(tx_stream.data);
 
@@ -1502,10 +1540,11 @@ pq_send_quic_once(struct HttpTransportContext *ctx,
     return pq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_IO);
   }
 
-  if (picoquic_add_to_stream(cnx, 0, tx_stream.data, tx_stream.len, 1) != 0) {
-    picoquic_delete_cnx(cnx);
+  rc = pq_submit_stream_frames(cnx, req, tx_stream.data, tx_stream.len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     free(tx_stream.data);
-    return pq_cleanup_failed_res(res, C_ABSTRACT_HTTP_ERR_IO);
+    picoquic_delete_cnx(cnx);
+    return pq_cleanup_failed_res(res, rc);
   }
   free(tx_stream.data);
 
@@ -1550,12 +1589,36 @@ pq_finish_send(struct HttpRequest *flat_req, int flattened,
   return orig_rc;
 }
 
+/**
+ * @brief Execute one hop over picoquic QUIC with optional TCP fallback.
+ * @param ctx Transport context.
+ * @param eff_req Effective request for current hop.
+ * @param res Output response pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+pq_send_hop_once(struct HttpTransportContext *ctx,
+                 const struct HttpRequest *eff_req, struct HttpResponse **res) {
+  c_abstract_http_error_t rc = pq_send_quic_once(ctx, eff_req, res);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (ctx->config.http3_fallback && (rc == C_ABSTRACT_HTTP_ERR_CONNREFUSED ||
+                                       rc == C_ABSTRACT_HTTP_ERR_IO)) {
+      return pq_fallback_tcp(&ctx->config, eff_req, res);
+    }
+    return rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 NO_DISCARD c_abstract_http_error_t
 http_picoquic_send(struct HttpTransportContext *ctx,
                    const struct HttpRequest *req, struct HttpResponse **res) {
   struct HttpRequest flat_req;
+  struct HttpRequest hop_req;
   const struct HttpRequest *eff_req = NULL;
+  char *redir_url = NULL;
   int flattened = 0;
+  int hop;
   c_abstract_http_error_t rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
@@ -1568,20 +1631,28 @@ http_picoquic_send(struct HttpTransportContext *ctx,
     return rc;
   }
 
-  rc = pq_send_quic_once(ctx, eff_req, res);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    if (ctx->config.http3_fallback && (rc == C_ABSTRACT_HTTP_ERR_CONNREFUSED ||
-                                       rc == C_ABSTRACT_HTTP_ERR_IO)) {
-      c_abstract_http_error_t fb_rc;
-      fb_rc = pq_fallback_tcp(&ctx->config, eff_req, res);
-      if (fb_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        return pq_finish_send(&flat_req, flattened, res, fb_rc);
-      }
-      return pq_finish_send(&flat_req, flattened, res, C_ABSTRACT_HTTP_SUCCESS);
+  hop_req = *eff_req;
+  for (hop = 0;; ++hop) {
+    const char *loc = NULL;
+    rc = pq_send_hop_once(ctx, &hop_req, res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(redir_url);
+      return pq_finish_send(&flat_req, flattened, res, rc);
     }
-    return pq_finish_send(&flat_req, flattened, res, rc);
+    if (!math_c_abstract_http_should_redirect(ctx->config.follow_redirects,
+                                              *res, &loc)) {
+      break;
+    }
+    rc = c_abstract_http_h3_advance_redirect(&hop_req, &redir_url, res, loc,
+                                             hop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(redir_url);
+      return pq_finish_send(&flat_req, flattened, res,
+                            pq_cleanup_failed_res(res, rc));
+    }
   }
 
+  free(redir_url);
   return pq_finish_send(&flat_req, flattened, res, C_ABSTRACT_HTTP_SUCCESS);
 }
 

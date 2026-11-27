@@ -25,41 +25,6 @@ extern int g_mock_waitpid_fail;
 #endif
 #endif
 
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-#ifndef _WIN32
-extern int g_mock_write_partial;
-/** @brief Flag to simulate partial write() return in OOM/IPC tests */
-int g_mock_write_partial = 0;
-#endif
-#ifdef _MSC_VER
-/** @brief Signed size type fallback for MSVC */
-typedef int ssize_t;
-#endif
-#ifndef _WIN32
-/**
- * @brief Mock write() wrapper supporting partial-write injection in tests.
- * @param fd File descriptor.
- * @param buf Source buffer.
- * @param count Byte count to write.
- * @return Number of bytes written or -1 on error.
- */
-static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count) {
-  if (g_mock_write_partial == 1) {
-    g_mock_write_partial = 0;
-    return 0;
-  }
-  if (g_mock_write_partial == 2) {
-    g_mock_write_partial = 0;
-    return write(fd, buf, 1);
-  }
-#undef write
-  return write(fd, buf, count);
-}
-/** @brief Redirect write to mock wrapper under OOM test builds */
-#define write c_abstract_http_mock_write
-#endif
-#endif
-
 #if defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #ifndef __cplusplus
 #if !defined(inline)
@@ -87,6 +52,42 @@ static ssize_t c_abstract_http_mock_write(int fd, const void *buf, size_t count)
 #include <c_abstract_http/process.h>
 #include "c_abstract_http/log.h"
 /* clang-format on */
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+#ifndef _WIN32
+extern int g_mock_write_partial;
+/** @brief Flag to simulate partial write() return in OOM/IPC tests */
+int g_mock_write_partial = 0;
+#endif
+#ifdef _MSC_VER
+/** @brief Signed size type fallback for MSVC */
+typedef int ssize_t;
+#endif
+#ifndef _WIN32
+/**
+ * @brief Mock write() wrapper supporting partial-write injection in tests.
+ * @param fd File descriptor.
+ * @param buf Source buffer.
+ * @param count Byte count to write.
+ * @return Number of bytes written or -1 on error.
+ */
+static ssize_t c_abstract_http_mock_write(int fd, const void *buf,
+                                          size_t count) {
+  if (g_mock_write_partial == 1) {
+    g_mock_write_partial = 0;
+    return 0;
+  }
+  if (g_mock_write_partial == 2) {
+    g_mock_write_partial = 0;
+    return write(fd, buf, 1);
+  }
+#undef write
+  return write(fd, buf, count);
+}
+/** @brief Redirect write to mock wrapper under OOM test builds */
+#define write c_abstract_http_mock_write
+#endif
+#endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /** @brief Fault-injection counter for IPC pipe creation and cleanup tests */

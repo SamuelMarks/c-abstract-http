@@ -56,31 +56,32 @@ struct AbstractHttpMessage {
  * @param[in] msg The message received.
  * @return 0 on success.
  */
-typedef c_abstract_http_error_t (*abstract_http_actor_handler_cb)(
-    struct AbstractHttpActor *actor, struct AbstractHttpMessage *msg);
+typedef NO_DISCARD_FN_PTR c_abstract_http_error_t (
+    *abstract_http_actor_handler_cb)(struct AbstractHttpActor *actor,
+                                     struct AbstractHttpMessage *msg);
 
 /**
  * @brief External hooks for actor management.
  */
 struct AbstractHttpActorHooks {
-  c_abstract_http_error_t (*bus_init)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*bus_init)(
       struct AbstractHttpMessageBus **bus); /**< Hook for bus initialization */
-  c_abstract_http_error_t (*bus_free)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*bus_free)(
       struct AbstractHttpMessageBus *bus); /**< Hook for bus destruction */
-  c_abstract_http_error_t (*bus_process)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*bus_process)(
       struct AbstractHttpMessageBus *bus,
       int *out_processed); /**< Hook to process messages */
-  c_abstract_http_error_t (*actor_spawn)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*actor_spawn)(
       struct AbstractHttpMessageBus *bus, const char *name,
       abstract_http_actor_handler_cb handler, void *state,
       struct AbstractHttpActor **actor); /**< Hook for spawning actors */
-  c_abstract_http_error_t (*actor_send)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*actor_send)(
       struct AbstractHttpMessageBus *bus,
       const struct AbstractHttpMessage *msg); /**< Hook for sending messages */
-  c_abstract_http_error_t (*actor_get_state)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*actor_get_state)(
       struct AbstractHttpActor *actor,
       void **state); /**< Hook for retrieving state */
-  c_abstract_http_error_t (*actor_get_name)(
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*actor_get_name)(
       const struct AbstractHttpActor *actor,
       const char **name); /**< Hook for retrieving name */
 };

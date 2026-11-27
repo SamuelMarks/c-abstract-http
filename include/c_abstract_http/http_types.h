@@ -153,8 +153,16 @@ extern "C" {
 #endif
 #endif
 
-#if !defined(__DOXYGEN__) &&                                                   \
-    (defined(__clang__) || (defined(_MSC_VER) && _MSC_VER >= 1700) ||          \
+#if !defined(__DOXYGEN__) && defined(_MSC_VER) && _MSC_VER >= 1700 &&          \
+    !defined(__clang__) && (!defined(__cplusplus) || __cplusplus < 201703L) && \
+    (!defined(_MSVC_LANG) || _MSVC_LANG < 201703L) &&                          \
+    (!defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L)
+/**
+ * @brief Error codes returned by abstract HTTP operations.
+ */
+NO_DISCARD typedef enum NO_DISCARD c_abstract_http_error {
+#elif !defined(__DOXYGEN__) &&                                                 \
+    (defined(__clang__) ||                                                     \
      (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L) ||             \
      (defined(__cplusplus) && __cplusplus >= 201703L) ||                       \
      (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L))
@@ -187,7 +195,15 @@ typedef enum c_abstract_http_error {
   C_ABSTRACT_HTTP_ERR_CONNREFUSED = ECONNREFUSED, /**< Connection refused */
   C_ABSTRACT_HTTP_ERR_HOSTUNREACH = EHOSTUNREACH, /**< Host unreachable */
   C_ABSTRACT_HTTP_ERR_CANCELED = ECANCELED /**< Operation canceled by user */
+#if !defined(__DOXYGEN__) && defined(__clang__) &&                             \
+    (!defined(__cplusplus) || __cplusplus < 201703L) &&                        \
+    (!defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L)
+} c_abstract_http_error_t NO_DISCARD;
+#elif !defined(__DOXYGEN__) && defined(__clang__)
+} c_abstract_http_error_t C_ABSTRACT_HTTP_NO_DISCARD_TYPEDEF;
+#else
 } c_abstract_http_error_t;
+#endif
 
 /** @brief Portable long length modifier */
 #define NUM_LONG_FMT "l"
@@ -284,9 +300,9 @@ struct HttpParts {
  * @param len Length of the received data chunk.
  * @return 0 to continue reading, non-zero to abort the request.
  */
-typedef c_abstract_http_error_t (*http_on_chunk_fn)(void *user_data,
-                                                    const void *chunk,
-                                                    size_t len);
+typedef NO_DISCARD_FN_PTR
+    c_abstract_http_error_t (*http_on_chunk_fn)(void *user_data,
+                                                const void *chunk, size_t len);
 
 /**
  * @brief Callback function signature for providing request body chunks
@@ -298,9 +314,18 @@ typedef c_abstract_http_error_t (*http_on_chunk_fn)(void *user_data,
  * 0 to indicate EOF.
  * @return 0 on success, non-zero to abort the request.
  */
-typedef c_abstract_http_error_t (*http_read_chunk_fn)(void *user_data,
-                                                      void *buf, size_t buf_len,
-                                                      size_t *out_len);
+typedef NO_DISCARD_FN_PTR c_abstract_http_error_t (*http_read_chunk_fn)(
+    void *user_data, void *buf, size_t buf_len, size_t *out_len);
+
+/**
+ * @brief Callback function signature for transfer progress notifications.
+ * @param current_bytes Bytes transferred so far.
+ * @param total_bytes Total expected bytes (0 if unknown).
+ * @param user_data User provided context pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS to continue, or non-zero error code to abort.
+ */
+typedef NO_DISCARD_FN_PTR c_abstract_http_error_t (*http_on_progress_fn)(
+    size_t current_bytes, size_t total_bytes, void *user_data);
 
 /**
  * @brief Represents an outgoing HTTP request.
@@ -322,8 +347,13 @@ struct HttpRequest {
   void *read_chunk_user_data; /**< User data for the read_chunk callback */
   size_t expected_body_len;   /**< Expected total upload size (set to 0 for
                                  unknown/chunked) */
-  void *ws_ctx;               /**< Opaque WebSocket stream context */
-  void *sse_ctx;              /**< Opaque Server-Sent Events context */
+  http_on_progress_fn
+      on_progress; /**< Optional upload/download progress callback */
+  void *on_progress_user_data;      /**< User data passed to on_progress */
+  const volatile int *cancel_token; /**< Optional cooperative cancellation flag
+                                       (non-zero aborts) */
+  void *ws_ctx;                     /**< Opaque WebSocket stream context */
+  void *sse_ctx;                    /**< Opaque Server-Sent Events context */
 };
 
 /**
@@ -460,7 +490,13 @@ struct HttpConfig {
   size_t ca_buffer_len;     /**< Byte length of ca_buffer */
   char *client_cert_path;   /**< Optional mTLS client certificate path */
   char *client_key_path;    /**< Optional mTLS client private key path */
-  char *cert_pin_sha256; /**< Optional SHA-256 SPKI pin (sha256//b64 or hex) */
+  char *cert_pin_sha256;  /**< Optional SHA-256 SPKI pin (sha256//b64 or hex) */
+  int keep_alive_enabled; /**< 1 to enable HTTP/1.1 keep-alive connection
+                             pooling, 0 to close per request */
+  long keep_alive_idle_ms; /**< Max idle lifetime in ms for pooled connections
+                              (0 for backend default) */
+  size_t max_idle_conns;   /**< Max idle pooled connections per context (0 for
+                              backend default) */
 };
 
 /**
@@ -486,15 +522,16 @@ struct AbstractHttpMessageBus;
 /**
  * @brief Function pointer signature for the transport send method.
  */
-typedef c_abstract_http_error_t (*http_send_fn)(
-    struct HttpTransportContext *ctx, const struct HttpRequest *req,
-    struct HttpResponse **res);
+typedef NO_DISCARD_FN_PTR
+    c_abstract_http_error_t (*http_send_fn)(struct HttpTransportContext *ctx,
+                                            const struct HttpRequest *req,
+                                            struct HttpResponse **res);
 
 /**
  * @brief Function pointer signature for the transport asynchronous multi-send
  * method.
  */
-typedef c_abstract_http_error_t (*http_send_multi_fn)(
+typedef NO_DISCARD_FN_PTR c_abstract_http_error_t (*http_send_multi_fn)(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures);
 
@@ -546,9 +583,8 @@ http_client_send(struct HttpClient *client, struct HttpRequest *req,
  * @param[in] user_data User context.
  * @return 0 to continue, non-zero to abort all transfers.
  */
-typedef c_abstract_http_error_t (*http_multi_progress_cb)(size_t current_bytes,
-                                                          size_t total_bytes,
-                                                          void *user_data);
+typedef NO_DISCARD_FN_PTR c_abstract_http_error_t (*http_multi_progress_cb)(
+    size_t current_bytes, size_t total_bytes, void *user_data);
 
 /**
  * @brief Dispatch multiple requests concurrently based on the client's

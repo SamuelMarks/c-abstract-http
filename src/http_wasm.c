@@ -14,6 +14,10 @@
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/http_wasm.h>
 #include "c_abstract_http/log.h"
+#ifdef __EMSCRIPTEN__
+#include <emscripten/fetch.h>
+#endif
+/* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /** @brief Fault-injection flag for wasm fetch failure */
@@ -34,9 +38,7 @@ extern int g_mock_alloc_fail;
 extern int g_mock_alloc_count;
 #endif
 
-#ifdef __EMSCRIPTEN__
-#include <emscripten/fetch.h>
-#else
+#ifndef __EMSCRIPTEN__
 /** @brief Fallback flag value for synchronous Emscripten fetch */
 #define EMSCRIPTEN_FETCH_SYNCHRONOUS 1
 /** @brief Fallback flag value for in-memory Emscripten fetch */
@@ -56,6 +58,8 @@ typedef struct emscripten_fetch_attr_t {
   void (*onprogress)(struct emscripten_fetch_t *fetch);
   /** @brief timeoutMSecs */
   unsigned long timeoutMSecs;
+  /** @brief withCredentials */
+  int withCredentials;
   /** @brief attributes */
   unsigned int attributes;
   /** @brief requestHeaders */
@@ -80,7 +84,6 @@ typedef struct emscripten_fetch_t {
   const char *data;
 } emscripten_fetch_t;
 #endif
-/* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /** @brief Internal fault-injection selector for static wasm wrapper tests */
@@ -190,6 +193,11 @@ wasm_fetch_get_response_headers_length(emscripten_fetch_t *fetch,
     *out_len = 10;
     return C_ABSTRACT_HTTP_SUCCESS;
   }
+  if (g_mock_wasm_headers_len_zero == 3) {
+    *out_len = strlen(
+        "Content-Type: text/plain\r\nSet-Cookie: wasm_sid=xyz123; Path=/");
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
 #endif
   *out_len = strlen("Content-Type: text/plain\r\nX-Custom-Header: value");
 #endif
@@ -235,6 +243,9 @@ wasm_fetch_get_response_headers(emscripten_fetch_t *fetch, char *dst,
       dst[0] = '\0';
       *out_copied = 0;
       return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (g_mock_wasm_headers_len_zero == 3) {
+      hdrs = "Content-Type: text/plain\r\nSet-Cookie: wasm_sid=xyz123; Path=/";
     }
 #endif
     len = strlen(hdrs);
@@ -479,6 +490,7 @@ NO_DISCARD c_abstract_http_error_t http_wasm_config_apply(
   ctx->config.verify_peer = config->verify_peer;
   ctx->config.verify_host = config->verify_host;
   ctx->config.follow_redirects = config->follow_redirects;
+  ctx->config.cookie_jar = config->cookie_jar;
   ctx->config.version_mask = config->version_mask;
   ctx->config.tls_version_mask = config->tls_version_mask;
   LOG_DEBUG("http_wasm_config_apply: Success");
@@ -576,26 +588,29 @@ static unsigned long math_wasm_timeout_ms(const struct HttpConfig *cfg) {
  * @param sync_mode Non-zero to enable EMSCRIPTEN_FETCH_SYNCHRONOUS.
  * @param out_attr Populated emscripten_fetch_attr_t.
  * @param out_headers Allocated requestHeaders array (caller frees).
+ * @param out_cookie_hdr Allocated Cookie header value (caller frees).
  * @param out_body_buf Allocated streamed body buffer (caller frees).
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
-NO_DISCARD static c_abstract_http_error_t
-wasm_prepare_request(const struct HttpTransportContext *ctx,
-                     const struct HttpRequest *req, int sync_mode,
-                     emscripten_fetch_attr_t *out_attr,
-                     const char ***out_headers, char **out_body_buf) {
+NO_DISCARD static c_abstract_http_error_t wasm_prepare_request(
+    const struct HttpTransportContext *ctx, const struct HttpRequest *req,
+    int sync_mode, emscripten_fetch_attr_t *out_attr, const char ***out_headers,
+    char **out_cookie_hdr, char **out_body_buf) {
   const char *method_str = NULL;
   const char **headers = NULL;
+  char *cookie_hdr = NULL;
   char *body_buffer = NULL;
   size_t body_len = 0;
   size_t headers_count = 0;
   size_t i;
   int has_ua = 0;
+  int has_cookie = 0;
   int inject_ua = 0;
   unsigned long to_ms;
   c_abstract_http_error_t rc;
 
   *out_headers = NULL;
+  *out_cookie_hdr = NULL;
   *out_body_buf = NULL;
 
   if (req->parts.count > 0 && !req->body) {
@@ -619,6 +634,7 @@ wasm_prepare_request(const struct HttpTransportContext *ctx,
       sync_mode
           ? (EMSCRIPTEN_FETCH_SYNCHRONOUS | EMSCRIPTEN_FETCH_LOAD_TO_MEMORY)
           : EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+  out_attr->withCredentials = ctx->config.cookie_jar ? 1 : 0;
 
   to_ms = math_wasm_timeout_ms(&ctx->config);
   if (to_ms > 0) {
@@ -628,14 +644,27 @@ wasm_prepare_request(const struct HttpTransportContext *ctx,
   for (i = 0; i < req->headers.count; ++i) {
     if (math_wasm_strcasecmp(req->headers.headers[i].key, "User-Agent") == 0) {
       has_ua = 1;
+    } else if (math_wasm_strcasecmp(req->headers.headers[i].key, "Cookie") ==
+               0) {
+      has_cookie = 1;
     }
   }
   inject_ua = (!has_ua && ctx->has_custom_ua && ctx->config.user_agent != NULL);
 
-  if (req->headers.count > 0 || inject_ua) {
-    size_t pair_cnt = req->headers.count + (inject_ua ? 1U : 0U);
+  if (ctx->config.cookie_jar && !has_cookie) {
+    rc = http_cookie_jar_build_header(ctx->config.cookie_jar, req->url,
+                                      &cookie_hdr);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+
+  if (req->headers.count > 0 || inject_ua || cookie_hdr) {
+    size_t pair_cnt =
+        req->headers.count + (inject_ua ? 1U : 0U) + (cookie_hdr ? 1U : 0U);
     headers = (const char **)malloc((pair_cnt * 2 + 1) * sizeof(const char *));
     if (!headers) {
+      free(cookie_hdr);
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     for (i = 0; i < req->headers.count; ++i) {
@@ -645,6 +674,10 @@ wasm_prepare_request(const struct HttpTransportContext *ctx,
     if (inject_ua) {
       headers[headers_count++] = "User-Agent";
       headers[headers_count++] = ctx->config.user_agent;
+    }
+    if (cookie_hdr) {
+      headers[headers_count++] = "Cookie";
+      headers[headers_count++] = cookie_hdr;
     }
     headers[headers_count] = NULL;
     out_attr->requestHeaders = headers;
@@ -657,6 +690,7 @@ wasm_prepare_request(const struct HttpTransportContext *ctx,
     body_buffer = (char *)malloc(cap);
     if (!body_buffer) {
       free((void *)headers);
+      free(cookie_hdr);
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
     for (;;) {
@@ -667,6 +701,7 @@ wasm_prepare_request(const struct HttpTransportContext *ctx,
         new_buf = (char *)realloc(body_buffer, cap);
         if (!new_buf) {
           free((void *)headers);
+          free(cookie_hdr);
           free(body_buffer);
           return C_ABSTRACT_HTTP_ERR_NOMEM;
         }
@@ -677,6 +712,7 @@ wasm_prepare_request(const struct HttpTransportContext *ctx,
                           cap - body_len, &out_read);
       if (read_rc != C_ABSTRACT_HTTP_SUCCESS) {
         free((void *)headers);
+        free(cookie_hdr);
         free(body_buffer);
         return (read_rc == C_ABSTRACT_HTTP_ERR_NOMEM)
                    ? read_rc
@@ -695,20 +731,25 @@ wasm_prepare_request(const struct HttpTransportContext *ctx,
   }
 
   *out_headers = headers;
+  *out_cookie_hdr = cookie_hdr;
   *out_body_buf = body_buffer;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
  * @brief Convert a completed `emscripten_fetch_t` into an `HttpResponse`.
+ * @param ctx Transport context (optional cookie jar owner).
  * @param fetch Completed fetch handle.
  * @param req Originating HTTP request.
+ * @param streamed_offset Bytes already delivered incrementally via
+ * `onprogress`.
  * @param res Output response pointer.
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
 NO_DISCARD static c_abstract_http_error_t
-wasm_parse_fetch_response(emscripten_fetch_t *fetch,
-                          const struct HttpRequest *req,
+wasm_parse_fetch_response(const struct HttpTransportContext *ctx,
+                          emscripten_fetch_t *fetch,
+                          const struct HttpRequest *req, size_t streamed_offset,
                           struct HttpResponse **res) {
   c_abstract_http_error_t rc;
 
@@ -738,37 +779,35 @@ wasm_parse_fetch_response(emscripten_fetch_t *fetch,
   (*res)->status_code = fetch->status;
 
   if (fetch->numBytes > 0) {
-    (*res)->body = malloc((size_t)fetch->numBytes);
-    if (!(*res)->body) {
-      rc = C_ABSTRACT_HTTP_ERR_NOMEM;
-      goto err_res;
-    }
-    memcpy((*res)->body, fetch->data, (size_t)fetch->numBytes);
-    (*res)->body_len = (size_t)fetch->numBytes;
-
     if (req->on_chunk) {
-      c_abstract_http_error_t cb_rc = req->on_chunk(
-          req->on_chunk_user_data, (*res)->body, (*res)->body_len);
-      if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        struct HttpResponse *tmp_cb = *res;
-        c_abstract_http_error_t free_cb_rc;
-        free(tmp_cb->body);
-        tmp_cb->body = NULL;
-        tmp_cb->body_len = 0;
-        *res = NULL;
-        free_cb_rc = http_response_free(tmp_cb);
-        if (free_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      size_t total_len = (size_t)fetch->numBytes;
+      if (total_len > streamed_offset) {
+        c_abstract_http_error_t cb_rc = req->on_chunk(
+            req->on_chunk_user_data, fetch->data + streamed_offset,
+            total_len - streamed_offset);
+        if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          struct HttpResponse *tmp_cb = *res;
+          c_abstract_http_error_t free_cb_rc;
+          *res = NULL;
+          free_cb_rc = http_response_free(tmp_cb);
+          if (free_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            free(tmp_cb);
+            return free_cb_rc;
+          }
           free(tmp_cb);
-          return free_cb_rc;
+          return (cb_rc == C_ABSTRACT_HTTP_ERR_NOMEM)
+                     ? cb_rc
+                     : C_ABSTRACT_HTTP_ERR_CANCELED;
         }
-        free(tmp_cb);
-        return (cb_rc == C_ABSTRACT_HTTP_ERR_NOMEM)
-                   ? cb_rc
-                   : C_ABSTRACT_HTTP_ERR_CANCELED;
       }
-      free((*res)->body);
-      (*res)->body = NULL;
-      (*res)->body_len = 0;
+    } else {
+      (*res)->body = malloc((size_t)fetch->numBytes);
+      if (!(*res)->body) {
+        rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+        goto err_res;
+      }
+      memcpy((*res)->body, fetch->data, (size_t)fetch->numBytes);
+      (*res)->body_len = (size_t)fetch->numBytes;
     }
   }
 
@@ -819,6 +858,15 @@ wasm_parse_fetch_response(emscripten_fetch_t *fetch,
               free(hdrs_buf);
               goto err_res;
             }
+            if (ctx->config.cookie_jar &&
+                math_wasm_strcasecmp(p, "Set-Cookie") == 0) {
+              rc =
+                  http_cookie_jar_parse_set_cookie(ctx->config.cookie_jar, val);
+              if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+                free(hdrs_buf);
+                goto err_res;
+              }
+            }
           }
           if (line_end) {
             p = line_end + 1;
@@ -850,15 +898,17 @@ err_res: {
  * @brief Close fetch handle, free temporary buffers, and percolate status.
  * @param fetch Optional emscripten_fetch_t handle to close.
  * @param headers Allocated header pointer array.
+ * @param cookie_hdr Allocated Cookie header string.
  * @param body_buffer Allocated upload body buffer.
  * @param primary_rc Primary status to return when close succeeds.
  * @return Primary error or close error enum.
  */
 NO_DISCARD static c_abstract_http_error_t
 wasm_cleanup_send_and_return(emscripten_fetch_t *fetch, const char **headers,
-                             char *body_buffer,
+                             char *cookie_hdr, char *body_buffer,
                              c_abstract_http_error_t primary_rc) {
   free((void *)headers);
+  free(cookie_hdr);
   free(body_buffer);
   if (fetch) {
     c_abstract_http_error_t close_rc = wasm_fetch_close(fetch);
@@ -876,6 +926,7 @@ http_wasm_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
   emscripten_fetch_attr_t attr;
   emscripten_fetch_t *fetch = NULL;
   const char **headers = NULL;
+  char *cookie_hdr = NULL;
   char *body_buffer = NULL;
   c_abstract_http_error_t rc;
 
@@ -886,30 +937,35 @@ http_wasm_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
   }
   *res = NULL;
 
-  rc = wasm_prepare_request(ctx, req, 1, &attr, &headers, &body_buffer);
+  rc = wasm_prepare_request(ctx, req, 1, &attr, &headers, &cookie_hdr,
+                            &body_buffer);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
 
   rc = wasm_fetch_exec(&attr, req->url, &fetch);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return wasm_cleanup_send_and_return(fetch, headers, body_buffer, rc);
+    return wasm_cleanup_send_and_return(fetch, headers, cookie_hdr, body_buffer,
+                                        rc);
   }
   if (!fetch) {
-    return wasm_cleanup_send_and_return(NULL, headers, body_buffer,
+    return wasm_cleanup_send_and_return(NULL, headers, cookie_hdr, body_buffer,
                                         C_ABSTRACT_HTTP_ERR_IO);
   }
-  rc = wasm_parse_fetch_response(fetch, req, res);
+  rc = wasm_parse_fetch_response(ctx, fetch, req, 0, res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return wasm_cleanup_send_and_return(fetch, headers, body_buffer, rc);
+    return wasm_cleanup_send_and_return(fetch, headers, cookie_hdr, body_buffer,
+                                        rc);
   }
 
-  return wasm_cleanup_send_and_return(fetch, headers, body_buffer,
+  return wasm_cleanup_send_and_return(fetch, headers, cookie_hdr, body_buffer,
                                       C_ABSTRACT_HTTP_SUCCESS);
 }
 
 /** @brief Shared coordinator for non-blocking `http_wasm_send_multi` */
 struct wasm_multi_batch {
+  /** @brief Owning transport context */
+  const struct HttpTransportContext *ctx;
   /** @brief Optional event loop to notify upon batch completion */
   struct ModalityEventLoop *loop;
   /** @brief Number of still-pending async fetches */
@@ -930,10 +986,18 @@ struct wasm_multi_slot {
   struct HttpFuture *future;
   /** @brief Allocated header array */
   const char **headers;
+  /** @brief Allocated Cookie header value */
+  char *cookie_hdr;
   /** @brief Allocated upload body buffer */
   char *body_buffer;
   /** @brief Number of progress notifications received */
   size_t progress_events;
+  /** @brief Byte offset already delivered to `req->on_chunk` via `onprogress`
+   */
+  size_t streamed_offset;
+  /** @brief Non-zero error recorded if `req->on_chunk` aborted in `onprogress`
+   */
+  c_abstract_http_error_t chunk_abort_err;
 };
 
 /**
@@ -954,6 +1018,8 @@ wasm_settle_async_slot(struct wasm_multi_slot *slot, emscripten_fetch_t *fetch,
 
   free((void *)slot->headers);
   slot->headers = NULL;
+  free(slot->cookie_hdr);
+  slot->cookie_hdr = NULL;
   free(slot->body_buffer);
   slot->body_buffer = NULL;
 
@@ -1015,6 +1081,9 @@ wasm_async_complete_impl(emscripten_fetch_t *fetch, int is_error) {
   struct HttpResponse *res = NULL;
   c_abstract_http_error_t rc;
 
+  if (slot->chunk_abort_err != C_ABSTRACT_HTTP_SUCCESS) {
+    return wasm_settle_async_slot(slot, fetch, NULL, slot->chunk_abort_err);
+  }
   if (is_error && fetch->status == 0 && fetch->readyState != 4) {
     return wasm_settle_async_slot(slot, fetch, NULL,
                                   C_ABSTRACT_HTTP_ERR_TIMEOUT);
@@ -1022,7 +1091,8 @@ wasm_async_complete_impl(emscripten_fetch_t *fetch, int is_error) {
   if (is_error && fetch->status == 0) {
     return wasm_settle_async_slot(slot, fetch, NULL, C_ABSTRACT_HTTP_ERR_IO);
   }
-  rc = wasm_parse_fetch_response(fetch, slot->req, &res);
+  rc = wasm_parse_fetch_response(slot->batch->ctx, fetch, slot->req,
+                                 slot->streamed_offset, &res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return wasm_settle_async_slot(slot, fetch, res, rc);
   }
@@ -1042,14 +1112,44 @@ wasm_async_complete_impl(emscripten_fetch_t *fetch, int is_error) {
   } while (0)
 
 /**
+ * @brief Incremental `onprogress` handler forwarding newly arrived bytes to
+ * `req->on_chunk`.
+ * @param fetch Active Emscripten fetch handle.
+ * @return C_ABSTRACT_HTTP_SUCCESS or chunk callback error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+wasm_async_progress_impl(emscripten_fetch_t *fetch) {
+  struct wasm_multi_slot *slot = (struct wasm_multi_slot *)fetch->userData;
+  if (!slot) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  slot->progress_events++;
+  if (slot->chunk_abort_err == C_ABSTRACT_HTTP_SUCCESS && slot->req->on_chunk &&
+      fetch->data && (size_t)fetch->numBytes > slot->streamed_offset) {
+    size_t prev_off = slot->streamed_offset;
+    size_t delta = (size_t)fetch->numBytes - prev_off;
+    c_abstract_http_error_t cb_rc;
+    slot->streamed_offset = (size_t)fetch->numBytes;
+    cb_rc = slot->req->on_chunk(slot->req->on_chunk_user_data,
+                                fetch->data + prev_off, delta);
+    if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      slot->chunk_abort_err = (cb_rc == C_ABSTRACT_HTTP_ERR_NOMEM)
+                                  ? cb_rc
+                                  : C_ABSTRACT_HTTP_ERR_CANCELED;
+      return (cb_rc == C_ABSTRACT_HTTP_ERR_NOMEM)
+                 ? cb_rc
+                 : C_ABSTRACT_HTTP_ERR_CANCELED;
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
  * @brief Emscripten Fetch C-API `onprogress` trampoline.
  * @param fetch Active fetch handle.
  */
 static void wasm_async_onprogress_cb(emscripten_fetch_t *fetch) {
-  struct wasm_multi_slot *slot = (struct wasm_multi_slot *)fetch->userData;
-  if (slot) {
-    slot->progress_events++;
-  }
+  WASM_VOID_CB_DISPATCH(wasm_async_progress_impl(fetch));
 }
 
 /**
@@ -1096,6 +1196,7 @@ NO_DISCARD c_abstract_http_error_t http_wasm_send_multi(
   }
 
   memset(&batch, 0, sizeof(batch));
+  batch.ctx = ctx;
   batch.loop = loop;
   batch.remaining = multi->count;
   batch.first_err = C_ABSTRACT_HTTP_SUCCESS;
@@ -1110,7 +1211,7 @@ NO_DISCARD c_abstract_http_error_t http_wasm_send_multi(
     slots[i].future = futures[i];
 
     rc = wasm_prepare_request(ctx, slots[i].req, 0, &attr, &slots[i].headers,
-                              &slots[i].body_buffer);
+                              &slots[i].cookie_hdr, &slots[i].body_buffer);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       futures[i]->response = NULL;
       futures[i]->error_code = rc;
@@ -1127,6 +1228,7 @@ NO_DISCARD c_abstract_http_error_t http_wasm_send_multi(
     rc = wasm_fetch_exec(&attr, slots[i].req->url, &async_handle);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       free((void *)slots[i].headers);
+      free(slots[i].cookie_hdr);
       free(slots[i].body_buffer);
       futures[i]->response = NULL;
       futures[i]->error_code = rc;
@@ -1224,6 +1326,8 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_test_wasm_helpers(void) {
     ms.batch = &mb;
     ms.req = &req;
     ms.future = &fut;
+    ef->userData = NULL;
+    wasm_async_onprogress_cb(ef);
     ef->userData = &ms;
     ef->status = 0;
     ef->readyState = 4;

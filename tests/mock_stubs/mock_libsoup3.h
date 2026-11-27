@@ -115,6 +115,8 @@ struct SoupMessage {
   char *url;
   /** @brief Request headers */
   SoupMessageHeaders headers;
+  /** @brief Response headers */
+  SoupMessageHeaders resp_headers;
   /** @brief Request body bytes */
   GBytes *request_body;
   /** @brief HTTP response status code */
@@ -196,6 +198,24 @@ static SoupMessage *soup_message_new(const char *method, const char *uri) {
 
 static SoupMessageHeaders *soup_message_get_request_headers(SoupMessage *msg) {
   return &msg->headers;
+}
+
+static SoupMessageHeaders *soup_message_get_response_headers(SoupMessage *msg) {
+  return &msg->resp_headers;
+}
+
+static void soup_message_headers_foreach(SoupMessageHeaders *hdrs,
+                                         void (*func)(const char *name,
+                                                      const char *value,
+                                                      void *user_data),
+                                         void *user_data) {
+  size_t i;
+  if (!hdrs || !func) {
+    return;
+  }
+  for (i = 0; i < hdrs->count; ++i) {
+    func(hdrs->keys[i], hdrs->values[i], user_data);
+  }
 }
 
 static void soup_message_headers_append(SoupMessageHeaders *hdrs,
@@ -367,6 +387,10 @@ static void g_object_unref(void *obj) {
       for (i = 0; i < m->headers.count; ++i) {
         free(m->headers.keys[i]);
         free(m->headers.values[i]);
+      }
+      for (i = 0; i < m->resp_headers.count; ++i) {
+        free(m->resp_headers.keys[i]);
+        free(m->resp_headers.values[i]);
       }
       free(m->method);
       free(m->url);
@@ -547,6 +571,14 @@ static GBytes *soup_session_send_and_read(SoupSession *session,
       return NULL;
     return NULL;
   }
+  if (msg->resp_headers.count == 0) {
+    soup_message_headers_append(&msg->resp_headers, "Content-Type",
+                                "text/plain");
+    if (strstr(msg->url, "/set-cookie") != NULL) {
+      soup_message_headers_append(&msg->resp_headers, "Set-Cookie",
+                                  "soup_sid=s42; Path=/");
+    }
+  }
   return g_bytes_new("OK", 2);
 }
 
@@ -556,6 +588,7 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libsoup3_helpers(void) {
   GBytes *b;
   SoupSession *sess;
 
+  soup_message_headers_foreach(NULL, NULL, NULL);
   g_mock_libsoup3_msg_new_fail = 2;
   soup_message_new("GET", "http://example.com");
   g_mock_libsoup3_msg_new_fail = 3;

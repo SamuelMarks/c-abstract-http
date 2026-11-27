@@ -73,8 +73,15 @@ typedef struct MSH3_SETTINGS {
 
 /** @brief Mock MsH3 credential type enum */
 typedef enum MSH3_CREDENTIAL_TYPE {
-  MSH3_CREDENTIAL_TYPE_NONE = 0
+  MSH3_CREDENTIAL_TYPE_NONE = 0,
+  MSH3_CREDENTIAL_TYPE_CERTIFICATE_FILE = 1
 } MSH3_CREDENTIAL_TYPE;
+
+/** @brief Mock MsH3 client certificate file pair */
+typedef struct MSH3_CERTIFICATE_FILE {
+  const char *PrivateKeyFile;
+  const char *CertificateFile;
+} MSH3_CERTIFICATE_FILE;
 
 /** @brief Mock MsH3 credential flags */
 #define MSH3_CREDENTIAL_FLAG_NONE 0
@@ -87,6 +94,8 @@ typedef enum MSH3_CREDENTIAL_TYPE {
 typedef struct MSH3_CREDENTIAL_CONFIG {
   MSH3_CREDENTIAL_TYPE Type;
   int Flags;
+  const MSH3_CERTIFICATE_FILE *CertificateFile;
+  const char *CaCertificateFile;
 } MSH3_CREDENTIAL_CONFIG;
 
 /** @brief Mock MsH3 socket address storage */
@@ -183,6 +192,7 @@ struct MSH3_REQUEST {
   char user_agent[256];
   char content_type[256];
   char cookie[256];
+  char clen[32];
   uint8_t *tx_buf;
   size_t tx_len;
 };
@@ -339,6 +349,11 @@ static int MsH3RequestSend(MSH3_REQUEST *req, MSH3_REQUEST_SEND_FLAGS flags,
                                       memcmp(h->Name, "Cookie", 6) == 0)) {
       msh3_mock_copy_bounded(req->cookie, sizeof(req->cookie), h->Value,
                              h->ValueLength);
+    } else if (h->NameLength == 14 &&
+               (memcmp(h->Name, "content-length", 14) == 0 ||
+                memcmp(h->Name, "Content-Length", 14) == 0)) {
+      msh3_mock_copy_bounded(req->clen, sizeof(req->clen), h->Value,
+                             h->ValueLength);
     }
   }
 
@@ -356,10 +371,20 @@ static int MsH3RequestSend(MSH3_REQUEST *req, MSH3_REQUEST_SEND_FLAGS flags,
     MSH3_REQUEST_EVENT ev;
     MSH3_HEADER hdr;
     const char *status_val = "200";
+    const char *loc_val = NULL;
     const uint8_t *resp_body = (const uint8_t *)"msh3-ok";
     uint32_t resp_len = 7;
 
-    if (strncmp(req->path, "/notfound", 9) == 0) {
+    if (strcmp(req->path, "/redir-301") == 0) {
+      status_val = "301";
+      loc_val = "/final";
+    } else if (strcmp(req->path, "/redir-307") == 0) {
+      status_val = "307";
+      loc_val = "/final";
+    } else if (strcmp(req->path, "/redir-loop") == 0) {
+      status_val = "302";
+      loc_val = "/redir-loop";
+    } else if (strncmp(req->path, "/notfound", 9) == 0) {
       status_val = "404";
     } else if (strcmp(req->method, "POST") == 0) {
       status_val = "201";
@@ -395,6 +420,37 @@ static int MsH3RequestSend(MSH3_REQUEST *req, MSH3_REQUEST_SEND_FLAGS flags,
     ev.Type = MSH3_REQUEST_EVENT_HEADER_RECEIVED;
     ev.HEADER_RECEIVED.Header = &hdr;
     req->callback(req, req->context, &ev);
+
+    if (loc_val) {
+      memset(&ev, 0, sizeof(ev));
+      hdr.Name = "location";
+      hdr.NameLength = 8;
+      hdr.Value = loc_val;
+      hdr.ValueLength = strlen(loc_val);
+      ev.Type = MSH3_REQUEST_EVENT_HEADER_RECEIVED;
+      ev.HEADER_RECEIVED.Header = &hdr;
+      req->callback(req, req->context, &ev);
+    }
+    if (req->method[0] != '\0') {
+      memset(&ev, 0, sizeof(ev));
+      hdr.Name = "x-echo-method";
+      hdr.NameLength = 13;
+      hdr.Value = req->method;
+      hdr.ValueLength = strlen(req->method);
+      ev.Type = MSH3_REQUEST_EVENT_HEADER_RECEIVED;
+      ev.HEADER_RECEIVED.Header = &hdr;
+      req->callback(req, req->context, &ev);
+    }
+    if (req->clen[0] != '\0') {
+      memset(&ev, 0, sizeof(ev));
+      hdr.Name = "x-echo-clen";
+      hdr.NameLength = 11;
+      hdr.Value = req->clen;
+      hdr.ValueLength = strlen(req->clen);
+      ev.Type = MSH3_REQUEST_EVENT_HEADER_RECEIVED;
+      ev.HEADER_RECEIVED.Header = &hdr;
+      req->callback(req, req->context, &ev);
+    }
 
     memset(&ev, 0, sizeof(ev));
     hdr.Name = "content-type";
@@ -458,6 +514,9 @@ static int MsH3RequestSend(MSH3_REQUEST *req, MSH3_REQUEST_SEND_FLAGS flags,
     } else if (g_mock_msh3_shutdown_error == 2) {
       ev.SHUTDOWN_COMPLETE.ConnectionClosedRemotely = 0;
       ev.SHUTDOWN_COMPLETE.ConnectionErrorCode = 1;
+    } else if (g_mock_msh3_shutdown_error == 3) {
+      ev.SHUTDOWN_COMPLETE.ConnectionClosedRemotely = 1;
+      ev.SHUTDOWN_COMPLETE.ConnectionErrorCode = 61;
     } else {
       ev.SHUTDOWN_COMPLETE.ConnectionClosedRemotely = 0;
       ev.SHUTDOWN_COMPLETE.ConnectionErrorCode = 0;

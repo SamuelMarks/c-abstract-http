@@ -7,15 +7,19 @@
 #ifndef C_ABSTRACT_HTTP_TEST_MOCK_WININET_H
 #define C_ABSTRACT_HTTP_TEST_MOCK_WININET_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include "../../src/wincrypt_compat.h"
+#if !defined(_WIN32)
+#include "mock_wincrypt.h"
+#endif
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 extern int g_mock_wininet_open_fail;
 extern int g_mock_wininet_connect_fail;
@@ -42,12 +46,15 @@ extern int g_mock_wininet_cookie_set_fail;
 
 #if !defined(_WIN32)
 typedef void *HINTERNET;
+#ifndef CAH_WIN32_BASIC_TYPES_DEFINED
+#define CAH_WIN32_BASIC_TYPES_DEFINED 1
 typedef unsigned long DWORD;
+typedef int BOOL;
+#endif
 typedef size_t DWORD_PTR;
 typedef void *LPVOID;
 typedef const void *LPCVOID;
 typedef DWORD *LPDWORD;
-typedef int BOOL;
 typedef wchar_t WCHAR;
 typedef unsigned short INTERNET_PORT;
 
@@ -81,6 +88,8 @@ typedef struct {
 #define INTERNET_OPTION_USER_AGENT 41
 #define INTERNET_OPTION_PROXY_USERNAME 43
 #define INTERNET_OPTION_PROXY_PASSWORD 44
+#define INTERNET_OPTION_CLIENT_CERT_CONTEXT 84
+#define INTERNET_OPTION_SERVER_CERT_CHAIN_CONTEXT 105
 #define INTERNET_OPTION_ENABLE_HTTP_PROTOCOL 148
 #define HTTP_PROTOCOL_FLAG_HTTP2 0x2
 #define INTERNET_STATUS_REQUEST_COMPLETE 100
@@ -183,15 +192,64 @@ static BOOL InternetCloseHandle(HINTERNET hInternet) {
 
 static BOOL InternetSetOption(HINTERNET hInternet, DWORD dwOption,
                               LPVOID lpBuffer, DWORD dwBufferLength) {
-  (void)hInternet;
-  (void)dwOption;
-  (void)lpBuffer;
-  (void)dwBufferLength;
+  if (hInternet || dwOption || lpBuffer || dwBufferLength) {
+  }
   if (g_mock_wininet_set_option_fail) {
     return 0;
   }
   return 1;
 }
+
+#if !defined(_WIN32)
+static BOOL InternetQueryOption(HINTERNET hInternet, DWORD dwOption,
+                                LPVOID lpBuffer, LPDWORD lpdwBufferLength) {
+  static const unsigned char k_bad_der[] = {0x30, 0x00};
+  if (hInternet) {
+  }
+  if (dwOption == INTERNET_OPTION_SERVER_CERT_CHAIN_CONTEXT && lpBuffer &&
+      lpdwBufferLength &&
+      *lpdwBufferLength >= sizeof(CAH_CERT_CHAIN_CONTEXT *)) {
+    CAH_CERT_CONTEXT *leaf;
+    CAH_CERT_CHAIN_CONTEXT *chain = NULL;
+    int saved_cm = s_mock_wincrypt_chain_mode;
+    if (s_mock_wincrypt_query_cert_mode == 1) {
+      return 0;
+    }
+    if (s_mock_wincrypt_query_cert_mode == 3) {
+      chain = (CAH_CERT_CHAIN_CONTEXT *)calloc(1, sizeof(*chain));
+      if (!chain) {
+        return 0;
+      }
+      *(CAH_CERT_CHAIN_CONTEXT **)lpBuffer = chain;
+      *lpdwBufferLength = (DWORD)sizeof(CAH_CERT_CHAIN_CONTEXT *);
+      return 1;
+    }
+    leaf = CertCreateCertificateContext(
+        CAH_X509_PKCS7_ENCODING,
+        s_mock_wincrypt_query_cert_mode == 2 ? k_bad_der
+                                             : k_cah_mock_server_cert_der,
+        s_mock_wincrypt_query_cert_mode == 2
+            ? (DWORD)sizeof(k_bad_der)
+            : (DWORD)sizeof(k_cah_mock_server_cert_der));
+    if (!leaf) {
+      return 0;
+    }
+    s_mock_wincrypt_chain_mode = 0;
+    if (!CertGetCertificateChain(NULL, leaf, NULL, NULL, NULL, 0, NULL,
+                                 &chain)) {
+      s_mock_wincrypt_chain_mode = saved_cm;
+      CertFreeCertificateContext(leaf);
+      return 0;
+    }
+    s_mock_wincrypt_chain_mode = saved_cm;
+    CertFreeCertificateContext(leaf);
+    *(CAH_CERT_CHAIN_CONTEXT **)lpBuffer = chain;
+    *lpdwBufferLength = (DWORD)sizeof(CAH_CERT_CHAIN_CONTEXT *);
+    return 1;
+  }
+  return 0;
+}
+#endif
 
 static BOOL InternetSetOptionA(HINTERNET hInternet, DWORD dwOption,
                                LPVOID lpBuffer, DWORD dwBufferLength) {

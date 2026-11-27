@@ -54,6 +54,11 @@ NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_libuv_helpers(void);
 NO_DISCARD extern c_abstract_http_error_t
 c_abstract_http_test_set_libuv_helper_step(int step);
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_set_libuv_socks_reply(const unsigned char *data,
+                                           size_t len, int send_eof);
+NO_DISCARD extern c_abstract_http_error_t
+c_abstract_http_test_set_libuv_pool_close_fail(int fail);
 #endif
 
 NO_DISCARD static c_abstract_http_error_t
@@ -1519,6 +1524,697 @@ TEST test_libuv_tls_spki_chunked_redirects_and_multi(void) {
   PASS();
 }
 
+TEST test_libuv_cookies(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpCookieJar jar;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  const char *cval = NULL;
+  char big_cookie[4200];
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+
+  memset(big_cookie, 'C', sizeof(big_cookie) - 1);
+  big_cookie[sizeof(big_cookie) - 1] = '\0';
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_set(&jar, "uv_big", big_cookie));
+
+  cfg.cookie_jar = &jar;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)"http://127.0.0.1:80/set-cookie";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
+    !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV)
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_get(&jar, "uv_sid", &cval));
+  ASSERT_STR_EQ("uv77", cval);
+#else
+  (void)cval;
+#endif
+
+  /* Explicit Cookie header skips jar header injection */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Cookie", "manual=1"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  {
+    int step;
+    struct HttpRequest r_oom;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r_oom));
+    r_oom.url = (char *)"http://127.0.0.1:80/set-cookie";
+    for (step = 0; step < 28; ++step) {
+      c_abstract_http_error_t orc;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      orc = http_libuv_send(ctx, &r_oom, &res);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+    }
+    r_oom.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r_oom));
+  }
+#endif
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
+  PASS();
+}
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
+    !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV)
+/** @brief Verify SOCKS5 proxy tunneling and HTTP/1.1 keep-alive pooling */
+TEST test_libuv_socks5_and_keep_alive(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct libuv_TestChunkState chunk_st;
+  char long_url[320];
+  char long_user[260];
+  static const unsigned char s5_ipv6_ok[] = {
+      0x05, 0x00, 0x05, 0x00, 0x00, 0x04, 0, 0, 0, 0, 0, 0,
+      0,    0,    0,    0,    0,    0,    0, 0, 0, 1, 0, 80};
+  static const unsigned char s5_dom_ok[] = {
+      0x05, 0x00, 0x05, 0x00, 0x00, 0x03, 0x04, 't', 'e', 's', 't', 0, 80};
+  static const unsigned char s5_bad_ver[] = {0x04, 0x00};
+  static const unsigned char s5_no_method[] = {0x05, 0xFF};
+  static const unsigned char s5_auth_deny[] = {0x05, 0x02, 0x01, 0x01};
+  static const unsigned char s5_rep_bad_ver[] = {0x05, 0x00, 0x04,
+                                                 0x00, 0x00, 0x01};
+  static const unsigned char s5_rep_acces[] = {0x05, 0x00, 0x05,
+                                               0x02, 0x00, 0x01};
+  static const unsigned char s5_rep_net[] = {0x05, 0x00, 0x05,
+                                             0x03, 0x00, 0x01};
+  static const unsigned char s5_rep_host[] = {0x05, 0x00, 0x05,
+                                              0x04, 0x00, 0x01};
+  static const unsigned char s5_rep_refused[] = {0x05, 0x00, 0x05,
+                                                 0x05, 0x00, 0x01};
+  static const unsigned char s5_rep_gen[] = {0x05, 0x00, 0x05,
+                                             0x01, 0x00, 0x01};
+  static const unsigned char s5_rep_atyp[] = {0x05, 0x00, 0x05,
+                                              0x00, 0x00, 0x09};
+  static const unsigned char s5_short1[] = {0x05};
+  static const unsigned char s5_auth_short[] = {0x05, 0x02, 0x01};
+  static const unsigned char s5_conn_short3[] = {0x05, 0x00, 0x05, 0x00, 0x00};
+  static const unsigned char s5_dom_short4[] = {0x05, 0x00, 0x05,
+                                                0x00, 0x00, 0x03};
+  static const unsigned char s5_dom_short_body[] = {0x05, 0x00, 0x05, 0x00,
+                                                    0x00, 0x03, 0x08, 'a'};
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+
+  /* 1. Proxy scheme validation & invalid proxy URLs */
+  cfg.proxy_url = (char *)"ftp://127.0.0.1:21";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_libuv_config_apply(ctx, &cfg));
+
+  cfg.proxy_url = (char *)"socks5://:1080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  req.url = (char *)"http://127.0.0.1:8080/ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
+
+  cfg.proxy_url = (char *)"socks5://127.0.0.1:0";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
+
+  cfg.proxy_url = (char *)"socks5://127.0.0.1:70000";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
+
+  /* HTTP proxy absolute-URI target & trailing slash */
+  cfg.proxy_url = (char *)"http://127.0.0.1/";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* 2. SOCKS5 no-auth IPv4, domain, socks5h://, IPv6/domain BND.ADDR, auth */
+  cfg.proxy_url = (char *)"socks5://127.0.0.1:1080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Invalid IPv4 octets fall back to domain ATYP=0x03 */
+  req.url = (char *)"http://999.1.1.1:8080/ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.url = (char *)"http://127..0.1:8080/ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.url = (char *)"http://127.0.0.1.5:8080/ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.url = (char *)"http://127.0.0:8080/ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* socks5h:// remote DNS + IPv6 and domain BND.ADDR replies */
+  cfg.proxy_url = (char *)"socks5h://127.0.0.1";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  req.url = (char *)"http://example.local:8080/ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_libuv_socks_reply(
+                                         s5_ipv6_ok, sizeof(s5_ipv6_ok), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_libuv_socks_reply(
+                                         s5_dom_ok, sizeof(s5_dom_ok), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Overlong domain > 255 chars fails CONNECT packet build */
+  memcpy(long_url, "http://", 7);
+  memset(long_url + 7, 'x', 260);
+  memcpy(long_url + 267, "/ok", 4);
+  req.url = long_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(NULL, 0, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
+  req.url = (char *)"http://127.0.0.1:8080/ok";
+
+  /* RFC 1929 username/password auth (with password & NULL password) */
+  cfg.proxy_username = (char *)"alice";
+  cfg.proxy_password = (char *)"secret";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  cfg.proxy_password = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Invalid empty or >255 username */
+  cfg.proxy_username = (char *)"";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
+
+  memset(long_user, 'u', 256);
+  long_user[256] = '\0';
+  cfg.proxy_username = long_user;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
+
+  /* Auth denied & overlong domain after auth */
+  cfg.proxy_username = (char *)"alice";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(
+                s5_auth_deny, sizeof(s5_auth_deny), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(NULL, 0, 0));
+  req.url = long_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
+  req.url = (char *)"http://127.0.0.1:8080/ok";
+
+  /* Partial auth + EOF */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(
+                s5_auth_short, sizeof(s5_auth_short), 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  /* SOCKS5 protocol/REP errors & partial/EOF replies */
+  cfg.proxy_username = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_libuv_socks_reply(
+                                         s5_bad_ver, sizeof(s5_bad_ver), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(
+                s5_no_method, sizeof(s5_no_method), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(
+                s5_rep_bad_ver, sizeof(s5_rep_bad_ver), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(
+                s5_rep_acces, sizeof(s5_rep_acces), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_libuv_socks_reply(
+                                         s5_rep_net, sizeof(s5_rep_net), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_HOSTUNREACH, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_libuv_socks_reply(
+                                         s5_rep_host, sizeof(s5_rep_host), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_HOSTUNREACH, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(
+                s5_rep_refused, sizeof(s5_rep_refused), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CONNREFUSED, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_libuv_socks_reply(
+                                         s5_rep_gen, sizeof(s5_rep_gen), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_libuv_socks_reply(
+                                         s5_rep_atyp, sizeof(s5_rep_atyp), 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_libuv_socks_reply(
+                                         s5_short1, sizeof(s5_short1), 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(
+                s5_conn_short3, sizeof(s5_conn_short3), 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(
+                s5_dom_short4, sizeof(s5_dom_short4), 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(
+                s5_dom_short_body, sizeof(s5_dom_short_body), 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  /* Coalesced trailing byte after SOCKS5 reply + write_fail=2 */
+  {
+    static const unsigned char s5_coalesced[] = {
+        0x05, 0x00, 0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 80, 'H'};
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_libuv_socks_reply(
+                  s5_coalesced, sizeof(s5_coalesced), 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_socks_reply(NULL, 0, 0));
+
+  g_mock_libuv_write_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+  g_mock_libuv_write_fail = 0;
+
+  /* 3. HTTP/1.1 Keep-Alive connection reuse, LRU/idle eviction, stale retry */
+  cfg.proxy_url = NULL;
+  cfg.keep_alive_enabled = 1;
+  cfg.keep_alive_idle_ms = 500;
+  cfg.max_idle_conns = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+
+  req.url = (char *)"http://Example.Local:8080/ka-ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_STR_EQ("KA", res->body);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Case-insensitive host match reuses pooled socket even when connect fails */
+  g_mock_libuv_connect_fail = 1;
+  req.url = (char *)"http://EXAMPLE.local:8080/ka-split";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_STR_EQ("ABCD", res->body);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Streaming on_chunk + 204 + chunked over reused keep-alive connection */
+  memset(&chunk_st, 0, sizeof(chunk_st));
+  req.on_chunk = libuv_mock_chunk_cb;
+  req.on_chunk_user_data = &chunk_st;
+  req.url = (char *)"http://example.local:8080/ka-split";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(4U, chunk_st.total_bytes);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  req.on_chunk = NULL;
+
+  req.url = (char *)"http://example.local:8080/ka-204";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(204, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.url = (char *)"http://example.local:8080/chunked-empty";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.url = (char *)"http://example.local:8080/ka-partial";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_STR_EQ("PK", res->body);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  g_mock_libuv_connect_fail = 0;
+
+  /* 5-byte non-terminated chunked body & chunked-huge OOM in
+   * uv_complete_keep_alive_read */
+  req.url = (char *)"http://example.local:8081/chunked-bad4";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  {
+    int cs;
+    req.url = (char *)"http://example.local:8081/chunked-huge";
+    for (cs = 0; cs < 20; ++cs) {
+      c_abstract_http_error_t crc;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = cs;
+      crc = http_libuv_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (crc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+    }
+  }
+
+  /* Malformed chunked triggers error */
+  req.url = (char *)"http://example.local:8081/chunked-bad1";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  /* Park 2nd origin, checkout 1st (non-tail memmove), then proxy mismatch + LRU
+   */
+  req.url = (char *)"http://other.local:8081/ka-ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.url = (char *)"http://example.local:8080/ka-ok";
+  g_mock_libuv_connect_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  g_mock_libuv_connect_fail = 0;
+
+  cfg.proxy_url = (char *)"http://127.0.0.1:8080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Reuse with matching proxy_url, then miss with different proxy_url -> LRU */
+  g_mock_libuv_connect_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  g_mock_libuv_connect_fail = 0;
+
+  cfg.proxy_url = (char *)"http://127.0.0.1:8081";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Idle eviction via clock jump */
+  cfg.proxy_url = NULL;
+  cfg.keep_alive_idle_ms = 0; /* default 30000ms branch */
+  cfg.max_idle_conns = 0;     /* default 8 branch */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  cfg.keep_alive_idle_ms = 500;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  g_mock_time_jump = 1;
+  g_mock_time_jump_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  g_mock_time_jump = 0;
+
+  /* Stale socket recovery: write failure (10 fails once) & /ka-stale EOF */
+  g_mock_libuv_write_fail = 10;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.url = (char *)"http://example.local:8080/ka-stale";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  /* Connection: close in response and request */
+  req.url = (char *)"http://example.local:8080/ka-close";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Connection", "close"));
+  req.url = (char *)"http://example.local:8080/ka-ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* Keep-alive error paths (uv_loop_init fail, arm fail with/without timer,
+   * write_fail=2 on reused, pool_close_fail across checkin/checkout/clear/free,
+   * and OOM sweep) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libuv_send(ctx, &req, &res));
+
+  req.url = (char *)"http://example.local:8080/ka-ok";
+  g_mock_libuv_context_init_fail = 2; /* uv_loop_init fail */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libuv_send(ctx, &req, &res));
+  g_mock_libuv_context_init_fail = 3; /* uv_tcp_init fail (!has_socket) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libuv_send(ctx, &req, &res));
+  cfg.timeout_ms = 100;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  g_mock_libuv_context_init_fail = 4; /* uv_timer_init fail */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libuv_send(ctx, &req, &res));
+  g_mock_libuv_context_init_fail = 0;
+
+  /* Park socket, then test write_fail=2 on reused + pool_close_fail on retry */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  g_mock_libuv_write_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(0));
+  g_mock_libuv_write_fail = 0;
+
+  /* Mid-body error on non-reused keep-alive (*res != NULL + response_free_fail
+   * + pool_close_fail) */
+  req.url = (char *)"http://example.local:8080/chunked-bad1";
+  g_mock_response_free_fail = 1;
+  ASSERT(http_libuv_send(ctx, &req, &res) != C_ABSTRACT_HTTP_SUCCESS);
+  g_mock_response_free_fail = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(0));
+
+  /* Pool close fail on LRU, checkout evict, checkin evict, disable, and
+   * context_free */
+  cfg.max_idle_conns = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  req.url = (char *)"http://example.local:8080/ka-ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(1));
+  req.url = (char *)"http://other.local:8081/ka-ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+
+  /* With response_free_fail = 1 */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(0));
+  req.url = (char *)"http://example.local:8080/ka-ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(1));
+  g_mock_response_free_fail = 1;
+  req.url = (char *)"http://other.local:8081/ka-ok";
+  ASSERT(http_libuv_send(ctx, &req, &res) != C_ABSTRACT_HTTP_SUCCESS);
+  g_mock_response_free_fail = 0;
+
+  /* Checkout eviction fail & checkin eviction fail */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(0));
+  req.url = (char *)"http://example.local:8080/ka-ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(1));
+  g_mock_time_jump = 1;
+  g_mock_time_jump_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+  g_mock_time_jump = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(0));
+  cfg.max_idle_conns = 4;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(1));
+  req.url = (char *)"http://other.local:8081/ka-ok";
+  g_mock_time_jump = 1;
+  g_mock_time_jump_count = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+  g_mock_time_jump = 0;
+
+  /* config_apply disable keep_alive fail & context_free fail */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(1));
+  cfg.keep_alive_enabled = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(0));
+
+  cfg.keep_alive_enabled = 1;
+  cfg.proxy_url = (char *)"socks5://127.0.0.1:1080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+
+  /* OOM sweep across SOCKS5 + keep-alive pool checkin */
+  {
+    struct HttpTransportContext *octx = NULL;
+    int step;
+    for (step = 0; step < 32; ++step) {
+      c_abstract_http_error_t orc;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_init(&octx));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(octx, &cfg));
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      orc = http_libuv_send(octx, &req, &res);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_context_free(octx));
+    }
+  }
+
+  /* Park 1 entry on ctx, test clock fail, /ka-close destroy fail, and
+   * context_free fail */
+  g_mock_time_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+  g_mock_time_fail = 0;
+
+  cfg.proxy_url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_config_apply(ctx, &cfg));
+  req.url = (char *)"http://example.local:8080/ka-close";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_send(ctx, &req, &res));
+  g_mock_response_free_fail = 1;
+  ASSERT(http_libuv_send(ctx, &req, &res) != C_ABSTRACT_HTTP_SUCCESS);
+  g_mock_response_free_fail = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(0));
+
+  req.url = (char *)"http://example.local:8080/ka-ok";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_libuv_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_test_set_libuv_pool_close_fail(0));
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  cfg.proxy_url = NULL;
+  cfg.proxy_username = NULL;
+  cfg.proxy_password = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libuv_global_cleanup());
+  PASS();
+}
+#endif
+
 /** @brief Documented */
 SUITE(http_libuv_suite) {
   RUN_TEST(test_libuv_global_lifecycle);
@@ -1534,6 +2230,11 @@ SUITE(http_libuv_suite) {
   RUN_TEST(test_libuv_send_large_payloads);
   RUN_TEST(test_libuv_methods);
   RUN_TEST(test_libuv_tls_spki_chunked_redirects_and_multi);
+  RUN_TEST(test_libuv_cookies);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
+    !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV)
+  RUN_TEST(test_libuv_socks5_and_keep_alive);
+#endif
 }
 
 #ifdef __cplusplus

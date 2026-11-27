@@ -15,6 +15,7 @@
 #include "../include/c_abstract_http/http_ws.h"
 #include "../include/c_abstract_http/thread_pool.h"
 #include "../src/ws_internal.h"
+#include "ws_config.h"
 #include <string.h>
 #include "mock_alloc.h"
 #if defined(_WIN32)
@@ -720,17 +721,19 @@ TEST test_ws_parser_reassembly_too_large(void) {
 
   if (parser.payload_buffer)
     free(parser.payload_buffer);
-  parser.payload_buffer = malloc(16777217);
-  parser.payload_capacity = 16777217;
+  parser.payload_buffer = (unsigned char *)malloc(1);
+  ASSERT(parser.payload_buffer != NULL);
+  parser.payload_capacity = 1;
   parser.state = WS_PARSER_READ_PAYLOAD;
   parser.current_frame.fin = 0;
   parser.current_frame.opcode = 0;
-  parser.current_frame.payload_len = 16777217;
-  parser.payload_offset = 16777216;
+  parser.current_frame.payload_len = 1;
+  parser.payload_offset = 0;
+  parser.reassembly_offset = (size_t)C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE;
 
   rc = ws_parser_feed(&parser, chunk2, 1);
-  ASSERT_EQ(90, rc); /* EMSGSIZE */
-  ASSERT_EQ(90, test_ws_mock_on_error_called);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_MSGSIZE, rc);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_MSGSIZE, test_ws_mock_on_error_called);
   if (parser.payload_buffer)
     free(parser.payload_buffer);
   if (parser.reassembly_buffer)
@@ -742,15 +745,17 @@ TEST test_ws_parser_reassembly_too_large(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
   if (parser.payload_buffer)
     free(parser.payload_buffer);
-  parser.payload_buffer = malloc(16777217);
-  parser.payload_capacity = 16777217;
+  parser.payload_buffer = (unsigned char *)malloc(1);
+  ASSERT(parser.payload_buffer != NULL);
+  parser.payload_capacity = 1;
   parser.state = WS_PARSER_READ_PAYLOAD;
   parser.current_frame.fin = 0;
   parser.current_frame.opcode = 0;
-  parser.current_frame.payload_len = 16777217;
-  parser.payload_offset = 16777216;
+  parser.current_frame.payload_len = 1;
+  parser.payload_offset = 0;
+  parser.reassembly_offset = (size_t)C_ABSTRACT_HTTP_WS_MAX_FRAME_SIZE;
   rc = ws_parser_feed(&parser, chunk2, 1);
-  ASSERT_EQ(90, rc); /* EMSGSIZE */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_MSGSIZE, rc);
   if (parser.payload_buffer)
     free(parser.payload_buffer);
   if (parser.reassembly_buffer)
@@ -2756,18 +2761,24 @@ NO_DISCARD static c_abstract_http_error_t ws_trace_on_close(int status_code,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
-static int ws_bind_ephemeral_listener(int *out_port) {
+NO_DISCARD static c_abstract_http_error_t
+ws_bind_ephemeral_listener(int *out_sock, int *out_port) {
   struct sockaddr_in addr;
   int s;
   int opt = 1;
 #if defined(_WIN32)
   int alen = (int)sizeof(addr);
   WSADATA wsa;
-  WSAStartup(MAKEWORD(2, 2), &wsa);
+  if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
 #else
   socklen_t alen = (socklen_t)sizeof(addr);
 #endif
   s = (int)socket(AF_INET, SOCK_STREAM, 0);
+  if (s < 0) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
@@ -2784,8 +2795,9 @@ static int ws_bind_ephemeral_listener(int *out_port) {
   listen(s, 4);
   getsockname(s, (struct sockaddr *)&addr, &alen);
 #endif
+  *out_sock = s;
   *out_port = (int)math_ws_ntohs(addr.sin_port);
-  return s;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -2847,10 +2859,22 @@ TEST test_ws_upgraded_socket_event_loop(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_ws_async_connect(
                                            NULL, NULL, NULL, NULL, NULL, NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
-  req.url = "wss://127.0.0.1:443/ws";
+  req.url = "wss://127.0.0.1:1/ws";
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+    (defined(__APPLE__) || defined(_WIN32))
+  {
+    c_abstract_http_error_t wrc =
+        c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL);
+    ASSERT(wrc != C_ABSTRACT_HTTP_ERR_NOTSUP);
+    if (wrc == C_ABSTRACT_HTTP_SUCCESS) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_close(&req, 1000));
+    }
+  }
+#else
   ASSERT_EQ(
       C_ABSTRACT_HTTP_ERR_NOTSUP,
       c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+#endif
   req.url = "ftp://127.0.0.1/ws";
   ASSERT_EQ(
       C_ABSTRACT_HTTP_ERR_INVAL,
@@ -2907,7 +2931,8 @@ TEST test_ws_upgraded_socket_event_loop(void) {
   req.url = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
-  srv.srv_fd = ws_bind_ephemeral_listener(&port);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_bind_ephemeral_listener(&srv.srv_fd, &port));
   for (m = 1; m <= 8; ++m) {
     char *dup_url = NULL;
     memset(&tr, 0, sizeof(tr));
@@ -3023,6 +3048,17 @@ TEST test_ws_upgraded_socket_event_loop(void) {
     req.url = dup_url;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               c_abstract_http_test_set_ws_send_mode(2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL,
+                                               NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_ws_send_mode(0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_ws_send_mode(1));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL,
                                                NULL));
@@ -3164,6 +3200,19 @@ TEST test_ws_upgraded_socket_event_loop(void) {
                           HTTP_LOOP_WRITE, &req));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               c_abstract_http_test_set_ws_send_mode(0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* Re-establish live upgraded socket after fatal HTTP_LOOP_WRITE teardown */
+    srv.mode = 10;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, NULL, NULL, NULL,
+                                               NULL));
 
     /* Test ws_send normal mutex unlock fail + loop WRITE mutex unlock fail */
     g_mock_mutex_fail = 2;
@@ -3389,6 +3438,938 @@ TEST test_ws_rfc6455_framing_edge_cases(void) {
   PASS();
 }
 
+#if !defined(C_ABSTRACT_HTTP_SINGLE_THREADED) && !defined(__EMSCRIPTEN__) &&   \
+    !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
+struct ws_mock_tls_ctl {
+  int fail_open;
+  int hs_steps;
+  int fail_hs;
+  int write_mode; /* 0=sock, 1=err, 2=eof(0,0), 3=want_w(0,2), 4=want_r(0,1) */
+  int read_mode;  /* 0=sock, 1=err, 2=eof(0,0), 3=want_w(0,2), 4=bad_frame,
+                     5=close_frame */
+  int fail_close;
+};
+
+struct ws_mock_tls_sess {
+  int fd;
+  struct ws_mock_tls_ctl *ctl;
+};
+
+NO_DISCARD static c_abstract_http_error_t
+ws_mock_tls_open(void *provider_data, int sock_fd, const char *host,
+                 const struct HttpConfig *config, void **out_session) {
+  struct ws_mock_tls_ctl *ctl = (struct ws_mock_tls_ctl *)provider_data;
+  struct ws_mock_tls_sess *s;
+  (void)host;
+  (void)config;
+  if (ctl && ctl->fail_open) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  s = (struct ws_mock_tls_sess *)malloc(sizeof(*s));
+  if (!s) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  s->fd = sock_fd;
+  s->ctl = ctl;
+  *out_session = s;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD static c_abstract_http_error_t ws_mock_tls_handshake(void *session,
+                                                                int *out_want) {
+  struct ws_mock_tls_sess *s = (struct ws_mock_tls_sess *)session;
+  if (s->ctl && s->ctl->hs_steps > 0) {
+    s->ctl->hs_steps--;
+    *out_want = 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (s->ctl && s->ctl->fail_hs) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  *out_want = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD static c_abstract_http_error_t
+ws_mock_tls_write(void *session, const void *buf, size_t len, size_t *out_n,
+                  int *out_want) {
+  struct ws_mock_tls_sess *s = (struct ws_mock_tls_sess *)session;
+  int n;
+  *out_n = 0;
+  *out_want = 0;
+  if (s->ctl) {
+    if (s->ctl->write_mode == 1) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    if (s->ctl->write_mode == 2) {
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (s->ctl->write_mode == 3) {
+      *out_want = 2;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (s->ctl->write_mode == 4) {
+      *out_want = 1;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+  }
+#if defined(_WIN32)
+  n = send((SOCKET)s->fd, (const char *)buf, (int)len, 0);
+#else
+  n = (int)send(s->fd, buf, len, 0);
+#endif
+  if (n > 0) {
+    *out_n = (size_t)n;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
+NO_DISCARD static c_abstract_http_error_t
+ws_mock_tls_read(void *session, void *buf, size_t cap, size_t *out_n,
+                 int *out_want) {
+  struct ws_mock_tls_sess *s = (struct ws_mock_tls_sess *)session;
+  int n;
+  *out_n = 0;
+  *out_want = 0;
+  if (s->ctl) {
+    if (s->ctl->read_mode == 1) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    if (s->ctl->read_mode == 2) {
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (s->ctl->read_mode == 3) {
+      *out_want = 2;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (s->ctl->read_mode == 4) {
+      unsigned char *b = (unsigned char *)buf;
+      if (cap >= 2) {
+        b[0] = 0x08U;
+        b[1] = 0x00U;
+        *out_n = 2;
+      }
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (s->ctl->read_mode == 5) {
+      unsigned char *b = (unsigned char *)buf;
+      if (cap >= 4) {
+        b[0] = 0x88U;
+        b[1] = 0x02U;
+        b[2] = 0x03U;
+        b[3] = 0xE8U;
+        *out_n = 4;
+      }
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+  }
+#if defined(_WIN32)
+  n = recv((SOCKET)s->fd, (char *)buf, (int)cap, 0);
+#else
+  n = (int)recv(s->fd, buf, cap, 0);
+#endif
+  if (n > 0) {
+    *out_n = (size_t)n;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (n == 0) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#if defined(_WIN32)
+  if (WSAGetLastError() == WSAEWOULDBLOCK) {
+    *out_want = 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#else
+  if (errno == EAGAIN
+#if defined(EWOULDBLOCK) && (!defined(EAGAIN) || (EWOULDBLOCK != EAGAIN))
+      || errno == EWOULDBLOCK
+#endif
+  ) {
+    *out_want = 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+#endif
+  return C_ABSTRACT_HTTP_ERR_IO;
+}
+
+NO_DISCARD static c_abstract_http_error_t ws_mock_tls_close(void *session) {
+  struct ws_mock_tls_sess *s = (struct ws_mock_tls_sess *)session;
+  int fail = (s && s->ctl) ? s->ctl->fail_close : 0;
+  free(s);
+  return fail ? C_ABSTRACT_HTTP_ERR_IO : C_ABSTRACT_HTTP_SUCCESS;
+}
+
+struct ws_sync_stop_ctx {
+  volatile int *flag;
+  int msg_cnt;
+  int arm_oom_on_msg;
+};
+
+NO_DISCARD static c_abstract_http_error_t
+ws_sync_stop_on_msg(const struct c_abstract_http_ws_event *ev,
+                    void *user_data) {
+  struct ws_sync_stop_ctx *sc = (struct ws_sync_stop_ctx *)user_data;
+  if (ev->opcode == C_ABSTRACT_HTTP_WS_OPCODE_TEXT) {
+    sc->msg_cnt++;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    if (sc->arm_oom_on_msg) {
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = 0;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+#endif
+    if (sc->flag) {
+      *(sc->flag) = 1;
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+struct ws_delayed_exit_arg {
+  volatile int *ef;
+};
+
+NO_DISCARD static c_abstract_http_error_t ws_delayed_exit_task(void *arg) {
+  struct ws_delayed_exit_arg *da = (struct ws_delayed_exit_arg *)arg;
+  abstract_http_int64_t t0 = 0;
+  abstract_http_int64_t t1 = 0;
+  c_abstract_http_error_t rc = real_c_abstract_http_get_time_ms(&t0);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  for (;;) {
+    rc = real_c_abstract_http_get_time_ms(&t1);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    if (t1 - t0 >= 28) {
+      break;
+    }
+  }
+  *(da->ef) = 1;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+NO_DISCARD static c_abstract_http_error_t ws_ext_rm_ok(void *ctx, int fd) {
+  (void)ctx;
+  (void)fd;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
+
+TEST test_ws_wss_tls_and_sync_upgraded_loop(void) {
+  struct HttpClient client;
+  struct HttpRequest req;
+  struct HttpRawTlsHooks thooks;
+  struct HttpRawTlsHooks bad_hooks;
+  struct ws_mock_tls_ctl ctl;
+  struct AbstractHttpThreadPool *pool = NULL;
+  struct ws_test_server_cfg srv;
+  struct ws_upgraded_cb_trace tr;
+  char wss_url[128];
+  char https_url[128];
+  char wss_def_url[64];
+  char https_def_url[64];
+  int port = 0;
+  int listen_fd;
+  char *dup_url = NULL;
+
+  /* 1. c_abstract_http_ws_set_tls_hooks validation, OOM, set, and clear */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_ws_set_tls_hooks(NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  memset(&bad_hooks, 0, sizeof(bad_hooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_ws_set_tls_hooks(&req, &bad_hooks));
+  bad_hooks.open = ws_mock_tls_open;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_ws_set_tls_hooks(&req, &bad_hooks));
+  bad_hooks.handshake = ws_mock_tls_handshake;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_ws_set_tls_hooks(&req, &bad_hooks));
+  bad_hooks.read = ws_mock_tls_read;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_ws_set_tls_hooks(&req, &bad_hooks));
+  bad_hooks.write = ws_mock_tls_write;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_ws_set_tls_hooks(&req, &bad_hooks));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+            c_abstract_http_ws_set_tls_hooks(&req, NULL));
+  g_mock_alloc_fail = 0;
+#endif
+
+  memset(&ctl, 0, sizeof(ctl));
+  memset(&thooks, 0, sizeof(thooks));
+  thooks.provider_data = &ctl;
+  thooks.open = ws_mock_tls_open;
+  thooks.handshake = ws_mock_tls_handshake;
+  thooks.read = ws_mock_tls_read;
+  thooks.write = ws_mock_tls_write;
+  thooks.close = ws_mock_tls_close;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_set_tls_hooks(&req, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            ws_bind_ephemeral_listener(&listen_fd, &port));
+  ASSERT(listen_fd >= 0);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(wss_url, sizeof(wss_url), "wss://127.0.0.1:%d/chat", port);
+  sprintf_s(https_url, sizeof(https_url), "https://127.0.0.1:%d/chat", port);
+  strcpy_s(wss_def_url, sizeof(wss_def_url), "wss://127.0.0.1/chat");
+  strcpy_s(https_def_url, sizeof(https_def_url), "https://127.0.0.1/chat");
+#else
+  sprintf(wss_url, "wss://127.0.0.1:%d/chat", port);
+  sprintf(https_url, "https://127.0.0.1:%d/chat", port);
+  strcpy(wss_def_url, "wss://127.0.0.1/chat");
+  strcpy(https_def_url, "https://127.0.0.1/chat");
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_init(&pool, 1));
+  memset(&client, 0, sizeof(client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&client.loop));
+
+  /* 2. wss:// / https:// default TLS resolution & error modes */
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup(wss_def_url, &dup_url));
+  req.url = dup_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_ws_send_mode(3));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_ACCES,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_ws_send_mode(4));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_NOTSUP,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_test_set_ws_send_mode(0));
+  /* Also exercise default TLS hooks lookup without custom hooks */
+  (void)0;
+  {
+    c_abstract_http_error_t drc =
+        c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL);
+    ASSERT(drc == C_ABSTRACT_HTTP_ERR_NOTSUP ||
+           drc == C_ABSTRACT_HTTP_ERR_CONNREFUSED);
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+#endif
+
+  /* 3. wss:// handshake failure branches (open fail, hs fail + close fail,
+   * write err, write 0/0, read err, read 0/0) */
+  memset(&srv, 0, sizeof(srv));
+  srv.srv_fd = listen_fd;
+
+  /* 3a. open fail */
+  srv.mode = 9;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+  memset(&ctl, 0, sizeof(ctl));
+  ctl.fail_open = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(wss_url, &dup_url));
+  req.url = dup_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_ACCES,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 3b. multi-step hs + hs fail + close fail (covers ws_close_tls_and_fd trc !=
+   * 0) */
+  srv.mode = 9;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+  memset(&ctl, 0, sizeof(ctl));
+  ctl.hs_steps = 1;
+  ctl.fail_hs = 1;
+  ctl.fail_close = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup(https_url, &dup_url));
+  req.url = dup_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_async_connect(
+                                        &client, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 3b2. hs fail with clean close (covers ws_close_tls_and_fd trc == 0) */
+  srv.mode = 9;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+  memset(&ctl, 0, sizeof(ctl));
+  ctl.fail_hs = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup(https_url, &dup_url));
+  req.url = dup_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_ACCES,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 3c. handshake write error & write (0,0) EOF */
+  srv.mode = 9;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+  memset(&ctl, 0, sizeof(ctl));
+  ctl.write_mode = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(wss_url, &dup_url));
+  req.url = dup_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_async_connect(
+                                        &client, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  srv.mode = 9;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+  memset(&ctl, 0, sizeof(ctl));
+  ctl.write_mode = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(wss_url, &dup_url));
+  req.url = dup_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_async_connect(
+                                        &client, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 3d. handshake read error & read (0,0) EOF */
+  srv.mode = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+  memset(&ctl, 0, sizeof(ctl));
+  ctl.read_mode = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(wss_url, &dup_url));
+  req.url = dup_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_async_connect(
+                                        &client, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  srv.mode = 9;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+  memset(&ctl, 0, sizeof(ctl));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(wss_url, &dup_url));
+  req.url = dup_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_WS_HANDSHAKE,
+      c_abstract_http_ws_async_connect(&client, &req, NULL, NULL, NULL, NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  /* 4. Full wss:// async connect + PING/PONG + TEXT + CLOSE over TLS */
+  srv.mode = 4;
+  memset(&tr, 0, sizeof(tr));
+  memset(&ctl, 0, sizeof(ctl));
+  ctl.hs_steps = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(wss_url, &dup_url));
+  req.url = dup_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_ws_async_connect(&client, &req, ws_trace_on_msg,
+                                             ws_trace_on_err, ws_trace_on_close,
+                                             &tr));
+  while (((struct ws_stream_ctx *)req.ws_ctx)->has_upgraded_fd) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(client.loop));
+  }
+  ASSERT_EQ(1, tr.msg_count);
+  ASSERT_STR_EQ("hi", tr.text);
+  ASSERT_EQ(1000, tr.close_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  /* 5. TLS queue flush & ws_upgraded_loop_cb TLS read/write/close branches */
+  {
+    struct HttpLoopHooks lhooks;
+    struct HttpClient ext_cli;
+    http_loop_cb cap_cb = NULL;
+
+    memset(&lhooks, 0, sizeof(lhooks));
+    lhooks.external_context = &cap_cb;
+    lhooks.add_fd = ws_ext_add_ok;
+    lhooks.mod_fd = ws_ext_mod_ok;
+    lhooks.remove_fd = ws_ext_rm_ok;
+    lhooks.wakeup = ws_ext_wakeup_ok;
+
+    /* Helper remove_fd that succeeds vs fails */
+    memset(&ext_cli, 0, sizeof(ext_cli));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_loop_init_external(&ext_cli.loop, &lhooks));
+
+    /* Connect live TLS upgraded socket */
+    srv.mode = 10;
+    memset(&ctl, 0, sizeof(ctl));
+    memset(&tr, 0, sizeof(tr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, ws_trace_on_msg,
+                                               ws_trace_on_err,
+                                               ws_trace_on_close, &tr));
+    ASSERT(cap_cb != NULL);
+
+    /* 5a. TLS write want_write (twant=2) -> queues frame; then want_read
+     * (twant=1) + HTTP_LOOP_READ flushes queue! */
+    ctl.write_mode = 3;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                      (const unsigned char *)"z", 1));
+    ctl.write_mode = 4;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              cap_cb(ext_cli.loop,
+                     ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                     HTTP_LOOP_WRITE, &req));
+    /* Now sctx->tls_want == 1 and queue_len > 0; HTTP_LOOP_READ flushes +
+     * read_mode=3 (twant=2) mods fd */
+    ctl.write_mode = 0;
+    ctl.read_mode = 3;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              cap_cb(ext_cli.loop,
+                     ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                     HTTP_LOOP_READ, &req));
+
+    /* 5b. TLS write (0,0) -> ERR_IO on send */
+    ctl.write_mode = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                      (const unsigned char *)"z", 1));
+
+    /* 5c. TLS write error (trc != 0) on send */
+    ctl.write_mode = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_send(&req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                      (const unsigned char *)"z", 1));
+    ctl.write_mode = 0;
+
+    /* 5d. TLS read EOF (nr=0, twant=0) -> ws_close_upgraded_socket +
+     * user_on_close(1006) */
+    ((struct ws_stream_ctx *)req.ws_ctx)->queue_len = 0;
+    ctl.read_mode = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              cap_cb(ext_cli.loop,
+                     ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                     HTTP_LOOP_READ, &req));
+    ASSERT_EQ(1006, tr.close_code);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 5e. TLS read error (rc != 0) -> ws_fail_upgraded_socket */
+    srv.mode = 10;
+    memset(&ctl, 0, sizeof(ctl));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, NULL, NULL, NULL,
+                                               NULL));
+    ctl.read_mode = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              cap_cb(ext_cli.loop,
+                     ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                     HTTP_LOOP_READ, &req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 5f. TLS read bad frame -> ws_parser_feed error -> ws_fail_upgraded_socket
+     */
+    srv.mode = 10;
+    memset(&ctl, 0, sizeof(ctl));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, NULL, NULL, NULL,
+                                               NULL));
+    ctl.read_mode = 4;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
+              cap_cb(ext_cli.loop,
+                     ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                     HTTP_LOOP_READ, &req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 5g. TLS read EOF when tls_hooks.close fails -> returns close error */
+    srv.mode = 10;
+    memset(&ctl, 0, sizeof(ctl));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_async_connect(&ext_cli, &req, NULL, NULL, NULL,
+                                               NULL));
+    ctl.read_mode = 2;
+    ctl.fail_close = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              cap_cb(ext_cli.loop,
+                     ((struct ws_stream_ctx *)req.ws_ctx)->upgraded_fd,
+                     HTTP_LOOP_READ, &req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(ext_cli.loop));
+  }
+#endif
+
+  /* 6. ws_sync_upgraded_socket_loop (client->send == NULL) */
+  {
+    struct HttpClient raw_cli;
+    struct ws_sync_stop_ctx sstop;
+    volatile int eflag = 0;
+
+    memset(&raw_cli, 0, sizeof(raw_cli));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_init(&raw_cli));
+    raw_cli.send = NULL;
+
+    /* 6a. NULL req->url -> ERR_INVAL */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              c_abstract_http_ws_sync_read_loop(&raw_cli, &req, NULL, NULL,
+                                                NULL, NULL, NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 6b. Connect failure (with & without on_err override) */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("bad://url", &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              c_abstract_http_ws_sync_read_loop(
+                  &raw_cli, &req, NULL, ws_trace_on_err, NULL, &tr, NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_sync_read_loop(&raw_cli, &req, NULL,
+                                                test_ws_on_error_abort, NULL,
+                                                NULL, NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    /* 6c. http_loop_init OOM (with & without on_err override) */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+              c_abstract_http_ws_sync_read_loop(
+                  &raw_cli, &req, NULL, ws_trace_on_err, NULL, &tr, NULL));
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_sync_read_loop(&raw_cli, &req, NULL,
+                                                test_ws_on_error_abort, NULL,
+                                                NULL, NULL));
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+#endif
+
+    /* 6d. Full wss:// sync upgraded socket loop (until peer CLOSE) */
+    srv.mode = 4;
+    memset(&ctl, 0, sizeof(ctl));
+    memset(&tr, 0, sizeof(tr));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_sync_read_loop(&raw_cli, &req, ws_trace_on_msg,
+                                                ws_trace_on_err,
+                                                ws_trace_on_close, &tr, NULL));
+    ASSERT_EQ(1, tr.msg_count);
+    ASSERT_EQ(1000, tr.close_code);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 6e. Sync upgraded socket loop with exit_flag timer + cooperative stop */
+    srv.mode = 4;
+    memset(&ctl, 0, sizeof(ctl));
+    memset(&sstop, 0, sizeof(sstop));
+    eflag = 0;
+    sstop.flag = &eflag;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_sync_read_loop(
+                                           &raw_cli, &req, ws_sync_stop_on_msg,
+                                           NULL, NULL, &sstop, &eflag));
+    ASSERT_EQ(1, sstop.msg_cnt);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 6f. Sync upgraded socket loop framing error */
+    srv.mode = 8;
+    memset(&ctl, 0, sizeof(ctl));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_send_async(
+                                           &req, C_ABSTRACT_HTTP_WS_OPCODE_TEXT,
+                                           (const unsigned char *)"q", 1));
+    eflag = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
+              c_abstract_http_ws_sync_read_loop(&raw_cli, &req, NULL, NULL,
+                                                NULL, NULL, &eflag));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 6g. Sync loop where exit_flag stops while TLS session active + fail_close
+     */
+    srv.mode = 4;
+    memset(&ctl, 0, sizeof(ctl));
+    memset(&sstop, 0, sizeof(sstop));
+    ctl.fail_close = 1;
+    eflag = 0;
+    sstop.flag = &eflag;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_sync_read_loop(
+                                          &raw_cli, &req, ws_sync_stop_on_msg,
+                                          NULL, NULL, &sstop, &eflag));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 6h. Idle upgraded socket woken by 15ms ws_sync_exit_poll_timer_cb */
+    {
+      struct AbstractHttpThreadPool *wpool = NULL;
+      struct ws_delayed_exit_arg darg;
+      darg.ef = &eflag;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_thread_pool_init(&wpool, 1));
+      srv.mode = 10;
+      memset(&ctl, 0, sizeof(ctl));
+      eflag = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+      ASSERT_EQ(
+          C_ABSTRACT_HTTP_SUCCESS,
+          abstract_http_thread_pool_push(wpool, ws_delayed_exit_task, &darg));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_strdup(wss_url, &dup_url));
+      req.url = dup_url;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_ws_sync_read_loop(&raw_cli, &req, NULL, NULL,
+                                                  NULL, NULL, &eflag));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(wpool));
+    }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    /* 6i. Connect fail + http_loop_free fail (op=1) */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("bad://url", &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(1, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_sync_read_loop(&raw_cli, &req, NULL, NULL,
+                                                NULL, NULL, NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(0, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 6j. http_loop_add_timer fail (op=4) inside ws_sync_upgraded_socket_loop
+     */
+    srv.mode = 10;
+    memset(&ctl, 0, sizeof(ctl));
+    eflag = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(4, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_sync_read_loop(&raw_cli, &req, NULL, NULL,
+                                                NULL, NULL, &eflag));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(0, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* 6k. finish_sync_ws: cl_rc != 0 + lp_rc != 0, cl_rc != 0 + rc != 0, and
+     * cl_rc == 0 + lp_rc != 0 */
+    srv.mode = 4;
+    memset(&ctl, 0, sizeof(ctl));
+    memset(&sstop, 0, sizeof(sstop));
+    ctl.fail_close = 1;
+    eflag = 0;
+    sstop.flag = &eflag;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(1, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_ws_sync_read_loop(
+                                          &raw_cli, &req, ws_sync_stop_on_msg,
+                                          NULL, NULL, &sstop, &eflag));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(0, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* cl_rc != 0 + rc != 0 (add_timer op=4 fail + fail_close = 1) */
+    srv.mode = 10;
+    memset(&ctl, 0, sizeof(ctl));
+    ctl.fail_close = 1;
+    eflag = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(4, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_sync_read_loop(&raw_cli, &req, NULL, NULL,
+                                                NULL, NULL, &eflag));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(0, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+    /* cl_rc == 0 + lp_rc != 0 */
+    srv.mode = 4;
+    memset(&ctl, 0, sizeof(ctl));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              abstract_http_thread_pool_push(pool, ws_test_srv_task, &srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(wss_url, &dup_url));
+    req.url = dup_url;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_ws_set_tls_hooks(&req, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(1, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              c_abstract_http_ws_sync_read_loop(&raw_cli, &req, NULL, NULL,
+                                                NULL, NULL, NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(0, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+#endif
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(https_def_url, &dup_url));
+    req.url = dup_url;
+    {
+      c_abstract_http_error_t hrc = c_abstract_http_ws_sync_read_loop(
+          &raw_cli, &req, NULL, NULL, NULL, NULL, NULL);
+      ASSERT(hrc != C_ABSTRACT_HTTP_SUCCESS);
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_ws_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&raw_cli));
+  }
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(client.loop));
+  client.loop = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&client));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, abstract_http_thread_pool_free(pool));
+#if defined(_WIN32)
+  closesocket((SOCKET)listen_fd);
+#else
+  close(listen_fd);
+#endif
+  PASS();
+}
+#endif
+
 SUITE(ws_suite) {
   RUN_TEST(test_ws_rfc6455_framing_edge_cases);
   RUN_TEST(test_ws_callback_error_percolation);
@@ -3491,6 +4472,7 @@ SUITE(ws_suite) {
     !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
   RUN_TEST(test_ws_read_chunk_cond_wait_success);
   RUN_TEST(test_ws_upgraded_socket_event_loop);
+  RUN_TEST(test_ws_wss_tls_and_sync_upgraded_loop);
 #endif
 }
 GREATEST_MAIN_DEFS();

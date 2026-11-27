@@ -7,6 +7,7 @@
  */
 
 /* clang-format off */
+#include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_types.h>
 #include "c_abstract_http/http_sse.h"
 #include <stddef.h>
@@ -61,8 +62,9 @@ struct sse_parser_ctx {
   c_abstract_http_sse_on_error
       on_error; /**< User callback for parsing errors */
   c_abstract_http_sse_on_close
-      on_close;    /**< User callback for connection closures */
-  void *user_data; /**< Opaque user data */
+      on_close;        /**< User callback for connection closures */
+  void *user_data;     /**< Opaque user data */
+  int has_async_owner; /**< Non-zero when embedded in sse_loop_async_ctx */
 };
 
 /**

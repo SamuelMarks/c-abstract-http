@@ -12,6 +12,7 @@
 #include <wchar.h>
 
 #include "c_abstract_http/log.h"
+#include "crypto_utils.h"
 #include <c_abstract_http/http_wininet.h>
 #include <cfs/cfs.h>
 
@@ -29,6 +30,7 @@
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 #include "mock_stubs/mock_wininet.h"
 #endif
+#include "wincrypt_compat.h"
 /* clang-format on */
 
 #ifndef INTERNET_FLAG_ASYNC
@@ -42,6 +44,14 @@
 #ifndef INTERNET_OPTION_SECURITY_FLAGS
 /** @brief WinINet option ID for TLS security flags */
 #define INTERNET_OPTION_SECURITY_FLAGS 31
+#endif
+#ifndef INTERNET_OPTION_CLIENT_CERT_CONTEXT
+/** @brief WinINet option ID for attaching an mTLS client CERT_CONTEXT */
+#define INTERNET_OPTION_CLIENT_CERT_CONTEXT 84
+#endif
+#ifndef INTERNET_OPTION_SERVER_CERT_CHAIN_CONTEXT
+/** @brief WinINet option ID for querying peer PCCERT_CHAIN_CONTEXT */
+#define INTERNET_OPTION_SERVER_CERT_CHAIN_CONTEXT 105
 #endif
 #ifndef INTERNET_OPTION_USER_AGENT
 /** @brief WinINet option ID for session User-Agent override */
@@ -200,7 +210,341 @@ struct HttpTransportContext {
   struct HttpCookieJar *cookie_jar;
   /** @brief HTTP configuration copy */
   struct HttpConfig config;
+  /** @brief Optional in-memory CryptoAPI `HCERTSTORE` of custom CA roots */
+  void *ca_store;
+  /** @brief Optional PKCS#12 CryptoAPI `HCERTSTORE` backing mTLS identity */
+  void *client_store;
+  /** @brief Optional mTLS client `CERT_CONTEXT` handle */
+  CAH_CERT_CONTEXT *client_cert_ctx;
 };
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for `wininet_release_tls_handles` */
+static int s_mock_wininet_release_tls_fail = 0;
+#endif
+
+/**
+ * @brief Release CryptoAPI certificate stores and contexts held by @p ctx.
+ * @param ctx WinINet transport context.
+ * @return C_ABSTRACT_HTTP_SUCCESS or fault-injected error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+wininet_release_tls_handles(struct HttpTransportContext *ctx) {
+  if (ctx->client_cert_ctx) {
+    CertFreeCertificateContext(ctx->client_cert_ctx);
+    ctx->client_cert_ctx = NULL;
+  }
+  if (ctx->client_store) {
+    CertCloseStore(ctx->client_store, 0);
+    ctx->client_store = NULL;
+  }
+  if (ctx->ca_store) {
+    CertCloseStore(ctx->ca_store, 0);
+    ctx->ca_store = NULL;
+  }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (s_mock_wininet_release_tls_fail) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Replace an optional heap string pointer on `HttpConfig`.
+ * @param dst Target string pointer slot.
+ * @param src Optional source string (may be NULL).
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+NO_DISCARD static c_abstract_http_error_t wininet_opt_strdup(char **dst,
+                                                             const char *src) {
+  free(*dst);
+  *dst = NULL;
+  if (!src) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  return c_abstract_http_strdup(src, dst);
+}
+
+/**
+ * @brief Decode PEM/DER certificate bytes and insert into @p store.
+ * @param store Open CryptoAPI `HCERTSTORE`.
+ * @param raw Raw PEM or DER certificate buffer.
+ * @param raw_len Byte length of @p raw.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+wininet_add_ca_blob(void *store, const unsigned char *raw, size_t raw_len) {
+  unsigned char *der = NULL;
+  size_t der_len = 0;
+  BOOL added;
+  c_abstract_http_error_t rc;
+
+  rc = c_abstract_http_pem_or_der_decode(raw, raw_len, &der, &der_len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  added = CertAddEncodedCertificateToStore(store, CAH_X509_PKCS7_ENCODING, der,
+                                           (DWORD)der_len,
+                                           CAH_CERT_STORE_ADD_ALWAYS, NULL);
+  free(der);
+  return added ? C_ABSTRACT_HTTP_SUCCESS : C_ABSTRACT_HTTP_ERR_ACCES;
+}
+
+/**
+ * @brief Validate and materialize CA store, mTLS client cert, and SPKI pin on
+ * @p ctx.
+ * @param ctx WinINet transport context.
+ * @param config Caller-supplied HTTP configuration.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+wininet_apply_tls_materials(struct HttpTransportContext *ctx,
+                            const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
+
+  if ((config->client_cert_path && !config->client_key_path) ||
+      (!config->client_cert_path && config->client_key_path) ||
+      (config->ca_buffer_len > 0U && !config->ca_buffer)) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  rc = wininet_release_tls_handles(ctx);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  rc = wininet_opt_strdup(&ctx->config.ca_path, config->ca_path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  free(ctx->config.ca_buffer);
+  ctx->config.ca_buffer = NULL;
+  ctx->config.ca_buffer_len = 0;
+  if (config->ca_buffer && config->ca_buffer_len > 0U) {
+    ctx->config.ca_buffer = (unsigned char *)malloc(config->ca_buffer_len);
+    if (!ctx->config.ca_buffer) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(ctx->config.ca_buffer, config->ca_buffer, config->ca_buffer_len);
+    ctx->config.ca_buffer_len = config->ca_buffer_len;
+  }
+  rc = wininet_opt_strdup(&ctx->config.client_cert_path,
+                          config->client_cert_path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc =
+      wininet_opt_strdup(&ctx->config.client_key_path, config->client_key_path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc =
+      wininet_opt_strdup(&ctx->config.cert_pin_sha256, config->cert_pin_sha256);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  if (config->ca_path || (config->ca_buffer && config->ca_buffer_len > 0U)) {
+    ctx->ca_store = CertOpenStore(CAH_CERT_STORE_PROV_MEMORY, 0, 0, 0, NULL);
+    if (!ctx->ca_store) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    if (config->ca_path) {
+      unsigned char *fbuf = NULL;
+      size_t flen = 0;
+      rc = c_abstract_http_read_file_bytes(config->ca_path, &fbuf, &flen);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+      rc = wininet_add_ca_blob(ctx->ca_store, fbuf, flen);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(fbuf);
+        return rc;
+      }
+      free(fbuf);
+    }
+    if (config->ca_buffer && config->ca_buffer_len > 0U) {
+      rc = wininet_add_ca_blob(ctx->ca_store, config->ca_buffer,
+                               config->ca_buffer_len);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+    }
+  }
+
+  if (config->client_cert_path && config->client_key_path) {
+    unsigned char *cbuf = NULL;
+    size_t clen = 0;
+    unsigned char *kbuf = NULL;
+    size_t klen = 0;
+    CAH_CRYPTOAPI_BLOB pfx_blob;
+
+    rc =
+        c_abstract_http_read_file_bytes(config->client_cert_path, &cbuf, &clen);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    rc = c_abstract_http_read_file_bytes(config->client_key_path, &kbuf, &klen);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(cbuf);
+      return rc;
+    }
+
+    pfx_blob.cbData = (DWORD)clen;
+    pfx_blob.pbData = cbuf;
+    ctx->client_store = PFXImportCertStore(&pfx_blob, L"", 0);
+    if (ctx->client_store) {
+      ctx->client_cert_ctx = CertEnumCertificatesInStore(ctx->client_store, 0);
+      free(cbuf);
+      free(kbuf);
+      if (!ctx->client_cert_ctx) {
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+    } else {
+      unsigned char *cder = NULL;
+      size_t cder_len = 0;
+      unsigned char *kder = NULL;
+      size_t kder_len = 0;
+
+      rc = c_abstract_http_pem_or_der_decode(cbuf, clen, &cder, &cder_len);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(cbuf);
+        free(kbuf);
+        return rc;
+      }
+      free(cbuf);
+      rc = c_abstract_http_pem_or_der_decode(kbuf, klen, &kder, &kder_len);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(kbuf);
+        free(cder);
+        return rc;
+      }
+      free(kbuf);
+      free(kder);
+      ctx->client_cert_ctx = CertCreateCertificateContext(
+          CAH_X509_PKCS7_ENCODING, cder, (DWORD)cder_len);
+      free(cder);
+      if (!ctx->client_cert_ctx) {
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Verify that @p target DER certificate is anchored in @p store.
+ * @param store CryptoAPI `HCERTSTORE` containing custom CA anchors.
+ * @param target Terminal root certificate from built chain.
+ * @return C_ABSTRACT_HTTP_SUCCESS if anchored, else C_ABSTRACT_HTTP_ERR_ACCES.
+ */
+NO_DISCARD static c_abstract_http_error_t
+wininet_require_cert_in_store(void *store, const CAH_CERT_CONTEXT *target) {
+  CAH_CERT_CONTEXT *cur = NULL;
+  for (;;) {
+    cur = CertEnumCertificatesInStore(store, cur);
+    if (!cur) {
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    if (cur->cbCertEncoded == target->cbCertEncoded &&
+        memcmp(cur->pbCertEncoded, target->pbCertEncoded,
+               (size_t)target->cbCertEncoded) == 0) {
+      CertFreeCertificateContext(cur);
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+  }
+}
+
+/**
+ * @brief Verify peer server TLS certificate chain against custom CA store and
+ * SPKI SHA-256 pin.
+ * @param ctx WinINet transport context.
+ * @param hRequest Active WinINet request handle after send completion.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_ACCES.
+ */
+NO_DISCARD static c_abstract_http_error_t
+wininet_verify_peer_tls(const struct HttpTransportContext *ctx,
+                        HINTERNET hRequest) {
+  CAH_CERT_CHAIN_CONTEXT *srv_chain = NULL;
+  DWORD cb = (DWORD)sizeof(srv_chain);
+  CAH_CERT_CONTEXT *leaf_cert;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
+
+  if (!InternetQueryOption(hRequest, INTERNET_OPTION_SERVER_CERT_CHAIN_CONTEXT,
+                           &srv_chain, &cb) ||
+      !srv_chain) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  if (srv_chain->cChain == 0U || !srv_chain->rgpChain[0] ||
+      srv_chain->rgpChain[0]->cElement == 0U ||
+      !srv_chain->rgpChain[0]->rgpElement[0]->pCertContext) {
+    CertFreeCertificateChain(srv_chain);
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  leaf_cert = srv_chain->rgpChain[0]->rgpElement[0]->pCertContext;
+
+  if (ctx->ca_store && ctx->config.verify_peer) {
+    CAH_CERT_CHAIN_PARA chain_para;
+    CAH_CERT_CHAIN_CONTEXT *custom_chain = NULL;
+    const CAH_CERT_SIMPLE_CHAIN *sc;
+    const CAH_CERT_CONTEXT *root_cert;
+    DWORD err_mask;
+
+    memset(&chain_para, 0, sizeof(chain_para));
+    chain_para.cbSize = (DWORD)sizeof(chain_para);
+    if (!CertGetCertificateChain(
+            NULL, leaf_cert, NULL, ctx->ca_store, &chain_para,
+            CAH_CERT_CHAIN_CACHE_ONLY_URL_RETRIEVAL, NULL, &custom_chain) ||
+        !custom_chain) {
+      CertFreeCertificateChain(srv_chain);
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    if (custom_chain->cChain == 0U || !custom_chain->rgpChain[0] ||
+        custom_chain->rgpChain[0]->cElement == 0U) {
+      CertFreeCertificateChain(custom_chain);
+      CertFreeCertificateChain(srv_chain);
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    sc = custom_chain->rgpChain[0];
+    root_cert = sc->rgpElement[sc->cElement - 1U]->pCertContext;
+    err_mask = custom_chain->TrustStatus.dwErrorStatus &
+               ~CAH_CERT_TRUST_IS_UNTRUSTED_ROOT;
+    if (err_mask != 0UL) {
+      CertFreeCertificateChain(custom_chain);
+      CertFreeCertificateChain(srv_chain);
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    rc = wininet_require_cert_in_store(ctx->ca_store, root_cert);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      CertFreeCertificateChain(custom_chain);
+      CertFreeCertificateChain(srv_chain);
+      return rc;
+    }
+    CertFreeCertificateChain(custom_chain);
+  }
+
+  if (ctx->config.cert_pin_sha256) {
+    const unsigned char *spki_der = NULL;
+    size_t spki_len = 0;
+    rc = c_abstract_http_x509_extract_spki_der(leaf_cert->pbCertEncoded,
+                                               (size_t)leaf_cert->cbCertEncoded,
+                                               &spki_der, &spki_len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      CertFreeCertificateChain(srv_chain);
+      return rc;
+    }
+    rc = c_abstract_http_verify_spki_pin_sha256(spki_der, spki_len,
+                                                ctx->config.cert_pin_sha256);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      CertFreeCertificateChain(srv_chain);
+      return rc;
+    }
+  }
+
+  CertFreeCertificateChain(srv_chain);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
 
 /**
  * @brief Close and clear a WinINet HINTERNET handle if non-NULL.
@@ -401,6 +745,9 @@ http_wininet_context_init(struct HttpTransportContext **ctx) {
   (*ctx)->proxy_username = NULL;
   (*ctx)->proxy_password = NULL;
   (*ctx)->cookie_jar = NULL;
+  (*ctx)->ca_store = NULL;
+  (*ctx)->client_store = NULL;
+  (*ctx)->client_cert_ctx = NULL;
 
   LOG_DEBUG("http_wininet_context_init: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -412,6 +759,7 @@ http_wininet_context_free(struct HttpTransportContext *ctx) {
   LOG_DEBUG("http_wininet_context_free: Entering");
   if (ctx) {
     c_abstract_http_error_t rch;
+    c_abstract_http_error_t trc;
     InternetCloseHandle(ctx->hInternet);
     ctx->hInternet = NULL;
     free(ctx->proxy_username);
@@ -422,6 +770,11 @@ http_wininet_context_free(struct HttpTransportContext *ctx) {
     if (rch != C_ABSTRACT_HTTP_SUCCESS) {
       free(ctx);
       return rch;
+    }
+    trc = wininet_release_tls_handles(ctx);
+    if (trc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(ctx);
+      return trc;
     }
     free(ctx);
   }
@@ -485,6 +838,13 @@ NO_DISCARD c_abstract_http_error_t http_wininet_config_apply(
       !(config->version_mask &
         (HTTP_VERSION_2 | HTTP_VERSION_1_1 | HTTP_VERSION_1_0))) {
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
+
+  {
+    c_abstract_http_error_t trc = wininet_apply_tls_materials(ctx, config);
+    if (trc != C_ABSTRACT_HTTP_SUCCESS) {
+      return trc;
+    }
   }
 
   ctx->config.timeout_ms = config->timeout_ms;
@@ -708,6 +1068,22 @@ http_wininet_send(struct HttpTransportContext *ctx,
     goto cleanup;
   }
 
+  if (urlComp.nScheme == INTERNET_SCHEME_HTTPS) {
+    if (!ctx->config.verify_peer || ctx->ca_store) {
+      DWORD sec_opt = SECURITY_FLAG_IGNORE_UNKNOWN_CA;
+      InternetSetOption(hRequest, INTERNET_OPTION_SECURITY_FLAGS, &sec_opt,
+                        sizeof(sec_opt));
+    }
+    if (ctx->client_cert_ctx) {
+      if (!InternetSetOption(hRequest, INTERNET_OPTION_CLIENT_CERT_CONTEXT,
+                             ctx->client_cert_ctx,
+                             (DWORD)sizeof(CAH_CERT_CONTEXT))) {
+        rc = C_ABSTRACT_HTTP_ERR_ACCES;
+        goto cleanup;
+      }
+    }
+  }
+
   /* Set cookies from jar before headers */
   if (ctx->cookie_jar && ctx->cookie_jar->count > 0) {
     size_t i;
@@ -792,6 +1168,15 @@ http_wininet_send(struct HttpTransportContext *ctx,
     if (!HttpSendRequestW(hRequest, NULL, 0, req->body, (DWORD)req->body_len)) {
       LOG_DEBUG("http_wininet_send: Error HttpSendRequestW failed");
       rc = C_ABSTRACT_HTTP_ERR_IO;
+      goto cleanup;
+    }
+  }
+
+  if (urlComp.nScheme == INTERNET_SCHEME_HTTPS &&
+      ((ctx->ca_store && ctx->config.verify_peer) ||
+       ctx->config.cert_pin_sha256)) {
+    rc = wininet_verify_peer_tls(ctx, hRequest);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       goto cleanup;
     }
   }
@@ -1014,6 +1399,7 @@ struct WinInetAsyncSlot {
   HINTERNET hConnect;               /**< Connection handle */
   HINTERNET hRequest;               /**< Request handle */
   wchar_t *wHeaders;                /**< Wide request headers */
+  int is_https;                     /**< Non-zero for HTTPS targets */
   volatile int finished;            /**< Non-zero once settled */
 };
 
@@ -1077,6 +1463,16 @@ wininet_async_finish_slot(struct WinInetAsyncSlot *slot,
     return C_ABSTRACT_HTTP_SUCCESS;
   }
   slot->finished = 1;
+
+  if (final_rc == C_ABSTRACT_HTTP_SUCCESS && slot->is_https &&
+      ((slot->ctx->ca_store && slot->ctx->config.verify_peer) ||
+       slot->ctx->config.cert_pin_sha256)) {
+    c_abstract_http_error_t vrc =
+        wininet_verify_peer_tls(slot->ctx, slot->hRequest);
+    if (vrc != C_ABSTRACT_HTTP_SUCCESS) {
+      return wininet_async_settle_and_free(slot, NULL, vrc);
+    }
+  }
 
   if (final_rc == C_ABSTRACT_HTTP_SUCCESS) {
     if (!HttpQueryInfoW(slot->hRequest,
@@ -1160,7 +1556,11 @@ wininet_async_finish_slot(struct WinInetAsyncSlot *slot,
  * @param lpvStatusInformation Pointer to `INTERNET_ASYNC_RESULT`.
  * @param dwStatusInformationLength Byte length of @p lpvStatusInformation.
  */
+#if defined(_WIN32)
 static void CALLBACK wininet_status_callback(HINTERNET hInternet,
+#else
+static void wininet_status_callback(HINTERNET hInternet,
+#endif
                                              DWORD_PTR dwContext,
                                              DWORD dwInternetStatus,
                                              LPVOID lpvStatusInformation,
@@ -1283,6 +1683,7 @@ NO_DISCARD static c_abstract_http_error_t wininet_submit_async_slot(
   }
 
   if (urlComp.nScheme == INTERNET_SCHEME_HTTPS) {
+    slot->is_https = 1;
     dwFlags |= INTERNET_FLAG_SECURE;
   }
   dwFlags |= ctx->security_flags;
@@ -1354,6 +1755,25 @@ NO_DISCARD static c_abstract_http_error_t wininet_submit_async_slot(
     DWORD h2 = HTTP_PROTOCOL_FLAG_HTTP2;
     InternetSetOption(slot->hRequest, INTERNET_OPTION_ENABLE_HTTP_PROTOCOL, &h2,
                       sizeof(h2));
+  }
+  if (slot->is_https) {
+    if (!ctx->config.verify_peer || ctx->ca_store) {
+      DWORD sec_opt = SECURITY_FLAG_IGNORE_UNKNOWN_CA;
+      InternetSetOption(slot->hRequest, INTERNET_OPTION_SECURITY_FLAGS,
+                        &sec_opt, sizeof(sec_opt));
+    }
+    if (ctx->client_cert_ctx) {
+      if (!InternetSetOption(
+              slot->hRequest, INTERNET_OPTION_CLIENT_CERT_CONTEXT,
+              ctx->client_cert_ctx, (DWORD)sizeof(CAH_CERT_CONTEXT))) {
+        InternetCloseHandle(slot->hRequest);
+        InternetCloseHandle(slot->hConnect);
+        InternetSetStatusCallbackW(slot->hAsyncRoot, NULL);
+        InternetCloseHandle(slot->hAsyncRoot);
+        free(slot);
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+    }
   }
 
   rc = headers_to_wide_block(&req->headers, &slot->wHeaders);
@@ -1460,5 +1880,39 @@ c_abstract_http_test_wininet_slot_guard(int mode) {
   memset(&dummy, 0, sizeof(dummy));
   dummy.finished = 1;
   return wininet_async_finish_slot(&dummy, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Configure CryptoAPI mock fault-injection flags for WinINet unit tests.
+ * @param kind Fault selector (`1`=open_store, `2`=add_cert, `3`=create_cert,
+ * `4`=chain_mode, `5`=query_cert_mode, `6`=release_tls_fail).
+ * @param val Value to assign.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_wininet_wincrypt_fault(int kind, int val);
+
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_wininet_wincrypt_fault(int kind, int val) {
+  if (kind == 6) {
+    s_mock_wininet_release_tls_fail = val;
+  }
+#if !defined(_WIN32)
+  else if (kind == 1) {
+    s_mock_wincrypt_open_store_fail = val;
+  } else if (kind == 2) {
+    s_mock_wincrypt_add_cert_fail = val;
+  } else if (kind == 3) {
+    s_mock_wincrypt_create_cert_fail = val;
+  } else if (kind == 4) {
+    s_mock_wincrypt_chain_mode = val;
+  } else if (kind == 5) {
+    s_mock_wincrypt_query_cert_mode = val;
+  }
+#else
+  else if (val) {
+  }
+#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif

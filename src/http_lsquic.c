@@ -55,12 +55,16 @@ struct lsq_h3_buf {
 
 /** @brief Per-stream state for lsquic HTTP/3 transactions */
 struct lsquic_stream_ctx {
+  /** @brief Originating request descriptor for streaming uploads */
+  const struct HttpRequest *req;
   /** @brief Serialized request HTTP/3 stream bytes */
   struct lsq_h3_buf tx;
   /** @brief Transmitted offset */
   size_t tx_off;
   /** @brief Accumulated response HTTP/3 stream bytes */
   struct lsq_h3_buf rx;
+  /** @brief Non-zero once streaming read_chunk reaches EOF */
+  int chunk_eof;
   /** @brief Stream completion flag */
   int done;
   /** @brief Stream error code */
@@ -566,6 +570,16 @@ lsq_serialize_request(const struct HttpTransportContext *ctx,
       return rc;
     }
   }
+  {
+    char clen_buf[32];
+    if (math_c_abstract_http_format_clen(req, clen_buf)) {
+      rc = lsq_write_qpack_field(&hdr_payload, "content-length", clen_buf);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(hdr_payload.data);
+        return rc;
+      }
+    }
+  }
 
   if (ctx->proxy_host) {
     rc = lsq_write_qpack_field(&hdr_payload, "x-masque-target", host);
@@ -657,51 +671,21 @@ lsq_serialize_request(const struct HttpTransportContext *ctx,
   }
   free(hdr_payload.data);
 
-  if (req->read_chunk) {
-    for (;;) {
-      uint8_t chunk[4096];
-      size_t nread = 0;
-      rc = req->read_chunk(req->read_chunk_user_data, chunk, sizeof(chunk),
-                           &nread);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(body_payload.data);
-        return rc;
-      }
-      if (nread == 0) {
-        break;
-      }
-      rc = lsq_buf_append(&body_payload, chunk, nread);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(body_payload.data);
-        return rc;
-      }
-    }
-  } else if (req->body && req->body_len > 0) {
-    rc = lsq_buf_append(&body_payload, req->body, req->body_len);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(body_payload.data);
-      return rc;
-    }
-  }
-
-  if (body_payload.len > 0) {
+  if (!req->read_chunk && req->body && req->body_len > 0) {
     rc = lsq_write_varint(out_stream, 0x00U);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(body_payload.data);
       return rc;
     }
-    rc = lsq_write_varint(out_stream, body_payload.len);
+    rc = lsq_write_varint(out_stream, req->body_len);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(body_payload.data);
       return rc;
     }
-    rc = lsq_buf_append(out_stream, body_payload.data, body_payload.len);
+    rc = lsq_buf_append(out_stream, req->body, req->body_len);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(body_payload.data);
       return rc;
     }
   }
-  free(body_payload.data);
+  (void)body_payload;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -915,18 +899,52 @@ lsq_on_new_stream_impl(struct HttpTransportContext *ctx, lsquic_stream_t *s,
  */
 NO_DISCARD static c_abstract_http_error_t
 lsq_on_write_impl(lsquic_stream_t *s, lsquic_stream_ctx_t *st) {
-  while (st->tx_off < st->tx.len) {
-    long nw = lsquic_stream_write(s, st->tx.data + st->tx_off,
-                                  st->tx.len - st->tx_off);
-    if (nw <= 0) {
-      st->err = C_ABSTRACT_HTTP_ERR_IO;
-      st->done = 1;
-      if (lsquic_stream_close(s) != 0) {
-        LOG_DEBUG("lsq_on_write_impl: lsquic_stream_close failed");
+  for (;;) {
+    while (st->tx_off < st->tx.len) {
+      long nw = lsquic_stream_write(s, st->tx.data + st->tx_off,
+                                    st->tx.len - st->tx_off);
+      if (nw <= 0) {
+        st->err = C_ABSTRACT_HTTP_ERR_IO;
+        st->done = 1;
+        if (lsquic_stream_close(s) != 0) {
+          LOG_DEBUG("lsq_on_write_impl: lsquic_stream_close failed");
+        }
+        return C_ABSTRACT_HTTP_ERR_IO;
       }
-      return C_ABSTRACT_HTTP_ERR_IO;
+      st->tx_off += (size_t)nw;
     }
-    st->tx_off += (size_t)nw;
+    if (st->req && st->req->read_chunk && !st->chunk_eof) {
+      uint8_t chunk[192];
+      size_t nread = 0;
+      c_abstract_http_error_t rc = st->req->read_chunk(
+          st->req->read_chunk_user_data, chunk, sizeof(chunk), &nread);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        st->err = rc;
+        st->done = 1;
+        if (lsquic_stream_close(s) != 0) {
+          LOG_DEBUG("lsq_on_write_impl: lsquic_stream_close failed");
+        }
+        return rc;
+      }
+      if (nread == 0) {
+        st->chunk_eof = 1;
+        break;
+      }
+      st->tx.data[0] = 0x00U;
+      if (nread < 64) {
+        st->tx.data[1] = (uint8_t)nread;
+        st->tx.len = 2;
+      } else {
+        st->tx.data[1] = (uint8_t)(0x40U | ((nread >> 8) & 0x3FU));
+        st->tx.data[2] = (uint8_t)(nread & 0xFFU);
+        st->tx.len = 3;
+      }
+      memcpy(st->tx.data + st->tx.len, chunk, nread);
+      st->tx.len += nread;
+      st->tx_off = 0;
+      continue;
+    }
+    break;
   }
   if (lsquic_stream_wantwrite(s, 0) < 0) {
     LOG_DEBUG("lsq_on_write_impl: lsquic_stream_wantwrite(0) failed");
@@ -1291,6 +1309,10 @@ NO_DISCARD c_abstract_http_error_t http_lsquic_config_apply(
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
+  rc = c_abstract_http_h3_apply_tls_config(&ctx->config, config);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
   ctx->verify_peer = config->verify_peer;
   ctx->timeout_ms = (unsigned int)config->timeout_ms;
@@ -1301,18 +1323,6 @@ NO_DISCARD c_abstract_http_error_t http_lsquic_config_apply(
     ctx->settings.es_handshake_to =
         (unsigned)(config->connect_timeout_ms * 1000);
   }
-
-  ctx->config.timeout_ms = config->timeout_ms;
-  ctx->config.connect_timeout_ms = config->connect_timeout_ms;
-  ctx->config.read_timeout_ms = config->read_timeout_ms;
-  ctx->config.write_timeout_ms = config->write_timeout_ms;
-  ctx->config.verify_peer = config->verify_peer;
-  ctx->config.verify_host = config->verify_host;
-  ctx->config.follow_redirects = config->follow_redirects;
-  ctx->config.cookie_jar = config->cookie_jar;
-  ctx->config.http3_fallback = config->http3_fallback;
-  ctx->config.version_mask = config->version_mask;
-  ctx->config.tls_version_mask = config->tls_version_mask;
   ctx->is_configured = 1;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -1507,8 +1517,16 @@ lsq_send_quic_once(struct HttpTransportContext *ctx,
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return rc;
   }
+  rc = c_abstract_http_h3_verify_peer_tls(&ctx->config, scheme, host);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(scheme);
+    free(host);
+    free(path);
+    return rc;
+  }
 
   memset(&st, 0, sizeof(st));
+  st.req = req;
   rc = lsq_serialize_request(ctx, req, scheme, host, path, &st.tx);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     free(scheme);
@@ -1746,12 +1764,37 @@ lsq_finish_send(struct HttpRequest *flat_req, int flattened,
   return orig_rc;
 }
 
+/**
+ * @brief Execute one hop over lsquic QUIC with optional TCP fallback.
+ * @param ctx Transport context.
+ * @param eff_req Effective request for current hop.
+ * @param res Output response pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+lsq_send_hop_once(struct HttpTransportContext *ctx,
+                  const struct HttpRequest *eff_req,
+                  struct HttpResponse **res) {
+  c_abstract_http_error_t rc = lsq_send_quic_once(ctx, eff_req, res);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (ctx->config.http3_fallback && (rc == C_ABSTRACT_HTTP_ERR_CONNREFUSED ||
+                                       rc == C_ABSTRACT_HTTP_ERR_IO)) {
+      return lsq_fallback_tcp(&ctx->config, eff_req, res);
+    }
+    return rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 NO_DISCARD c_abstract_http_error_t
 http_lsquic_send(struct HttpTransportContext *ctx,
                  const struct HttpRequest *req, struct HttpResponse **res) {
   struct HttpRequest flat_req;
+  struct HttpRequest hop_req;
   const struct HttpRequest *eff_req = NULL;
+  char *redir_url = NULL;
   int flattened = 0;
+  int hop;
   c_abstract_http_error_t rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
@@ -1764,28 +1807,441 @@ http_lsquic_send(struct HttpTransportContext *ctx,
     return rc;
   }
 
-  rc = lsq_send_quic_once(ctx, eff_req, res);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    if (ctx->config.http3_fallback && (rc == C_ABSTRACT_HTTP_ERR_CONNREFUSED ||
-                                       rc == C_ABSTRACT_HTTP_ERR_IO)) {
-      c_abstract_http_error_t fb_rc;
-      fb_rc = lsq_fallback_tcp(&ctx->config, eff_req, res);
-      if (fb_rc != C_ABSTRACT_HTTP_SUCCESS) {
-        return lsq_finish_send(&flat_req, flattened, res, fb_rc);
-      }
-      return lsq_finish_send(&flat_req, flattened, res,
-                             C_ABSTRACT_HTTP_SUCCESS);
+  hop_req = *eff_req;
+  for (hop = 0;; ++hop) {
+    const char *loc = NULL;
+    rc = lsq_send_hop_once(ctx, &hop_req, res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(redir_url);
+      return lsq_finish_send(&flat_req, flattened, res, rc);
     }
-    return lsq_finish_send(&flat_req, flattened, res, rc);
+    if (!math_c_abstract_http_should_redirect(ctx->config.follow_redirects,
+                                              *res, &loc)) {
+      break;
+    }
+    rc = c_abstract_http_h3_advance_redirect(&hop_req, &redir_url, res, loc,
+                                             hop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(redir_url);
+      return lsq_finish_send(&flat_req, flattened, res,
+                             lsq_cleanup_failed_res(res, rc));
+    }
   }
 
+  free(redir_url);
   return lsq_finish_send(&flat_req, flattened, res, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/** @brief Per-slot parsed URL & response state for `http_lsquic_send_multi` */
+struct lsq_multi_slot {
+  /** @brief Parsed scheme */
+  char *scheme;
+  /** @brief Parsed host */
+  char *host;
+  /** @brief Parsed path */
+  char *path;
+  /** @brief Parsed UDP port */
+  unsigned short port;
+  /** @brief Allocated response */
+  struct HttpResponse *res;
+};
+
+/** @brief Batch coordinator driven by `ModalityEventLoop` */
+struct lsq_multi_batch {
+  /** @brief Transport context */
+  struct HttpTransportContext *ctx;
+  /** @brief Multi-request descriptor */
+  const struct HttpMultiRequest *multi;
+  /** @brief Output futures array */
+  struct HttpFuture **futures;
+  /** @brief Per-slot metadata array */
+  struct lsq_multi_slot *slots;
+  /** @brief Concurrent `lsquic_stream_ctx` array */
+  struct lsquic_stream_ctx *streams;
+  /** @brief Non-zero when caller supplied loop */
+  int caller_loop;
+  /** @brief First observed error */
+  c_abstract_http_error_t first_err;
+};
+
+/**
+ * @brief Record first batch error and stop caller `ModalityEventLoop` if set.
+ * @param loop Active event loop.
+ * @param b Batch coordinator.
+ * @param err Failure status to record.
+ * @return Loop-stop error if non-zero, otherwise @p err.
+ */
+NO_DISCARD static c_abstract_http_error_t
+lsq_stop_batch_on_err(struct ModalityEventLoop *loop, struct lsq_multi_batch *b,
+                      c_abstract_http_error_t err) {
+  b->first_err = err;
+  if (b->caller_loop) {
+    c_abstract_http_error_t src = http_loop_stop(loop);
+    if (src != C_ABSTRACT_HTTP_SUCCESS) {
+      b->first_err = src;
+      return src;
+    }
+  }
+  return err;
+}
+
+/**
+ * @brief Settle one slot via single-request `http_lsquic_send` fallback/path.
+ * @param loop Active event loop.
+ * @param b Batch coordinator.
+ * @param idx Slot index.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+lsq_settle_single_slot(struct ModalityEventLoop *loop,
+                       struct lsq_multi_batch *b, size_t idx) {
+  struct HttpResponse *single_res = NULL;
+  c_abstract_http_error_t rc =
+      http_lsquic_send(b->ctx, b->multi->requests[idx], &single_res);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    b->futures[idx]->response = single_res;
+    b->futures[idx]->error_code = rc;
+    b->futures[idx]->is_ready = 1;
+    return lsq_stop_batch_on_err(loop, b, rc);
+  }
+  b->futures[idx]->response = single_res;
+  b->futures[idx]->error_code = C_ABSTRACT_HTTP_SUCCESS;
+  b->futures[idx]->is_ready = 1;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Free stream buffers across `[start_slot .. end_slot]`, settle
+ * `futures[fail_idx]`, and stop caller loop if set.
+ * @param loop Active event loop.
+ * @param b Batch coordinator.
+ * @param start_slot Group start index.
+ * @param end_slot Inclusive end slot index to clean.
+ * @param fail_idx Failing slot index.
+ * @param primary_rc Primary error enum.
+ * @return Cleanup or loop-stop error if non-zero, otherwise @p primary_rc.
+ */
+NO_DISCARD static c_abstract_http_error_t
+lsq_abort_mux_slot(struct ModalityEventLoop *loop, struct lsq_multi_batch *b,
+                   size_t start_slot, size_t end_slot, size_t fail_idx,
+                   c_abstract_http_error_t primary_rc) {
+  size_t k;
+  c_abstract_http_error_t out_rc = primary_rc;
+  for (k = start_slot; k <= end_slot; ++k) {
+    struct lsq_multi_slot *sk = &b->slots[k];
+    struct lsquic_stream_ctx *stk = &b->streams[k - start_slot];
+    free(stk->tx.data);
+    stk->tx.data = NULL;
+    free(stk->rx.data);
+    stk->rx.data = NULL;
+    free(sk->scheme);
+    free(sk->host);
+    free(sk->path);
+    sk->scheme = sk->host = sk->path = NULL;
+    if (sk->res) {
+      c_abstract_http_error_t frc = http_response_free(sk->res);
+      free(sk->res);
+      sk->res = NULL;
+      if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+        out_rc = frc;
+      }
+    }
+  }
+  b->futures[fail_idx]->response = NULL;
+  b->futures[fail_idx]->error_code = out_rc;
+  b->futures[fail_idx]->is_ready = 1;
+  return lsq_stop_batch_on_err(loop, b, out_rc);
+}
+
+/**
+ * @brief Event-loop tick callback multiplexing `N` concurrent streams via
+ * `lsquic_conn_make_stream` and `lsquic_engine_earliest_adv_tick`.
+ * @param loop Active event loop.
+ * @param timer_id Fired timer ID.
+ * @param user_data Pointer to `struct lsq_multi_batch`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+lsq_multi_tick_cb(struct ModalityEventLoop *loop, int timer_id,
+                  void *user_data) {
+  struct lsq_multi_batch *b = (struct lsq_multi_batch *)user_data;
+  size_t i = 0;
+  c_abstract_http_error_t rc;
+  (void)timer_id;
+
+  while (i < b->multi->count) {
+    const struct HttpRequest *req_i = b->multi->requests[i];
+    struct lsq_multi_slot *s_i = &b->slots[i];
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
+    !defined(C_ABSTRACT_HTTP_HAVE_REAL_LSQUIC)
+    if (!req_i || req_i->parts.count > 0) {
+      rc = lsq_settle_single_slot(loop, b, i);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+      i++;
+      continue;
+    }
+
+    rc = lsq_parse_url(req_i->url, &s_i->scheme, &s_i->host, &s_i->port,
+                       &s_i->path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return lsq_abort_mux_slot(loop, b, i, i, i, rc);
+    }
+    rc = c_abstract_http_h3_verify_peer_tls(&b->ctx->config, s_i->scheme,
+                                            s_i->host);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return lsq_abort_mux_slot(loop, b, i, i, i, rc);
+    }
+
+    {
+      const char *conn_host =
+          b->ctx->proxy_host ? b->ctx->proxy_host : s_i->host;
+      unsigned short conn_port =
+          b->ctx->proxy_host ? b->ctx->proxy_port : s_i->port;
+      struct sockaddr_in peer_sa;
+      lsquic_conn_t *conn;
+      size_t j;
+      size_t mux_cnt = 0;
+
+      for (j = i; j < b->multi->count; ++j) {
+        const struct HttpRequest *req_j = b->multi->requests[j];
+        struct lsq_multi_slot *s_j = &b->slots[j];
+        struct lsquic_stream_ctx *st_j = &b->streams[mux_cnt];
+        const char *ch_j;
+        unsigned short cp_j;
+
+        if (j > i) {
+          if (!req_j || req_j->parts.count > 0) {
+            break;
+          }
+          rc = lsq_parse_url(req_j->url, &s_j->scheme, &s_j->host, &s_j->port,
+                             &s_j->path);
+          if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return lsq_abort_mux_slot(loop, b, i, j, j, rc);
+          }
+          rc = c_abstract_http_h3_verify_peer_tls(&b->ctx->config, s_j->scheme,
+                                                  s_j->host);
+          if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return lsq_abort_mux_slot(loop, b, i, j, j, rc);
+          }
+        }
+        ch_j = b->ctx->proxy_host ? b->ctx->proxy_host : s_j->host;
+        cp_j = b->ctx->proxy_host ? b->ctx->proxy_port : s_j->port;
+        if (strcmp(ch_j, conn_host) != 0 || cp_j != conn_port) {
+          free(s_j->scheme);
+          free(s_j->host);
+          free(s_j->path);
+          s_j->scheme = s_j->host = s_j->path = NULL;
+          break;
+        }
+        memset(st_j, 0, sizeof(*st_j));
+        st_j->req = req_j;
+        rc = lsq_serialize_request(b->ctx, req_j, s_j->scheme, s_j->host,
+                                   s_j->path, &st_j->tx);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return lsq_abort_mux_slot(loop, b, i, j, j, rc);
+        }
+        s_j->res = (struct HttpResponse *)calloc(1, sizeof(*s_j->res));
+        if (!s_j->res) {
+          return lsq_abort_mux_slot(loop, b, i, j, j,
+                                    C_ABSTRACT_HTTP_ERR_NOMEM);
+        }
+        rc = http_response_init(s_j->res);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return lsq_abort_mux_slot(loop, b, i, j, j, rc);
+        }
+        mux_cnt++;
+      }
+
+      memset(&peer_sa, 0, sizeof(peer_sa));
+      peer_sa.sin_family = AF_INET;
+      peer_sa.sin_port = math_lsq_htons(conn_port);
+      b->ctx->active_batch.streams = b->streams;
+      b->ctx->active_batch.count = mux_cnt;
+      b->ctx->active_batch.next_idx = 0;
+
+      conn = lsquic_engine_connect(b->ctx->engine, 0, NULL,
+                                   (struct sockaddr *)&peer_sa, b->ctx, NULL,
+                                   conn_host, 0, NULL, 0, NULL, 0);
+      if (conn) {
+        int adv_diff = 0;
+        size_t k;
+        for (k = 0; k < mux_cnt; ++k) {
+          lsquic_conn_make_stream(conn);
+        }
+        if (lsquic_engine_earliest_adv_tick(b->ctx->engine, &adv_diff) > 0) {
+          lsquic_engine_process_conns(b->ctx->engine);
+        }
+        lsquic_conn_close(conn);
+      }
+      b->ctx->active_batch.streams = NULL;
+
+      for (j = 0; j < mux_cnt; ++j) {
+        struct lsq_multi_slot *s_j = &b->slots[i + j];
+        struct lsquic_stream_ctx *st_j = &b->streams[j];
+        const char *loc = NULL;
+        int decoded_ok = 0;
+
+        free(st_j->tx.data);
+        st_j->tx.data = NULL;
+        free(s_j->scheme);
+        free(s_j->host);
+        free(s_j->path);
+        s_j->scheme = s_j->host = s_j->path = NULL;
+
+        if (conn && st_j->err == C_ABSTRACT_HTTP_SUCCESS) {
+          c_abstract_http_error_t dec_rc =
+              lsq_decode_response(b->ctx, b->multi->requests[i + j],
+                                  st_j->rx.data, st_j->rx.len, s_j->res);
+          if (dec_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return lsq_abort_mux_slot(loop, b, i, i + mux_cnt - 1, i + j,
+                                      dec_rc);
+          }
+          decoded_ok = 1;
+        }
+        free(st_j->rx.data);
+        st_j->rx.data = NULL;
+
+        if (decoded_ok &&
+            !math_c_abstract_http_should_redirect(
+                b->ctx->config.follow_redirects, s_j->res, &loc)) {
+          b->futures[i + j]->response = s_j->res;
+          s_j->res = NULL;
+          b->futures[i + j]->error_code = C_ABSTRACT_HTTP_SUCCESS;
+          b->futures[i + j]->is_ready = 1;
+        } else {
+          c_abstract_http_error_t cl_rc =
+              lsq_cleanup_failed_res(&s_j->res, C_ABSTRACT_HTTP_SUCCESS);
+          if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return lsq_abort_mux_slot(loop, b, i, i + mux_cnt - 1, i + j,
+                                      cl_rc);
+          }
+          rc = lsq_settle_single_slot(loop, b, i + j);
+          if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return lsq_abort_mux_slot(loop, b, i, i + mux_cnt - 1, i + j, rc);
+          }
+        }
+      }
+      i += mux_cnt;
+    }
+#else
+    (void)req_i;
+    (void)s_i;
+    rc = lsq_settle_single_slot(loop, b, i);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    i++;
+#endif
+  }
+
+  if (b->caller_loop) {
+    return http_loop_stop(loop);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Tear down owned or caller loop and batch arrays after lsquic pump.
+ * @param owned_loop Owned loop or NULL.
+ * @param caller_loop Caller loop or NULL.
+ * @param slots Slot metadata array.
+ * @param streams Stream context array.
+ * @param primary_rc Primary return code.
+ * @return Cleanup error if non-zero, otherwise @p primary_rc.
+ */
+NO_DISCARD static c_abstract_http_error_t lsq_multi_finish_loop(
+    struct ModalityEventLoop *owned_loop, struct ModalityEventLoop *caller_loop,
+    struct lsq_multi_slot *slots, struct lsquic_stream_ctx *streams,
+    c_abstract_http_error_t primary_rc) {
+  free(streams);
+  free(slots);
+  if (owned_loop) {
+    c_abstract_http_error_t frc = http_loop_free(owned_loop);
+    if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+      return frc;
+    }
+  } else if (caller_loop) {
+    c_abstract_http_error_t urc =
+        abstract_http_event_loop_test_unstop(caller_loop);
+    if (urc != C_ABSTRACT_HTTP_SUCCESS) {
+      return urc;
+    }
+  }
+  return primary_rc;
+}
+
+/**
+ * @brief Schedule and drive `lsq_multi_tick_cb` on `active_loop` (falling back
+ * to an internal `owned_loop` when caller supplied a wakeup-only external
+ * loop).
+ * @param loop Caller loop or NULL.
+ * @param batch Initialized batch coordinator.
+ * @param slots Slot metadata array (freed before returning).
+ * @param streams Stream context array (freed before returning).
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+lsq_run_multi_loop(struct ModalityEventLoop *loop,
+                   struct lsq_multi_batch *batch, struct lsq_multi_slot *slots,
+                   struct lsquic_stream_ctx *streams) {
+  struct ModalityEventLoop *owned_loop = NULL;
+  struct ModalityEventLoop *active_loop = loop;
+  int timer_id = 0;
+  c_abstract_http_error_t rc;
+  c_abstract_http_error_t run_rc;
+
+  if (!active_loop) {
+    rc = http_loop_init(&owned_loop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(streams);
+      free(slots);
+      return rc;
+    }
+    active_loop = owned_loop;
+  }
+
+  rc = http_loop_add_timer(active_loop, 0, lsq_multi_tick_cb, batch, &timer_id);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (rc == C_ABSTRACT_HTTP_ERR_NOTSUP && loop != NULL) {
+      c_abstract_http_error_t t_rc;
+      c_abstract_http_error_t init_rc = http_loop_init(&owned_loop);
+      if (init_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(streams);
+        free(slots);
+        return init_rc;
+      }
+      batch->caller_loop = 0;
+      t_rc = http_loop_add_timer(owned_loop, 0, lsq_multi_tick_cb, batch,
+                                 &timer_id);
+      if (t_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return lsq_multi_finish_loop(owned_loop, NULL, slots, streams, t_rc);
+      }
+      active_loop = owned_loop;
+    } else {
+      return lsq_multi_finish_loop(owned_loop, loop, slots, streams, rc);
+    }
+  }
+
+  run_rc = http_loop_run(active_loop);
+  if (run_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return lsq_multi_finish_loop(
+        owned_loop, batch->caller_loop ? loop : NULL, slots, streams,
+        batch->first_err != C_ABSTRACT_HTTP_SUCCESS ? batch->first_err
+                                                    : run_rc);
+  }
+  return lsq_multi_finish_loop(owned_loop, batch->caller_loop ? loop : NULL,
+                               slots, streams, batch->first_err);
 }
 
 NO_DISCARD c_abstract_http_error_t http_lsquic_send_multi(
     struct HttpTransportContext *ctx, struct ModalityEventLoop *loop,
     const struct HttpMultiRequest *multi, struct HttpFuture **futures) {
-  size_t i;
+  struct lsq_multi_slot *slots;
+  struct lsquic_stream_ctx *streams;
+  struct lsq_multi_batch batch;
   c_abstract_http_error_t rc;
   cah_cppcheck_mut_ptr((void *)ctx);
 
@@ -1799,18 +2255,28 @@ NO_DISCARD c_abstract_http_error_t http_lsquic_send_multi(
     return C_ABSTRACT_HTTP_SUCCESS;
   }
 
-  for (i = 0; i < multi->count; i++) {
-    struct HttpResponse *res = NULL;
-    rc = http_lsquic_send(ctx, multi->requests[i], &res);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      futures[i]->response = res;
-      futures[i]->error_code = rc;
-      futures[i]->is_ready = 1;
-      return rc;
-    }
-    futures[i]->response = res;
-    futures[i]->error_code = rc;
-    futures[i]->is_ready = 1;
+  slots = (struct lsq_multi_slot *)calloc(multi->count, sizeof(*slots));
+  if (!slots) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  streams = (struct lsquic_stream_ctx *)calloc(multi->count, sizeof(*streams));
+  if (!streams) {
+    free(slots);
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+
+  memset(&batch, 0, sizeof(batch));
+  batch.ctx = ctx;
+  batch.multi = multi;
+  batch.futures = futures;
+  batch.slots = slots;
+  batch.streams = streams;
+  batch.caller_loop = (loop != NULL) ? 1 : 0;
+  batch.first_err = C_ABSTRACT_HTTP_SUCCESS;
+
+  rc = lsq_run_multi_loop(loop, &batch, slots, streams);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
   }
 
   if (loop) {

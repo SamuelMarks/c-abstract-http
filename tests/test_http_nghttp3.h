@@ -23,6 +23,7 @@ extern "C" {
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_nghttp3.h>
 #include <c_abstract_http/http_types.h>
+#include "../src/crypto_utils.h"
 #include "abstract_http_test_helpers/mock_server.h"
 #include "mock_alloc.h"
 /* clang-format on */
@@ -682,6 +683,363 @@ TEST test_nghttp3_fallback_proxy_and_parts(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_global_cleanup());
   PASS();
 }
+
+TEST test_nghttp3_tls_redirects_clen_and_multiplexing(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req1;
+  struct HttpRequest req2;
+  struct HttpResponse *res = NULL;
+  struct ngh3_chunk_state cst;
+  const char *hval = NULL;
+  static const unsigned char k_spki[] = {0x30, 0x0d, 0x30, 0x05, 0x06,
+                                         0x03, 0x2b, 0x65, 0x70, 0x03,
+                                         0x04, 0x00, 0x01, 0x02, 0x03};
+  unsigned char spki_hash[32];
+  char *b64_pin = NULL;
+  size_t b64_len = 0;
+  char pin_str[128];
+  int step;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+
+  /* TLS config validation & SPKI SHA-256 pinning */
+  cfg.tls_version_mask = HTTP_TLS_VERSION_1_2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_nghttp3_config_apply(ctx, &cfg));
+  cfg.tls_version_mask = HTTP_TLS_VERSION_1_3;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sha256_oneshot(k_spki, sizeof(k_spki), spki_hash));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_base64_encode(spki_hash, 32, &b64_pin, &b64_len));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
+#else
+  sprintf(pin_str, "sha256//%s", b64_pin);
+#endif
+  free(b64_pin);
+  cfg.cert_pin_sha256 = pin_str;
+  cfg.http3_fallback = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_config_apply(ctx, &cfg));
+  cfg.cert_pin_sha256 = NULL;
+
+  /* Peer CN mismatch & bad SPKI pin rejection */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
+  req1.url = (char *)"https://sub.bad-cn.invalid/check";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_nghttp3_send(ctx, &req1, &res));
+
+  /* expected_body_len streaming upload + 301 & 307 redirects + redirect loop */
+  memset(&cst, 0, sizeof(cst));
+  req1.method = HTTP_POST;
+  req1.url = (char *)"https://example.com/redir-301";
+  req1.read_chunk = ngh3_test_read_cb;
+  req1.read_chunk_user_data = &cst;
+  req1.expected_body_len = 10;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_send(ctx, &req1, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-method", &hval));
+  ASSERT_STR_EQ("GET", hval);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  memset(&cst, 0, sizeof(cst));
+  req1.method = HTTP_POST;
+  req1.url = (char *)"https://example.com/redir-307";
+  req1.read_chunk = ngh3_test_read_cb;
+  req1.read_chunk_user_data = &cst;
+  req1.expected_body_len = 10;
+  /*Note: cst stops at calls >= 2; reset via 2-hop test using body for 307 +
+   * upload for /upload */
+  req1.url = (char *)"https://example.com/upload";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_send(ctx, &req1, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-clen", &hval));
+  ASSERT_STR_EQ("10", hval);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req1.read_chunk = NULL;
+  req1.expected_body_len = 0;
+  req1.body = "keep";
+  req1.body_len = 4;
+  req1.url = (char *)"https://example.com/redir-307";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_send(ctx, &req1, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-method", &hval));
+  ASSERT_STR_EQ("POST", hval);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req1.method = HTTP_GET;
+  req1.body = NULL;
+  req1.body_len = 0;
+  req1.url = (char *)"https://example.com/redir-loop";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_LOOP, http_nghttp3_send(ctx, &req1, &res));
+
+  /* Concurrent bidirectional multi-stream multiplexing on ModalityEventLoop */
+  {
+    struct ModalityEventLoop *loop = NULL;
+    struct HttpMultiRequest multi;
+    struct HttpFuture f1;
+    struct HttpFuture f2;
+    struct HttpFuture *futs[2];
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
+    req1.url = (char *)"https://example.com/mux-1";
+    req2.url = (char *)"https://example.com/mux-2";
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req2));
+    futs[0] = &f1;
+    futs[1] = &f2;
+
+    /* 1. Same-authority concurrent streams (stream_id 0 and 4 on shared conn)
+     */
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_nghttp3_send_multi(ctx, loop, &multi, futs));
+    ASSERT_EQ(1, f1.is_ready);
+    ASSERT_EQ(1, f2.is_ready);
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_headers_get(&f1.response->headers, "x-echo-stream-id", &hval));
+    ASSERT_STR_EQ("0", hval);
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_headers_get(&f2.response->headers, "x-echo-stream-id", &hval));
+    ASSERT_STR_EQ("4", hval);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+    free(f2.response);
+
+    /* 2. Distinct authorities + redirect inside multi + invalid 2nd URL */
+    req1.url = (char *)"https://example.com/redir-301";
+    req2.url = (char *)"https://other.example.com/mux-2";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    ASSERT_EQ(200, f1.response->status_code);
+    ASSERT_EQ(200, f2.response->status_code);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+    free(f2.response);
+
+    /* 3. Invalid 2nd URL & error propagation with caller loop */
+    req1.url = (char *)"https://example.com/mux-1";
+    req2.url = (char *)"https://sub.bad-cn.invalid/mux-2";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+              http_nghttp3_send_multi(ctx, loop, &multi, futs));
+    if (f1.response) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+      free(f1.response);
+    }
+
+    /* 4. Drive loopback failure inside mux group -> fallback to single send */
+    req1.url = (char *)"https://example.com/mux-1";
+    req2.url = (char *)"https://example.com/net-err";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_nghttp3_send_multi(ctx, loop, &multi, futs));
+    if (f1.response) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+      free(f1.response);
+    }
+
+    /* 4b. response_free failure on submit_stream fail & fallback cleanup + stop
+     * fail */
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_nghttp3_send_multi(ctx, loop, &multi, futs));
+    req1.url = (char *)"https://example.com:59998/open-bidi-fail";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_nghttp3_send_multi(ctx, loop, &multi, futs));
+    g_mock_response_free_fail = 0;
+
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(3, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_nghttp3_send_multi(ctx, loop, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(0, 0));
+
+    /* 4c. Multipart slot in multi + slot-1 multipart + error branches */
+    req1.url = (char *)"https://example.com/mp-multi";
+    req1.method = HTTP_POST;
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_request_add_part(&req1, "f", "a.txt", "text/plain", "hi", 2));
+    req2.url = (char *)"https://example.com/mux-2";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+    free(f2.response);
+
+    /* Slot 0 normal + Slot 1 multipart & broken Slot 0 multipart */
+    req2.method = HTTP_POST;
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_request_add_part(&req2, "f", "b.txt", "text/plain", "ok", 2));
+    req1.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
+    req1.url = (char *)"https://example.com/mux-1";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+    free(f2.response);
+    req2.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
+
+    /* Broken multipart on slot 0, bad URLs, CN fail on slot 0,
+     * headers_init_fail */
+    req1.parts.count = 1;
+    req1.parts.parts = NULL;
+    req2.url = (char *)"https://example.com/mux-2";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    req1.parts.count = 0;
+
+    req1.url = (char *)"badurl";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    req1.url = (char *)"https://sub.bad-cn.invalid/mux-1";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+              http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    req1.url = (char *)"https://example.com/mux-1";
+    req2.url = (char *)"badurl";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    req2.url = (char *)"https://example.com:59998/open-bidi-fail";
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    g_mock_response_free_fail = 0;
+
+    /* Failing slot 0 inside multi when slot 1 was also queued */
+    req1.url = (char *)"https://example.com/net-err";
+    req2.url = (char *)"https://example.com/mux-2";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+
+    req1.url = (char *)"https://example.com/mux-1";
+    g_mock_headers_init_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    g_mock_headers_init_fail = 0;
+
+    {
+      struct ModalityEventLoop *ext_l = NULL;
+      struct HttpLoopHooks ext_h;
+      memset(&ext_h, 0, sizeof(ext_h));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_init_external(&ext_l, &ext_h));
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+                http_nghttp3_send_multi(ctx, ext_l, &multi, futs));
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(4, 1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_nghttp3_send_multi(ctx, ext_l, &multi, futs));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(0, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(ext_l));
+    }
+
+    /* 5. Loop op failures & OOM sweep across send_multi */
+    req2.url = (char *)"https://example.com/mux-2";
+    for (step = 1; step <= 5; ++step) {
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(step, 0));
+      ASSERT(http_nghttp3_send_multi(ctx,
+                                     (step == 1 || step == 5) ? NULL : loop,
+                                     &multi, futs) != C_ABSTRACT_HTTP_SUCCESS);
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(0, 0));
+    }
+
+    for (step = 0; step <= 45; ++step) {
+      c_abstract_http_error_t mrc;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      mrc = http_nghttp3_send_multi(ctx, NULL, &multi, futs);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+      if (mrc == C_ABSTRACT_HTTP_SUCCESS) {
+        break;
+      }
+    }
+
+    req2.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+  }
+
+  req1.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_global_cleanup());
+  PASS();
+}
 #endif
 
 /** @brief Suite definition for nghttp3 + ngtcp2 backend */
@@ -690,6 +1048,7 @@ SUITE(http_nghttp3_suite) {
   RUN_TEST(test_nghttp3_h3_loopback_and_branches);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_nghttp3_fallback_proxy_and_parts);
+  RUN_TEST(test_nghttp3_tls_redirects_clen_and_multiplexing);
 #endif
 }
 

@@ -8,11 +8,8 @@
 
 /* clang-format off */
 #include "c_abstract_http/http_types.h"
+#include "c_abstract_http/http_raw.h"
 #include "c_abstract_http/win_compat_sym.h"
-
-#ifdef _WIN32
-#include <windef.h>
-#endif
 /* clang-format on */
 
 #ifdef __cplusplus
@@ -67,8 +64,9 @@ struct c_abstract_http_ws_config {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef c_abstract_http_error_t (*c_abstract_http_ws_on_message)(
-    const struct c_abstract_http_ws_event *ev, void *user_data);
+typedef NO_DISCARD_FN_PTR c_abstract_http_error_t (
+    *c_abstract_http_ws_on_message)(const struct c_abstract_http_ws_event *ev,
+                                    void *user_data);
 
 /**
  * @brief Callback invoked when a WebSocket error occurs.
@@ -77,8 +75,9 @@ typedef c_abstract_http_error_t (*c_abstract_http_ws_on_message)(
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef c_abstract_http_error_t (*c_abstract_http_ws_on_error)(int error_code,
-                                                               void *user_data);
+typedef NO_DISCARD_FN_PTR
+    c_abstract_http_error_t (*c_abstract_http_ws_on_error)(int error_code,
+                                                           void *user_data);
 
 /**
  * @brief Callback invoked when a WebSocket connection is closed.
@@ -87,8 +86,9 @@ typedef c_abstract_http_error_t (*c_abstract_http_ws_on_error)(int error_code,
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef c_abstract_http_error_t (*c_abstract_http_ws_on_close)(int status_code,
-                                                               void *user_data);
+typedef NO_DISCARD_FN_PTR
+    c_abstract_http_error_t (*c_abstract_http_ws_on_close)(int status_code,
+                                                           void *user_data);
 
 /**
  * @brief Initialize a WebSocket request.
@@ -196,6 +196,22 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t c_abstract_http_ws_send(
  */
 NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
 c_abstract_http_ws_close(struct HttpRequest *req, int status_code);
+
+/**
+ * @brief Register or clear custom TLS hooks on a WebSocket request for `wss://`
+ * connections.
+ *
+ * When @p hooks is NULL, `wss://` connections fall back to the library's
+ * default TLS provider (`c_abstract_http_get_default_tls_hooks`).
+ *
+ * @param req The HTTP request acting as the WebSocket handle.
+ * @param hooks Optional TLS hook table to copy, or NULL to clear custom hooks.
+ * @return C_ABSTRACT_HTTP_SUCCESS on success, or C_ABSTRACT_HTTP_ERR_INVAL /
+ * C_ABSTRACT_HTTP_ERR_NOMEM on failure.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_ws_set_tls_hooks(struct HttpRequest *req,
+                                 const struct HttpRawTlsHooks *hooks);
 
 /**
  * @brief Free WebSocket stream resources attached to an HTTP request.

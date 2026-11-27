@@ -1,4 +1,3 @@
-
 /**
  * @file cmp_integration.c
  * @brief C-Multiplatform (CMP) execution modality and progress adapters.
@@ -8,6 +7,7 @@
 #include <c_abstract_http/cmp_integration.h>
 #include "c_abstract_http/log.h"
 #include <errno.h>
+#include <string.h>
 /* clang-format on */
 
 NO_DISCARD c_abstract_http_error_t
@@ -83,6 +83,7 @@ NO_DISCARD c_abstract_http_error_t cmp_http_inject_config(
 NO_DISCARD c_abstract_http_error_t cmp_http_progress_adapter(
     size_t current_bytes, size_t total_bytes, void *user_data) {
   struct CmpProgressBinding *binding = (struct CmpProgressBinding *)user_data;
+  c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   LOG_DEBUG("cmp_http_progress_adapter: Entering");
   if (!binding) {
     LOG_DEBUG("cmp_http_progress_adapter: Success (no binding)");
@@ -94,10 +95,40 @@ NO_DISCARD c_abstract_http_error_t cmp_http_progress_adapter(
     return C_ABSTRACT_HTTP_ERR_IO; /* abort */
   }
 
-  if (binding->update_progress && total_bytes > 0) {
+  if (total_bytes > 0) {
     float pct = (float)current_bytes / (float)total_bytes;
-    return binding->update_progress(binding->ui_component, pct);
+    if (binding->update_progress) {
+      rc = binding->update_progress(binding->ui_component, pct);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+    }
+    if (binding->framework_cb) {
+      CmpFrameworkUiHookFn fw_fn = NULL;
+      memcpy(&fw_fn, &binding->framework_cb, sizeof(fw_fn));
+      rc = fw_fn(binding->context, binding->ui_component, pct);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return rc;
+      }
+    }
   }
 
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+NO_DISCARD c_abstract_http_error_t cmp_http_bind_request(
+    struct HttpRequest *req, struct CmpProgressBinding *binding) {
+  if (!req) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  if (!binding) {
+    req->on_progress = NULL;
+    req->on_progress_user_data = NULL;
+    req->cancel_token = NULL;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  req->on_progress = cmp_http_progress_adapter;
+  req->on_progress_user_data = binding;
+  req->cancel_token = &binding->cancel_requested;
   return C_ABSTRACT_HTTP_SUCCESS;
 }

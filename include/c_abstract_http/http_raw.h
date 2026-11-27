@@ -66,21 +66,24 @@ struct HttpRawTlsHooks {
   /** @brief Opaque provider context passed to `open` */
   void *provider_data;
   /** @brief Allocate and attach a TLS session to connected `sock_fd` */
-  c_abstract_http_error_t (*open)(void *provider_data, int sock_fd,
-                                  const char *host,
-                                  const struct HttpConfig *config,
-                                  void **out_session);
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*open)(
+      void *provider_data, int sock_fd, const char *host,
+      const struct HttpConfig *config, void **out_session);
   /** @brief Drive TLS client handshake (`*out_want`: 0=done, 1=read, 2=write)
    */
-  c_abstract_http_error_t (*handshake)(void *session, int *out_want);
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*handshake)(void *session,
+                                                         int *out_want);
   /** @brief Read decrypted bytes (`*out_want`: 0=ok/eof, 1=read, 2=write) */
-  c_abstract_http_error_t (*read)(void *session, void *buf, size_t cap,
-                                  size_t *out_n, int *out_want);
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*read)(void *session, void *buf,
+                                                    size_t cap, size_t *out_n,
+                                                    int *out_want);
   /** @brief Write plaintext bytes (`*out_want`: 0=ok, 1=read, 2=write) */
-  c_abstract_http_error_t (*write)(void *session, const void *buf, size_t len,
-                                   size_t *out_n, int *out_want);
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*write)(void *session,
+                                                     const void *buf,
+                                                     size_t len, size_t *out_n,
+                                                     int *out_want);
   /** @brief Shut down and free a TLS session */
-  c_abstract_http_error_t (*close)(void *session);
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*close)(void *session);
 };
 
 /**

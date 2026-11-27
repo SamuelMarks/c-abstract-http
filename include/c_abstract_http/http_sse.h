@@ -9,10 +9,6 @@
 /* clang-format off */
 #include "c_abstract_http/http_types.h"
 #include "c_abstract_http/win_compat_sym.h"
-
-#ifdef _WIN32
-#include <windef.h>
-#endif
 /* clang-format on */
 
 #ifdef __cplusplus
@@ -54,8 +50,9 @@ struct c_abstract_http_sse_config {
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef c_abstract_http_error_t (*c_abstract_http_sse_on_event)(
-    const struct c_abstract_http_sse_event *ev, void *user_data);
+typedef NO_DISCARD_FN_PTR c_abstract_http_error_t (
+    *c_abstract_http_sse_on_event)(const struct c_abstract_http_sse_event *ev,
+                                   void *user_data);
 
 /**
  * @brief Callback invoked when an SSE error occurs.
@@ -64,8 +61,9 @@ typedef c_abstract_http_error_t (*c_abstract_http_sse_on_event)(
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef c_abstract_http_error_t (*c_abstract_http_sse_on_error)(
-    int error_code, void *user_data);
+typedef NO_DISCARD_FN_PTR
+    c_abstract_http_error_t (*c_abstract_http_sse_on_error)(int error_code,
+                                                            void *user_data);
 
 /**
  * @brief Callback invoked when an SSE stream is closed permanently.
@@ -73,8 +71,8 @@ typedef c_abstract_http_error_t (*c_abstract_http_sse_on_error)(
  * @param user_data Opaque pointer to user data.
  * @return 0 on success, or a negative error code.
  */
-typedef c_abstract_http_error_t (*c_abstract_http_sse_on_close)(
-    void *user_data);
+typedef NO_DISCARD_FN_PTR
+    c_abstract_http_error_t (*c_abstract_http_sse_on_close)(void *user_data);
 
 /**
  * @brief Initialize an SSE stream request.

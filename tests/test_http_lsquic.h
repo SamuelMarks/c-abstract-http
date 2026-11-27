@@ -23,6 +23,7 @@ extern "C" {
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_lsquic.h>
 #include <c_abstract_http/http_types.h>
+#include "../src/crypto_utils.h"
 #include "abstract_http_test_helpers/mock_server.h"
 #include "mock_alloc.h"
 /* clang-format on */
@@ -751,6 +752,367 @@ TEST test_lsquic_fallback_proxy_and_parts(void) {
   g_mock_alloc_fail = 0;
   PASS();
 }
+
+NO_DISCARD static c_abstract_http_error_t
+lsq_big_read_cb(void *user_data, void *buf, size_t max_len, size_t *out_read) {
+  struct lsq_chunk_state *st = (struct lsq_chunk_state *)user_data;
+  if (st->abort_call > 0 && st->calls + 1 >= st->abort_call) {
+    return C_ABSTRACT_HTTP_ERR_CANCELED;
+  }
+  if (st->calls >= 2) {
+    *out_read = 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  st->calls++;
+  if (max_len > 1024) {
+    max_len = 1024;
+  }
+  memset(buf, 'A', max_len);
+  *out_read = max_len;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_lsquic_tls_redirects_clen_and_multiplexing(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req1;
+  struct HttpRequest req2;
+  struct HttpResponse *res = NULL;
+  struct lsq_chunk_state cst;
+  const char *hval = NULL;
+  static const unsigned char k_spki[] = {0x30, 0x0d, 0x30, 0x05, 0x06,
+                                         0x03, 0x2b, 0x65, 0x70, 0x03,
+                                         0x04, 0x00, 0x01, 0x02, 0x03};
+  unsigned char spki_hash[32];
+  char *b64_pin = NULL;
+  size_t b64_len = 0;
+  char pin_str[128];
+  int step;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+
+  cfg.tls_version_mask = HTTP_TLS_VERSION_1_2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_lsquic_config_apply(ctx, &cfg));
+  cfg.tls_version_mask = HTTP_TLS_VERSION_1_3;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sha256_oneshot(k_spki, sizeof(k_spki), spki_hash));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_base64_encode(spki_hash, 32, &b64_pin, &b64_len));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
+#else
+  sprintf(pin_str, "sha256//%s", b64_pin);
+#endif
+  free(b64_pin);
+  cfg.cert_pin_sha256 = pin_str;
+  cfg.http3_fallback = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_config_apply(ctx, &cfg));
+  cfg.cert_pin_sha256 = NULL;
+
+  /* Peer CN mismatch */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
+  req1.url = (char *)"https://sub.bad-cn.invalid/check";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_lsquic_send(ctx, &req1, &res));
+
+  /* Backpressured streaming read_chunk DATA frames + expected_body_len + OOM */
+  memset(&cst, 0, sizeof(cst));
+  req1.method = HTTP_POST;
+  req1.url = (char *)"https://ctl-fail.invalid:443/upload-stream";
+  req1.read_chunk = lsq_big_read_cb;
+  req1.read_chunk_user_data = &cst;
+  req1.expected_body_len = 384;
+  for (step = 0; step <= 35; ++step) {
+    c_abstract_http_error_t orc;
+    memset(&cst, 0, sizeof(cst));
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = step;
+    orc = http_lsquic_send(ctx, &req1, &res);
+    g_mock_alloc_fail = 0;
+    g_mock_alloc_count = 0;
+    if (orc == C_ABSTRACT_HTTP_SUCCESS) {
+      ASSERT_EQ(384U, res->body_len);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_headers_get(&res->headers, "x-echo-clen", &hval));
+      ASSERT_STR_EQ("384", hval);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+      break;
+    }
+  }
+  memset(&cst, 0, sizeof(cst));
+  cst.abort_call = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED, http_lsquic_send(ctx, &req1, &res));
+
+  /* 301, 307, and redirect loop */
+  req1.read_chunk = NULL;
+  req1.expected_body_len = 0;
+  req1.body = "postbody";
+  req1.body_len = 8;
+  req1.url = (char *)"https://example.com/redir-301";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_send(ctx, &req1, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-method", &hval));
+  ASSERT_STR_EQ("GET", hval);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req1.method = HTTP_POST;
+  req1.body = "postbody";
+  req1.body_len = 8;
+  req1.url = (char *)"https://example.com/redir-307";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_send(ctx, &req1, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-method", &hval));
+  ASSERT_STR_EQ("POST", hval);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req1.method = HTTP_GET;
+  req1.body = NULL;
+  req1.body_len = 0;
+  req1.url = (char *)"https://example.com/redir-loop";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_LOOP, http_lsquic_send(ctx, &req1, &res));
+
+  /* N concurrent streams via lsquic_conn_make_stream + ModalityEventLoop */
+  {
+    struct ModalityEventLoop *loop = NULL;
+    struct HttpMultiRequest multi;
+    struct HttpFuture f1;
+    struct HttpFuture f2;
+    struct HttpFuture *futs[2];
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_init(&loop));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
+    req1.url = (char *)"https://example.com/mux-1";
+    req2.url = (char *)"https://example.com/mux-2";
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req2));
+    futs[0] = &f1;
+    futs[1] = &f2;
+
+    /* 1. Concurrent streams (stream_idx 0 and 1 on shared lsquic_conn_t) */
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_lsquic_send_multi(ctx, loop, &multi, futs));
+    ASSERT_EQ(1, f1.is_ready);
+    ASSERT_EQ(1, f2.is_ready);
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_headers_get(&f1.response->headers, "x-echo-stream-idx", &hval));
+    ASSERT_STR_EQ("0", hval);
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_headers_get(&f2.response->headers, "x-echo-stream-idx", &hval));
+    ASSERT_STR_EQ("1", hval);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+    free(f2.response);
+
+    /* 2. Redirect + distinct authority inside multi */
+    req1.url = (char *)"https://example.com/redir-301";
+    req2.url = (char *)"https://other.example.com/mux-2";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_lsquic_send_multi(ctx, NULL, &multi, futs));
+    ASSERT_EQ(200, f1.response->status_code);
+    ASSERT_EQ(200, f2.response->status_code);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+    free(f2.response);
+
+    /* 3. Bad 2nd URL, connect failure, response_free failure, loop stop failure
+     */
+    req1.url = (char *)"https://example.com/mux-1";
+    req2.url = (char *)"https://sub.bad-cn.invalid/mux-2";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+              http_lsquic_send_multi(ctx, loop, &multi, futs));
+    if (f1.response) {
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+      free(f1.response);
+    }
+
+    req1.url = (char *)"https://cnx-fail.invalid/mux-1";
+    req2.url = (char *)"https://cnx-fail.invalid/mux-2";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_lsquic_send_multi(ctx, loop, &multi, futs));
+    g_mock_response_free_fail = 0;
+
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(3, 0));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_lsquic_send_multi(ctx, loop, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_test_set_loop_op_fail(0, 0));
+
+    /* 4. Multipart slot + slot-1 multipart + error branches + external loop */
+    req1.url = (char *)"https://example.com/mp-multi";
+    req1.method = HTTP_POST;
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_request_add_part(&req1, "f", "a.txt", "text/plain", "hi", 2));
+    req2.url = (char *)"https://example.com/mux-2";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_lsquic_send_multi(ctx, NULL, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+    free(f2.response);
+
+    req2.method = HTTP_POST;
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        http_request_add_part(&req2, "f", "b.txt", "text/plain", "ok", 2));
+    req1.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
+    req1.url = (char *)"https://example.com/mux-1";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_lsquic_send_multi(ctx, NULL, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+    free(f1.response);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+    free(f2.response);
+    req2.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req2));
+
+    req1.parts.count = 1;
+    req1.parts.parts = NULL;
+    req2.url = (char *)"https://example.com/mux-2";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_lsquic_send_multi(ctx, NULL, &multi, futs));
+    req1.parts.count = 0;
+
+    req1.url = (char *)"badurl";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_lsquic_send_multi(ctx, NULL, &multi, futs));
+    req1.url = (char *)"https://sub.bad-cn.invalid/mux-1";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+              http_lsquic_send_multi(ctx, NULL, &multi, futs));
+    req1.url = (char *)"https://example.com/mux-1";
+    req2.url = (char *)"badurl";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              http_lsquic_send_multi(ctx, NULL, &multi, futs));
+    req2.url = (char *)"https://example.com/mux-2";
+    g_mock_headers_init_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+              http_lsquic_send_multi(ctx, NULL, &multi, futs));
+    g_mock_headers_init_fail = 0;
+
+    /* lsq_decode_response on_chunk abort + response_free_fail on sibling */
+    {
+      struct lsq_chunk_state abt;
+      memset(&abt, 0, sizeof(abt));
+      abt.abort_call = 1;
+      req1.on_chunk = lsq_test_on_chunk_cb;
+      req1.on_chunk_user_data = &abt;
+      g_mock_response_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_lsquic_send_multi(ctx, NULL, &multi, futs));
+      g_mock_response_free_fail = 0;
+      req1.on_chunk = NULL;
+      req1.on_chunk_user_data = NULL;
+    }
+
+    {
+      struct ModalityEventLoop *ext_l = NULL;
+      struct HttpLoopHooks ext_h;
+      memset(&ext_h, 0, sizeof(ext_h));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                http_loop_init_external(&ext_l, &ext_h));
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = 2;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+                http_lsquic_send_multi(ctx, ext_l, &multi, futs));
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(4, 1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
+                http_lsquic_send_multi(ctx, ext_l, &multi, futs));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(0, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(ext_l));
+    }
+
+    for (step = 1; step <= 5; ++step) {
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(step, 0));
+      ASSERT(http_lsquic_send_multi(ctx, (step == 1 || step == 5) ? NULL : loop,
+                                    &multi, futs) != C_ABSTRACT_HTTP_SUCCESS);
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                c_abstract_http_test_set_loop_op_fail(0, 0));
+    }
+
+    for (step = 0; step <= 55; ++step) {
+      c_abstract_http_error_t mrc;
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      mrc = http_lsquic_send_multi(ctx, NULL, &multi, futs);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (f1.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
+        free(f1.response);
+      }
+      if (f2.response) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
+        free(f2.response);
+      }
+      if (mrc == C_ABSTRACT_HTTP_SUCCESS) {
+        break;
+      }
+    }
+
+    req2.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req2));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(loop));
+  }
+
+  req1.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_global_cleanup());
+  PASS();
+}
 #endif
 
 /** @brief Suite definition for lsquic backend */
@@ -759,6 +1121,7 @@ SUITE(http_lsquic_suite) {
   RUN_TEST(test_lsquic_h3_loopback_and_branches);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_lsquic_fallback_proxy_and_parts);
+  RUN_TEST(test_lsquic_tls_redirects_clen_and_multiplexing);
 #endif
 }
 

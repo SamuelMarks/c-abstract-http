@@ -230,9 +230,7 @@ static THREAD_FUNC_RETURN math_server_thread_func(THREAD_FUNC_ARG arg) {
       char buffer[4096];
       int bytes_read;
       sleep_ms(100); /* Wait for body packets (e.g. from WinHTTP) */
-      g_mock_server_reading = 1;
       bytes_read = (int)recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-      g_mock_server_reading = 0;
       if (bytes_read > 0) {
         buffer[bytes_read] = '\0';
         /* printf("MOCK SERVER GOT: %s\n", buffer); */

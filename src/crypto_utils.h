@@ -222,6 +222,130 @@ NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t base64_decode(
  */
 C_ABSTRACT_HTTP_API int math_is_const_time_streq(const char *a, const char *b);
 
+/**
+ * @brief Validate and persist HTTP/3 TLS, CA, mTLS, SPKI pin, and redirect
+ * settings onto an internal transport `HttpConfig`.
+ * @param dst Destination `HttpConfig` owned by the transport context.
+ * @param src Caller-supplied `HttpConfig`.
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_INVAL,
+ * C_ABSTRACT_HTTP_ERR_NOTSUP, or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_h3_apply_tls_config(struct HttpConfig *dst,
+                                    const struct HttpConfig *src);
+
+/**
+ * @brief Verify HTTP/3 peer TLS configuration, hostname/CN, CA/mTLS, and SPKI
+ * SHA-256 certificate pin for `https` and `masque` targets.
+ * @param config Active transport `HttpConfig`.
+ * @param scheme Parsed URL scheme (`"https"`, `"masque"`, or `"http"`).
+ * @param host Target authority hostname.
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_ACCES, or
+ * C_ABSTRACT_HTTP_ERR_INVAL.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_h3_verify_peer_tls(const struct HttpConfig *config,
+                                   const char *scheme, const char *host);
+
+/**
+ * @brief Determine whether an HTTP response triggers an automatic 3xx redirect.
+ * @param follow_redirects Non-zero when redirects are enabled.
+ * @param res Completed HTTP response.
+ * @param out_location Output pointer receiving the `Location` header value.
+ * @return 1 if a redirect hop should be taken, 0 otherwise.
+ */
+C_ABSTRACT_HTTP_API int
+math_c_abstract_http_should_redirect(int follow_redirects,
+                                     const struct HttpResponse *res,
+                                     const char **out_location);
+
+/**
+ * @brief Resolve a 3xx `Location` target, release intermediate response state,
+ * and rewrite `hop_req` method/body per RFC 9110 Section 15.4.
+ * @param hop_req Mutable per-hop `HttpRequest` descriptor.
+ * @param io_redir_url In/out owned redirect URL string pointer.
+ * @param io_res In/out response pointer (freed and cleared on transition).
+ * @param location Raw `Location` header value from `*io_res`.
+ * @param hop_index Zero-based hop index (returns `ERR_LOOP` when `>= 10`).
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_LOOP, or error enum.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_h3_advance_redirect(struct HttpRequest *hop_req,
+                                    char **io_redir_url,
+                                    struct HttpResponse **io_res,
+                                    const char *location, int hop_index);
+
+/**
+ * @brief Format an `expected_body_len` `content-length` header value for
+ * streaming `read_chunk` HTTP/3 uploads when not already present in headers.
+ * @param req Outgoing `HttpRequest`.
+ * @param out_buf Output 32-byte decimal string buffer.
+ * @return 1 if `content-length` was formatted into @p out_buf, 0 otherwise.
+ */
+C_ABSTRACT_HTTP_API int
+math_c_abstract_http_format_clen(const struct HttpRequest *req,
+                                 char out_buf[32]);
+
+/**
+ * @brief Read an entire certificate/key file from disk into a newly allocated
+ * buffer.
+ * @param path Filesystem path to load.
+ * @param out_buf Output pointer receiving heap-allocated file bytes.
+ * @param out_len Output byte length (> 0 on success).
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_INVAL,
+ * C_ABSTRACT_HTTP_ERR_ACCES, or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_read_file_bytes(const char *path, unsigned char **out_buf,
+                                size_t *out_len);
+
+/**
+ * @brief Decode a PEM armor block (`-----BEGIN ...-----`) or raw ASN.1 DER
+ * buffer into newly allocated DER bytes.
+ * @param in Input PEM or DER byte buffer.
+ * @param in_len Byte length of @p in.
+ * @param out_der Output pointer receiving heap-allocated DER bytes.
+ * @param out_der_len Output byte length of @p *out_der.
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_INVAL,
+ * C_ABSTRACT_HTTP_ERR_ACCES, or C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_pem_or_der_decode(const unsigned char *in, size_t in_len,
+                                  unsigned char **out_der, size_t *out_der_len);
+
+/**
+ * @brief Extract the raw DER `SubjectPublicKeyInfo` TLV slice from a DER X.509
+ * certificate.
+ * @param cert_der Input DER-encoded X.509 certificate buffer.
+ * @param cert_len Byte length of @p cert_der.
+ * @param out_spki Receives pointer inside @p cert_der to
+ * `SubjectPublicKeyInfo`.
+ * @param out_spki_len Receives byte length of the `SubjectPublicKeyInfo` TLV.
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_INVAL, or
+ * C_ABSTRACT_HTTP_ERR_ACCES.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_x509_extract_spki_der(const unsigned char *cert_der,
+                                      size_t cert_len,
+                                      const unsigned char **out_spki,
+                                      size_t *out_spki_len);
+
+/**
+ * @brief Unwrap an unencrypted PKCS#8 `PrivateKeyInfo` DER buffer to its inner
+ * algorithm-specific `privateKey` OCTET STRING payload (or return @p der
+ * unchanged if already PKCS#1 / SEC1).
+ * @param der Input DER-encoded private key.
+ * @param der_len Byte length of @p der.
+ * @param out_key Receives pointer inside @p der to unwrapped key DER bytes.
+ * @param out_key_len Receives byte length of @p *out_key.
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_INVAL, or
+ * C_ABSTRACT_HTTP_ERR_ACCES.
+ */
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_pkcs8_unwrap_key(const unsigned char *der, size_t der_len,
+                                 const unsigned char **out_key,
+                                 size_t *out_key_len);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

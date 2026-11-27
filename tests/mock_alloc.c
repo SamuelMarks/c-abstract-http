@@ -20,7 +20,7 @@
 #undef execv
 #undef waitpid
 #undef select
-#undef math_get_current_time_ms
+#undef c_abstract_http_get_time_ms
 #undef pthread_getspecific
 #undef fwrite
 #undef fclose
@@ -67,7 +67,7 @@
 #undef execv
 #undef waitpid
 #undef select
-#undef math_get_current_time_ms
+#undef c_abstract_http_get_time_ms
 #undef pthread_getspecific
 #undef fwrite
 #undef fclose
@@ -123,6 +123,7 @@ ABSTRACT_HTTP_DEF_MOCK_INT_VAR(select_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(select_error_fds, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(time_jump, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(time_jump_count, 0)
+ABSTRACT_HTTP_DEF_MOCK_INT_VAR(time_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(fwrite_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(fclose_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(socket_fail, 0)
@@ -186,6 +187,8 @@ ABSTRACT_HTTP_DEF_MOCK_INT_VAR(fetch_upload_alloc_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(fetch_upload_realloc_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(fetch_body_realloc_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(fetch_loop_wakeup_fail, 0)
+ABSTRACT_HTTP_DEF_MOCK_INT_VAR(fetch_stream_pipe, 0)
+ABSTRACT_HTTP_DEF_MOCK_INT_VAR(fetch_env_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(nghttp3_global_init_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(nghttp3_context_init_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(nghttp3_config_init_fail, 0)
@@ -337,6 +340,9 @@ ABSTRACT_HTTP_DEF_MOCK_INT_VAR(parser_destroy_fail, 0)
 ABSTRACT_HTTP_DEF_MOCK_INT_VAR(http_types_strdup_fail, 0)
 
 const char *g_mock_recv_data = NULL;
+const unsigned char *g_mock_recv_bin = NULL;
+size_t g_mock_recv_bin_len = 0;
+int g_mock_recv_bin_eof = 0;
 
 NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_get_g_mock_recv_data(const char ***out_ptr) {
@@ -555,18 +561,36 @@ int c_abstract_http_mock_select(int nfds, fd_set *readfds, fd_set *writefds,
       return 0;
     }
   }
+  if (g_mock_recv_bin && !g_mock_server_reading && readfds && !writefds) {
+    return 1;
+  }
   return select(nfds, readfds, writefds, errorfds, timeout);
 }
 #endif
 
-abstract_http_int64_t c_abstract_http_mock_math_get_current_time_ms(void) {
-  abstract_http_int64_t now = real_math_get_current_time_ms();
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_mock_get_time_ms(abstract_http_int64_t *out_ms) {
+  abstract_http_int64_t now = 0;
+  c_abstract_http_error_t rc;
+  if (!out_ms) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  if (g_mock_time_fail > 0) {
+    if (--g_mock_time_fail == 0) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+  }
+  rc = real_c_abstract_http_get_time_ms(&now);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
   if (g_mock_time_jump) {
     if (g_mock_time_jump_count-- <= 0) {
       now += 1000;
     }
   }
-  return now;
+  *out_ms = now;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 NO_DISCARD c_abstract_http_error_t dummy_cb_thread(void *arg) {
@@ -659,6 +683,24 @@ int WSAAPI c_abstract_http_mock_recv(SOCKET socket_fd, char *buffer, int length,
                                      int flags) {
   if (g_mock_recv_fail)
     return SOCKET_ERROR;
+  if (g_mock_recv_bin && !g_mock_server_reading) {
+    size_t n;
+    if (g_mock_recv_bin_len == 0) {
+      if (g_mock_recv_bin_eof) {
+        return 0;
+      }
+      g_mock_recv_bin = NULL;
+    } else {
+      n = g_mock_recv_bin_len;
+      if (n > (size_t)length) {
+        n = (size_t)length;
+      }
+      memcpy(buffer, g_mock_recv_bin, n);
+      g_mock_recv_bin += n;
+      g_mock_recv_bin_len -= n;
+      return (int)n;
+    }
+  }
   if (g_mock_recv_data && !g_mock_server_reading) {
     int len;
     if (*g_mock_recv_data == '\0')
@@ -713,6 +755,24 @@ ssize_t c_abstract_http_mock_recv(int socket_fd, void *buffer, size_t length,
                                   int flags) {
   if (g_mock_recv_fail)
     return -1;
+  if (g_mock_recv_bin && !g_mock_server_reading) {
+    size_t n;
+    if (g_mock_recv_bin_len == 0) {
+      if (g_mock_recv_bin_eof) {
+        return 0;
+      }
+      g_mock_recv_bin = NULL;
+    } else {
+      n = g_mock_recv_bin_len;
+      if (n > length) {
+        n = length;
+      }
+      memcpy(buffer, g_mock_recv_bin, n);
+      g_mock_recv_bin += n;
+      g_mock_recv_bin_len -= n;
+      return (ssize_t)n;
+    }
+  }
   if (g_mock_recv_data && !g_mock_server_reading) {
     size_t len;
     if (*g_mock_recv_data == '\0')

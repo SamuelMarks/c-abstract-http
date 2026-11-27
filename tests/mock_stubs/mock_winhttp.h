@@ -7,15 +7,19 @@
 #ifndef C_ABSTRACT_HTTP_TEST_MOCK_WINHTTP_H
 #define C_ABSTRACT_HTTP_TEST_MOCK_WINHTTP_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
 /* clang-format off */
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include "../../src/wincrypt_compat.h"
+#if !defined(_WIN32)
+#include "mock_wincrypt.h"
+#endif
 /* clang-format on */
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 extern int g_mock_winhttp_open_fail;
 extern int g_mock_winhttp_connect_fail;
@@ -44,14 +48,17 @@ extern int g_mock_winhttp_cookie_set_fail;
 
 #if !defined(_WIN32) || (defined(_MSC_VER) && _MSC_VER < 1600)
 typedef void *HINTERNET;
+#ifndef CAH_WIN32_BASIC_TYPES_DEFINED
+#define CAH_WIN32_BASIC_TYPES_DEFINED 1
 typedef unsigned long DWORD;
+typedef int BOOL;
+#endif
 typedef size_t DWORD_PTR;
 typedef void *LPVOID;
 typedef const void *LPCVOID;
 typedef DWORD *LPDWORD;
 typedef void *PVOID;
 typedef unsigned long ULONG;
-typedef int BOOL;
 typedef wchar_t WCHAR;
 typedef unsigned short INTERNET_PORT;
 
@@ -82,7 +89,9 @@ typedef void(CALLBACK *WINHTTP_STATUS_CALLBACK)(
 #define WINHTTP_FLAG_ASYNC 0x10000000
 #define WINHTTP_OPTION_USER_AGENT 11
 #define WINHTTP_OPTION_SECURITY_FLAGS 31
+#define WINHTTP_OPTION_CLIENT_CERT_CONTEXT 47
 #define WINHTTP_OPTION_DISABLE_FEATURE 63
+#define WINHTTP_OPTION_SERVER_CERT_CONTEXT 78
 #define WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL 133
 #define WINHTTP_PROTOCOL_FLAG_HTTP2 0x1
 #define WINHTTP_PROTOCOL_FLAG_HTTP3 0x2
@@ -224,14 +233,45 @@ static BOOL WinHttpSetTimeouts(HINTERNET hInternet, int nResolveTimeout,
 
 static BOOL WinHttpSetOption(HINTERNET hInternet, DWORD dwOption,
                              LPVOID lpBuffer, DWORD dwBufferLength) {
-  (void)hInternet;
-  (void)dwOption;
-  (void)lpBuffer;
-  (void)dwBufferLength;
+  if (hInternet || dwOption || lpBuffer || dwBufferLength) {
+  }
   if (g_mock_winhttp_set_option_fail) {
     return 0;
   }
   return 1;
+}
+
+static BOOL WinHttpQueryOption(HINTERNET hInternet, DWORD dwOption,
+                               LPVOID lpBuffer, LPDWORD lpdwBufferLength) {
+  if (hInternet) {
+  }
+  if (dwOption == WINHTTP_OPTION_SERVER_CERT_CONTEXT && lpBuffer &&
+      lpdwBufferLength && *lpdwBufferLength >= sizeof(CAH_CERT_CONTEXT *)) {
+#if !defined(_WIN32)
+    static const unsigned char k_bad_der[] = {0x30, 0x00};
+    CAH_CERT_CONTEXT *c;
+    if (s_mock_wincrypt_query_cert_mode == 1) {
+      return 0;
+    }
+    if (s_mock_wincrypt_query_cert_mode == 2) {
+      c = CertCreateCertificateContext(CAH_X509_PKCS7_ENCODING, k_bad_der,
+                                       (DWORD)sizeof(k_bad_der));
+    } else {
+      c = CertCreateCertificateContext(
+          CAH_X509_PKCS7_ENCODING, k_cah_mock_server_cert_der,
+          (DWORD)sizeof(k_cah_mock_server_cert_der));
+    }
+    if (!c) {
+      return 0;
+    }
+    *(CAH_CERT_CONTEXT **)lpBuffer = c;
+    *lpdwBufferLength = (DWORD)sizeof(CAH_CERT_CONTEXT *);
+    return 1;
+#else
+    return 0;
+#endif
+  }
+  return 0;
 }
 
 static BOOL WinHttpCrackUrl(const wchar_t *pwszUrl, DWORD dwUrlLength,

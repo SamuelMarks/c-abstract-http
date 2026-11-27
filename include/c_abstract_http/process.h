@@ -38,16 +38,22 @@ struct AbstractHttpIpcPipe {
  * framework.
  */
 struct AbstractHttpProcessHooks {
-  c_abstract_http_error_t (*spawn)(
-      struct AbstractHttpProcess **proc, struct AbstractHttpIpcPipe *p2c,
-      struct AbstractHttpIpcPipe *c2p); /**< Hook for spawning a process */
-  c_abstract_http_error_t (*wait_and_free)(
-      struct AbstractHttpProcess *proc,
-      int *exit_code); /**< Hook for waiting and freeing a process */
-  c_abstract_http_error_t (*ipc_write)(void *handle, const void *data,
-                                       size_t len); /**< Hook for IPC write */
-  c_abstract_http_error_t (*ipc_read)(void *handle, void *data,
-                                      size_t len); /**< Hook for IPC read */
+  /** @brief Hook for spawning a process */
+  NO_DISCARD_FN_PTR
+  c_abstract_http_error_t (*spawn)(struct AbstractHttpProcess **proc,
+                                   struct AbstractHttpIpcPipe *p2c,
+                                   struct AbstractHttpIpcPipe *c2p);
+  /** @brief Hook for waiting and freeing a process */
+  NO_DISCARD_FN_PTR
+  c_abstract_http_error_t (*wait_and_free)(struct AbstractHttpProcess *proc,
+                                           int *exit_code);
+  /** @brief Hook for IPC write */
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*ipc_write)(void *handle,
+                                                         const void *data,
+                                                         size_t len);
+  /** @brief Hook for IPC read */
+  NO_DISCARD_FN_PTR c_abstract_http_error_t (*ipc_read)(void *handle,
+                                                        void *data, size_t len);
 };
 
 /**

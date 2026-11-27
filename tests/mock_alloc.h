@@ -67,6 +67,7 @@ ABSTRACT_HTTP_DECL_MOCK_INT_VAR(select_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(select_error_fds)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(time_jump)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(time_jump_count)
+ABSTRACT_HTTP_DECL_MOCK_INT_VAR(time_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(fwrite_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(fclose_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(socket_fail)
@@ -130,6 +131,8 @@ ABSTRACT_HTTP_DECL_MOCK_INT_VAR(fetch_upload_alloc_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(fetch_upload_realloc_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(fetch_body_realloc_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(fetch_loop_wakeup_fail)
+ABSTRACT_HTTP_DECL_MOCK_INT_VAR(fetch_stream_pipe)
+ABSTRACT_HTTP_DECL_MOCK_INT_VAR(fetch_env_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(nghttp3_global_init_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(nghttp3_context_init_fail)
 ABSTRACT_HTTP_DECL_MOCK_INT_VAR(nghttp3_config_init_fail)
@@ -283,6 +286,9 @@ ABSTRACT_HTTP_DECL_MOCK_INT_VAR(http_types_strdup_fail)
 extern const char *g_mock_recv_data;
 NO_DISCARD c_abstract_http_error_t
 abstract_http_mock_get_g_mock_recv_data(const char ***out_ptr);
+extern const unsigned char *g_mock_recv_bin;
+extern size_t g_mock_recv_bin_len;
+extern int g_mock_recv_bin_eof;
 
 #if defined(_MSC_VER) && (_MSC_VER < 1900)
 #define ABSTRACT_HTTP_MOCK_ALLOC_RESTRICT __declspec(restrict)
@@ -365,7 +371,8 @@ extern int c_abstract_http_mock_select(int nfds, fd_set *readfds,
 extern int c_abstract_http_mock_execv(const char *path, char *const argv[]);
 #endif
 
-abstract_http_int64_t c_abstract_http_mock_math_get_current_time_ms(void);
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_mock_get_time_ms(abstract_http_int64_t *out_ms);
 
 NO_DISCARD c_abstract_http_error_t dummy_cb_thread(void *arg);
 void *dummy_cb_pthread(void *arg);

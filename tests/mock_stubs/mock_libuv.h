@@ -260,13 +260,14 @@ static int uv_tcp_connect(uv_connect_t *req, uv_tcp_t *handle,
 static int uv_write(uv_write_t *req, uv_stream_t *handle, const uv_buf_t bufs[],
                     unsigned int nbufs, uv_write_cb cb) {
   uv_tcp_t *tcp = (uv_tcp_t *)handle;
+  size_t clen;
   if (g_mock_libuv_write_fail == 2) {
     return -1;
   }
   if (nbufs > 0 && bufs && bufs[0].base && bufs[0].len > 0) {
-    size_t clen = bufs[0].len < sizeof(tcp->tx_preview) - 1
-                      ? bufs[0].len
-                      : sizeof(tcp->tx_preview) - 1;
+    clen = bufs[0].len < sizeof(tcp->tx_preview) - 1
+               ? bufs[0].len
+               : sizeof(tcp->tx_preview) - 1;
     memcpy(tcp->tx_preview, bufs[0].base, clen);
     tcp->tx_preview[clen] = '\0';
   }
@@ -288,8 +289,47 @@ static int uv_read_start(uv_stream_t *stream, uv_alloc_cb alloc_cb,
   return 0;
 }
 
+static int uv_read_stop(uv_stream_t *stream) {
+  if (stream) {
+    stream->read_cb = NULL;
+  }
+  return 0;
+}
+
+static const unsigned char *s_mock_uv_socks_reply = NULL;
+static size_t s_mock_uv_socks_reply_len = 0;
+static int s_mock_uv_socks_eof = 0;
+
+static void mock_uv_feed_bytes(uv_tcp_t *tcp, const unsigned char *src,
+                               size_t len) {
+  uv_buf_t buf;
+  memset(&buf, 0, sizeof(buf));
+  if (!tcp->read_cb || tcp->is_closing) {
+    return;
+  }
+  if (g_mock_libuv_read_fail) {
+    tcp->read_cb((uv_stream_t *)tcp, -1, &buf);
+    return;
+  }
+  tcp->alloc_cb((uv_handle_t *)tcp, len, &buf);
+  if (buf.base) {
+    memcpy(buf.base, src, len);
+    tcp->read_cb((uv_stream_t *)tcp, (ssize_t)len, &buf);
+  } else {
+    tcp->read_cb((uv_stream_t *)tcp, UV_ENOBUFS, &buf);
+  }
+}
+
 static void mock_uv_drive_tcp(uv_loop_t *loop, uv_tcp_t *tcp,
                               uv_getaddrinfo_t *resolver) {
+  static const unsigned char def_s5_noauth[] = {
+      0x05, 0x00, 0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 80};
+  static const unsigned char def_s5_auth[] = {
+      0x05, 0x02, 0x01, 0x00, 0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 80};
+  const unsigned char *s5_buf = s_mock_uv_socks_reply;
+  size_t s5_len = s_mock_uv_socks_reply_len;
+  size_t s5_off = 0;
+
   if (!tcp) {
     return;
   }
@@ -305,11 +345,66 @@ static void mock_uv_drive_tcp(uv_loop_t *loop, uv_tcp_t *tcp,
     ccb(creq, 0);
   }
 
+  /* Drive optional multi-step SOCKS5 greeting / RFC 1929 auth / CONNECT */
+  while (tcp->write_req && tcp->write_req->write_cb && !tcp->is_closing &&
+         !loop->stop &&
+         ((unsigned char)tcp->tx_preview[0] == 0x05U ||
+          (unsigned char)tcp->tx_preview[0] == 0x01U)) {
+    unsigned char first_b = (unsigned char)tcp->tx_preview[0];
+    unsigned char second_b = (unsigned char)tcp->tx_preview[1];
+    uv_write_t *wreq = tcp->write_req;
+    uv_write_cb wcb = wreq->write_cb;
+    size_t step_n = 0;
+
+    if (!s5_buf) {
+      if (first_b == 0x05U && second_b == 0x02U) {
+        s5_buf = def_s5_auth;
+        s5_len = sizeof(def_s5_auth);
+      } else {
+        s5_buf = def_s5_noauth;
+        s5_len = sizeof(def_s5_noauth);
+      }
+    }
+
+    tcp->write_req = NULL;
+    if (g_mock_libuv_write_fail) {
+      wcb(wreq, -1);
+      return;
+    }
+    wcb(wreq, 0);
+    if (tcp->is_closing || loop->stop || !tcp->read_cb) {
+      return;
+    }
+
+    if (s5_off < s5_len) {
+      if (first_b == 0x05U && (second_b == 0x01U && s5_off > 0)) {
+        step_n = s5_len - s5_off;
+      } else {
+        step_n = (s5_len - s5_off) < 2U ? (s5_len - s5_off) : 2U;
+      }
+      mock_uv_feed_bytes(tcp, s5_buf + s5_off, step_n);
+      s5_off += step_n;
+    }
+    if (!tcp->write_req && s_mock_uv_socks_eof && tcp->read_cb &&
+        !tcp->is_closing && !loop->stop) {
+      uv_buf_t ebuf;
+      memset(&ebuf, 0, sizeof(ebuf));
+      tcp->read_cb((uv_stream_t *)tcp, UV_EOF, &ebuf);
+      return;
+    }
+    if (!tcp->write_req) {
+      break;
+    }
+  }
+
   if (tcp->write_req && tcp->write_req->write_cb) {
     uv_write_t *wreq = tcp->write_req;
     uv_write_cb wcb = wreq->write_cb;
     tcp->write_req = NULL;
     if (g_mock_libuv_write_fail) {
+      if (g_mock_libuv_write_fail == 10) {
+        g_mock_libuv_write_fail = 0;
+      }
       wcb(wreq, -1);
       return;
     }
@@ -323,7 +418,29 @@ static void mock_uv_drive_tcp(uv_loop_t *loop, uv_tcp_t *tcp,
     size_t hlen;
     size_t blen;
 
-    if (strstr(tcp->tx_preview, "/chunked-bad1") != NULL) {
+    if (strstr(tcp->tx_preview, "/ka-stale") != NULL) {
+      memset(&buf, 0, sizeof(buf));
+      tcp->read_cb((uv_stream_t *)tcp, UV_EOF, &buf);
+      return;
+    } else if (strstr(tcp->tx_preview, "/ka-ok") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n";
+      body_str = "KA";
+    } else if (strstr(tcp->tx_preview, "/ka-split") != NULL) {
+      /* Content-Length: 6 delivered as 2 bytes inside header buffer? No:
+       * hdr_str + body_str delivers hdr first then body_str in 2nd read! */
+      hdr_str = "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n";
+      body_str = "ABCD";
+    } else if (strstr(tcp->tx_preview, "/ka-close") != NULL) {
+      hdr_str =
+          "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 2\r\n\r\n";
+      body_str = "CL";
+    } else if (strstr(tcp->tx_preview, "/ka-204") != NULL) {
+      hdr_str = "HTTP/1.1 204 No Content\r\n\r\n";
+      body_str = "";
+    } else if (strstr(tcp->tx_preview, "/ka-partial") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\n";
+      body_str = "Content-Length: 2\r\n\r\nPK";
+    } else if (strstr(tcp->tx_preview, "/chunked-bad1") != NULL) {
       hdr_str = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n";
       body_str = "ZZ\r\n";
     } else if (strstr(tcp->tx_preview, "/chunked-bad2") != NULL) {
@@ -374,6 +491,9 @@ static void mock_uv_drive_tcp(uv_loop_t *loop, uv_tcp_t *tcp,
     } else if (strstr(tcp->tx_preview, "/redir-loop") != NULL) {
       hdr_str = "HTTP/1.1 302 Found\r\nLocation: /redir-loop\r\n\r\n";
       body_str = "";
+    } else if (strstr(tcp->tx_preview, "/set-cookie") != NULL) {
+      hdr_str = "HTTP/1.1 200 OK\r\nSet-Cookie: uv_sid=uv77; Path=/\r\n\r\n";
+      body_str = "OK";
     }
     hlen = strlen(hdr_str);
     blen = strlen(body_str);

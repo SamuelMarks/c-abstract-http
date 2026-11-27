@@ -73,11 +73,31 @@ typedef SSIZE_T ssize_t;
 #endif
 /* clang-format on */
 
+/** @brief Pooled HTTP/1.1 keep-alive connection in `HttpTransportContext` */
+struct UvIdleConn {
+  int is_https;                    /**< 1 for https://, 0 for http:// */
+  char *host;                      /**< Origin hostname */
+  int port;                        /**< Origin TCP port */
+  char *proxy_url;                 /**< Optional proxy URL or NULL */
+  uv_loop_t loop;                  /**< Owning libuv event loop */
+  uv_tcp_t socket;                 /**< Connected libuv TCP socket */
+  abstract_http_int64_t stored_ms; /**< Timestamp (ms) when parked */
+};
+
 /** @brief Internal struct HttpTransportContext */
 struct HttpTransportContext {
   /** @brief Configuration settings */
   struct HttpConfig config;
+  /** @brief Dynamic array of pooled keep-alive connection pointers */
+  struct UvIdleConn **idle_pool;
+  /** @brief Number of active pooled connections */
+  size_t idle_count;
+  /** @brief Allocated capacity of `idle_pool` */
+  size_t idle_cap;
 };
+
+NO_DISCARD static c_abstract_http_error_t
+uv_pool_clear(struct HttpTransportContext *ctx);
 
 /** @brief Reference count of global libuv initializations */
 static int libuv_global_init_count = 0;
@@ -159,10 +179,16 @@ http_libuv_context_free(struct HttpTransportContext *ctx) {
   c_abstract_http_error_t rc = C_ABSTRACT_HTTP_SUCCESS;
   LOG_DEBUG("http_libuv_context_free: Entering");
   if (ctx) {
+    c_abstract_http_error_t prc;
     rc = http_config_free(&ctx->config);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       free(ctx);
       return rc;
+    }
+    prc = uv_pool_clear(ctx);
+    if (prc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(ctx);
+      return prc;
     }
     free(ctx);
   }
@@ -183,6 +209,12 @@ NO_DISCARD c_abstract_http_error_t http_libuv_config_apply(
       (config->tls_version_mask & (unsigned int)HTTP_TLS_VERSION_ANY) == 0) {
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
+  if (config->proxy_url && strstr(config->proxy_url, "://") != NULL &&
+      strncmp(config->proxy_url, "http://", 7) != 0 &&
+      strncmp(config->proxy_url, "socks5://", 9) != 0 &&
+      strncmp(config->proxy_url, "socks5h://", 10) != 0) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
   if ((config->client_cert_path && !config->client_key_path) ||
       (!config->client_cert_path && config->client_key_path) ||
       (config->ca_buffer_len > 0 && !config->ca_buffer)) {
@@ -196,6 +228,7 @@ NO_DISCARD c_abstract_http_error_t http_libuv_config_apply(
   ctx->config.verify_peer = config->verify_peer;
   ctx->config.verify_host = config->verify_host;
   ctx->config.follow_redirects = config->follow_redirects;
+  ctx->config.cookie_jar = config->cookie_jar;
   ctx->config.version_mask = config->version_mask;
   ctx->config.tls_version_mask = config->tls_version_mask;
 
@@ -304,6 +337,16 @@ NO_DISCARD c_abstract_http_error_t http_libuv_config_apply(
     }
   }
 
+  ctx->config.keep_alive_enabled = config->keep_alive_enabled;
+  ctx->config.keep_alive_idle_ms = config->keep_alive_idle_ms;
+  ctx->config.max_idle_conns = config->max_idle_conns;
+  if (!config->keep_alive_enabled) {
+    rc = uv_pool_clear(ctx);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+
   LOG_DEBUG("http_libuv_config_apply: Success");
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -358,11 +401,20 @@ NO_DISCARD static c_abstract_http_error_t get_method_str(enum HttpMethod method,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for pooled libuv connection teardown */
+static int s_mock_uv_pool_close_fail = 0;
+
 /** @brief Expose get_method_str for testing */
 NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libuv_method_str(
     enum HttpMethod method, const char **out_str);
 /** @brief Expose libuv helpers for testing */
 NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libuv_helpers(void);
+/** @brief Configure scripted SOCKS5 mock reply bytes for libuv tests */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_set_libuv_socks_reply(
+    const unsigned char *data, size_t len, int send_eof);
+/** @brief Configure pooled connection teardown fault injection for libuv */
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_set_libuv_pool_close_fail(int fail);
 
 /**
  * @brief Expose get_method_str for testing.
@@ -374,6 +426,37 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libuv_helpers(void);
 NO_DISCARD c_abstract_http_error_t c_abstract_http_test_libuv_method_str(
     enum HttpMethod method, const char **out_str) {
   return get_method_str(method, out_str);
+}
+
+/**
+ * @brief Configure scripted SOCKS5 reply bytes for libuv mock tests.
+ * @param data Canned SOCKS5 wire reply bytes (or NULL for default).
+ * @param len Byte length of @p data.
+ * @param send_eof Non-zero to emit UV_EOF if handshake stalls.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_set_libuv_socks_reply(
+    const unsigned char *data, size_t len, int send_eof) {
+#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV)
+  s_mock_uv_socks_reply = data;
+  s_mock_uv_socks_reply_len = len;
+  s_mock_uv_socks_eof = send_eof;
+#else
+  if (data || len || send_eof) {
+  }
+#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Configure pooled connection teardown fault injection for libuv tests.
+ * @param fail Non-zero to fail pooled connection close.
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD c_abstract_http_error_t
+c_abstract_http_test_set_libuv_pool_close_fail(int fail) {
+  s_mock_uv_pool_close_fail = fail;
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 #endif
 
@@ -387,6 +470,8 @@ struct libuv_state {
   int stop_loop_on_done;
   /** @brief TCP socket */
   uv_tcp_t socket;
+  /** @brief Pointer to active TCP socket (&socket or pooled handle) */
+  uv_tcp_t *active_socket;
   /** @brief Connect request */
   uv_connect_t connect_req;
   /** @brief Resolver request */
@@ -433,6 +518,28 @@ struct libuv_state {
   int has_socket;
   /** @brief Flag indicating timer is initialized */
   int has_timer;
+  /** @brief Active SOCKS5 handshake phase (0=none, 1=greet, 2=auth, 3=conn) */
+  int socks_phase;
+  /** @brief Non-zero for socks5h:// remote domain resolution */
+  int socks_remote_dns;
+  /** @brief Target origin hostname for SOCKS5 CONNECT */
+  char *socks_host;
+  /** @brief Target origin TCP port for SOCKS5 CONNECT */
+  int socks_port;
+  /** @brief Outbound SOCKS5 packet buffer */
+  unsigned char socks_tx[300];
+  /** @brief Non-zero when request is eligible for HTTP/1.1 keep-alive pool */
+  int keep_alive_candidate;
+  /** @brief Non-zero when socket should remain open for pool checkin */
+  int keep_socket_open;
+  /** @brief Non-zero when response contained Content-Length */
+  int has_content_length;
+  /** @brief Parsed Content-Length value */
+  size_t content_length;
+  /** @brief Total body bytes delivered via `req->on_chunk` */
+  size_t streamed_body_len;
+  /** @brief Non-zero when response included `Connection: close` */
+  int peer_conn_close;
 };
 
 /**
@@ -466,6 +573,8 @@ static void libuv_on_close(uv_handle_t *handle) {
  */
 NO_DISCARD static c_abstract_http_error_t
 libuv_finish(struct libuv_state *state, c_abstract_http_error_t error) {
+  uv_tcp_t *sock_ptr =
+      state->active_socket ? state->active_socket : &state->socket;
   if (state->done) {
     return error;
   }
@@ -477,14 +586,19 @@ libuv_finish(struct libuv_state *state, c_abstract_http_error_t error) {
 
   LOG_DEBUG("libuv_finish: Finished with error=%d", (int)error);
 
+  free(state->socks_host);
+  state->socks_host = NULL;
+
   if (state->has_timer) {
     uv_timer_stop(&state->timer);
     uv_close((uv_handle_t *)&state->timer, libuv_on_close);
     state->has_timer = 0;
   }
 
-  if (state->has_socket) {
-    uv_close((uv_handle_t *)&state->socket, libuv_on_close);
+  if (state->keep_socket_open) {
+    uv_read_stop((uv_stream_t *)sock_ptr);
+  } else if (state->has_socket) {
+    uv_close((uv_handle_t *)sock_ptr, libuv_on_close);
     state->has_socket = 0;
   }
   return error;
@@ -549,6 +663,29 @@ static void libuv_alloc_cb(uv_handle_t *handle, size_t suggested_size,
 
   buf->base = state->res_buf + state->res_len;
   buf->len = (ULONG)avail;
+}
+
+/**
+ * @brief ASCII case-insensitive string equality comparison.
+ * @param a First C string.
+ * @param b Second C string.
+ * @return 0 if equal ignoring ASCII case, non-zero otherwise.
+ */
+static int math_uv_strcasecmp(const char *a, const char *b) {
+  for (; *a && *b; ++a, ++b) {
+    unsigned char ca = (unsigned char)*a;
+    unsigned char cb = (unsigned char)*b;
+    if (ca >= 'A' && ca <= 'Z') {
+      ca = (unsigned char)(ca + ('a' - 'A'));
+    }
+    if (cb >= 'A' && cb <= 'Z') {
+      cb = (unsigned char)(cb + ('a' - 'A'));
+    }
+    if (ca != cb) {
+      return (int)ca - (int)cb;
+    }
+  }
+  return (int)(unsigned char)*a - (int)(unsigned char)*b;
 }
 
 /**
@@ -639,6 +776,12 @@ parse_headers(struct libuv_state *state) {
            strcmp(p, "transfer-encoding") == 0) &&
           (strstr(val, "chunked") != NULL || strstr(val, "CHUNKED") != NULL)) {
         state->is_chunked = 1;
+      } else if (math_uv_strcasecmp(p, "Content-Length") == 0) {
+        state->has_content_length = 1;
+        state->content_length = (size_t)atol(val);
+      } else if (math_uv_strcasecmp(p, "Connection") == 0 &&
+                 math_uv_strcasecmp(val, "close") == 0) {
+        state->peer_conn_close = 1;
       }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
       if (g_mock_libuv_headers_realloc_fail) {
@@ -651,6 +794,14 @@ parse_headers(struct libuv_state *state) {
           LOG_DEBUG("parse_headers: Error http_headers_add failed with %d",
                     (int)add_rc);
           return libuv_finish(state, add_rc);
+        }
+        if (state->ctx && state->ctx->config.cookie_jar &&
+            (strcmp(p, "Set-Cookie") == 0 || strcmp(p, "set-cookie") == 0)) {
+          add_rc = http_cookie_jar_parse_set_cookie(
+              state->ctx->config.cookie_jar, val);
+          if (add_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return libuv_finish(state, add_rc);
+          }
         }
       }
     }
@@ -677,6 +828,7 @@ parse_headers(struct libuv_state *state) {
               libuv_finish(state, C_ABSTRACT_HTTP_ERR_CANCELED));
           return chunk_rc;
         }
+        state->streamed_body_len += body_len;
       }
       state->res_len = hdr_len;
     } else {
@@ -1212,6 +1364,274 @@ uv_decode_chunked_body(const char *src, size_t src_len,
 }
 
 /**
+ * @brief Parse dotted-quad IPv4 literal into 4 network-order octets.
+ * @param host Input hostname string.
+ * @param out_ip Output 4-byte array.
+ * @return 1 if @p host is a valid IPv4 literal, 0 otherwise.
+ */
+static int math_uv_parse_ipv4(const char *host, unsigned char out_ip[4]) {
+  const char *p = host;
+  int idx;
+  for (idx = 0; idx < 4; ++idx) {
+    unsigned int val = 0U;
+    int digits = 0;
+    while (*p >= '0' && *p <= '9') {
+      val = val * 10U + (unsigned int)(*p - '0');
+      if (val > 255U) {
+        return 0;
+      }
+      ++p;
+      ++digits;
+    }
+    if (digits == 0) {
+      return 0;
+    }
+    if (idx < 3) {
+      if (*p != '.') {
+        return 0;
+      }
+      ++p;
+    } else if (*p != '\0') {
+      return 0;
+    }
+    out_ip[idx] = (unsigned char)val;
+  }
+  return 1;
+}
+
+/**
+ * @brief Shift @p buf left by @p n bytes and return updated byte length.
+ * @param buf Mutable byte buffer.
+ * @param len Current buffer length.
+ * @param n Leading bytes to discard.
+ * @return Remaining buffer length (`len - n`).
+ */
+static size_t math_uv_socks5_consume(char *buf, size_t len, size_t n) {
+  if (len > n) {
+    memmove(buf, buf + n, len - n);
+  }
+  len -= n;
+  buf[len] = '\0';
+  return len;
+}
+
+static void libuv_on_write(uv_write_t *req, int status);
+
+/**
+ * @brief Write `tx_len` bytes from `tx_ptr` onto active TCP socket.
+ * @param state Active libuv state.
+ * @param tx_ptr Outbound byte buffer.
+ * @param tx_len Byte length to transmit.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_write_bytes(struct libuv_state *state, char *tx_ptr, size_t tx_len) {
+  uv_tcp_t *sock_ptr =
+      state->active_socket ? state->active_socket : &state->socket;
+  uv_buf_t buf = uv_buf_init(tx_ptr, (unsigned int)tx_len);
+  state->write_req.data = state;
+  if (uv_write(&state->write_req, (uv_stream_t *)sock_ptr, &buf, 1,
+               libuv_on_write) < 0) {
+    return libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Format RFC 1928 SOCKS5 `CONNECT` request packet into
+ * `state->socks_tx`.
+ * @param state Active libuv state.
+ * @param out_len Output packet length in bytes.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_socks5_build_connect(struct libuv_state *state, size_t *out_len) {
+  unsigned char ip4[4];
+  size_t pos = 0;
+
+  state->socks_tx[pos++] = 0x05U;
+  state->socks_tx[pos++] = 0x01U;
+  state->socks_tx[pos++] = 0x00U;
+  if (!state->socks_remote_dns && math_uv_parse_ipv4(state->socks_host, ip4)) {
+    state->socks_tx[pos++] = 0x01U;
+    memcpy(state->socks_tx + pos, ip4, 4U);
+    pos += 4U;
+  } else {
+    size_t hlen = strlen(state->socks_host);
+    if (hlen == 0U || hlen > 255U) {
+      return C_ABSTRACT_HTTP_ERR_INVAL;
+    }
+    state->socks_tx[pos++] = 0x03U;
+    state->socks_tx[pos++] = (unsigned char)hlen;
+    memcpy(state->socks_tx + pos, state->socks_host, hlen);
+    pos += hlen;
+  }
+  state->socks_tx[pos++] = (unsigned char)((state->socks_port >> 8) & 0xFF);
+  state->socks_tx[pos++] = (unsigned char)(state->socks_port & 0xFF);
+  *out_len = pos;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Advance non-blocking SOCKS5 client state machine on incoming bytes.
+ * @param state Active libuv state.
+ * @return C_ABSTRACT_HTTP_SUCCESS or mapped SOCKS5 error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_socks5_step(struct libuv_state *state) {
+  const unsigned char *b = (const unsigned char *)state->res_buf;
+  c_abstract_http_error_t rc;
+
+  if (state->socks_phase == 1) {
+    size_t pkt_len = 0;
+    if (state->res_len < 2U) {
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (b[0] != 0x05U) {
+      return libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    if (b[1] == 0x02U && state->ctx && state->ctx->config.proxy_username) {
+      const char *u = state->ctx->config.proxy_username;
+      const char *p = state->ctx->config.proxy_password
+                          ? state->ctx->config.proxy_password
+                          : "";
+      size_t ulen = strlen(u);
+      size_t plen = strlen(p);
+      if (ulen == 0U || ulen > 255U || plen > 255U) {
+        return libuv_finish(state, C_ABSTRACT_HTTP_ERR_INVAL);
+      }
+      state->res_len =
+          math_uv_socks5_consume(state->res_buf, state->res_len, 2U);
+      state->socks_tx[0] = 0x01U;
+      state->socks_tx[1] = (unsigned char)ulen;
+      memcpy(state->socks_tx + 2U, u, ulen);
+      state->socks_tx[2U + ulen] = (unsigned char)plen;
+      if (plen > 0U) {
+        memcpy(state->socks_tx + 3U + ulen, p, plen);
+      }
+      state->socks_phase = 2;
+      return uv_write_bytes(state, (char *)state->socks_tx, 3U + ulen + plen);
+    }
+    if (b[1] != 0x00U) {
+      return libuv_finish(state, C_ABSTRACT_HTTP_ERR_ACCES);
+    }
+    state->res_len = math_uv_socks5_consume(state->res_buf, state->res_len, 2U);
+    rc = uv_socks5_build_connect(state, &pkt_len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return libuv_finish(state, rc);
+    }
+    state->socks_phase = 3;
+    return uv_write_bytes(state, (char *)state->socks_tx, pkt_len);
+  }
+
+  if (state->socks_phase == 2) {
+    size_t pkt_len = 0;
+    if (state->res_len < 2U) {
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    if (b[0] != 0x01U || b[1] != 0x00U) {
+      return libuv_finish(state, C_ABSTRACT_HTTP_ERR_ACCES);
+    }
+    state->res_len = math_uv_socks5_consume(state->res_buf, state->res_len, 2U);
+    rc = uv_socks5_build_connect(state, &pkt_len);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return libuv_finish(state, rc);
+    }
+    state->socks_phase = 3;
+    return uv_write_bytes(state, (char *)state->socks_tx, pkt_len);
+  }
+
+  if (state->res_len < 4U) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (b[0] != 0x05U) {
+    return libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO);
+  }
+  if (b[1] != 0x00U) {
+    c_abstract_http_error_t mrc = C_ABSTRACT_HTTP_ERR_IO;
+    if (b[1] == 0x02U) {
+      mrc = C_ABSTRACT_HTTP_ERR_ACCES;
+    } else if (b[1] == 0x03U || b[1] == 0x04U) {
+      mrc = C_ABSTRACT_HTTP_ERR_HOSTUNREACH;
+    } else if (b[1] == 0x05U) {
+      mrc = C_ABSTRACT_HTTP_ERR_CONNREFUSED;
+    }
+    return libuv_finish(state, mrc);
+  }
+  {
+    size_t need_len;
+    if (b[3] == 0x01U) {
+      need_len = 10U;
+    } else if (b[3] == 0x04U) {
+      need_len = 22U;
+    } else if (b[3] == 0x03U) {
+      if (state->res_len < 5U) {
+        return C_ABSTRACT_HTTP_SUCCESS;
+      }
+      need_len = 7U + (size_t)b[4];
+    } else {
+      return libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO);
+    }
+    if (state->res_len < need_len) {
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    state->res_len =
+        math_uv_socks5_consume(state->res_buf, state->res_len, need_len);
+    state->socks_phase = 0;
+    return uv_write_bytes(state, state->req_buf, state->req_len);
+  }
+}
+
+/**
+ * @brief Check whether a keep-alive HTTP/1.1 response has reached end-of-body.
+ * @param state Active libuv state.
+ * @return 1 if complete without waiting for EOF, 0 otherwise.
+ */
+static int math_uv_ka_body_complete(const struct libuv_state *state) {
+  const struct HttpResponse *r;
+  if (!state->headers_parsed || !state->res || !*state->res) {
+    return 0;
+  }
+  r = *state->res;
+  if (state->req->method == HTTP_HEAD || r->status_code == 204 ||
+      r->status_code == 304) {
+    return 1;
+  }
+  if (state->has_content_length) {
+    size_t got = state->req->on_chunk ? state->streamed_body_len : r->body_len;
+    return got >= state->content_length ? 1 : 0;
+  }
+  if (state->is_chunked && state->res_len >= state->hdr_len + 5U) {
+    const char *endp = state->res_buf + state->res_len - 5U;
+    if (memcmp(endp, "0\r\n\r\n", 5U) == 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/**
+ * @brief Finalize a keep-alive response once framing is complete.
+ * @param state Active libuv state.
+ * @return C_ABSTRACT_HTTP_SUCCESS or chunked decode error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_complete_keep_alive_read(struct libuv_state *state) {
+  if (state->is_chunked && *state->res && state->res_len >= state->hdr_len) {
+    c_abstract_http_error_t d_rc = uv_decode_chunked_body(
+        state->res_buf + state->hdr_len, state->res_len - state->hdr_len,
+        state->req, *state->res);
+    if (d_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return libuv_finish(state, d_rc);
+    }
+  }
+  if (!state->peer_conn_close) {
+    state->keep_socket_open = 1;
+  }
+  return libuv_finish(state, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
  * @brief Internal read handler returning c_abstract_http_error_t.
  * @param state Active libuv request state.
  * @param nread Bytes read or negative UV status code.
@@ -1225,6 +1645,8 @@ libuv_on_read_impl(struct libuv_state *state, ssize_t nread) {
     } else if (nread != UV_EOF) {
       LOG_DEBUG("libuv_on_read: Connection error, nread=%ld", (long)nread);
       return libuv_finish(state, C_ABSTRACT_HTTP_ERR_CONNREFUSED);
+    } else if (state->socks_phase != 0) {
+      return libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO);
     } else {
       if (!state->headers_parsed) {
         c_abstract_http_error_t p_rc = parse_headers(state);
@@ -1232,6 +1654,9 @@ libuv_on_read_impl(struct libuv_state *state, ssize_t nread) {
           LOG_DEBUG("libuv_on_read: parse_headers failed %d", (int)p_rc);
           LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_SUCCESS));
           return p_rc;
+        }
+        if (!state->headers_parsed && state->keep_alive_candidate) {
+          return libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO);
         }
       }
       if (state->is_chunked && *state->res &&
@@ -1252,6 +1677,11 @@ libuv_on_read_impl(struct libuv_state *state, ssize_t nread) {
   }
 
   state->res_len += (size_t)nread;
+  state->res_buf[state->res_len] = '\0';
+
+  if (state->socks_phase != 0) {
+    return uv_socks5_step(state);
+  }
 
   if (!state->headers_parsed) {
     c_abstract_http_error_t p_rc = parse_headers(state);
@@ -1260,6 +1690,9 @@ libuv_on_read_impl(struct libuv_state *state, ssize_t nread) {
       return p_rc;
     }
   } else if (state->is_chunked) {
+    if (state->keep_alive_candidate && math_uv_ka_body_complete(state)) {
+      return uv_complete_keep_alive_read(state);
+    }
     return C_ABSTRACT_HTTP_SUCCESS;
   } else if (state->req->on_chunk) {
     c_abstract_http_error_t chunk_rc;
@@ -1271,6 +1704,7 @@ libuv_on_read_impl(struct libuv_state *state, ssize_t nread) {
       LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_CANCELED));
       return chunk_rc;
     }
+    state->streamed_body_len += (size_t)nread;
     state->res_len -= (size_t)nread;
   } else {
     struct HttpResponse *r = *state->res;
@@ -1292,6 +1726,10 @@ libuv_on_read_impl(struct libuv_state *state, ssize_t nread) {
     r->body = new_body;
     r->body_len += (size_t)nread;
     ((char *)r->body)[r->body_len] = '\0';
+  }
+  if (state->keep_alive_candidate && !state->done &&
+      math_uv_ka_body_complete(state)) {
+    return uv_complete_keep_alive_read(state);
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -1318,14 +1756,16 @@ static void libuv_on_read(uv_stream_t *stream, ssize_t nread,
  */
 static void libuv_on_write(uv_write_t *req, int status) {
   struct libuv_state *state = (struct libuv_state *)req->data;
+  uv_tcp_t *sock_ptr =
+      state->active_socket ? state->active_socket : &state->socket;
   if (status < 0) {
     LOG_DEBUG("libuv_on_write: Error status=%d", status);
     LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO));
     return;
   }
 
-  if (uv_read_start((uv_stream_t *)&state->socket, libuv_alloc_cb,
-                    libuv_on_read) < 0) {
+  if (uv_read_start((uv_stream_t *)sock_ptr, libuv_alloc_cb, libuv_on_read) <
+      0) {
     LOG_DEBUG("libuv_on_write: Error uv_read_start failed");
     LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO));
   }
@@ -1339,6 +1779,8 @@ static void libuv_on_write(uv_write_t *req, int status) {
  */
 static void libuv_on_connect(uv_connect_t *req, int status) {
   struct libuv_state *state = (struct libuv_state *)req->data;
+  uv_tcp_t *sock_ptr =
+      state->active_socket ? state->active_socket : &state->socket;
   uv_buf_t buf;
 
   if (status < 0) {
@@ -1348,10 +1790,29 @@ static void libuv_on_connect(uv_connect_t *req, int status) {
     return;
   }
 
+  if (state->socks_phase == 1) {
+    size_t glen;
+    if (state->ctx && state->ctx->config.proxy_username) {
+      state->socks_tx[0] = 0x05U;
+      state->socks_tx[1] = 0x02U;
+      state->socks_tx[2] = 0x00U;
+      state->socks_tx[3] = 0x02U;
+      glen = 4U;
+    } else {
+      state->socks_tx[0] = 0x05U;
+      state->socks_tx[1] = 0x01U;
+      state->socks_tx[2] = 0x00U;
+      glen = 3U;
+    }
+    LIBUV_VOID_CB_DISPATCH(
+        uv_write_bytes(state, (char *)state->socks_tx, glen));
+    return;
+  }
+
   state->write_req.data = state;
   buf = uv_buf_init(state->req_buf, (unsigned int)state->req_len);
 
-  if (uv_write(&state->write_req, (uv_stream_t *)&state->socket, &buf, 1,
+  if (uv_write(&state->write_req, (uv_stream_t *)sock_ptr, &buf, 1,
                libuv_on_write) < 0) {
     LOG_DEBUG("libuv_on_connect: Error uv_write failed");
     LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO));
@@ -1368,6 +1829,8 @@ static void libuv_on_connect(uv_connect_t *req, int status) {
 static void libuv_on_resolved(uv_getaddrinfo_t *resolver, int status,
                               struct addrinfo *res) {
   struct libuv_state *state = (struct libuv_state *)resolver->data;
+  uv_tcp_t *sock_ptr =
+      state->active_socket ? state->active_socket : &state->socket;
 
   if (status < 0) {
     LOG_DEBUG("libuv_on_resolved: Error status=%d", status);
@@ -1379,7 +1842,7 @@ static void libuv_on_resolved(uv_getaddrinfo_t *resolver, int status,
 
   state->connect_req.data = state;
 
-  if (uv_tcp_connect(&state->connect_req, &state->socket, res->ai_addr,
+  if (uv_tcp_connect(&state->connect_req, sock_ptr, res->ai_addr,
                      libuv_on_connect) < 0) {
     LOG_DEBUG("libuv_on_resolved: Error uv_tcp_connect failed");
     LIBUV_VOID_CB_DISPATCH(
@@ -1502,11 +1965,326 @@ parse_url(const char *url, char **host, int *port, char **path) {
 #define LIBUV_MAX_REDIRECTS 10
 
 /**
+ * @brief Compare two optional C strings for exact equality (NULL == NULL).
+ * @param a First optional C string.
+ * @param b Second optional C string.
+ * @return 1 if equal, 0 otherwise.
+ */
+static int math_uv_opt_streq(const char *a, const char *b) {
+  if (!a && !b) {
+    return 1;
+  }
+  if (!a || !b) {
+    return 0;
+  }
+  return strcmp(a, b) == 0 ? 1 : 0;
+}
+
+/**
+ * @brief Parse `proxy_url` into dial host, port, and SOCKS5 mode.
+ * @param proxy_url Configured proxy URL (`http://`, `socks5://`, `socks5h://`,
+ * or bare `host[:port]`).
+ * @param out_host Newly allocated proxy hostname.
+ * @param out_port Output proxy TCP port.
+ * @param out_socks_mode 0 for HTTP proxy, 1 for socks5://, 2 for socks5h://.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_parse_proxy_url(const char *proxy_url, char **out_host, int *out_port,
+                   int *out_socks_mode) {
+  const char *p = proxy_url;
+  const char *colon;
+  const char *slash;
+  size_t hlen;
+  int def_port = 8080;
+  char *h;
+
+  *out_host = NULL;
+  *out_socks_mode = 0;
+  if (strncmp(p, "socks5://", 9) == 0) {
+    *out_socks_mode = 1;
+    def_port = 1080;
+    p += 9;
+  } else if (strncmp(p, "socks5h://", 10) == 0) {
+    *out_socks_mode = 2;
+    def_port = 1080;
+    p += 10;
+  } else if (strncmp(p, "http://", 7) == 0) {
+    p += 7;
+  }
+  slash = strchr(p, '/');
+  colon = strchr(p, ':');
+  if (colon && (!slash || colon < slash)) {
+    int prt = atoi(colon + 1);
+    if (prt <= 0 || prt > 65535) {
+      return C_ABSTRACT_HTTP_ERR_INVAL;
+    }
+    *out_port = prt;
+    hlen = (size_t)(colon - p);
+  } else {
+    *out_port = def_port;
+    hlen = slash ? (size_t)(slash - p) : strlen(p);
+  }
+  if (hlen == 0U) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  h = (char *)malloc(hlen + 1U);
+  if (!h) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  memcpy(h, p, hlen);
+  h[hlen] = '\0';
+  *out_host = h;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Close and free a single pooled `struct UvIdleConn`.
+ * @param c Pooled connection handle.
+ * @return C_ABSTRACT_HTTP_SUCCESS or fault-injected error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_pool_destroy_conn(struct UvIdleConn *c) {
+  if (!c->socket.is_closing) {
+    uv_close((uv_handle_t *)&c->socket, libuv_on_close);
+  }
+  c->loop.data = c;
+  uv_run(&c->loop, UV_RUN_DEFAULT);
+  uv_loop_close(&c->loop);
+  free(c->host);
+  free(c->proxy_url);
+  free(c);
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (s_mock_uv_pool_close_fail) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Destroy pooled `struct UvIdleConn` while preserving a primary error.
+ * @param c Pooled connection handle.
+ * @param primary_rc Primary operation status to preserve if non-zero.
+ * @return @p primary_rc if non-zero, otherwise `uv_pool_destroy_conn` status.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_pool_destroy_with_err(struct UvIdleConn *c,
+                         c_abstract_http_error_t primary_rc) {
+  c_abstract_http_error_t drc = uv_pool_destroy_conn(c);
+  if (drc != C_ABSTRACT_HTTP_SUCCESS) {
+    return primary_rc != C_ABSTRACT_HTTP_SUCCESS ? primary_rc : drc;
+  }
+  return primary_rc;
+}
+
+/**
+ * @brief Close and release all pooled keep-alive connections preserving
+ * @p primary_rc.
+ * @param ctx Transport context.
+ * @param primary_rc Primary status to preserve if non-zero.
+ * @return First observed error or C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_pool_clear_with_err(struct HttpTransportContext *ctx,
+                       c_abstract_http_error_t primary_rc) {
+  while (ctx->idle_count > 0U) {
+    c_abstract_http_error_t rc;
+    ctx->idle_count--;
+    rc = uv_pool_destroy_conn(ctx->idle_pool[ctx->idle_count]);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return uv_pool_clear_with_err(
+          ctx, primary_rc != C_ABSTRACT_HTTP_SUCCESS ? primary_rc : rc);
+    }
+  }
+  free(ctx->idle_pool);
+  ctx->idle_pool = NULL;
+  ctx->idle_cap = 0;
+  return primary_rc;
+}
+
+/**
+ * @brief Close and release all pooled keep-alive connections on @p ctx.
+ * @param ctx Transport context.
+ * @return C_ABSTRACT_HTTP_SUCCESS or first teardown error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_pool_clear(struct HttpTransportContext *ctx) {
+  return uv_pool_clear_with_err(ctx, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Evict idle pooled libuv connections from index @p start_idx preserving
+ * @p primary_rc.
+ * @param ctx Transport context.
+ * @param now_ms Current timestamp in milliseconds.
+ * @param start_idx Starting index in `ctx->idle_pool`.
+ * @param primary_rc Primary status to preserve if non-zero.
+ * @return First observed error or C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_pool_evict_from(struct HttpTransportContext *ctx,
+                   abstract_http_int64_t now_ms, size_t start_idx,
+                   c_abstract_http_error_t primary_rc) {
+  long idle_ms = ctx->config.keep_alive_idle_ms > 0
+                     ? ctx->config.keep_alive_idle_ms
+                     : 30000L;
+  size_t i = start_idx;
+
+  while (i < ctx->idle_count) {
+    if ((now_ms - ctx->idle_pool[i]->stored_ms) >=
+        (abstract_http_int64_t)idle_ms) {
+      struct UvIdleConn *evicted = ctx->idle_pool[i];
+      c_abstract_http_error_t rc;
+      if (i + 1U < ctx->idle_count) {
+        memmove(&ctx->idle_pool[i], &ctx->idle_pool[i + 1U],
+                (ctx->idle_count - i - 1U) * sizeof(struct UvIdleConn *));
+      }
+      ctx->idle_count--;
+      rc = uv_pool_destroy_conn(evicted);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return uv_pool_evict_from(
+            ctx, now_ms, i,
+            primary_rc != C_ABSTRACT_HTTP_SUCCESS ? primary_rc : rc);
+      }
+    } else {
+      ++i;
+    }
+  }
+  return primary_rc;
+}
+
+/**
+ * @brief Evict idle pooled libuv connections exceeding `keep_alive_idle_ms`.
+ * @param ctx Transport context.
+ * @param out_now_ms Optional pointer receiving queried timestamp in ms.
+ * @return C_ABSTRACT_HTTP_SUCCESS or first clock / teardown error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_pool_evict_expired(struct HttpTransportContext *ctx,
+                      abstract_http_int64_t *out_now_ms) {
+  abstract_http_int64_t now_ms = 0;
+  c_abstract_http_error_t rc = c_abstract_http_get_time_ms(&now_ms);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  if (out_now_ms) {
+    *out_now_ms = now_ms;
+  }
+  return uv_pool_evict_from(ctx, now_ms, 0U, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Check out a matching idle keep-alive connection from `ctx->idle_pool`.
+ * @param ctx Transport context.
+ * @param is_https 1 for https://, 0 for http://.
+ * @param host Target origin hostname.
+ * @param port Target origin TCP port.
+ * @param out_conn Output pooled connection pointer (NULL on miss).
+ * @return C_ABSTRACT_HTTP_SUCCESS or eviction teardown error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_pool_checkout(struct HttpTransportContext *ctx, int is_https,
+                 const char *host, int port, struct UvIdleConn **out_conn) {
+  size_t idx;
+  c_abstract_http_error_t rc;
+
+  *out_conn = NULL;
+  rc = uv_pool_evict_expired(ctx, NULL);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  for (idx = ctx->idle_count; idx > 0U; --idx) {
+    size_t i = idx - 1U;
+    struct UvIdleConn *e = ctx->idle_pool[i];
+    if (e->is_https == is_https && e->port == port &&
+        math_uv_strcasecmp(e->host, host) == 0 &&
+        math_uv_opt_streq(e->proxy_url, ctx->config.proxy_url)) {
+      free(e->host);
+      e->host = NULL;
+      free(e->proxy_url);
+      e->proxy_url = NULL;
+      if (i + 1U < ctx->idle_count) {
+        memmove(&ctx->idle_pool[i], &ctx->idle_pool[i + 1U],
+                (ctx->idle_count - i - 1U) * sizeof(struct UvIdleConn *));
+      }
+      ctx->idle_count--;
+      *out_conn = e;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Return a live `struct UvIdleConn` to `ctx->idle_pool`, enforcing LRU
+ * capacity.
+ * @param ctx Transport context.
+ * @param is_https 1 for https://, 0 for http://.
+ * @param host Origin hostname.
+ * @param port Origin TCP port.
+ * @param conn Live pooled connection handle (ownership transferred).
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum (destroying @p conn on error).
+ */
+NO_DISCARD static c_abstract_http_error_t
+uv_pool_checkin(struct HttpTransportContext *ctx, int is_https,
+                const char *host, int port, struct UvIdleConn *conn) {
+  size_t max_idle =
+      ctx->config.max_idle_conns > 0 ? ctx->config.max_idle_conns : 8U;
+  abstract_http_int64_t now_ms = 0;
+  c_abstract_http_error_t rc;
+
+  rc = uv_pool_evict_expired(ctx, &now_ms);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return uv_pool_destroy_with_err(conn, rc);
+  }
+  while (ctx->idle_count >= max_idle) {
+    struct UvIdleConn *evicted = ctx->idle_pool[0];
+    if (ctx->idle_count > 1U) {
+      memmove(&ctx->idle_pool[0], &ctx->idle_pool[1],
+              (ctx->idle_count - 1U) * sizeof(struct UvIdleConn *));
+    }
+    ctx->idle_count--;
+    rc = uv_pool_destroy_conn(evicted);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return uv_pool_destroy_with_err(conn, rc);
+    }
+  }
+  if (ctx->idle_count == ctx->idle_cap) {
+    size_t new_cap = ctx->idle_cap == 0U ? 4U : ctx->idle_cap * 2U;
+    struct UvIdleConn **np = (struct UvIdleConn **)realloc(
+        ctx->idle_pool, new_cap * sizeof(struct UvIdleConn *));
+    if (!np) {
+      return uv_pool_destroy_with_err(conn, C_ABSTRACT_HTTP_ERR_NOMEM);
+    }
+    ctx->idle_pool = np;
+    ctx->idle_cap = new_cap;
+  }
+  rc = c_abstract_http_strdup(host, &conn->host);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return uv_pool_destroy_with_err(conn, rc);
+  }
+  if (ctx->config.proxy_url) {
+    rc = c_abstract_http_strdup(ctx->config.proxy_url, &conn->proxy_url);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return uv_pool_destroy_with_err(conn, rc);
+    }
+  }
+  conn->is_https = is_https;
+  conn->port = port;
+  conn->stored_ms = now_ms;
+  ctx->idle_pool[ctx->idle_count++] = conn;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
  * @brief Prepare request wire buffer and register non-blocking `libuv_state`
  * handles onto `target_loop`.
  * @param ctx Transport context.
  * @param target_loop Active `uv_loop_t` to attach handles to.
  * @param stop_on_done Non-zero to call `uv_stop` when this request finishes.
+ * @param pooled_sock Optional external `uv_tcp_t` for keep-alive pooling.
+ * @param reused_conn Non-zero when @p pooled_sock is already connected.
  * @param req Input HTTP request.
  * @param res Output response pointer.
  * @param state Zero-initialized `struct libuv_state` to populate.
@@ -1514,11 +2292,21 @@ parse_url(const char *url, char **host, int *port, char **path) {
  */
 NO_DISCARD static c_abstract_http_error_t
 uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
-                     int stop_on_done, const struct HttpRequest *req,
-                     struct HttpResponse **res, struct libuv_state *state) {
+                     int stop_on_done, uv_tcp_t *pooled_sock, int reused_conn,
+                     const struct HttpRequest *req, struct HttpResponse **res,
+                     struct libuv_state *state) {
   char *host = NULL;
   int port = 0;
   char *path = NULL;
+  char *proxy_host = NULL;
+  int proxy_port = 0;
+  int socks_mode = 0;
+  const char *dial_host;
+  int dial_port;
+  const char *req_target;
+  const char *conn_hdr;
+  int has_conn_hdr = 0;
+  int req_wants_close = 0;
   char port_str[16];
   const char *method_str;
   size_t i;
@@ -1536,6 +2324,7 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
   state->res = res;
   state->active_loop = target_loop;
   state->stop_loop_on_done = stop_on_done;
+  state->active_socket = pooled_sock ? pooled_sock : &state->socket;
   *res = NULL;
 
   rc = parse_url(req->url, &host, &port, &path);
@@ -1557,18 +2346,52 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
     }
   }
 
+  dial_host = host;
+  dial_port = port;
+  req_target = path;
+  if (ctx->config.proxy_url) {
+    rc = uv_parse_proxy_url(ctx->config.proxy_url, &proxy_host, &proxy_port,
+                            &socks_mode);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(host);
+      free(path);
+      return rc;
+    }
+    dial_host = proxy_host;
+    dial_port = proxy_port;
+    if (socks_mode == 0 && !state->is_https) {
+      req_target = req->url;
+    }
+  }
+
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  sprintf_s(port_str, sizeof(port_str), "%d", port);
+  sprintf_s(port_str, sizeof(port_str), "%d", dial_port);
 #else
-  sprintf(port_str, "%d", port);
+  sprintf(port_str, "%d", dial_port);
 #endif
 
   rc = get_method_str(req->method, &method_str);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(proxy_host);
     free(host);
     free(path);
     return rc;
   }
+
+  for (i = 0; i < req->headers.count; ++i) {
+    if (math_uv_strcasecmp(req->headers.headers[i].key, "Connection") == 0) {
+      has_conn_hdr = 1;
+      if (math_uv_strcasecmp(req->headers.headers[i].value, "close") == 0) {
+        req_wants_close = 1;
+      }
+    }
+  }
+  if (pooled_sock && !req_wants_close) {
+    state->keep_alive_candidate = 1;
+  }
+  conn_hdr = has_conn_hdr ? ""
+                          : (pooled_sock ? "Connection: keep-alive\r\n"
+                                         : "Connection: close\r\n");
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_libuv_req_buf_alloc_fail) {
@@ -1579,6 +2402,7 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
     state->req_buf = (char *)malloc(req_cap);
   }
   if (!state->req_buf) {
+    free(proxy_host);
     free(host);
     free(path);
     return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -1586,47 +2410,96 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   state->req_len = (size_t)sprintf_s(
-      state->req_buf, req_cap,
-      "%s %s HTTP/1.1\r\nHost: %s:%d\r\nConnection: close\r\n", method_str,
-      path, host, port);
+      state->req_buf, req_cap, "%s %s HTTP/1.1\r\nHost: %s:%d\r\n%s",
+      method_str, req_target, host, port, conn_hdr);
 #else
-  state->req_len = (size_t)sprintf(
-      state->req_buf, "%s %s HTTP/1.1\r\nHost: %s:%d\r\nConnection: close\r\n",
-      method_str, path, host, port);
+  state->req_len =
+      (size_t)sprintf(state->req_buf, "%s %s HTTP/1.1\r\nHost: %s:%d\r\n%s",
+                      method_str, req_target, host, port, conn_hdr);
 #endif
 
-  for (i = 0; i < req->headers.count; i++) {
-    size_t hdr_len = strlen(req->headers.headers[i].key) +
-                     strlen(req->headers.headers[i].value) + 4;
-    if (state->req_len + hdr_len > req_cap) {
-      char *new_buf;
-      req_cap *= 2;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-      if (g_mock_libuv_headers_realloc_fail) {
-        new_buf = NULL;
-      } else
-#endif
-      {
-        new_buf = (char *)realloc(state->req_buf, req_cap);
+  {
+    int has_cookie = 0;
+    for (i = 0; i < req->headers.count; i++) {
+      size_t hdr_len = strlen(req->headers.headers[i].key) +
+                       strlen(req->headers.headers[i].value) + 4;
+      if (strcmp(req->headers.headers[i].key, "Cookie") == 0 ||
+          strcmp(req->headers.headers[i].key, "cookie") == 0) {
+        has_cookie = 1;
       }
-      if (!new_buf) {
+      if (state->req_len + hdr_len > req_cap) {
+        char *new_buf;
+        req_cap *= 2;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+        if (g_mock_libuv_headers_realloc_fail) {
+          new_buf = NULL;
+        } else
+#endif
+        {
+          new_buf = (char *)realloc(state->req_buf, req_cap);
+        }
+        if (!new_buf) {
+          free(proxy_host);
+          free(host);
+          free(path);
+          free(state->req_buf);
+          state->req_buf = NULL;
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
+        }
+        state->req_buf = new_buf;
+      }
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+      state->req_len += (size_t)sprintf_s(
+          state->req_buf + state->req_len, req_cap - state->req_len,
+          "%s: %s\r\n", req->headers.headers[i].key,
+          req->headers.headers[i].value);
+#else
+      state->req_len += (size_t)sprintf(
+          state->req_buf + state->req_len, "%s: %s\r\n",
+          req->headers.headers[i].key, req->headers.headers[i].value);
+#endif
+    }
+
+    if (!has_cookie && ctx->config.cookie_jar) {
+      char *cookie_hdr = NULL;
+      rc = http_cookie_jar_build_header(ctx->config.cookie_jar, req->url,
+                                        &cookie_hdr);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(proxy_host);
         free(host);
         free(path);
         free(state->req_buf);
         state->req_buf = NULL;
-        return C_ABSTRACT_HTTP_ERR_NOMEM;
+        return rc;
       }
-      state->req_buf = new_buf;
-    }
+      if (cookie_hdr) {
+        size_t clen = strlen(cookie_hdr) + 12U;
+        if (state->req_len + clen > req_cap) {
+          char *new_buf;
+          req_cap = (state->req_len + clen) * 2U;
+          new_buf = (char *)realloc(state->req_buf, req_cap);
+          if (!new_buf) {
+            free(cookie_hdr);
+            free(proxy_host);
+            free(host);
+            free(path);
+            free(state->req_buf);
+            state->req_buf = NULL;
+            return C_ABSTRACT_HTTP_ERR_NOMEM;
+          }
+          state->req_buf = new_buf;
+        }
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-    state->req_len += (size_t)sprintf_s(
-        state->req_buf + state->req_len, req_cap - state->req_len, "%s: %s\r\n",
-        req->headers.headers[i].key, req->headers.headers[i].value);
+        state->req_len += (size_t)sprintf_s(state->req_buf + state->req_len,
+                                            req_cap - state->req_len,
+                                            "Cookie: %s\r\n", cookie_hdr);
 #else
-    state->req_len += (size_t)sprintf(state->req_buf + state->req_len,
-                                      "%s: %s\r\n", req->headers.headers[i].key,
-                                      req->headers.headers[i].value);
+        state->req_len += (size_t)sprintf(state->req_buf + state->req_len,
+                                          "Cookie: %s\r\n", cookie_hdr);
 #endif
+        free(cookie_hdr);
+      }
+    }
   }
 
   if (req->read_chunk && req->expected_body_len > 0) {
@@ -1671,6 +2544,7 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
         new_buf = (char *)realloc(state->req_buf, req_cap);
       }
       if (!new_buf) {
+        free(proxy_host);
         free(host);
         free(path);
         free(state->req_buf);
@@ -1688,6 +2562,7 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
       c_abstract_http_error_t chunk_rc = req->read_chunk(
           req->read_chunk_user_data, chunk_buf, sizeof(chunk_buf), &out_read);
       if (chunk_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(proxy_host);
         free(host);
         free(path);
         free(state->req_buf);
@@ -1709,6 +2584,7 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
           new_buf = (char *)realloc(state->req_buf, req_cap);
         }
         if (!new_buf) {
+          free(proxy_host);
           free(host);
           free(path);
           free(state->req_buf);
@@ -1724,17 +2600,21 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
 
   free(path);
 
-  if (uv_tcp_init(target_loop, &state->socket) < 0) {
-    free(host);
-    free(state->req_buf);
-    state->req_buf = NULL;
-    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  if (!reused_conn) {
+    if (uv_tcp_init(target_loop, state->active_socket) < 0) {
+      free(proxy_host);
+      free(host);
+      free(state->req_buf);
+      state->req_buf = NULL;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
   }
   state->has_socket = 1;
-  state->socket.data = state;
+  state->active_socket->data = state;
 
   if (ctx->config.timeout_ms > 0) {
     if (uv_timer_init(target_loop, &state->timer) < 0) {
+      free(proxy_host);
       free(host);
       LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM));
       return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -1743,10 +2623,31 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
     state->timer.data = state;
     if (uv_timer_start(&state->timer, libuv_on_timeout,
                        (uint64_t)ctx->config.timeout_ms, 0) < 0) {
+      free(proxy_host);
       free(host);
       LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_NOMEM));
       return C_ABSTRACT_HTTP_ERR_NOMEM;
     }
+  }
+
+  if (reused_conn) {
+    uv_buf_t wbuf = uv_buf_init(state->req_buf, (unsigned int)state->req_len);
+    free(proxy_host);
+    free(host);
+    state->write_req.data = state;
+    if (uv_write(&state->write_req, (uv_stream_t *)state->active_socket, &wbuf,
+                 1, libuv_on_write) < 0) {
+      LIBUV_VOID_CB_DISPATCH(libuv_finish(state, C_ABSTRACT_HTTP_ERR_IO));
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  if (socks_mode != 0) {
+    state->socks_phase = 1;
+    state->socks_remote_dns = socks_mode == 2 ? 1 : 0;
+    state->socks_host = host;
+    state->socks_port = port;
+    host = NULL;
   }
 
   memset(&hints, 0, sizeof(hints));
@@ -1755,11 +2656,12 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
   hints.ai_protocol = IPPROTO_TCP;
 
   state->resolver.data = state;
-  if (uv_getaddrinfo(target_loop, &state->resolver, libuv_on_resolved, host,
-                     port_str, &hints) < 0) {
+  if (uv_getaddrinfo(target_loop, &state->resolver, libuv_on_resolved,
+                     dial_host, port_str, &hints) < 0) {
     LIBUV_VOID_CB_DISPATCH(
         libuv_finish(state, C_ABSTRACT_HTTP_ERR_HOSTUNREACH));
   }
+  free(proxy_host);
   free(host);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -1821,13 +2723,133 @@ uv_send_single_hop(struct HttpTransportContext *ctx,
   struct libuv_state state;
   c_abstract_http_error_t rc;
 
+  if (ctx->config.keep_alive_enabled) {
+    char *ka_host = NULL;
+    int ka_port = 0;
+    char *ka_path = NULL;
+    int ka_https = (req->url && strncmp(req->url, "https://", 8) == 0) ? 1 : 0;
+    int attempt = 0;
+
+    rc = parse_url(req->url, &ka_host, &ka_port, &ka_path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    free(ka_path);
+
+    for (;;) {
+      struct UvIdleConn *pconn = NULL;
+      int reused = 0;
+      c_abstract_http_error_t drc;
+
+      if (attempt++ == 0) {
+        rc = uv_pool_checkout(ctx, ka_https, ka_host, ka_port, &pconn);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(ka_host);
+          return rc;
+        }
+        reused = pconn != NULL ? 1 : 0;
+      }
+      if (!pconn) {
+        pconn = (struct UvIdleConn *)calloc(1, sizeof(struct UvIdleConn));
+        if (!pconn) {
+          free(ka_host);
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
+        }
+        if (uv_loop_init(&pconn->loop) < 0) {
+          free(pconn);
+          free(ka_host);
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
+        }
+      } else {
+#if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBUV)
+        pconn->loop.stop = 0;
+#endif
+      }
+      pconn->loop.data = &state;
+      rc = uv_arm_state_on_loop(ctx, &pconn->loop, 1, &pconn->socket, reused,
+                                req, res, &state);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        uv_run(&pconn->loop, UV_RUN_DEFAULT);
+        uv_loop_close(&pconn->loop);
+        free(pconn);
+        free(ka_host);
+        return rc;
+      }
+
+      pconn->loop.data = &state;
+      uv_run(&pconn->loop, UV_RUN_DEFAULT);
+      free(state.req_buf);
+      free(state.res_buf);
+
+      if (state.error_code != 0 && reused && !state.headers_parsed) {
+        drc = uv_pool_destroy_conn(pconn);
+        if (drc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(ka_host);
+          return drc;
+        }
+        continue;
+      }
+
+      if (state.error_code != 0) {
+        free(ka_host);
+        if (*res) {
+          struct HttpResponse *tmp_r = *res;
+          c_abstract_http_error_t free_rc;
+          *res = NULL;
+          free_rc = http_response_free(tmp_r);
+          free(tmp_r);
+          if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return uv_pool_destroy_with_err(pconn, free_rc);
+          }
+        }
+        drc = uv_pool_destroy_conn(pconn);
+        if (drc != C_ABSTRACT_HTTP_SUCCESS) {
+          return drc;
+        }
+        return (c_abstract_http_error_t)state.error_code;
+      }
+
+      if (state.keep_socket_open) {
+        rc = uv_pool_checkin(ctx, ka_https, ka_host, ka_port, pconn);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          struct HttpResponse *tmp_r = *res;
+          c_abstract_http_error_t free_rc;
+          free(ka_host);
+          *res = NULL;
+          free_rc = http_response_free(tmp_r);
+          free(tmp_r);
+          if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return free_rc;
+          }
+          return rc;
+        }
+        free(ka_host);
+      } else {
+        free(ka_host);
+        rc = uv_pool_destroy_conn(pconn);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          struct HttpResponse *tmp_r = *res;
+          c_abstract_http_error_t free_rc;
+          *res = NULL;
+          free_rc = http_response_free(tmp_r);
+          free(tmp_r);
+          if (free_rc != C_ABSTRACT_HTTP_SUCCESS) {
+            return free_rc;
+          }
+          return rc;
+        }
+      }
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+  }
+
   memset(&state, 0, sizeof(state));
   if (uv_loop_init(&state.loop) < 0) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
   state.loop.data = &state;
 
-  rc = uv_arm_state_on_loop(ctx, &state.loop, 1, req, res, &state);
+  rc = uv_arm_state_on_loop(ctx, &state.loop, 1, NULL, 0, req, res, &state);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     uv_loop_close(&state.loop);
     return rc;
@@ -2153,8 +3175,8 @@ uv_arm_multi_slot(struct HttpTransportContext *ctx,
   if (!slot->future) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
-  rc =
-      uv_arm_state_on_loop(ctx, &batch->uv_loop, 0, req, &slot->res, &slot->st);
+  rc = uv_arm_state_on_loop(ctx, &batch->uv_loop, 0, NULL, 0, req, &slot->res,
+                            &slot->st);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     slot->settled = 1;
     slot->future->response = NULL;

@@ -34,7 +34,9 @@
 #endif
 
 #include <c_abstract_http/http_msh3.h>
+#include <c_abstract_http/http_raw.h>
 #include "c_abstract_http/log.h"
+#include "crypto_utils.h"
 #include <c_abstract_http/thread_pool.h>
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM) && !defined(C_ABSTRACT_HTTP_HAVE_REAL_MSH3)
@@ -99,6 +101,8 @@ struct msh3_multi_slot {
   MSH3_HEADER *hdrs;
   /** @brief Allocated Cookie header value buffer */
   char *cookie_buf;
+  /** @brief Formatted content-length header buffer for streaming uploads */
+  char clen_buf[32];
   /** @brief Temporary flattened multipart request copy */
   struct HttpRequest flat_req;
   /** @brief Non-zero when flat_req holds flattened multipart resources */
@@ -295,6 +299,26 @@ NO_DISCARD c_abstract_http_error_t http_msh3_config_apply(
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
 
+  if ((config->client_cert_path && !config->client_key_path) ||
+      (!config->client_cert_path && config->client_key_path) ||
+      (config->ca_buffer_len > 0 && !config->ca_buffer)) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  if (config->version_mask != HTTP_VERSION_DEFAULT &&
+      (config->version_mask & HTTP_VERSION_3) == 0 && !config->http3_fallback) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
+
+  if (config->tls_version_mask != HTTP_TLS_VERSION_DEFAULT &&
+      (config->tls_version_mask & HTTP_TLS_VERSION_1_3) == 0) {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
+
+  if (config->proxy_url && config->proxy_url[0] != '\0') {
+    return C_ABSTRACT_HTTP_ERR_NOTSUP;
+  }
+
   if (ctx->config) {
     MsH3ConfigurationClose(ctx->config);
     ctx->config = NULL;
@@ -309,16 +333,28 @@ NO_DISCARD c_abstract_http_error_t http_msh3_config_apply(
     return C_ABSTRACT_HTTP_ERR_NOMEM;
   }
 
-  memset(&cred, 0, sizeof(cred));
-  cred.Type = MSH3_CREDENTIAL_TYPE_NONE;
-  if (!config->verify_peer) {
-    cred.Flags = MSH3_CREDENTIAL_FLAG_CLIENT |
-                 MSH3_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
-  } else {
-    cred.Flags = MSH3_CREDENTIAL_FLAG_CLIENT;
-  }
-  if (MsH3ConfigurationLoadCredential(ctx->config, &cred) != 0) {
-    LOG_DEBUG("http_msh3_config_apply: Credential load returned non-zero");
+  {
+    MSH3_CERTIFICATE_FILE cert_file;
+    memset(&cert_file, 0, sizeof(cert_file));
+    memset(&cred, 0, sizeof(cred));
+    if (config->client_cert_path && config->client_key_path) {
+      cert_file.CertificateFile = config->client_cert_path;
+      cert_file.PrivateKeyFile = config->client_key_path;
+      cred.Type = MSH3_CREDENTIAL_TYPE_CERTIFICATE_FILE;
+      cred.CertificateFile = &cert_file;
+    } else {
+      cred.Type = MSH3_CREDENTIAL_TYPE_NONE;
+    }
+    cred.CaCertificateFile = config->ca_path;
+    if (!config->verify_peer) {
+      cred.Flags = MSH3_CREDENTIAL_FLAG_CLIENT |
+                   MSH3_CREDENTIAL_FLAG_NO_CERTIFICATE_VALIDATION;
+    } else {
+      cred.Flags = MSH3_CREDENTIAL_FLAG_CLIENT;
+    }
+    if (MsH3ConfigurationLoadCredential(ctx->config, &cred) != 0) {
+      LOG_DEBUG("http_msh3_config_apply: Credential load returned non-zero");
+    }
   }
 
   free(ctx->base_config.user_agent);
@@ -326,6 +362,92 @@ NO_DISCARD c_abstract_http_error_t http_msh3_config_apply(
   if (config->user_agent) {
     rc = c_abstract_http_strdup(config->user_agent,
                                 &ctx->base_config.user_agent);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      MsH3ConfigurationClose(ctx->config);
+      ctx->config = NULL;
+      return rc;
+    }
+  }
+
+  free(ctx->base_config.proxy_username);
+  ctx->base_config.proxy_username = NULL;
+  if (config->proxy_username) {
+    rc = c_abstract_http_strdup(config->proxy_username,
+                                &ctx->base_config.proxy_username);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      MsH3ConfigurationClose(ctx->config);
+      ctx->config = NULL;
+      return rc;
+    }
+  }
+
+  free(ctx->base_config.proxy_password);
+  ctx->base_config.proxy_password = NULL;
+  if (config->proxy_password) {
+    rc = c_abstract_http_strdup(config->proxy_password,
+                                &ctx->base_config.proxy_password);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      MsH3ConfigurationClose(ctx->config);
+      ctx->config = NULL;
+      return rc;
+    }
+  }
+
+  free(ctx->base_config.ca_path);
+  ctx->base_config.ca_path = NULL;
+  if (config->ca_path) {
+    rc = c_abstract_http_strdup(config->ca_path, &ctx->base_config.ca_path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      MsH3ConfigurationClose(ctx->config);
+      ctx->config = NULL;
+      return rc;
+    }
+  }
+
+  free(ctx->base_config.ca_buffer);
+  ctx->base_config.ca_buffer = NULL;
+  ctx->base_config.ca_buffer_len = 0;
+  if (config->ca_buffer && config->ca_buffer_len > 0) {
+    ctx->base_config.ca_buffer = (unsigned char *)malloc(config->ca_buffer_len);
+    if (!ctx->base_config.ca_buffer) {
+      MsH3ConfigurationClose(ctx->config);
+      ctx->config = NULL;
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(ctx->base_config.ca_buffer, config->ca_buffer,
+           config->ca_buffer_len);
+    ctx->base_config.ca_buffer_len = config->ca_buffer_len;
+  }
+
+  free(ctx->base_config.client_cert_path);
+  ctx->base_config.client_cert_path = NULL;
+  if (config->client_cert_path) {
+    rc = c_abstract_http_strdup(config->client_cert_path,
+                                &ctx->base_config.client_cert_path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      MsH3ConfigurationClose(ctx->config);
+      ctx->config = NULL;
+      return rc;
+    }
+  }
+
+  free(ctx->base_config.client_key_path);
+  ctx->base_config.client_key_path = NULL;
+  if (config->client_key_path) {
+    rc = c_abstract_http_strdup(config->client_key_path,
+                                &ctx->base_config.client_key_path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      MsH3ConfigurationClose(ctx->config);
+      ctx->config = NULL;
+      return rc;
+    }
+  }
+
+  free(ctx->base_config.cert_pin_sha256);
+  ctx->base_config.cert_pin_sha256 = NULL;
+  if (config->cert_pin_sha256) {
+    rc = c_abstract_http_strdup(config->cert_pin_sha256,
+                                &ctx->base_config.cert_pin_sha256);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       MsH3ConfigurationClose(ctx->config);
       ctx->config = NULL;
@@ -341,6 +463,8 @@ NO_DISCARD c_abstract_http_error_t http_msh3_config_apply(
   ctx->base_config.verify_host = config->verify_host;
   ctx->base_config.follow_redirects = config->follow_redirects;
   ctx->base_config.cookie_jar = config->cookie_jar;
+  ctx->base_config.version_mask = config->version_mask;
+  ctx->base_config.tls_version_mask = config->tls_version_mask;
   ctx->base_config.http3_fallback = config->http3_fallback;
 
   LOG_DEBUG("http_msh3_config_apply: Success");
@@ -536,8 +660,10 @@ msh3_request_cb_impl(MSH3_REQUEST *req, struct msh3_req_ctx *rctx,
       return rc;
     }
     rctx->is_complete = 1;
-    if (ev->SHUTDOWN_COMPLETE.ConnectionClosedRemotely ||
-        ev->SHUTDOWN_COMPLETE.ConnectionErrorCode != 0) {
+    if (ev->SHUTDOWN_COMPLETE.ConnectionErrorCode == 61) {
+      rctx->error_code = C_ABSTRACT_HTTP_ERR_CONNREFUSED;
+    } else if (ev->SHUTDOWN_COMPLETE.ConnectionClosedRemotely ||
+               ev->SHUTDOWN_COMPLETE.ConnectionErrorCode != 0) {
       rctx->error_code = C_ABSTRACT_HTTP_ERR_IO;
     }
     {
@@ -901,6 +1027,7 @@ msh3_cleanup_effective_request(struct HttpRequest *flat_req, int flattened) {
  * @param out_hdrs Output pointer receiving allocated MSH3_HEADER array.
  * @param out_count Output header count.
  * @param out_cookie_buf Output pointer receiving allocated Cookie value buffer.
+ * @param clen_buf Scratch 32-byte buffer for formatted content-length.
  * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
 NO_DISCARD static c_abstract_http_error_t
@@ -908,7 +1035,7 @@ msh3_build_headers(const struct HttpTransportContext *ctx,
                    const struct HttpRequest *eff_req, const char *method_str,
                    const char *path, const char *scheme, const char *authority,
                    MSH3_HEADER **out_hdrs, size_t *out_count,
-                   char **out_cookie_buf) {
+                   char **out_cookie_buf, char clen_buf[32]) {
   MSH3_HEADER *hdrs;
   size_t cap;
   size_t idx = 0;
@@ -930,7 +1057,7 @@ msh3_build_headers(const struct HttpTransportContext *ctx,
     }
   }
 
-  cap = 4 + eff_req->headers.count + 2;
+  cap = 4 + eff_req->headers.count + 3;
   hdrs = (MSH3_HEADER *)calloc(cap, sizeof(MSH3_HEADER));
   if (!hdrs) {
     return C_ABSTRACT_HTTP_ERR_NOMEM;
@@ -973,6 +1100,13 @@ msh3_build_headers(const struct HttpTransportContext *ctx,
     hdrs[idx].NameLength = 10;
     hdrs[idx].Value = ctx->base_config.user_agent;
     hdrs[idx].ValueLength = strlen(ctx->base_config.user_agent);
+    idx++;
+  }
+  if (math_c_abstract_http_format_clen(eff_req, clen_buf)) {
+    hdrs[idx].Name = "content-length";
+    hdrs[idx].NameLength = 14;
+    hdrs[idx].Value = clen_buf;
+    hdrs[idx].ValueLength = strlen(clen_buf);
     idx++;
   }
 
@@ -1329,6 +1463,12 @@ msh3_open_slot(struct HttpTransportContext *ctx, const struct HttpRequest *req,
     }
   }
 
+  rc = c_abstract_http_h3_verify_peer_tls(&ctx->base_config, slot->scheme,
+                                          slot->host);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return msh3_close_slot(slot, 0, rc);
+  }
+
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_msh3_res_alloc_fail) {
     return msh3_close_slot(slot, 0, C_ABSTRACT_HTTP_ERR_NOMEM);
@@ -1393,9 +1533,9 @@ msh3_open_slot(struct HttpTransportContext *ctx, const struct HttpRequest *req,
     return msh3_close_slot(slot, 0, rc);
   }
 
-  rc =
-      msh3_build_headers(ctx, eff_req, method_str, slot->path, slot->scheme,
-                         authority, &slot->hdrs, &hdr_count, &slot->cookie_buf);
+  rc = msh3_build_headers(ctx, eff_req, method_str, slot->path, slot->scheme,
+                          authority, &slot->hdrs, &hdr_count, &slot->cookie_buf,
+                          slot->clen_buf);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     return msh3_close_slot(slot, 0, rc);
   }
@@ -1490,11 +1630,91 @@ msh3_finish_slot(struct msh3_multi_slot *slot) {
   return msh3_close_slot(slot, 1, C_ABSTRACT_HTTP_SUCCESS);
 }
 
+/**
+ * @brief Release temporary raw TCP fallback context and return final status.
+ * @param raw_ctx Raw transport context to free.
+ * @param res In/out response pointer.
+ * @param orig_rc Primary status from fallback send.
+ * @return Cleanup error if context cleanup fails, otherwise @p orig_rc.
+ */
+NO_DISCARD static c_abstract_http_error_t
+msh3_raw_ctx_cleanup(struct HttpTransportContext *raw_ctx,
+                     struct HttpResponse **res,
+                     c_abstract_http_error_t orig_rc) {
+  c_abstract_http_error_t frc = http_raw_context_free(raw_ctx);
+  if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+    return msh3_cleanup_failed_res(res, frc);
+  }
+  return orig_rc;
+}
+
+/**
+ * @brief Downgrade failed MsH3 QUIC request to TCP HTTP/1.1 raw transport.
+ * @param cfg Active transport configuration.
+ * @param req Request for current hop.
+ * @param res Output response pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or fallback error code.
+ */
+NO_DISCARD static c_abstract_http_error_t
+msh3_fallback_tcp(const struct HttpConfig *cfg, const struct HttpRequest *req,
+                  struct HttpResponse **res) {
+  struct HttpTransportContext *raw_ctx = NULL;
+  c_abstract_http_error_t rc;
+  c_abstract_http_error_t send_rc;
+
+  rc = http_raw_context_init(&raw_ctx);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = http_raw_config_apply(raw_ctx, cfg);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return msh3_raw_ctx_cleanup(raw_ctx, res, rc);
+  }
+  send_rc = http_raw_send(raw_ctx, req, res);
+  if (send_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return msh3_raw_ctx_cleanup(raw_ctx, res, send_rc);
+  }
+  return msh3_raw_ctx_cleanup(raw_ctx, res, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Execute one hop via MsH3 QUIC with optional TCP fallback.
+ * @param ctx Transport context.
+ * @param req Request for current hop.
+ * @param res Output response pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+msh3_send_hop_once(struct HttpTransportContext *ctx,
+                   const struct HttpRequest *req, struct HttpResponse **res) {
+  struct msh3_multi_slot slot;
+  c_abstract_http_error_t rc;
+  c_abstract_http_error_t fin_rc;
+
+  memset(&slot, 0, sizeof(slot));
+  rc = msh3_open_slot(ctx, req, &slot);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  fin_rc = msh3_finish_slot(&slot);
+  if (fin_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    if (ctx->config && ctx->base_config.http3_fallback &&
+        fin_rc == C_ABSTRACT_HTTP_ERR_CONNREFUSED) {
+      return msh3_fallback_tcp(&ctx->base_config, req, res);
+    }
+    return fin_rc;
+  }
+  *res = slot.rctx.res;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 /* Synchronously send HTTP request via MsH3. */
 NO_DISCARD c_abstract_http_error_t
 http_msh3_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
                struct HttpResponse **res) {
-  struct msh3_multi_slot slot;
+  struct HttpRequest hop_req;
+  char *redir_url = NULL;
+  int hop;
   c_abstract_http_error_t rc;
 
   cah_cppcheck_mut_ptr((void *)ctx);
@@ -1504,19 +1724,27 @@ http_msh3_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
   }
 
   *res = NULL;
-  memset(&slot, 0, sizeof(slot));
-
-  rc = msh3_open_slot(ctx, req, &slot);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return rc;
+  hop_req = *req;
+  for (hop = 0;; ++hop) {
+    const char *loc = NULL;
+    rc = msh3_send_hop_once(ctx, &hop_req, res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(redir_url);
+      return rc;
+    }
+    if (!math_c_abstract_http_should_redirect(ctx->base_config.follow_redirects,
+                                              *res, &loc)) {
+      break;
+    }
+    rc = c_abstract_http_h3_advance_redirect(&hop_req, &redir_url, res, loc,
+                                             hop);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(redir_url);
+      return msh3_cleanup_failed_res(res, rc);
+    }
   }
 
-  rc = msh3_finish_slot(&slot);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    return rc;
-  }
-
-  *res = slot.rctx.res;
+  free(redir_url);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 

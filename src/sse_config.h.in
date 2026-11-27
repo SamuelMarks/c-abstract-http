@@ -1,6 +1,20 @@
+/**
+ * @file sse_config.h.in
+ * @brief CMake-configured Server-Sent Events (SSE) parser limits.
+ */
+
 #ifndef C_ABSTRACT_HTTP_SSE_CONFIG_H
 #define C_ABSTRACT_HTTP_SSE_CONFIG_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+/** @brief Maximum allowed byte length of a single SSE line before OOM error */
 #define C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE @C_ABSTRACT_HTTP_SSE_MAX_LINE_SIZE@
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif /* C_ABSTRACT_HTTP_SSE_CONFIG_H */

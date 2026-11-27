@@ -22,6 +22,7 @@ extern "C" {
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_picoquic.h>
 #include <c_abstract_http/http_types.h>
+#include "../src/crypto_utils.h"
 #include "abstract_http_test_helpers/mock_server.h"
 #include "mock_alloc.h"
 /* clang-format on */
@@ -795,6 +796,138 @@ TEST test_picoquic_fallback_proxy_and_parts(void) {
   g_mock_alloc_fail = 0;
   PASS();
 }
+
+NO_DISCARD static c_abstract_http_error_t
+pq_big_read_cb(void *user_data, void *buf, size_t max_len, size_t *out_read) {
+  struct pq_chunk_state *st = (struct pq_chunk_state *)user_data;
+  if (st->calls >= 2) {
+    *out_read = 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  st->calls++;
+  if (max_len > 200) {
+    max_len = 200;
+  }
+  memset(buf, 'P', max_len);
+  *out_read = max_len;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_picoquic_tls_redirects_and_streaming_clen(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct pq_chunk_state cst;
+  const char *hval = NULL;
+  static const unsigned char k_spki[] = {0x30, 0x0d, 0x30, 0x05, 0x06,
+                                         0x03, 0x2b, 0x65, 0x70, 0x03,
+                                         0x04, 0x00, 0x01, 0x02, 0x03};
+  unsigned char spki_hash[32];
+  char *b64_pin = NULL;
+  size_t b64_len = 0;
+  char pin_str[128];
+  int step;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+
+  cfg.tls_version_mask = HTTP_TLS_VERSION_1_2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_picoquic_config_apply(ctx, &cfg));
+  cfg.tls_version_mask = HTTP_TLS_VERSION_1_3;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sha256_oneshot(k_spki, sizeof(k_spki), spki_hash));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_base64_encode(spki_hash, 32, &b64_pin, &b64_len));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
+#else
+  sprintf(pin_str, "sha256//%s", b64_pin);
+#endif
+  free(b64_pin);
+  cfg.cert_pin_sha256 = pin_str;
+  cfg.http3_fallback = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_config_apply(ctx, &cfg));
+  cfg.cert_pin_sha256 = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)"https://sub.bad-cn.invalid/check";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_picoquic_send(ctx, &req, &res));
+
+  /* Streaming read_chunk >= 64 bytes + expected_body_len + OOM sweep */
+  {
+    int ok = 0;
+    req.method = HTTP_POST;
+    req.url = (char *)"https://example.com/upload-stream";
+    req.read_chunk = pq_big_read_cb;
+    req.read_chunk_user_data = &cst;
+    req.expected_body_len = 400;
+    for (step = 0; step <= 120; ++step) {
+      c_abstract_http_error_t orc;
+      memset(&cst, 0, sizeof(cst));
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      orc = http_picoquic_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS) {
+        ok = 1;
+        ASSERT_EQ(400U, res->body_len);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  http_headers_get(&res->headers, "x-echo-clen", &hval));
+        ASSERT_STR_EQ("400", hval);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+        break;
+      }
+    }
+    ASSERT_EQ(1, ok);
+  }
+
+  /* 301, 307, and redirect loop */
+  req.read_chunk = NULL;
+  req.expected_body_len = 0;
+  req.body = "data";
+  req.body_len = 4;
+  req.url = (char *)"https://example.com/redir-301";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-method", &hval));
+  ASSERT_STR_EQ("GET", hval);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.method = HTTP_POST;
+  req.body = "data";
+  req.body_len = 4;
+  req.url = (char *)"https://example.com/redir-307";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-method", &hval));
+  ASSERT_STR_EQ("POST", hval);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.method = HTTP_GET;
+  req.body = NULL;
+  req.body_len = 0;
+  req.url = (char *)"https://example.com/redir-loop";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_LOOP, http_picoquic_send(ctx, &req, &res));
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_picoquic_global_cleanup());
+  PASS();
+}
 #endif
 
 /** @brief Suite definition for picoquic backend */
@@ -805,6 +938,7 @@ SUITE(http_picoquic_suite) {
   RUN_TEST(test_picoquic_h3_loopback_and_branches);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_picoquic_fallback_proxy_and_parts);
+  RUN_TEST(test_picoquic_tls_redirects_and_streaming_clen);
 #endif
 }
 

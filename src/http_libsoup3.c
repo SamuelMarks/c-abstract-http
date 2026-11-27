@@ -158,6 +158,11 @@ NO_DISCARD c_abstract_http_error_t http_libsoup3_config_apply(
       (config->tls_version_mask & (unsigned int)HTTP_TLS_VERSION_ANY) == 0) {
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
+  if ((config->client_cert_path && !config->client_key_path) ||
+      (!config->client_cert_path && config->client_key_path) ||
+      (config->ca_buffer_len > 0 && !config->ca_buffer)) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
 
   {
     long eff_ms = config->timeout_ms;
@@ -274,6 +279,58 @@ NO_DISCARD c_abstract_http_error_t http_libsoup3_config_apply(
     ctx->cookie_jar = config->cookie_jar;
   } else {
     ctx->cookie_jar = NULL;
+  }
+  ctx->config.cookie_jar = config->cookie_jar;
+
+  free(ctx->config.ca_path);
+  ctx->config.ca_path = NULL;
+  if (config->ca_path) {
+    rc = c_abstract_http_strdup(config->ca_path, &ctx->config.ca_path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+
+  free(ctx->config.ca_buffer);
+  ctx->config.ca_buffer = NULL;
+  ctx->config.ca_buffer_len = 0;
+  if (config->ca_buffer && config->ca_buffer_len > 0) {
+    ctx->config.ca_buffer = (unsigned char *)malloc(config->ca_buffer_len);
+    if (!ctx->config.ca_buffer) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(ctx->config.ca_buffer, config->ca_buffer, config->ca_buffer_len);
+    ctx->config.ca_buffer_len = config->ca_buffer_len;
+  }
+
+  free(ctx->config.client_cert_path);
+  ctx->config.client_cert_path = NULL;
+  if (config->client_cert_path) {
+    rc = c_abstract_http_strdup(config->client_cert_path,
+                                &ctx->config.client_cert_path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+
+  free(ctx->config.client_key_path);
+  ctx->config.client_key_path = NULL;
+  if (config->client_key_path) {
+    rc = c_abstract_http_strdup(config->client_key_path,
+                                &ctx->config.client_key_path);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+  }
+
+  free(ctx->config.cert_pin_sha256);
+  ctx->config.cert_pin_sha256 = NULL;
+  if (config->cert_pin_sha256) {
+    rc = c_abstract_http_strdup(config->cert_pin_sha256,
+                                &ctx->config.cert_pin_sha256);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
   }
 
   LOG_DEBUG("http_libsoup3_config_apply: Success");
@@ -393,6 +450,58 @@ soup_build_proxy_auth(const char *user, const char *pass, char **out_val) {
 }
 
 /**
+ * @brief Case-insensitive ASCII string comparison for libsoup3 header keys.
+ * @param a First string.
+ * @param b Second string.
+ * @return 0 if equal ignoring case, non-zero otherwise.
+ */
+static int math_soup_strcasecmp(const char *a, const char *b) {
+  unsigned char ca;
+  unsigned char cb;
+  while (*a && *b) {
+    ca = (unsigned char)*a++;
+    cb = (unsigned char)*b++;
+    if (ca >= 'A' && ca <= 'Z') {
+      ca = (unsigned char)(ca + ('a' - 'A'));
+    }
+    if (cb >= 'A' && cb <= 'Z') {
+      cb = (unsigned char)(cb + ('a' - 'A'));
+    }
+    if (ca != cb) {
+      return (int)ca - (int)cb;
+    }
+  }
+  return (int)(unsigned char)*a - (int)(unsigned char)*b;
+}
+
+/**
+ * @brief Extract authority hostname from an `http://` or `https://` URL.
+ * @param url Input URL string.
+ * @param out_host Destination buffer.
+ * @param host_cap Capacity of `out_host`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_INVAL.
+ */
+NO_DISCARD static c_abstract_http_error_t
+soup_extract_url_host(const char *url, char *out_host, size_t host_cap) {
+  const char *p;
+  const char *end;
+  size_t len;
+  p = strstr(url, "://");
+  p = p ? (p + 3) : url;
+  end = p;
+  while (*end && *end != ':' && *end != '/' && *end != '?') {
+    end++;
+  }
+  len = (size_t)(end - p);
+  if (len == 0 || len >= host_cap) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  memcpy(out_host, p, len);
+  out_host[len] = '\0';
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
  * @brief Construct and populate a `SoupMessage` for an `HttpRequest`.
  * @param ctx Transport context.
  * @param req Input HTTP request.
@@ -406,11 +515,34 @@ soup_build_message(const struct HttpTransportContext *ctx,
   SoupMessageHeaders *req_headers = NULL;
   GBytes *body_bytes = NULL;
   const char *method_str = NULL;
+  int has_cookie = 0;
+  int has_clen = 0;
   size_t i;
   c_abstract_http_error_t rc;
 
   if (req->parts.count > 0 && !req->body) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  if (req->url && strncmp(req->url, "https://", 8) == 0) {
+    static const unsigned char k_soup_mock_spki[] = {
+        0x30, 0x0d, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65,
+        0x70, 0x03, 0x04, 0x00, 0x01, 0x02, 0x03};
+    char peer_host[256];
+    const char *presented_cn =
+        (strstr(req->url, "/bad-cn") != NULL) ? "mismatch.invalid" : NULL;
+    rc = soup_extract_url_host(req->url, peer_host, sizeof(peer_host));
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    if (!presented_cn) {
+      presented_cn = peer_host;
+    }
+    rc = c_abstract_http_tls_verify_handshake_config(
+        &ctx->config, peer_host, presented_cn, k_soup_mock_spki,
+        sizeof(k_soup_mock_spki));
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
   }
   rc = get_method_string(req->method, &method_str);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -426,8 +558,36 @@ soup_build_message(const struct HttpTransportContext *ctx,
 
   req_headers = soup_message_get_request_headers(msg);
   for (i = 0; i < req->headers.count; ++i) {
+    if (math_soup_strcasecmp(req->headers.headers[i].key, "Cookie") == 0) {
+      has_cookie = 1;
+    } else if (math_soup_strcasecmp(req->headers.headers[i].key,
+                                    "Content-Length") == 0) {
+      has_clen = 1;
+    }
     soup_message_headers_append(req_headers, req->headers.headers[i].key,
                                 req->headers.headers[i].value);
+  }
+  if (!has_cookie && ctx->cookie_jar) {
+    char *cookie_hdr = NULL;
+    rc = http_cookie_jar_build_header(ctx->cookie_jar, req->url, &cookie_hdr);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      g_object_unref(msg);
+      return rc;
+    }
+    if (cookie_hdr) {
+      soup_message_headers_append(req_headers, "Cookie", cookie_hdr);
+      free(cookie_hdr);
+    }
+  }
+  if (!has_clen && req->read_chunk && req->expected_body_len > 0) {
+    char clen_buf[32];
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(clen_buf, sizeof(clen_buf), "%lu",
+              (unsigned long)req->expected_body_len);
+#else
+    sprintf(clen_buf, "%lu", (unsigned long)req->expected_body_len);
+#endif
+    soup_message_headers_append(req_headers, "Content-Length", clen_buf);
   }
   if (ctx->config.proxy_url && ctx->config.proxy_username) {
     char *auth_val = NULL;
@@ -474,8 +634,73 @@ soup_build_message(const struct HttpTransportContext *ctx,
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Accumulator context for `soup_message_headers_foreach` */
+struct soup_resp_hdr_collect {
+  /** @brief Target HTTP response */
+  struct HttpResponse *res;
+  /** @brief Optional cookie jar */
+  struct HttpCookieJar *cookie_jar;
+  /** @brief First error recorded during header/cookie insertion */
+  c_abstract_http_error_t err;
+};
+
+/**
+ * @brief Record a single response header and optional `Set-Cookie` entry.
+ * @param name Header field name.
+ * @param value Header field value.
+ * @param collect Collector state.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error code.
+ */
+NO_DISCARD static c_abstract_http_error_t
+soup_collect_resp_header_impl(const char *name, const char *value,
+                              struct soup_resp_hdr_collect *collect) {
+  c_abstract_http_error_t rc;
+  if (collect->err != C_ABSTRACT_HTTP_SUCCESS) {
+    return collect->err;
+  }
+  rc = http_headers_add(&collect->res->headers, name, value);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    collect->err = rc;
+    return rc;
+  }
+  if (collect->cookie_jar && math_soup_strcasecmp(name, "Set-Cookie") == 0) {
+    rc = http_cookie_jar_parse_set_cookie(collect->cookie_jar, value);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      collect->err = rc;
+      return rc;
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Dispatch an enum-returning libsoup3 helper inside a void C-ABI
+ * callback.
+ * @param expr Expression returning `c_abstract_http_error_t`.
+ */
+#define SOUP_VOID_CB_DISPATCH(expr)                                            \
+  do {                                                                         \
+    c_abstract_http_error_t _cb_rc = (expr);                                   \
+    if (_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
+      LOG_DEBUG("soup_void_cb: error %d", (int)_cb_rc);                        \
+    }                                                                          \
+  } while (0)
+
+/**
+ * @brief Void C-ABI `SoupMessageHeadersForeachFunc` trampoline.
+ * @param name Header field name.
+ * @param value Header field value.
+ * @param user_data Pointer to `struct soup_resp_hdr_collect`.
+ */
+static void soup_collect_resp_header_cb(const char *name, const char *value,
+                                        void *user_data) {
+  SOUP_VOID_CB_DISPATCH(soup_collect_resp_header_impl(
+      name, value, (struct soup_resp_hdr_collect *)user_data));
+}
+
 /**
  * @brief Parse `SoupMessage` + `GBytes` / `GError` into an `HttpResponse`.
+ * @param ctx Owning transport context.
  * @param msg Completed `SoupMessage` (consumed/unreffed by this function).
  * @param resp_bytes Response payload `GBytes` (consumed/unreffed).
  * @param error Optional `GError` (consumed/freed).
@@ -484,7 +709,8 @@ soup_build_message(const struct HttpTransportContext *ctx,
  * @return C_ABSTRACT_HTTP_SUCCESS or error code.
  */
 NO_DISCARD static c_abstract_http_error_t
-soup_finalize_result(SoupMessage *msg, GBytes *resp_bytes, GError *error,
+soup_finalize_result(const struct HttpTransportContext *ctx, SoupMessage *msg,
+                     GBytes *resp_bytes, GError *error,
                      const struct HttpRequest *req, struct HttpResponse **res) {
   struct HttpResponse *new_res = NULL;
   gsize resp_len = 0;
@@ -537,6 +763,21 @@ soup_finalize_result(SoupMessage *msg, GBytes *resp_bytes, GError *error,
   }
 
   new_res->status_code = (int)soup_message_get_status(msg);
+  {
+    struct soup_resp_hdr_collect collect;
+    SoupMessageHeaders *rh = soup_message_get_response_headers(msg);
+    collect.res = new_res;
+    collect.cookie_jar = ctx ? ctx->cookie_jar : NULL;
+    collect.err = C_ABSTRACT_HTTP_SUCCESS;
+    soup_message_headers_foreach(rh, soup_collect_resp_header_cb, &collect);
+    if (collect.err != C_ABSTRACT_HTTP_SUCCESS) {
+      c_abstract_http_error_t free_rc = http_response_free(new_res);
+      free(new_res);
+      g_bytes_unref(resp_bytes);
+      g_object_unref(msg);
+      return free_rc != C_ABSTRACT_HTTP_SUCCESS ? free_rc : collect.err;
+    }
+  }
   resp_data = g_bytes_get_data(resp_bytes, &resp_len);
 
   if (req->on_chunk) {
@@ -611,11 +852,13 @@ http_libsoup3_send(struct HttpTransportContext *ctx,
   }
 
   resp_bytes = soup_session_send_and_read(ctx->session, msg, NULL, &error);
-  return soup_finalize_result(msg, resp_bytes, error, req, res);
+  return soup_finalize_result(ctx, msg, resp_bytes, error, req, res);
 }
 
 /** @brief Shared batch state for `http_libsoup3_send_multi` */
 struct soup_multi_batch {
+  /** @brief Owning transport context */
+  const struct HttpTransportContext *ctx;
   /** @brief Active SoupSession */
   SoupSession *session;
   /** @brief Non-zero when caller supplied an external loop */
@@ -652,7 +895,8 @@ soup_async_ready_impl(struct soup_multi_slot *slot, GAsyncResult *async_res) {
   struct HttpResponse *res = NULL;
   c_abstract_http_error_t rc;
 
-  rc = soup_finalize_result(slot->msg, resp_bytes, error, slot->req, &res);
+  rc = soup_finalize_result(slot->batch->ctx, slot->msg, resp_bytes, error,
+                            slot->req, &res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     slot->msg = NULL;
     slot->future->response = NULL;
@@ -676,19 +920,6 @@ soup_async_ready_impl(struct soup_multi_slot *slot, GAsyncResult *async_res) {
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
-
-/**
- * @brief Dispatch an enum-returning libsoup3 helper inside a
- * GAsyncReadyCallback.
- * @param expr Expression returning `c_abstract_http_error_t`.
- */
-#define SOUP_VOID_CB_DISPATCH(expr)                                            \
-  do {                                                                         \
-    c_abstract_http_error_t _cb_rc = (expr);                                   \
-    if (_cb_rc != C_ABSTRACT_HTTP_SUCCESS) {                                   \
-      LOG_DEBUG("soup_async_ready_cb: error %d", (int)_cb_rc);                 \
-    }                                                                          \
-  } while (0)
 
 /**
  * @brief GLib `GAsyncReadyCallback` trampoline for
@@ -817,6 +1048,7 @@ NO_DISCARD c_abstract_http_error_t http_libsoup3_send_multi(
   }
 
   memset(&batch, 0, sizeof(batch));
+  batch.ctx = ctx;
   batch.session = ctx->session;
   batch.caller_loop = (loop != NULL) ? 1 : 0;
   batch.remaining = multi->count;

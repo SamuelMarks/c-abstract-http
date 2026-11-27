@@ -61,10 +61,60 @@ static void (*const cah_objc_msg_send)(void) = &objc_msgSend;
 #define C_ABSTRACT_HTTP_APPLE_DEFAULT_NSURLSESSION 0
 #endif
 
+/** @brief Opaque Apple Security.framework X.509 certificate handle */
+typedef const struct __SecCertificate *CahSecCertificateRef;
+/** @brief Opaque Apple Security.framework cryptographic key handle */
+typedef const struct __SecKey *CahSecKeyRef;
+/** @brief Opaque Apple Security.framework client identity handle */
+typedef const struct __SecIdentity *CahSecIdentityRef;
+/** @brief Opaque Apple Security.framework trust evaluation handle */
+typedef struct __SecTrust *CahSecTrustRef;
+
+extern CahSecCertificateRef SecCertificateCreateWithData(CFAllocatorRef alloc,
+                                                         CFDataRef data);
+extern CFDataRef SecCertificateCopyData(CahSecCertificateRef certificate);
+extern OSStatus SecTrustSetAnchorCertificates(CahSecTrustRef trust,
+                                              CFArrayRef anchorCertificates);
+extern OSStatus SecTrustSetAnchorCertificatesOnly(CahSecTrustRef trust,
+                                                  Boolean only);
+extern Boolean SecTrustEvaluateWithError(CahSecTrustRef trust,
+                                         CFErrorRef *error);
+extern CFArrayRef SecTrustCopyCertificateChain(CahSecTrustRef trust);
+extern CahSecKeyRef SecTrustCopyKey(CahSecTrustRef trust);
+extern CFDataRef SecKeyCopyExternalRepresentation(CahSecKeyRef key,
+                                                  CFErrorRef *error);
+extern CahSecKeyRef SecKeyCreateWithData(CFDataRef keyData,
+                                         CFDictionaryRef attributes,
+                                         CFErrorRef *error);
+extern CahSecIdentityRef SecIdentityCreate(CFAllocatorRef allocator,
+                                           CahSecCertificateRef certificate,
+                                           CahSecKeyRef privateKey);
+extern OSStatus SecPKCS12Import(CFDataRef pkcs12_data, CFDictionaryRef options,
+                                CFArrayRef *items);
+extern const CFStringRef kSecAttrKeyType;
+extern const CFStringRef kSecAttrKeyTypeRSA;
+extern const CFStringRef kSecAttrKeyTypeECSECPrimeRandom;
+extern const CFStringRef kSecAttrKeyClass;
+extern const CFStringRef kSecAttrKeyClassPrivate;
+extern const CFStringRef kSecImportExportPassphrase;
+extern const CFStringRef kSecImportItemIdentity;
+
+/** @brief ABI-compatible Apple Objective-C completionHandler block layout */
+struct CahObjcAuthBlock {
+  void *isa;                                     /**< Block class isa */
+  int flags;                                     /**< Block ABI flags */
+  int reserved;                                  /**< Reserved word */
+  void (*invoke)(void *blk, long disp, id cred); /**< Block invoke function */
+  void *descriptor;                              /**< Block descriptor */
+};
+
 /** @brief Internal Apple transport context */
 struct HttpTransportContext {
-  struct HttpConfig config; /**< Active HTTP configuration */
-  int use_nsurlsession;     /**< 1 for NSURLSession bridge, 0 for CFStream */
+  struct HttpConfig config;          /**< Active HTTP configuration */
+  int use_nsurlsession;              /**< 1 for NSURLSession, 0 for CFStream */
+  CFArrayRef ca_anchors;             /**< Optional custom root CA array */
+  CahSecIdentityRef client_identity; /**< Optional mTLS client identity */
+  volatile int tls_challenge_failed; /**< Set when TLS auth challenge cancels */
 #if C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM
   pthread_mutex_t cf_worker_lock; /**< Synchronizes active_cf_workers */
   pthread_cond_t cf_worker_cond;  /**< Signaled when CFStream workers exit */
@@ -154,6 +204,8 @@ apple_cleanup_failed_res(struct HttpResponse **res,
 
 /** @brief Unique address key for Objective-C associated delegate state */
 static char g_cah_urlsession_state_key = 0;
+/** @brief Unique address key for Objective-C associated transport context */
+static char g_cah_urlsession_ctx_key = 0;
 
 /** @brief One-time delegate class registration guard */
 static pthread_once_t g_cah_urlsession_once = PTHREAD_ONCE_INIT;
@@ -175,6 +227,7 @@ struct AppleURLSessionBatch {
 
 /** @brief Synchronization and buffer state for an NSURLSession data task */
 struct AppleURLSessionState {
+  struct HttpTransportContext *ctx;   /**< Owning transport context */
   const struct HttpRequest *req;      /**< Originating HTTP request */
   struct HttpRequest flat_req;        /**< Scratch flattened multipart req */
   int flattened;                      /**< Non-zero if `flat_req` is active */
@@ -462,10 +515,15 @@ apple_apply_nsurl_options(const struct HttpConfig *cfg, id nsreq) {
  */
 NO_DISCARD static c_abstract_http_error_t
 cah_copy_nshttp_headers(CFDictionaryRef hdrs, struct HttpHeaders *out_headers) {
-  CFIndex count = CFDictionaryGetCount(hdrs);
+  CFIndex count;
   const void **keys;
   const void **vals;
   CFIndex i;
+
+  if (!hdrs) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  count = CFDictionaryGetCount(hdrs);
 
   keys = (const void **)malloc(((size_t)count + 1U) * sizeof(const void *));
   if (!keys) {
@@ -692,20 +750,20 @@ cah_finalize_slot_payload(struct AppleURLSessionState *st) {
 /**
  * @brief Atomically decrement `batch->remaining` and report whether it hit `0`.
  * @param batch Owning batch.
+ * @param out_is_last Receives `1` if final task in batch, else `0`.
  * @param out_sync_wait Receives `batch->sync_wait` when `remaining == 0`.
- * @return 1 if final task in batch, 0 otherwise.
  */
-static int math_decrement_batch_remaining(struct AppleURLSessionBatch *batch,
-                                          int *out_sync_wait) {
-  int is_last = 0;
+static void apple_decrement_batch_remaining(struct AppleURLSessionBatch *batch,
+                                            int *out_is_last,
+                                            int *out_sync_wait) {
+  *out_is_last = 0;
   pthread_mutex_lock(&batch->mtx);
   batch->remaining--;
   if (batch->remaining == 0) {
-    is_last = 1;
+    *out_is_last = 1;
     *out_sync_wait = batch->sync_wait;
   }
   pthread_mutex_unlock(&batch->mtx);
-  return is_last;
 }
 
 /**
@@ -719,19 +777,22 @@ NO_DISCARD static c_abstract_http_error_t
 cah_urlsession_finish_batch_slot(struct AppleURLSessionState *st, id session) {
   struct AppleURLSessionBatch *batch = st->batch;
   c_abstract_http_error_t slot_rc;
+  int is_last = 0;
   int sync_wait = 0;
 
   slot_rc = cah_finalize_slot_payload(st);
   if (slot_rc != C_ABSTRACT_HTTP_SUCCESS) {
     st->error = slot_rc;
-    if (math_decrement_batch_remaining(batch, &sync_wait)) {
+    apple_decrement_batch_remaining(batch, &is_last, &sync_wait);
+    if (is_last) {
       return apple_publish_and_finish_batch(batch, session, sync_wait, slot_rc);
     }
     return slot_rc;
   }
 
   st->error = C_ABSTRACT_HTTP_SUCCESS;
-  if (math_decrement_batch_remaining(batch, &sync_wait)) {
+  apple_decrement_batch_remaining(batch, &is_last, &sync_wait);
+  if (is_last) {
     return apple_publish_and_finish_batch(batch, session, sync_wait,
                                           C_ABSTRACT_HTTP_SUCCESS);
   }
@@ -753,8 +814,14 @@ cah_urlsession_handle_complete(struct AppleURLSessionState *st, id session,
   if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     if (error) {
       CFIndex code = CFErrorGetCode(error);
-      rc = (code == -1001) ? C_ABSTRACT_HTTP_ERR_TIMEOUT
-                           : C_ABSTRACT_HTTP_ERR_IO;
+      if (code == -1001) {
+        rc = C_ABSTRACT_HTTP_ERR_TIMEOUT;
+      } else if ((code <= -1200 && code >= -1206) ||
+                 (code == -999 && st->ctx && st->ctx->tls_challenge_failed)) {
+        rc = C_ABSTRACT_HTTP_ERR_ACCES;
+      } else {
+        rc = C_ABSTRACT_HTTP_ERR_IO;
+      }
       goto finalize_complete;
     } else {
       id resp =
@@ -797,10 +864,213 @@ static void cah_urlsession_did_complete(id self, SEL _cmd, id session, id task,
   struct AppleURLSessionState *st =
       (struct AppleURLSessionState *)(void *)objc_getAssociatedObject(
           task, &g_cah_urlsession_state_key);
-  (void)self;
-  (void)_cmd;
+  if (self || _cmd) {
+  }
   APPLE_VOID_CB_DISPATCH(
       cah_urlsession_handle_complete(st, session, task, (CFErrorRef)error));
+}
+
+/**
+ * @brief Extract X.509 SubjectPublicKeyInfo DER from @p der and verify against
+ * @p pin_str.
+ * @param der Raw X.509 certificate DER buffer.
+ * @param der_len Byte length of @p der.
+ * @param pin_str Expected SHA-256 SPKI pin (`sha256/<b64>` or 64-char hex).
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+apple_verify_cert_der_pin(const unsigned char *der, size_t der_len,
+                          const char *pin_str) {
+  const unsigned char *spki_der = NULL;
+  size_t spki_len = 0;
+  c_abstract_http_error_t rc =
+      c_abstract_http_x509_extract_spki_der(der, der_len, &spki_der, &spki_len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  return c_abstract_http_verify_spki_pin_sha256(spki_der, spki_len, pin_str);
+}
+
+/**
+ * @brief Release up to two optional CoreFoundation handles safely.
+ * @param a First optional `CFTypeRef` handle.
+ * @param b Second optional `CFTypeRef` handle.
+ */
+static void apple_release_cf_pair(CFTypeRef a, CFTypeRef b) {
+  if (a) {
+    CFRelease(a);
+  }
+  if (b) {
+    CFRelease(b);
+  }
+}
+
+/**
+ * @brief Fallback SPKI SHA-256 verification against `SecTrustCopyKey` external
+ * key bytes.
+ * @param trust Evaluated peer `SecTrustRef`.
+ * @param pin_str Expected SHA-256 pin string.
+ * @param fallback_rc Error status to return if key extraction is unavailable.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+apple_verify_key_ext_spki_pin(CahSecTrustRef trust, const char *pin_str,
+                              c_abstract_http_error_t fallback_rc) {
+  CahSecKeyRef pub_key = trust ? SecTrustCopyKey(trust) : (CahSecKeyRef)0;
+  CFDataRef key_ext =
+      pub_key ? SecKeyCopyExternalRepresentation(pub_key, NULL) : (CFDataRef)0;
+  if (key_ext) {
+    c_abstract_http_error_t rc = c_abstract_http_verify_spki_pin_sha256(
+        CFDataGetBytePtr(key_ext), (size_t)CFDataGetLength(key_ext), pin_str);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      apple_release_cf_pair(key_ext, pub_key);
+      return rc;
+    }
+    apple_release_cf_pair(key_ext, pub_key);
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  apple_release_cf_pair(key_ext, pub_key);
+  return fallback_rc;
+}
+
+/**
+ * @brief Verify peer `SecTrustRef` leaf certificate against SHA-256 SPKI pin.
+ * @param trust Evaluated peer `SecTrustRef`.
+ * @param pin_str Expected SHA-256 SPKI pin (`sha256/<b64>` or 64-char hex).
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_ACCES.
+ */
+NO_DISCARD static c_abstract_http_error_t
+apple_verify_trust_spki_pin(CahSecTrustRef trust, const char *pin_str) {
+  CFArrayRef chain = trust ? SecTrustCopyCertificateChain(trust) : NULL;
+  CFDataRef cert_data =
+      (chain && CFArrayGetCount(chain) > 0)
+          ? SecCertificateCopyData(
+                (CahSecCertificateRef)CFArrayGetValueAtIndex(chain, 0))
+          : NULL;
+  if (cert_data) {
+    c_abstract_http_error_t rc =
+        apple_verify_cert_der_pin(CFDataGetBytePtr(cert_data),
+                                  (size_t)CFDataGetLength(cert_data), pin_str);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      apple_release_cf_pair(cert_data, chain);
+      return apple_verify_key_ext_spki_pin(trust, pin_str, rc);
+    }
+    apple_release_cf_pair(cert_data, chain);
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  apple_release_cf_pair(cert_data, chain);
+  return apple_verify_key_ext_spki_pin(trust, pin_str,
+                                       C_ABSTRACT_HTTP_ERR_ACCES);
+}
+
+/**
+ * @brief Process `NSURLAuthenticationChallenge` for custom CA, mTLS, and SPKI
+ * pinning.
+ * @param ctx Associated Apple transport context.
+ * @param challenge `NSURLAuthenticationChallenge` Objective-C object.
+ * @param completion_handler Objective-C completion block `(long, id) -> void`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_ACCES.
+ */
+NO_DISCARD static c_abstract_http_error_t
+cah_urlsession_handle_challenge(struct HttpTransportContext *ctx, id challenge,
+                                id completion_handler) {
+  struct CahObjcAuthBlock *blk =
+      (struct CahObjcAuthBlock *)(void *)completion_handler;
+  id space = ((id(*)(id, SEL))objc_msgSend)(
+      challenge, sel_registerName("protectionSpace"));
+  CFStringRef method = (CFStringRef)((id(*)(id, SEL))objc_msgSend)(
+      space, sel_registerName("authenticationMethod"));
+
+  if (method && CFStringCompare(
+                    method, CFSTR("NSURLAuthenticationMethodClientCertificate"),
+                    0) == kCFCompareEqualTo) {
+    if (ctx && ctx->client_identity) {
+      id id_obj = (id)0;
+      id cred;
+      memcpy(&id_obj, &ctx->client_identity, sizeof(id_obj));
+      cred = ((id(*)(Class, SEL, id, id, long))objc_msgSend)(
+          objc_getClass("NSURLCredential"),
+          sel_registerName("credentialWithIdentity:certificates:persistence:"),
+          id_obj, (id)0, 1L);
+      blk->invoke(blk, 0L, cred);
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+    blk->invoke(blk, 1L, (id)0);
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  if (method &&
+      CFStringCompare(method, CFSTR("NSURLAuthenticationMethodServerTrust"),
+                      0) == kCFCompareEqualTo) {
+    CahSecTrustRef trust = (CahSecTrustRef)(void *)((
+        id(*)(id, SEL))objc_msgSend)(space, sel_registerName("serverTrust"));
+    if (!trust) {
+      if (ctx) {
+        ctx->tls_challenge_failed = 1;
+      }
+      blk->invoke(blk, 2L, (id)0);
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    if (!ctx || ctx->config.verify_peer) {
+      CFErrorRef trust_err = NULL;
+      Boolean ok;
+      if (ctx && ctx->ca_anchors) {
+        SecTrustSetAnchorCertificates(trust, ctx->ca_anchors);
+        SecTrustSetAnchorCertificatesOnly(trust, (Boolean)1);
+      }
+      ok = SecTrustEvaluateWithError(trust, &trust_err);
+      if (trust_err) {
+        CFRelease(trust_err);
+      }
+      if (!ok) {
+        if (ctx) {
+          ctx->tls_challenge_failed = 1;
+        }
+        blk->invoke(blk, 2L, (id)0);
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+    }
+    if (ctx && ctx->config.cert_pin_sha256) {
+      c_abstract_http_error_t prc =
+          apple_verify_trust_spki_pin(trust, ctx->config.cert_pin_sha256);
+      if (prc != C_ABSTRACT_HTTP_SUCCESS) {
+        ctx->tls_challenge_failed = 1;
+        blk->invoke(blk, 2L, (id)0);
+        return prc;
+      }
+    }
+    {
+      id cred = ((id(*)(Class, SEL, id))objc_msgSend)(
+          objc_getClass("NSURLCredential"),
+          sel_registerName("credentialForTrust:"), (id)(void *)trust);
+      blk->invoke(blk, 0L, cred);
+    }
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  blk->invoke(blk, 1L, (id)0);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Objective-C IMP for
+ * `URLSession:didReceiveChallenge:completionHandler:`.
+ * @param self Delegate instance.
+ * @param _cmd Selector.
+ * @param session NSURLSession instance.
+ * @param challenge NSURLAuthenticationChallenge instance.
+ * @param completion_handler Completion block.
+ */
+static void cah_urlsession_did_receive_challenge(id self, SEL _cmd, id session,
+                                                 id challenge,
+                                                 id completion_handler) {
+  struct HttpTransportContext *ctx =
+      (struct HttpTransportContext *)(void *)objc_getAssociatedObject(
+          self, &g_cah_urlsession_ctx_key);
+  if (_cmd || session) {
+  }
+  APPLE_VOID_CB_DISPATCH(
+      cah_urlsession_handle_challenge(ctx, challenge, completion_handler));
 }
 
 /**
@@ -816,6 +1086,10 @@ cah_register_urlsession_delegate_impl(void) {
   class_addMethod(cls,
                   sel_registerName("URLSession:task:didCompleteWithError:"),
                   (IMP)cah_urlsession_did_complete, "v@:@@@");
+  class_addMethod(
+      cls,
+      sel_registerName("URLSession:didReceiveChallenge:completionHandler:"),
+      (IMP)cah_urlsession_did_receive_challenge, "v@:@@@?");
   objc_registerClassPair(cls);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -980,8 +1254,10 @@ http_apple_nsurlsession_send(struct HttpTransportContext *ctx,
   c_abstract_http_error_t rc;
 
   memset(&st, 0, sizeof(st));
+  st.ctx = ctx;
   st.mtx = init_mtx;
   st.cv = init_cv;
+  ctx->tls_challenge_failed = 0;
 
   pthread_once(&g_cah_urlsession_once, cah_register_urlsession_delegate);
 
@@ -993,6 +1269,8 @@ http_apple_nsurlsession_send(struct HttpTransportContext *ctx,
       ((id(*)(Class, SEL))objc_msgSend)(objc_getClass("CAHURLSessionDelegate"),
                                         sel_registerName("alloc")),
       sel_registerName("init"));
+  objc_setAssociatedObject(del, &g_cah_urlsession_ctx_key, (id)(void *)ctx,
+                           OBJC_ASSOCIATION_ASSIGN);
   scfg = ((id(*)(Class, SEL))objc_msgSend)(
       objc_getClass("NSURLSessionConfiguration"),
       sel_registerName("ephemeralSessionConfiguration"));
@@ -1269,6 +1547,7 @@ NO_DISCARD static c_abstract_http_error_t apple_nsurlsession_send_multi_async(
     return apple_destroy_batch_and_return(batch, rc);
   }
 
+  ctx->tls_challenge_failed = 0;
   pthread_once(&g_cah_urlsession_once, cah_register_urlsession_delegate);
 
   pool = ((id(*)(id, SEL))objc_msgSend)(
@@ -1279,6 +1558,8 @@ NO_DISCARD static c_abstract_http_error_t apple_nsurlsession_send_multi_async(
       ((id(*)(Class, SEL))objc_msgSend)(objc_getClass("CAHURLSessionDelegate"),
                                         sel_registerName("alloc")),
       sel_registerName("init"));
+  objc_setAssociatedObject(del, &g_cah_urlsession_ctx_key, (id)(void *)ctx,
+                           OBJC_ASSOCIATION_ASSIGN);
   scfg = ((id(*)(Class, SEL))objc_msgSend)(
       objc_getClass("NSURLSessionConfiguration"),
       sel_registerName("ephemeralSessionConfiguration"));
@@ -1295,6 +1576,7 @@ NO_DISCARD static c_abstract_http_error_t apple_nsurlsession_send_multi_async(
 
   for (i = 0; i < multi->count; ++i) {
     id task = (id)0;
+    batch->tasks[i].ctx = ctx;
     batch->tasks[i].batch = batch;
     rc = apple_prepare_batch_slot(&ctx->config, session, multi->requests[i],
                                   &batch->tasks[i], futures[i], &task, 0);
@@ -2060,6 +2342,34 @@ NO_DISCARD c_abstract_http_error_t http_apple_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for `apple_release_tls_handles` */
+static int s_mock_apple_release_tls_fail = 0;
+#endif
+
+/**
+ * @brief Release CoreFoundation / Security TLS handles stored on @p ctx.
+ * @param ctx Apple transport context.
+ * @return C_ABSTRACT_HTTP_SUCCESS or fault-injected error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+apple_release_tls_handles(struct HttpTransportContext *ctx) {
+  if (ctx->client_identity) {
+    CFRelease(ctx->client_identity);
+    ctx->client_identity = NULL;
+  }
+  if (ctx->ca_anchors) {
+    CFRelease(ctx->ca_anchors);
+    ctx->ca_anchors = NULL;
+  }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (s_mock_apple_release_tls_fail) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 NO_DISCARD c_abstract_http_error_t
 http_apple_context_init(struct HttpTransportContext **ctx) {
   LOG_DEBUG("http_apple_context_init: Entering");
@@ -2084,6 +2394,9 @@ http_apple_context_init(struct HttpTransportContext **ctx) {
     }
   }
   (*ctx)->use_nsurlsession = C_ABSTRACT_HTTP_APPLE_DEFAULT_NSURLSESSION;
+  (*ctx)->ca_anchors = NULL;
+  (*ctx)->client_identity = NULL;
+  (*ctx)->tls_challenge_failed = 0;
 #if C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM
   pthread_mutex_init(&(*ctx)->cf_worker_lock, NULL);
   pthread_cond_init(&(*ctx)->cf_worker_cond, NULL);
@@ -2098,18 +2411,26 @@ NO_DISCARD c_abstract_http_error_t
 http_apple_context_free(struct HttpTransportContext *ctx) {
   if (ctx) {
     c_abstract_http_error_t rch;
+    c_abstract_http_error_t trc;
 #if C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM
     pthread_mutex_lock(&ctx->cf_worker_lock);
     while (ctx->active_cf_workers > 0) {
       pthread_cond_wait(&ctx->cf_worker_cond, &ctx->cf_worker_lock);
     }
     pthread_mutex_unlock(&ctx->cf_worker_lock);
+#endif
+    rch = http_config_free(&ctx->config);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+      return rch;
+    }
+    trc = apple_release_tls_handles(ctx);
+    if (trc != C_ABSTRACT_HTTP_SUCCESS) {
+      return trc;
+    }
+#if C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM
     pthread_cond_destroy(&ctx->cf_worker_cond);
     pthread_mutex_destroy(&ctx->cf_worker_lock);
 #endif
-    rch = http_config_free(&ctx->config);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS)
-      return rch;
     free(ctx);
   }
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -2131,6 +2452,318 @@ NO_DISCARD static c_abstract_http_error_t apple_replace_str(char **dst,
   return c_abstract_http_strdup(src, dst);
 }
 
+/**
+ * @brief Decode PEM/DER certificate bytes and append `SecCertificateRef` to
+ * @p arr.
+ * @param arr Mutable CFArray of `SecCertificateRef` anchors.
+ * @param raw Raw PEM or DER bytes.
+ * @param raw_len Byte length of @p raw.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+apple_append_ca_anchor(CFMutableArrayRef arr, const unsigned char *raw,
+                       size_t raw_len) {
+  unsigned char *der = NULL;
+  size_t der_len = 0;
+  CFDataRef cf_der;
+  CahSecCertificateRef cert;
+  c_abstract_http_error_t rc;
+
+  rc = c_abstract_http_pem_or_der_decode(raw, raw_len, &der, &der_len);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  cf_der = CFDataCreate(kCFAllocatorDefault, der, (CFIndex)der_len);
+  free(der);
+  cert = SecCertificateCreateWithData(kCFAllocatorDefault, cf_der);
+  CFRelease(cf_der);
+  if (!cert) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+  CFArrayAppendValue(arr, cert);
+  CFRelease(cert);
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Try importing a PKCS#12 `.p12`/`.pfx` archive using @p pass_cstr.
+ * @param pfx_data Raw PKCS#12 archive `CFDataRef`.
+ * @param pass_cstr UTF-8 passphrase string.
+ * @param out_id Receives retained `SecIdentityRef` on success, else NULL.
+ */
+static void apple_try_p12_import(CFDataRef pfx_data, const char *pass_cstr,
+                                 CahSecIdentityRef *out_id) {
+  CFMutableDictionaryRef opts;
+  CFStringRef pw_cf;
+  CFArrayRef items = NULL;
+  OSStatus st;
+
+  *out_id = NULL;
+  pw_cf = CFStringCreateWithCString(kCFAllocatorDefault, pass_cstr,
+                                    kCFStringEncodingUTF8);
+  if (pw_cf) {
+    opts = CFDictionaryCreateMutable(kCFAllocatorDefault, 1,
+                                     &kCFTypeDictionaryKeyCallBacks,
+                                     &kCFTypeDictionaryValueCallBacks);
+    CFDictionarySetValue(opts, kSecImportExportPassphrase, pw_cf);
+    st = SecPKCS12Import(pfx_data, opts, &items);
+    CFRelease(opts);
+    CFRelease(pw_cf);
+    if (st == 0 && items) {
+      if (CFArrayGetCount(items) > 0) {
+        CFDictionaryRef d0 = (CFDictionaryRef)CFArrayGetValueAtIndex(items, 0);
+        CahSecIdentityRef ident =
+            (CahSecIdentityRef)CFDictionaryGetValue(d0, kSecImportItemIdentity);
+        if (ident) {
+          CFRetain(ident);
+          *out_id = ident;
+        }
+      }
+      CFRelease(items);
+    }
+  }
+}
+
+/**
+ * @brief Convert RFC 5915 SEC1 P-256 `ECPrivateKey` DER into 97-byte X9.63
+ * `04 || X(32) || Y(32) || D(32)` format expected by `SecKeyCreateWithData`.
+ * @param der Input SEC1 DER buffer.
+ * @param der_len Byte length of @p der.
+ * @param out_x963 Output 97-byte buffer.
+ * @return 1 if P-256 SEC1 components were extracted, 0 otherwise.
+ */
+static int math_apple_sec1_to_x963(const unsigned char *der, size_t der_len,
+                                   unsigned char out_x963[97]) {
+  size_t i;
+  size_t priv_off = 0;
+  int found_priv = 0;
+  size_t pub_off = 0;
+  int found_pub = 0;
+
+  for (i = 0; i + 34U <= der_len; ++i) {
+    if (!found_priv && der[i] == 0x04U && der[i + 1U] == 0x20U) {
+      priv_off = i + 2U;
+      found_priv = 1;
+    }
+    if (!found_pub && i + 68U <= der_len && der[i] == 0x03U &&
+        der[i + 1U] == 0x42U && der[i + 2U] == 0x00U && der[i + 3U] == 0x04U) {
+      pub_off = i + 3U;
+      found_pub = 1;
+    }
+  }
+  if (!found_priv || !found_pub) {
+    return 0;
+  }
+  memcpy(out_x963, der + pub_off, 65U);
+  memcpy(out_x963 + 65U, der + priv_off, 32U);
+  return 1;
+}
+
+/**
+ * @brief Materialize custom CA anchors and mTLS client identity on @p ctx.
+ * @param ctx Apple transport context.
+ * @param config Caller-supplied HTTP configuration.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+apple_apply_tls_materials(struct HttpTransportContext *ctx,
+                          const struct HttpConfig *config) {
+  c_abstract_http_error_t rc;
+
+  if ((config->client_cert_path && !config->client_key_path) ||
+      (!config->client_cert_path && config->client_key_path) ||
+      (config->ca_buffer_len > 0U && !config->ca_buffer)) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  rc = apple_release_tls_handles(ctx);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  rc = apple_replace_str(&ctx->config.ca_path, config->ca_path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  free(ctx->config.ca_buffer);
+  ctx->config.ca_buffer = NULL;
+  ctx->config.ca_buffer_len = 0;
+  if (config->ca_buffer && config->ca_buffer_len > 0U) {
+    ctx->config.ca_buffer = (unsigned char *)malloc(config->ca_buffer_len);
+    if (!ctx->config.ca_buffer) {
+      return C_ABSTRACT_HTTP_ERR_NOMEM;
+    }
+    memcpy(ctx->config.ca_buffer, config->ca_buffer, config->ca_buffer_len);
+    ctx->config.ca_buffer_len = config->ca_buffer_len;
+  }
+  rc = apple_replace_str(&ctx->config.client_cert_path,
+                         config->client_cert_path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = apple_replace_str(&ctx->config.client_key_path, config->client_key_path);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = apple_replace_str(&ctx->config.cert_pin_sha256, config->cert_pin_sha256);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  if (config->ca_path || (config->ca_buffer && config->ca_buffer_len > 0U)) {
+    CFMutableArrayRef anchors =
+        CFArrayCreateMutable(kCFAllocatorDefault, 0, &kCFTypeArrayCallBacks);
+    if (config->ca_path) {
+      unsigned char *fbuf = NULL;
+      size_t flen = 0;
+      rc = c_abstract_http_read_file_bytes(config->ca_path, &fbuf, &flen);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        CFRelease(anchors);
+        return rc;
+      }
+      rc = apple_append_ca_anchor(anchors, fbuf, flen);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(fbuf);
+        CFRelease(anchors);
+        return rc;
+      }
+      free(fbuf);
+    }
+    if (config->ca_buffer && config->ca_buffer_len > 0U) {
+      rc = apple_append_ca_anchor(anchors, config->ca_buffer,
+                                  config->ca_buffer_len);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        CFRelease(anchors);
+        return rc;
+      }
+    }
+    ctx->ca_anchors = anchors;
+  }
+
+  if (config->client_cert_path && config->client_key_path) {
+    unsigned char *cbuf = NULL;
+    size_t clen = 0;
+    unsigned char *kbuf = NULL;
+    size_t klen = 0;
+    CFDataRef pfx_cf;
+
+    rc =
+        c_abstract_http_read_file_bytes(config->client_cert_path, &cbuf, &clen);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    rc = c_abstract_http_read_file_bytes(config->client_key_path, &kbuf, &klen);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(cbuf);
+      return rc;
+    }
+
+    pfx_cf = CFDataCreate(kCFAllocatorDefault, cbuf, (CFIndex)clen);
+    {
+      char pw_buf[128];
+      size_t pw_len = klen < sizeof(pw_buf) - 1U ? klen : sizeof(pw_buf) - 1U;
+      memcpy(pw_buf, kbuf, pw_len);
+      while (pw_len > 0U &&
+             (pw_buf[pw_len - 1U] == '\n' || pw_buf[pw_len - 1U] == '\r')) {
+        --pw_len;
+      }
+      pw_buf[pw_len] = '\0';
+      apple_try_p12_import(pfx_cf, pw_buf, &ctx->client_identity);
+      if (!ctx->client_identity) {
+        apple_try_p12_import(pfx_cf, "", &ctx->client_identity);
+      }
+    }
+    CFRelease(pfx_cf);
+
+    if (ctx->client_identity) {
+      free(cbuf);
+      free(kbuf);
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+
+    {
+      unsigned char *cder = NULL;
+      size_t cder_len = 0;
+      unsigned char *kder = NULL;
+      size_t kder_len = 0;
+      const unsigned char *ukey = NULL;
+      size_t ukey_len = 0;
+      CFDataRef cert_cf;
+      CFDataRef key_cf;
+      CahSecCertificateRef cert_ref;
+      CFMutableDictionaryRef kattrs;
+      CahSecKeyRef key_ref;
+
+      rc = c_abstract_http_pem_or_der_decode(cbuf, clen, &cder, &cder_len);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(cbuf);
+        free(kbuf);
+        return rc;
+      }
+      free(cbuf);
+      rc = c_abstract_http_pem_or_der_decode(kbuf, klen, &kder, &kder_len);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(kbuf);
+        free(cder);
+        return rc;
+      }
+      free(kbuf);
+      rc = c_abstract_http_pkcs8_unwrap_key(kder, kder_len, &ukey, &ukey_len);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(kder);
+        free(cder);
+        return rc;
+      }
+
+      cert_cf = CFDataCreate(kCFAllocatorDefault, cder, (CFIndex)cder_len);
+      key_cf = CFDataCreate(kCFAllocatorDefault, ukey, (CFIndex)ukey_len);
+      free(cder);
+      free(kder);
+
+      cert_ref = SecCertificateCreateWithData(kCFAllocatorDefault, cert_cf);
+      CFRelease(cert_cf);
+      if (!cert_ref) {
+        CFRelease(key_cf);
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+
+      kattrs = CFDictionaryCreateMutable(kCFAllocatorDefault, 2,
+                                         &kCFTypeDictionaryKeyCallBacks,
+                                         &kCFTypeDictionaryValueCallBacks);
+      CFDictionarySetValue(kattrs, kSecAttrKeyType, kSecAttrKeyTypeRSA);
+      CFDictionarySetValue(kattrs, kSecAttrKeyClass, kSecAttrKeyClassPrivate);
+      key_ref = SecKeyCreateWithData(key_cf, kattrs, NULL);
+      if (!key_ref) {
+        unsigned char x963[97];
+        CFDictionarySetValue(kattrs, kSecAttrKeyType,
+                             kSecAttrKeyTypeECSECPrimeRandom);
+        if (math_apple_sec1_to_x963(CFDataGetBytePtr(key_cf),
+                                    (size_t)CFDataGetLength(key_cf), x963)) {
+          CFDataRef ec_cf = CFDataCreate(kCFAllocatorDefault, x963, 97);
+          key_ref = SecKeyCreateWithData(ec_cf, kattrs, NULL);
+          CFRelease(ec_cf);
+        } else {
+          key_ref = SecKeyCreateWithData(key_cf, kattrs, NULL);
+        }
+      }
+      CFRelease(kattrs);
+      CFRelease(key_cf);
+      if (!key_ref) {
+        CFRelease(cert_ref);
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+      ctx->client_identity =
+          SecIdentityCreate(kCFAllocatorDefault, cert_ref, key_ref);
+      CFRelease(key_ref);
+      CFRelease(cert_ref);
+      if (!ctx->client_identity) {
+        return C_ABSTRACT_HTTP_ERR_ACCES;
+      }
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 NO_DISCARD c_abstract_http_error_t http_apple_config_apply(
     struct HttpTransportContext *ctx, const struct HttpConfig *config) {
   c_abstract_http_error_t rc;
@@ -2141,6 +2774,10 @@ NO_DISCARD c_abstract_http_error_t http_apple_config_apply(
   }
   if (config->proxy_url && strstr(config->proxy_url, "://") == NULL) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  rc = apple_apply_tls_materials(ctx, config);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
   }
   rc = apple_replace_str(&ctx->config.user_agent, config->user_agent);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -2325,5 +2962,246 @@ NO_DISCARD c_abstract_http_error_t http_apple_send_multi(
   return C_ABSTRACT_HTTP_ERR_NOTSUP;
 #endif
 }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Opaque Apple Security.framework policy handle */
+typedef struct __SecPolicy *CahSecPolicyRef;
+extern CahSecPolicyRef SecPolicyCreateBasicX509(void);
+extern OSStatus SecTrustCreateWithCertificates(CFTypeRef certificates,
+                                               CFTypeRef policies,
+                                               CahSecTrustRef *trust);
+
+/** @brief Associated-object key for mock challenge authentication method */
+static char g_cah_mock_auth_method_key = 0;
+/** @brief Associated-object key for mock challenge SecTrustRef */
+static char g_cah_mock_server_trust_key = 0;
+/** @brief One-time registration guard for `CAHMockChallenge` */
+static pthread_once_t g_cah_mock_chal_once = PTHREAD_ONCE_INIT;
+
+/** @brief Test completion block recording disposition and credential presence
+ */
+struct CahTestAuthRecordBlock {
+  struct CahObjcAuthBlock hdr; /**< Standard Apple block ABI header */
+  long disposition;   /**< Recorded NSURLSessionAuthChallengeDisposition */
+  int has_credential; /**< 1 if non-nil credential passed, else 0 */
+};
+
+/**
+ * @brief Objective-C IMP returning `self` as `protectionSpace` on mock
+ * challenge.
+ * @param self Receiver.
+ * @param _cmd Selector.
+ * @return `self`.
+ */
+static id cah_mock_chal_protection_space(id self, SEL _cmd) {
+  if (_cmd) {
+  }
+  return self;
+}
+
+/**
+ * @brief Objective-C IMP returning `authenticationMethod` on mock space.
+ * @param self Receiver.
+ * @param _cmd Selector.
+ * @return Associated `CFStringRef`.
+ */
+static id cah_mock_chal_auth_method(id self, SEL _cmd) {
+  if (_cmd) {
+  }
+  return objc_getAssociatedObject(self, &g_cah_mock_auth_method_key);
+}
+
+/**
+ * @brief Objective-C IMP returning `serverTrust` on mock space.
+ * @param self Receiver.
+ * @param _cmd Selector.
+ * @return Associated `SecTrustRef`.
+ */
+static id cah_mock_chal_server_trust(id self, SEL _cmd) {
+  if (_cmd) {
+  }
+  return objc_getAssociatedObject(self, &g_cah_mock_server_trust_key);
+}
+
+/**
+ * @brief Register `CAHMockChallenge` Objective-C class once (`pthread_once`
+ * ABI).
+ */
+static void cah_register_mock_challenge_cls(void) {
+  Class sup = objc_getClass("NSObject");
+  Class cls = objc_allocateClassPair(sup, "CAHMockChallenge", 0);
+  class_addMethod(cls, sel_registerName("protectionSpace"),
+                  (IMP)cah_mock_chal_protection_space, "@@:");
+  class_addMethod(cls, sel_registerName("authenticationMethod"),
+                  (IMP)cah_mock_chal_auth_method, "@@:");
+  class_addMethod(cls, sel_registerName("serverTrust"),
+                  (IMP)cah_mock_chal_server_trust, "@@:");
+  objc_registerClassPair(cls);
+}
+
+/**
+ * @brief Invoke callback for `struct CahTestAuthRecordBlock`.
+ * @param blk_ptr Block pointer.
+ * @param disp Challenge disposition.
+ * @param cred Optional `NSURLCredential`.
+ */
+static void cah_test_auth_block_invoke(void *blk_ptr, long disp, id cred) {
+  struct CahTestAuthRecordBlock *rec = (struct CahTestAuthRecordBlock *)blk_ptr;
+  rec->disposition = disp;
+  rec->has_credential = (cred != (id)0) ? 1 : 0;
+}
+
+/**
+ * @brief Test entry point exercising `CAHURLSessionDelegate` TLS challenge and
+ * completion error mapping paths.
+ * @param ctx Associated Apple transport context (may be NULL).
+ * @param mode `1`=`didCompleteWithError:` `-1202`, `2`=`-999` after challenge
+ * cancel, `3`=enable `s_mock_apple_release_tls_fail`, `4`=reset fault flag,
+ * `10`=ServerTrust challenge, `11`=ClientCertificate challenge, `12`=HTTPBasic.
+ * @param cert_der Optional DER X.509 certificate for `SecTrustRef` (`mode 10`).
+ * @param cert_der_len Byte length of @p cert_der.
+ * @param out_disp Optional output disposition (`0`/`1`/`2`).
+ * @param out_has_cred Optional output flag (`1` when credential != nil).
+ * @return C_ABSTRACT_HTTP_SUCCESS or mapped error enum.
+ */
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_apple_tls_challenge(
+    struct HttpTransportContext *ctx, int mode, const unsigned char *cert_der,
+    size_t cert_der_len, long *out_disp, int *out_has_cred);
+
+NO_DISCARD c_abstract_http_error_t c_abstract_http_test_apple_tls_challenge(
+    struct HttpTransportContext *ctx, int mode, const unsigned char *cert_der,
+    size_t cert_der_len, long *out_disp, int *out_has_cred) {
+  if (mode == 3) {
+    s_mock_apple_release_tls_fail = 1;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (mode == 4) {
+    s_mock_apple_release_tls_fail = 0;
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (mode == 1 || mode == 2 || mode == 5) {
+    struct AppleURLSessionState st;
+    struct HttpResponse dummy_res;
+    pthread_mutex_t init_mtx = PTHREAD_MUTEX_INITIALIZER;
+    pthread_cond_t init_cv = PTHREAD_COND_INITIALIZER;
+    id pool;
+    id fake_sess;
+    CFErrorRef cferr = NULL;
+    c_abstract_http_error_t rc;
+
+    memset(&st, 0, sizeof(st));
+    memset(&dummy_res, 0, sizeof(dummy_res));
+    st.ctx = ctx;
+    st.res = &dummy_res;
+    st.mtx = init_mtx;
+    st.cv = init_cv;
+    if (ctx && mode == 2) {
+      ctx->tls_challenge_failed = 1;
+    }
+    pool = ((id(*)(id, SEL))objc_msgSend)(
+        ((id(*)(Class, SEL))objc_msgSend)(objc_getClass("NSAutoreleasePool"),
+                                          sel_registerName("alloc")),
+        sel_registerName("init"));
+    fake_sess = ((id(*)(Class, SEL, id))objc_msgSend)(
+        objc_getClass("NSURLSession"),
+        sel_registerName("sessionWithConfiguration:"),
+        ((id(*)(Class, SEL))objc_msgSend)(
+            objc_getClass("NSURLSessionConfiguration"),
+            sel_registerName("ephemeralSessionConfiguration")));
+    if (mode != 5) {
+      cferr = CFErrorCreate(kCFAllocatorDefault, kCFErrorDomainCFNetwork,
+                            mode == 1 ? (CFIndex)-1202 : (CFIndex)-999, NULL);
+    }
+    rc = cah_urlsession_handle_complete(&st, fake_sess, (id)0, cferr);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      if (cferr) {
+        CFRelease(cferr);
+      }
+      ((void (*)(id, SEL))objc_msgSend)(pool, sel_registerName("drain"));
+      pthread_mutex_destroy(&st.mtx);
+      pthread_cond_destroy(&st.cv);
+      return rc;
+    }
+    ((void (*)(id, SEL))objc_msgSend)(pool, sel_registerName("drain"));
+    pthread_mutex_destroy(&st.mtx);
+    pthread_cond_destroy(&st.cv);
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  if (mode == 6) {
+    if (cert_der) {
+      return apple_verify_cert_der_pin(cert_der, cert_der_len, "sha256/AAAA");
+    }
+    return apple_verify_trust_spki_pin((CahSecTrustRef)0, "sha256/AAAA");
+  }
+  {
+    struct CahTestAuthRecordBlock rec_blk;
+    id pool;
+    id del;
+    id chal;
+    CahSecTrustRef trust_ref = NULL;
+    CFStringRef auth_m =
+        mode == 10
+            ? CFSTR("NSURLAuthenticationMethodServerTrust")
+            : (mode == 11 ? CFSTR("NSURLAuthenticationMethodClientCertificate")
+                          : CFSTR("NSURLAuthenticationMethodHTTPBasic"));
+
+    memset(&rec_blk, 0, sizeof(rec_blk));
+    rec_blk.hdr.invoke = cah_test_auth_block_invoke;
+    rec_blk.disposition = -1L;
+
+    pthread_once(&g_cah_urlsession_once, cah_register_urlsession_delegate);
+    pthread_once(&g_cah_mock_chal_once, cah_register_mock_challenge_cls);
+
+    if (mode == 10 && cert_der && cert_der_len > 0U) {
+      CFDataRef cd =
+          CFDataCreate(kCFAllocatorDefault, cert_der, (CFIndex)cert_der_len);
+      CahSecCertificateRef cref =
+          SecCertificateCreateWithData(kCFAllocatorDefault, cd);
+      CahSecPolicyRef pol = SecPolicyCreateBasicX509();
+      CFRelease(cd);
+      SecTrustCreateWithCertificates((CFTypeRef)cref, (CFTypeRef)pol,
+                                     &trust_ref);
+      CFRelease(pol);
+      CFRelease(cref);
+    }
+
+    pool = ((id(*)(id, SEL))objc_msgSend)(
+        ((id(*)(Class, SEL))objc_msgSend)(objc_getClass("NSAutoreleasePool"),
+                                          sel_registerName("alloc")),
+        sel_registerName("init"));
+    del = ((id(*)(id, SEL))objc_msgSend)(
+        ((id(*)(Class, SEL))objc_msgSend)(
+            objc_getClass("CAHURLSessionDelegate"), sel_registerName("alloc")),
+        sel_registerName("init"));
+    chal = ((id(*)(id, SEL))objc_msgSend)(
+        ((id(*)(Class, SEL))objc_msgSend)(objc_getClass("CAHMockChallenge"),
+                                          sel_registerName("alloc")),
+        sel_registerName("init"));
+    objc_setAssociatedObject(del, &g_cah_urlsession_ctx_key, (id)(void *)ctx,
+                             OBJC_ASSOCIATION_ASSIGN);
+    {
+      id auth_obj = (id)0;
+      memcpy(&auth_obj, &auth_m, sizeof(auth_obj));
+      objc_setAssociatedObject(chal, &g_cah_mock_auth_method_key, auth_obj,
+                               OBJC_ASSOCIATION_ASSIGN);
+    }
+    objc_setAssociatedObject(chal, &g_cah_mock_server_trust_key,
+                             (id)(void *)trust_ref, OBJC_ASSOCIATION_ASSIGN);
+    ((void (*)(id, SEL, id, id, id))objc_msgSend)(
+        del,
+        sel_registerName("URLSession:didReceiveChallenge:completionHandler:"),
+        (id)0, chal, (id)(void *)&rec_blk);
+    ((void (*)(id, SEL))objc_msgSend)(chal, sel_registerName("release"));
+    ((void (*)(id, SEL))objc_msgSend)(del, sel_registerName("release"));
+    if (trust_ref) {
+      CFRelease(trust_ref);
+    }
+    ((void (*)(id, SEL))objc_msgSend)(pool, sel_registerName("drain"));
+    *out_disp = rec_blk.disposition;
+    *out_has_cred = rec_blk.has_credential;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+#endif
 
 #endif /* defined(__APPLE__) */

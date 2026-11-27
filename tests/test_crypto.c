@@ -114,6 +114,12 @@ TEST test_sha256_vectors_and_spki_pinning(void) {
             c_abstract_http_get_default_tls_hooks(NULL));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_get_default_tls_hooks(&hooks));
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+    (defined(__APPLE__) || defined(_WIN32))
+  ASSERT(hooks != NULL);
+  ASSERT(hooks->open != NULL && hooks->handshake != NULL &&
+         hooks->read != NULL && hooks->write != NULL && hooks->close != NULL);
+#endif
 
   /* SPKI SHA-256 pinning (sha256//base64, sha256/base64, raw base64, hex) */
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
@@ -560,8 +566,507 @@ TEST test_random_bytes(void) {
   PASS();
 }
 
+NO_DISCARD static c_abstract_http_error_t
+crypto_dummy_read_chunk(void *user_data, void *buf, size_t buf_len,
+                        size_t *out_read) {
+  (void)user_data;
+  (void)buf;
+  (void)buf_len;
+  *out_read = 0;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+TEST test_h3_shared_helpers(void) {
+  struct HttpConfig dst;
+  struct HttpConfig src;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  char *redir_url = NULL;
+  const char *loc = NULL;
+  char clen_buf[32];
+  int emit = 0;
+  static const unsigned char k_ca_bytes[] = {0x30, 0x03, 0x01, 0x01, 0xff};
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&dst));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&src));
+
+  /* 1. c_abstract_http_h3_apply_tls_config validation & persistence */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_h3_apply_tls_config(NULL, &src));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_h3_apply_tls_config(&dst, NULL));
+
+  src.client_cert_path = (char *)"c.pem";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_h3_apply_tls_config(&dst, &src));
+  src.client_cert_path = NULL;
+  src.ca_buffer_len = 3;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_h3_apply_tls_config(&dst, &src));
+  src.ca_buffer_len = 0;
+
+  src.version_mask = HTTP_VERSION_1_1;
+  src.http3_fallback = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            c_abstract_http_h3_apply_tls_config(&dst, &src));
+  src.http3_fallback = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_h3_apply_tls_config(&dst, &src));
+  src.version_mask = HTTP_VERSION_3;
+
+  src.tls_version_mask = HTTP_TLS_VERSION_1_2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP,
+            c_abstract_http_h3_apply_tls_config(&dst, &src));
+  src.tls_version_mask = HTTP_TLS_VERSION_1_3;
+
+  src.ca_path = (char *)"ca.pem";
+  src.ca_buffer = (unsigned char *)k_ca_bytes;
+  src.ca_buffer_len = sizeof(k_ca_bytes);
+  src.client_cert_path = (char *)"cert.pem";
+  src.client_key_path = (char *)"key.pem";
+  src.cert_pin_sha256 =
+      (char *)"sha256//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  {
+    int step;
+    for (step = 0; step < 8; ++step) {
+      c_abstract_http_error_t orc;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      orc = c_abstract_http_h3_apply_tls_config(&dst, &src);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS) {
+        break;
+      }
+    }
+  }
+#endif
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_h3_apply_tls_config(&dst, &src));
+  src.ca_path = NULL;
+  src.ca_buffer = NULL;
+  src.ca_buffer_len = 0;
+  src.client_cert_path = NULL;
+  src.client_key_path = NULL;
+  src.cert_pin_sha256 = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_h3_apply_tls_config(&dst, &src));
+
+  /* 2. c_abstract_http_h3_verify_peer_tls */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_h3_verify_peer_tls(NULL, "https", "example.com"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_h3_verify_peer_tls(&dst, NULL, "example.com"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_h3_verify_peer_tls(&dst, "https", ""));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_h3_verify_peer_tls(&dst, "http", "example.com"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_h3_verify_peer_tls(&dst, "https", "example.com"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_h3_verify_peer_tls(&dst, "masque", "example.com"));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_ACCES,
+      c_abstract_http_h3_verify_peer_tls(&dst, "https", "sub.bad-cn.invalid"));
+
+  /* 3. math_c_abstract_http_should_redirect &
+   * c_abstract_http_h3_advance_redirect */
+  res = (struct HttpResponse *)calloc(1, sizeof(*res));
+  ASSERT(res != NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(res));
+  res->status_code = 200;
+  ASSERT_EQ(0, math_c_abstract_http_should_redirect(0, res, &loc));
+  ASSERT_EQ(0, math_c_abstract_http_should_redirect(1, res, &loc));
+  res->status_code = 301;
+  ASSERT_EQ(0, math_c_abstract_http_should_redirect(1, res, &loc));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&res->headers, "X-Other", "1"));
+  free(res->headers.headers[0].key);
+  res->headers.headers[0].key = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&res->headers, "X-NonMatch", "1"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&res->headers, "Location", ""));
+  ASSERT_EQ(0, math_c_abstract_http_should_redirect(1, res, &loc));
+  free(res->headers.headers[2].value);
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_SUCCESS,
+      c_abstract_http_strdup("/v2/target", &res->headers.headers[2].value));
+  ASSERT_EQ(1, math_c_abstract_http_should_redirect(1, res, &loc));
+  ASSERT_STR_EQ("/v2/target", loc);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.method = HTTP_POST;
+  req.url = (char *)"https://example.com:8443/v1/start";
+  req.body = "abc";
+  req.body_len = 3;
+  req.read_chunk = crypto_dummy_read_chunk;
+  req.expected_body_len = 99;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_h3_advance_redirect(
+                                           NULL, &redir_url, &res, loc, 0));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_LOOP, c_abstract_http_h3_advance_redirect(
+                                          &req, &redir_url, &res, loc, 10));
+  {
+    struct HttpRequest bad_req = req;
+    bad_req.url = (char *)"noscheme";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              c_abstract_http_h3_advance_redirect(&bad_req, &redir_url, &res,
+                                                  loc, 0));
+  }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, c_abstract_http_h3_advance_redirect(
+                                           &req, &redir_url, &res, loc, 0));
+  g_mock_alloc_fail = 0;
+  g_mock_response_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_h3_advance_redirect(
+                                        &req, &redir_url, &res, loc, 0));
+  g_mock_response_free_fail = 0;
+  res = (struct HttpResponse *)calloc(1, sizeof(*res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(res));
+  res->status_code = 301;
+#endif
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_h3_advance_redirect(&req, &redir_url, &res,
+                                                "/v2/target", 0));
+  ASSERT_STR_EQ("https://example.com:8443/v2/target", req.url);
+  ASSERT_EQ(HTTP_GET, req.method);
+  ASSERT(req.body == NULL);
+
+  /* Scheme-relative, relative with slash, relative without slash, full URL, 307
+   */
+  res = (struct HttpResponse *)calloc(1, sizeof(*res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(res));
+  res->status_code = 307;
+  req.method = HTTP_POST;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_h3_advance_redirect(&req, &redir_url, &res,
+                                                "//cdn.example.com/item", 1));
+  ASSERT_STR_EQ("https://cdn.example.com/item", req.url);
+  ASSERT_EQ(HTTP_POST, req.method);
+
+  res = (struct HttpResponse *)calloc(1, sizeof(*res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(res));
+  res->status_code = 303;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_h3_advance_redirect(
+                                         &req, &redir_url, &res, "subleaf", 2));
+  ASSERT_STR_EQ("https://cdn.example.com/subleaf", req.url);
+  ASSERT_EQ(HTTP_GET, req.method);
+
+  free(redir_url);
+  redir_url = NULL;
+  req.url = (char *)"https://bare.example.com";
+  res = (struct HttpResponse *)calloc(1, sizeof(*res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(res));
+  res->status_code = 302;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_h3_advance_redirect(
+                                         &req, &redir_url, &res, "/root", 3));
+  ASSERT_STR_EQ("https://bare.example.com/root", req.url);
+
+  free(redir_url);
+  redir_url = NULL;
+  req.url = (char *)"https://bare.example.com";
+  res = (struct HttpResponse *)calloc(1, sizeof(*res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(res));
+  res->status_code = 308;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_h3_advance_redirect(
+                                         &req, &redir_url, &res, "rel", 4));
+  ASSERT_STR_EQ("https://bare.example.com/rel", req.url);
+
+  res = (struct HttpResponse *)calloc(1, sizeof(*res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_init(res));
+  res->status_code = 308;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_h3_advance_redirect(
+                &req, &redir_url, &res, "https://final.example.com/done", 5));
+  ASSERT_STR_EQ("https://final.example.com/done", req.url);
+  free(redir_url);
+  req.url = NULL;
+
+  /* 4. math_c_abstract_http_format_clen */
+  (void)emit;
+  ASSERT_EQ(0, math_c_abstract_http_format_clen(NULL, clen_buf));
+  ASSERT_EQ(0, math_c_abstract_http_format_clen(&req, clen_buf));
+  req.read_chunk = crypto_dummy_read_chunk;
+  req.expected_body_len = 512;
+  ASSERT_EQ(1, math_c_abstract_http_format_clen(&req, clen_buf));
+  ASSERT_STR_EQ("512", clen_buf);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "X-Ignore", "1"));
+  free(req.headers.headers[0].key);
+  req.headers.headers[0].key = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Content-Length", "512"));
+  ASSERT_EQ(0, math_c_abstract_http_format_clen(&req, clen_buf));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&dst));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&src));
+  PASS();
+}
+
+/** @brief Verify PEM/DER decoding, file loading, and X.509 SPKI extraction */
+TEST test_x509_pem_der_and_spki_helpers(void) {
+  /* Minimal valid X.509 v3 DER certificate with SPKI = {0x30, 0x03,
+   * 'a','b','c'} Certificate SEQUENCE (0x30, 0x1A): TBSCertificate SEQUENCE
+   * (0x30, 0x15): [0] version: A0 03 02 01 02 serial:      02 01 01 sigAlg: 30
+   * 00 issuer:      30 00 validity:    30 00 subject:     30 00 spki:        30
+   * 03 61 62 63 sigAlg: 30 00, sigVal: 03 01 00
+   */
+  static const unsigned char k_v3_cert[] = {
+      0x30, 0x1C, 0x30, 0x15, 0xA0, 0x03, 0x02, 0x01, 0x02, 0x02,
+      0x01, 0x01, 0x30, 0x00, 0x30, 0x00, 0x30, 0x00, 0x30, 0x00,
+      0x30, 0x03, 0x61, 0x62, 0x63, 0x30, 0x00, 0x03, 0x01, 0x00};
+  /* Minimal X.509 v1 DER certificate (no 0xA0 version tag, long-form 0x81 len)
+   */
+  static const unsigned char k_v1_long_cert[] = {
+      0x30, 0x81, 0x17, 0x30, 0x10, 0x02, 0x01, 0x01, 0x30,
+      0x00, 0x30, 0x00, 0x30, 0x00, 0x30, 0x00, 0x30, 0x03,
+      0x61, 0x62, 0x63, 0x30, 0x00, 0x03, 0x01, 0x00};
+  static const unsigned char k_bad_indef[] = {0x30, 0x80, 0x00, 0x00};
+  static const unsigned char k_bad_len5[] = {0x30, 0x85, 1, 2, 3, 4, 5};
+  static const unsigned char k_bad_over[] = {0x30, 0x40, 0x30, 0x00};
+  static const unsigned char k_bad_tbs[] = {0x30, 0x02, 0x02, 0x00};
+  static const unsigned char k_bad_empty_tbs[] = {0x30, 0x02, 0x30, 0x00};
+  static const unsigned char k_bad_short_fields[] = {0x30, 0x05, 0x30, 0x03,
+                                                     0x02, 0x01, 0x01};
+  static const unsigned char k_bad_spki_tag[] = {
+      0x30, 0x12, 0x30, 0x10, 0x02, 0x01, 0x01, 0x30, 0x00, 0x30,
+      0x00, 0x30, 0x00, 0x30, 0x00, 0x02, 0x03, 0x61, 0x62, 0x63};
+  char *b64 = NULL;
+  size_t b64_len = 0;
+  char pem_buf[256];
+  unsigned char *der_out = NULL;
+  size_t der_len = 0;
+  const unsigned char *spki_ptr = NULL;
+  size_t spki_len = 0;
+  const char *tmp_path = "cah_test_cert_tmp.bin";
+  FILE *fp = NULL;
+
+  /* 1. SPKI extraction tests */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_x509_extract_spki_der(
+                                           NULL, 0, &spki_ptr, &spki_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, c_abstract_http_x509_extract_spki_der(
+                                           k_v3_cert, 1, &spki_ptr, &spki_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_x509_extract_spki_der(
+                k_bad_indef, sizeof(k_bad_indef), &spki_ptr, &spki_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_x509_extract_spki_der(
+                k_bad_len5, sizeof(k_bad_len5), &spki_ptr, &spki_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_x509_extract_spki_der(
+                k_bad_over, sizeof(k_bad_over), &spki_ptr, &spki_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_x509_extract_spki_der(k_bad_tbs, sizeof(k_bad_tbs),
+                                                  &spki_ptr, &spki_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_x509_extract_spki_der(k_bad_empty_tbs,
+                                                  sizeof(k_bad_empty_tbs),
+                                                  &spki_ptr, &spki_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_x509_extract_spki_der(k_bad_short_fields,
+                                                  sizeof(k_bad_short_fields),
+                                                  &spki_ptr, &spki_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_x509_extract_spki_der(
+                k_bad_spki_tag, sizeof(k_bad_spki_tag), &spki_ptr, &spki_len));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_x509_extract_spki_der(k_v3_cert, sizeof(k_v3_cert),
+                                                  &spki_ptr, &spki_len));
+  ASSERT_EQ(5U, spki_len);
+  ASSERT_EQ(0, memcmp(spki_ptr,
+                      "\x30\x03"
+                      "abc",
+                      5));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_x509_extract_spki_der(
+                k_v1_long_cert, sizeof(k_v1_long_cert), &spki_ptr, &spki_len));
+  ASSERT_EQ(5U, spki_len);
+  ASSERT_EQ(0, memcmp(spki_ptr,
+                      "\x30\x03"
+                      "abc",
+                      5));
+
+  /* 1b. PKCS#8 unwrap tests */
+  {
+    static const unsigned char k_p8[] = {0x30, 0x0C, 0x02, 0x01, 0x00,
+                                         0x30, 0x02, 0x05, 0x00, 0x04,
+                                         0x03, 'K',  'E',  'Y'};
+    static const unsigned char k_p1[] = {0x30, 0x06, 0x02, 0x01,
+                                         0x00, 0x02, 0x01, 0x07};
+    static const unsigned char k_bad_key[] = {0x02, 0x01, 0x00};
+    const unsigned char *kptr = NULL;
+    size_t klen = 0;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              c_abstract_http_pkcs8_unwrap_key(NULL, 0, &kptr, &klen));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+              c_abstract_http_pkcs8_unwrap_key(k_bad_key, sizeof(k_bad_key),
+                                               &kptr, &klen));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_pkcs8_unwrap_key(
+                                           k_p8, sizeof(k_p8), &kptr, &klen));
+    ASSERT_EQ(3U, klen);
+    ASSERT_EQ(0, memcmp(kptr, "KEY", 3));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_pkcs8_unwrap_key(
+                                           k_p1, sizeof(k_p1), &kptr, &klen));
+    ASSERT_EQ(sizeof(k_p1), klen);
+    ASSERT_EQ(k_p1, kptr);
+  }
+
+  /* 2. PEM & DER decode tests */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_pem_or_der_decode(NULL, 0, &der_out, &der_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_pem_or_der_decode((const unsigned char *)"bad", 3,
+                                              &der_out, &der_len));
+  ASSERT_EQ(
+      C_ABSTRACT_HTTP_ERR_ACCES,
+      c_abstract_http_pem_or_der_decode(
+          (const unsigned char *)"-----BEGIN CERT", 15, &der_out, &der_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_pem_or_der_decode(
+                (const unsigned char *)"-----BEGIN CERT-----\nAAAA", 25,
+                &der_out, &der_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_pem_or_der_decode(
+                (const unsigned char *)"-----BEGIN CERT-----\r\n \t-----END ",
+                33, &der_out, &der_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_pem_or_der_decode(
+                (const unsigned char *)"-----BEGIN CERT-----\n$$$\n-----END ",
+                34, &der_out, &der_len));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_pem_or_der_decode(k_v3_cert, sizeof(k_v3_cert),
+                                              &der_out, &der_len));
+  ASSERT_EQ(sizeof(k_v3_cert), der_len);
+  free(der_out);
+  der_out = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            base64_encode(k_v3_cert, sizeof(k_v3_cert), &b64, &b64_len));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(pem_buf, sizeof(pem_buf),
+            "-----BEGIN CERTIFICATE-----\r\n%s\r\n-----END CERTIFICATE-----\n",
+            b64);
+#else
+  sprintf(pem_buf,
+          "-----BEGIN CERTIFICATE-----\r\n%s\r\n-----END CERTIFICATE-----\n",
+          b64);
+#endif
+  free(b64);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_pem_or_der_decode(
+                                         (const unsigned char *)pem_buf,
+                                         strlen(pem_buf), &der_out, &der_len));
+  ASSERT_EQ(sizeof(k_v3_cert), der_len);
+  ASSERT_EQ(0, memcmp(der_out, k_v3_cert, sizeof(k_v3_cert)));
+  free(der_out);
+  der_out = NULL;
+
+  /* 3. File loading tests (missing, empty, >1024 multi-chunk, OOM) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_read_file_bytes("", &der_out, &der_len));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_read_file_bytes("nonexistent_cah_cert.pem",
+                                            &der_out, &der_len));
+
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  fopen_s(&fp, tmp_path, "wb");
+#else
+  fp = fopen(tmp_path, "wb");
+#endif
+  ASSERT(fp != NULL);
+  fclose(fp);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+            c_abstract_http_read_file_bytes(tmp_path, &der_out, &der_len));
+
+  {
+    unsigned char big[1500];
+    memset(big, 0x30, sizeof(big));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    fopen_s(&fp, tmp_path, "wb");
+#else
+    fp = fopen(tmp_path, "wb");
+#endif
+    ASSERT(fp != NULL);
+    ASSERT_EQ(sizeof(big), fwrite(big, 1, sizeof(big), fp));
+    fclose(fp);
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_read_file_bytes(tmp_path, &der_out, &der_len));
+    ASSERT_EQ(sizeof(big), der_len);
+    free(der_out);
+    der_out = NULL;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+    {
+      int step;
+      for (step = 0; step < 4; ++step) {
+        c_abstract_http_error_t orc;
+        g_mock_alloc_fail = 1;
+        g_mock_alloc_count = step;
+        orc = c_abstract_http_read_file_bytes(tmp_path, &der_out, &der_len);
+        g_mock_alloc_fail = 0;
+        if (orc == C_ABSTRACT_HTTP_SUCCESS) {
+          free(der_out);
+          der_out = NULL;
+        }
+      }
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+                c_abstract_http_pem_or_der_decode(k_v3_cert, sizeof(k_v3_cert),
+                                                  &der_out, &der_len));
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+                c_abstract_http_pem_or_der_decode(
+                    (const unsigned char *)pem_buf, strlen(pem_buf), &der_out,
+                    &der_len));
+      g_mock_alloc_fail = 0;
+    }
+#endif
+  }
+  remove(tmp_path);
+  PASS();
+}
+
+TEST test_default_tls_hooks(void) {
+  const struct HttpRawTlsHooks *hooks = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+            c_abstract_http_get_default_tls_hooks(NULL));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_get_default_tls_hooks(&hooks));
+  if (hooks) {
+    struct HttpConfig cfg;
+    void *sess = NULL;
+    ASSERT(hooks->open != NULL);
+    ASSERT(hooks->handshake != NULL);
+    ASSERT(hooks->read != NULL);
+    ASSERT(hooks->write != NULL);
+    ASSERT(hooks->close != NULL);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+    cfg.ca_path = (char *)"nonexistent_cah_default_tls_ca.pem";
+    ASSERT(hooks->open(hooks->provider_data, -1, "localhost", &cfg, &sess) !=
+           C_ABSTRACT_HTTP_SUCCESS);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, hooks->close(NULL));
+  }
+  PASS();
+}
+
 SUITE(crypto_suite) {
   RUN_TEST(test_random_bytes);
+  RUN_TEST(test_default_tls_hooks);
+  RUN_TEST(test_h3_shared_helpers);
+  RUN_TEST(test_x509_pem_der_and_spki_helpers);
   RUN_TEST(test_sha1_large_string);
   RUN_TEST(test_crypto_errors);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)

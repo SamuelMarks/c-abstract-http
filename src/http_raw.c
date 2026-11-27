@@ -172,13 +172,30 @@ NO_DISCARD c_abstract_http_error_t http_raw_global_cleanup(void) {
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
+/** @brief Idle HTTP/1.1 keep-alive connection entry in `RawCtx` pool */
+struct RawIdleConn {
+  int is_https;                            /**< 1 for https://, 0 for http:// */
+  char *host;                              /**< Origin hostname */
+  int port;                                /**< Origin TCP port */
+  char *proxy_url;                         /**< Optional proxy URL or NULL */
+  raw_socket_t sock;                       /**< Connected socket descriptor */
+  const struct HttpRawTlsHooks *tls_hooks; /**< Active TLS hook table or NULL */
+  void *tls_sess;                          /**< Active TLS session or NULL */
+  abstract_http_int64_t stored_ms;         /**< Timestamp (ms) when parked */
+};
+
 /** @brief Internal raw socket transport context */
 struct RawCtx {
   long timeout_ms;                  /**< Default timeout in milliseconds */
   struct HttpConfig config;         /**< Active HTTP configuration */
   int has_custom_tls;               /**< Non-zero if tls_hooks is populated */
   struct HttpRawTlsHooks tls_hooks; /**< Custom TLS session hook table */
+  struct RawIdleConn *idle_pool;    /**< Pooled idle keep-alive connections */
+  size_t idle_count;                /**< Active count in `idle_pool` */
+  size_t idle_cap;                  /**< Allocated capacity of `idle_pool` */
 };
+
+NO_DISCARD static c_abstract_http_error_t raw_pool_clear(struct RawCtx *c);
 
 NO_DISCARD c_abstract_http_error_t
 http_raw_context_init(struct HttpTransportContext **ctx) {
@@ -214,9 +231,16 @@ http_raw_context_free(struct HttpTransportContext *ctx) {
   struct RawCtx *c = (struct RawCtx *)ctx;
   LOG_DEBUG("http_raw_context_free: Entering");
   if (c) {
+    c_abstract_http_error_t prc;
     c_abstract_http_error_t rc = http_config_free(&c->config);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
+    }
+    prc = raw_pool_clear(c);
+    if (prc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(c);
+      return prc;
+    }
     free(c);
   }
   LOG_DEBUG("http_raw_context_free: Exiting");
@@ -226,10 +250,17 @@ http_raw_context_free(struct HttpTransportContext *ctx) {
 NO_DISCARD c_abstract_http_error_t http_raw_set_tls_hooks(
     struct HttpTransportContext *ctx, const struct HttpRawTlsHooks *hooks) {
   struct RawCtx *c = (struct RawCtx *)ctx;
+  c_abstract_http_error_t rc;
   if (!c) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   if (!hooks) {
+    rc = raw_pool_clear(c);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      c->has_custom_tls = 0;
+      memset(&c->tls_hooks, 0, sizeof(c->tls_hooks));
+      return rc;
+    }
     c->has_custom_tls = 0;
     memset(&c->tls_hooks, 0, sizeof(c->tls_hooks));
     return C_ABSTRACT_HTTP_SUCCESS;
@@ -237,6 +268,12 @@ NO_DISCARD c_abstract_http_error_t http_raw_set_tls_hooks(
   if (!hooks->open || !hooks->handshake || !hooks->read || !hooks->write ||
       !hooks->close) {
     return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  rc = raw_pool_clear(c);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    c->tls_hooks = *hooks;
+    c->has_custom_tls = 1;
+    return rc;
   }
   c->tls_hooks = *hooks;
   c->has_custom_tls = 1;
@@ -278,7 +315,9 @@ NO_DISCARD c_abstract_http_error_t http_raw_config_apply(
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
   }
   if (config->proxy_url) {
-    if (strncmp(config->proxy_url, "http://", 7) != 0) {
+    if (strncmp(config->proxy_url, "http://", 7) != 0 &&
+        strncmp(config->proxy_url, "socks5://", 9) != 0 &&
+        strncmp(config->proxy_url, "socks5h://", 10) != 0) {
       if (strstr(config->proxy_url, "://") != NULL) {
         return C_ABSTRACT_HTTP_ERR_NOTSUP;
       }
@@ -350,6 +389,12 @@ NO_DISCARD c_abstract_http_error_t http_raw_config_apply(
   c->config.version_mask = config->version_mask;
   c->config.tls_version_mask = config->tls_version_mask;
   c->config.http3_fallback = config->http3_fallback;
+  c->config.keep_alive_enabled = config->keep_alive_enabled;
+  c->config.keep_alive_idle_ms = config->keep_alive_idle_ms;
+  c->config.max_idle_conns = config->max_idle_conns;
+  if (!config->keep_alive_enabled) {
+    return raw_pool_clear(c);
+  }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -443,6 +488,21 @@ NO_DISCARD static c_abstract_http_error_t parse_url(const char *url,
 }
 
 #if defined(CAH_DOS_NO_WATT32)
+/**
+ * @brief Clear pooled connections in RawCtx on DOS without Watt-32.
+ * @param c Raw transport context (may be NULL).
+ * @return C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD static c_abstract_http_error_t raw_pool_clear(struct RawCtx *c) {
+  if (c && c->idle_pool) {
+    free(c->idle_pool);
+    c->idle_pool = NULL;
+    c->idle_count = 0;
+    c->idle_cap = 0;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 /** @brief Send an HTTP request over raw sockets on DOS without Watt-32 */
 NO_DISCARD c_abstract_http_error_t
 http_raw_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
@@ -966,8 +1026,10 @@ raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
   const char *method_str = NULL;
   const char *target = use_proxy_abs_uri ? req->url : path;
   const char *ver_str = "HTTP/1.1";
+  const char *conn_hdr = "Connection: close\r\n";
   int has_ua = 0;
   int has_cl = 0;
+  int has_conn = 0;
   size_t i;
   size_t start_need;
   c_abstract_http_error_t rc;
@@ -980,9 +1042,21 @@ raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
   if (c && (c->config.version_mask & (unsigned int)HTTP_VERSION_1_0) &&
       !(c->config.version_mask & (unsigned int)HTTP_VERSION_1_1)) {
     ver_str = "HTTP/1.0";
+  } else if (c && c->config.keep_alive_enabled) {
+    conn_hdr = "Connection: keep-alive\r\n";
   }
 
-  start_need = strlen(method_str) + strlen(target) + strlen(host) + 64;
+  for (i = 0; i < req->headers.count; ++i) {
+    if (math_raw_strcasecmp(req->headers.headers[i].key, "Connection") == 0) {
+      has_conn = 1;
+      break;
+    }
+  }
+  if (has_conn) {
+    conn_hdr = "";
+  }
+
+  start_need = strlen(method_str) + strlen(target) + strlen(host) + 80;
   if (start_need >= req_cap) {
     req_cap = start_need * 2;
   }
@@ -992,12 +1066,11 @@ raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
   }
 
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
-  sprintf_s(request_buf, req_cap,
-            "%s %s %s\r\nHost: %s\r\nConnection: close\r\n", method_str, target,
-            ver_str, host);
+  sprintf_s(request_buf, req_cap, "%s %s %s\r\nHost: %s\r\n%s", method_str,
+            target, ver_str, host, conn_hdr);
 #else
-  sprintf(request_buf, "%s %s %s\r\nHost: %s\r\nConnection: close\r\n",
-          method_str, target, ver_str, host);
+  sprintf(request_buf, "%s %s %s\r\nHost: %s\r\n%s", method_str, target,
+          ver_str, host, conn_hdr);
 #endif
   req_len = strlen(request_buf);
 
@@ -1210,6 +1283,13 @@ raw_io_write_all(raw_socket_t sock, const struct HttpRawTlsHooks *tls_hooks,
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
     if (g_mock_raw_send_fail == 1) {
       return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    if (g_mock_raw_send_fail >= 10) {
+      if (g_mock_raw_send_fail == 10) {
+        g_mock_raw_send_fail = 0;
+        return C_ABSTRACT_HTTP_ERR_IO;
+      }
+      g_mock_raw_send_fail--;
     }
 #endif
     if (tls_hooks && tls_sess) {
@@ -1651,6 +1731,264 @@ raw_proxy_connect_tunnel(const struct RawCtx *c, raw_socket_t sock,
 }
 
 /**
+ * @brief Parse `http://`, `socks5://`, or `socks5h://` proxy URL into host,
+ * port, and SOCKS5 mode.
+ * @param proxy_url Proxy URL string.
+ * @param out_host Allocated proxy hostname string.
+ * @param out_port Parsed proxy TCP port (`80` default for HTTP, `1080` for
+ * SOCKS5).
+ * @param out_socks_mode `0` for HTTP proxy, `1` for `socks5://` (local DNS),
+ * `2` for `socks5h://` (remote SOCKS5 domain resolution).
+ * @return C_ABSTRACT_HTTP_SUCCESS, C_ABSTRACT_HTTP_ERR_INVAL, or
+ * C_ABSTRACT_HTTP_ERR_NOMEM.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_parse_proxy_url(const char *proxy_url, char **out_host, int *out_port,
+                    int *out_socks_mode) {
+  const char *p;
+  const char *port_start;
+  const char *path_start;
+  size_t host_len;
+
+  *out_socks_mode = 0;
+  if (strncmp(proxy_url, "http://", 7) == 0) {
+    p = proxy_url + 7;
+    *out_port = 80;
+  } else if (strncmp(proxy_url, "socks5://", 9) == 0) {
+    p = proxy_url + 9;
+    *out_port = 1080;
+    *out_socks_mode = 1;
+  } else if (strncmp(proxy_url, "socks5h://", 10) == 0) {
+    p = proxy_url + 10;
+    *out_port = 1080;
+    *out_socks_mode = 2;
+  } else {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+
+  port_start = strchr(p, ':');
+  path_start = strchr(p, '/');
+  if (path_start && port_start && port_start > path_start) {
+    port_start = NULL;
+  }
+  if (port_start) {
+    long parsed_port;
+    host_len = (size_t)(port_start - p);
+    parsed_port = strtol(port_start + 1, NULL, 10);
+    if (parsed_port <= 0L || parsed_port > 65535L) {
+      return C_ABSTRACT_HTTP_ERR_INVAL;
+    }
+    *out_port = (int)parsed_port;
+  } else if (path_start) {
+    host_len = (size_t)(path_start - p);
+  } else {
+    host_len = strlen(p);
+  }
+  if (host_len == 0) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
+  *out_host = (char *)malloc(host_len + 1);
+  if (!*out_host) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  memcpy(*out_host, p, host_len);
+  (*out_host)[host_len] = '\0';
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Read an exact number of raw socket bytes with read timeout polling.
+ * @param sock Connected socket handle.
+ * @param buf Destination buffer.
+ * @param len Exact byte count to read.
+ * @param r_to Read timeout in milliseconds.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_IO.
+ */
+NO_DISCARD static c_abstract_http_error_t raw_io_read_exact(raw_socket_t sock,
+                                                            unsigned char *buf,
+                                                            size_t len,
+                                                            long r_to) {
+  size_t off = 0;
+  c_abstract_http_error_t rc;
+  while (off < len) {
+    int nr;
+    rc = raw_wait_socket(sock, 1, r_to);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+#if defined(_WIN32)
+    nr = (int)recv(sock, (char *)(buf + off), (int)(len - off), 0);
+#else
+    nr = (int)recv(sock, (char *)(buf + off), len - off, 0);
+#endif
+    if (nr <= 0) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    off += (size_t)nr;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Perform RFC 1928 SOCKS5 (and optional RFC 1929 username/password)
+ * `CONNECT` tunnel handshake.
+ * @param c Raw transport context (may be NULL).
+ * @param sock Connected proxy socket.
+ * @param host Target origin hostname.
+ * @param port Target origin TCP port.
+ * @param remote_dns Non-zero (`socks5h://`) to transmit domain `ATYP=0x03`,
+ * zero (`socks5://`) to resolve locally to IPv4 `ATYP=0x01`.
+ * @return C_ABSTRACT_HTTP_SUCCESS or mapped error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_socks5_handshake(const struct RawCtx *c, raw_socket_t sock,
+                     const char *host, int port, int remote_dns) {
+  long w_to = math_raw_timeout_ms(c, c ? c->config.write_timeout_ms : 0);
+  long r_to = math_raw_timeout_ms(c, c ? c->config.read_timeout_ms : 0);
+  unsigned char greet[4];
+  size_t greet_len;
+  unsigned char method_rep[2];
+  unsigned char req_pkt[264];
+  size_t pkt_len;
+  unsigned char rep_hdr[4];
+  unsigned char drain_buf[260];
+  size_t drain_len;
+  c_abstract_http_error_t rc;
+
+  if (c && c->config.proxy_username) {
+    greet[0] = 0x05U;
+    greet[1] = 0x02U;
+    greet[2] = 0x00U;
+    greet[3] = 0x02U;
+    greet_len = 4U;
+  } else {
+    greet[0] = 0x05U;
+    greet[1] = 0x01U;
+    greet[2] = 0x00U;
+    greet_len = 3U;
+  }
+
+  rc = raw_io_write_all(sock, NULL, NULL, (const char *)greet, greet_len, w_to);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = raw_io_read_exact(sock, method_rep, 2U, r_to);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  if (method_rep[0] != 0x05U) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (method_rep[1] == 0x02U) {
+    const char *usr;
+    const char *pwd;
+    size_t ulen;
+    size_t plen;
+    unsigned char auth_pkt[516];
+    unsigned char auth_rep[2];
+    if (!c || !c->config.proxy_username) {
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    usr = c->config.proxy_username;
+    pwd = c->config.proxy_password ? c->config.proxy_password : "";
+    ulen = strlen(usr);
+    plen = strlen(pwd);
+    if (ulen == 0U || ulen > 255U || plen > 255U) {
+      return C_ABSTRACT_HTTP_ERR_INVAL;
+    }
+    auth_pkt[0] = 0x01U;
+    auth_pkt[1] = (unsigned char)ulen;
+    memcpy(auth_pkt + 2, usr, ulen);
+    auth_pkt[2 + ulen] = (unsigned char)plen;
+    if (plen > 0U) {
+      memcpy(auth_pkt + 3 + ulen, pwd, plen);
+    }
+    rc = raw_io_write_all(sock, NULL, NULL, (const char *)auth_pkt,
+                          3U + ulen + plen, w_to);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    rc = raw_io_read_exact(sock, auth_rep, 2U, r_to);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    if (auth_rep[0] != 0x01U || auth_rep[1] != 0x00U) {
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+  } else if (method_rep[1] != 0x00U) {
+    return C_ABSTRACT_HTTP_ERR_ACCES;
+  }
+
+  req_pkt[0] = 0x05U;
+  req_pkt[1] = 0x01U;
+  req_pkt[2] = 0x00U;
+  if (remote_dns) {
+    size_t hlen = strlen(host);
+    if (hlen > 255U) {
+      return C_ABSTRACT_HTTP_ERR_INVAL;
+    }
+    req_pkt[3] = 0x03U;
+    req_pkt[4] = (unsigned char)hlen;
+    memcpy(req_pkt + 5, host, hlen);
+    req_pkt[5 + hlen] = (unsigned char)((port >> 8) & 0xFF);
+    req_pkt[6 + hlen] = (unsigned char)(port & 0xFF);
+    pkt_len = 7U + hlen;
+  } else {
+    struct sockaddr_in dst_addr;
+    rc = raw_resolve_addr(host, port, &dst_addr);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    req_pkt[3] = 0x01U;
+    memcpy(req_pkt + 4, &dst_addr.sin_addr, 4U);
+    req_pkt[8] = (unsigned char)((port >> 8) & 0xFF);
+    req_pkt[9] = (unsigned char)(port & 0xFF);
+    pkt_len = 10U;
+  }
+
+  rc = raw_io_write_all(sock, NULL, NULL, (const char *)req_pkt, pkt_len, w_to);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  rc = raw_io_read_exact(sock, rep_hdr, 4U, r_to);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  if (rep_hdr[0] != 0x05U) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+  if (rep_hdr[1] != 0x00U) {
+    if (rep_hdr[1] == 0x02U) {
+      return C_ABSTRACT_HTTP_ERR_ACCES;
+    }
+    if (rep_hdr[1] == 0x03U || rep_hdr[1] == 0x04U) {
+      return C_ABSTRACT_HTTP_ERR_HOSTUNREACH;
+    }
+    if (rep_hdr[1] == 0x05U) {
+      return C_ABSTRACT_HTTP_ERR_CONNREFUSED;
+    }
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+
+  if (rep_hdr[3] == 0x01U) {
+    drain_len = 6U;
+  } else if (rep_hdr[3] == 0x04U) {
+    drain_len = 18U;
+  } else if (rep_hdr[3] == 0x03U) {
+    unsigned char dlen_b = 0;
+    rc = raw_io_read_exact(sock, &dlen_b, 1U, r_to);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    drain_len = (size_t)dlen_b + 2U;
+  } else {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+
+  return raw_io_read_exact(sock, drain_buf, drain_len, r_to);
+}
+
+/**
  * @brief Close optional TLS session and underlying socket, preserving primary
  * error.
  * @param sock Socket handle (may be RAW_INVALID_SOCKET).
@@ -1679,6 +2017,438 @@ raw_close_conn(raw_socket_t sock, const struct HttpRawTlsHooks *tls_hooks,
 }
 
 /**
+ * @brief Tear down a stale dead pooled socket before reconnecting.
+ * @param sock Stale socket handle.
+ * @param tls_hooks Optional TLS hook table.
+ * @param tls_sess Optional TLS session pointer.
+ * @return C_ABSTRACT_HTTP_SUCCESS or best-effort TLS close status.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_stale_conn_free(raw_socket_t sock, const struct HttpRawTlsHooks *tls_hooks,
+                    void *tls_sess) {
+  return raw_close_conn(sock, tls_hooks, tls_sess, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Close and release heap fields of a single pooled keep-alive entry.
+ * @param e Idle connection entry.
+ * @return C_ABSTRACT_HTTP_SUCCESS or TLS close error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_pool_close_entry(struct RawIdleConn *e) {
+  raw_socket_t sock = e->sock;
+  const struct HttpRawTlsHooks *hooks = e->tls_hooks;
+  void *sess = e->tls_sess;
+  free(e->host);
+  free(e->proxy_url);
+  memset(e, 0, sizeof(*e));
+  e->sock = RAW_INVALID_SOCKET;
+  return raw_close_conn(sock, hooks, sess, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Close and free all pooled idle keep-alive connections preserving
+ * @p primary_rc.
+ * @param c Raw transport context.
+ * @param primary_rc Primary status to preserve if non-zero.
+ * @return First observed error or C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_pool_clear_with_err(struct RawCtx *c, c_abstract_http_error_t primary_rc) {
+  while (c->idle_count > 0U) {
+    c_abstract_http_error_t rc;
+    c->idle_count--;
+    rc = raw_pool_close_entry(&c->idle_pool[c->idle_count]);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return raw_pool_clear_with_err(
+          c, primary_rc != C_ABSTRACT_HTTP_SUCCESS ? primary_rc : rc);
+    }
+  }
+  free(c->idle_pool);
+  c->idle_pool = NULL;
+  c->idle_cap = 0;
+  return primary_rc;
+}
+
+/**
+ * @brief Close and free all pooled idle keep-alive connections on @p c.
+ * @param c Raw transport context.
+ * @return C_ABSTRACT_HTTP_SUCCESS or first TLS close error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t raw_pool_clear(struct RawCtx *c) {
+  return raw_pool_clear_with_err(c, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Compare two optional C strings for equality (NULL == NULL).
+ * @param a First optional string.
+ * @param b Second optional string.
+ * @return 1 if equal, 0 otherwise.
+ */
+static int math_raw_opt_streq(const char *a, const char *b) {
+  if (!a && !b) {
+    return 1;
+  }
+  if (!a || !b) {
+    return 0;
+  }
+  return strcmp(a, b) == 0 ? 1 : 0;
+}
+
+/**
+ * @brief Evict idle keep-alive connections from index @p start_idx preserving
+ * @p primary_rc.
+ * @param c Raw transport context.
+ * @param now_ms Current timestamp in milliseconds.
+ * @param start_idx Starting index in `c->idle_pool`.
+ * @param primary_rc Primary status to preserve if non-zero.
+ * @return First observed error or C_ABSTRACT_HTTP_SUCCESS.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_pool_evict_from(struct RawCtx *c, abstract_http_int64_t now_ms,
+                    size_t start_idx, c_abstract_http_error_t primary_rc) {
+  long idle_ms =
+      c->config.keep_alive_idle_ms > 0 ? c->config.keep_alive_idle_ms : 30000L;
+  size_t i = start_idx;
+
+  while (i < c->idle_count) {
+    if ((now_ms - c->idle_pool[i].stored_ms) >=
+        (abstract_http_int64_t)idle_ms) {
+      struct RawIdleConn evicted = c->idle_pool[i];
+      c_abstract_http_error_t rc;
+      if (i + 1 < c->idle_count) {
+        memmove(&c->idle_pool[i], &c->idle_pool[i + 1],
+                (c->idle_count - i - 1) * sizeof(struct RawIdleConn));
+      }
+      c->idle_count--;
+      rc = raw_pool_close_entry(&evicted);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return raw_pool_evict_from(
+            c, now_ms, i,
+            primary_rc != C_ABSTRACT_HTTP_SUCCESS ? primary_rc : rc);
+      }
+    } else {
+      ++i;
+    }
+  }
+  return primary_rc;
+}
+
+/**
+ * @brief Evict idle keep-alive connections exceeding `keep_alive_idle_ms`.
+ * @param c Raw transport context.
+ * @param out_now_ms Optional pointer receiving queried timestamp in ms.
+ * @return C_ABSTRACT_HTTP_SUCCESS or first clock / TLS close error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_pool_evict_expired(struct RawCtx *c, abstract_http_int64_t *out_now_ms) {
+  abstract_http_int64_t now_ms = 0;
+  c_abstract_http_error_t rc = c_abstract_http_get_time_ms(&now_ms);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  if (out_now_ms) {
+    *out_now_ms = now_ms;
+  }
+  return raw_pool_evict_from(c, now_ms, 0U, C_ABSTRACT_HTTP_SUCCESS);
+}
+
+/**
+ * @brief Check out a matching idle connection keyed by `(scheme, host, port,
+ * proxy)`.
+ * @param c Raw transport context (may be NULL).
+ * @param is_https 1 for https://, 0 for http://.
+ * @param host Target origin hostname.
+ * @param port Target origin TCP port.
+ * @param out_sock Output socket handle when reused.
+ * @param io_tls_hooks In/out TLS hooks pointer.
+ * @param out_tls_sess Output TLS session pointer when reused.
+ * @param out_reused Set to 1 if a pooled connection was checked out, else 0.
+ * @return C_ABSTRACT_HTTP_SUCCESS or eviction cleanup error.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_pool_checkout(struct RawCtx *c, int is_https, const char *host, int port,
+                  raw_socket_t *out_sock,
+                  const struct HttpRawTlsHooks **io_tls_hooks,
+                  void **out_tls_sess, int *out_reused) {
+  size_t idx;
+  c_abstract_http_error_t rc;
+
+  *out_reused = 0;
+  if (!c || !c->config.keep_alive_enabled) {
+    return C_ABSTRACT_HTTP_SUCCESS;
+  }
+  rc = raw_pool_evict_expired(c, NULL);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+  for (idx = c->idle_count; idx > 0; --idx) {
+    size_t i = idx - 1U;
+    struct RawIdleConn *e = &c->idle_pool[i];
+    if (e->is_https == is_https && e->port == port &&
+        math_raw_strcasecmp(e->host, host) == 0 &&
+        math_raw_opt_streq(e->proxy_url, c->config.proxy_url)) {
+      *out_sock = e->sock;
+      *io_tls_hooks = e->tls_hooks;
+      *out_tls_sess = e->tls_sess;
+      free(e->host);
+      free(e->proxy_url);
+      if (i + 1 < c->idle_count) {
+        memmove(&c->idle_pool[i], &c->idle_pool[i + 1],
+                (c->idle_count - i - 1) * sizeof(struct RawIdleConn));
+      }
+      c->idle_count--;
+      *out_reused = 1;
+      return C_ABSTRACT_HTTP_SUCCESS;
+    }
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Determine whether an HTTP/1.1 connection is eligible to return to the
+ * keep-alive pool.
+ * @param rctx Raw transport context (may be NULL).
+ * @param req Originating HTTP request.
+ * @param res Parsed HTTP response.
+ * @param framing_complete Non-zero if message framing completed without EOF.
+ * @return 1 if connection can be parked for reuse, 0 otherwise.
+ */
+static int math_raw_can_keep_alive(const struct RawCtx *rctx,
+                                   const struct HttpRequest *req,
+                                   const struct HttpResponse *res,
+                                   int framing_complete) {
+  size_t i;
+  if (!rctx || !rctx->config.keep_alive_enabled || !framing_complete) {
+    return 0;
+  }
+  if ((rctx->config.version_mask & (unsigned int)HTTP_VERSION_1_0) &&
+      !(rctx->config.version_mask & (unsigned int)HTTP_VERSION_1_1)) {
+    return 0;
+  }
+  for (i = 0; i < req->headers.count; ++i) {
+    if (math_raw_strcasecmp(req->headers.headers[i].key, "Connection") == 0 &&
+        math_raw_strcasestr_has(req->headers.headers[i].value, "close")) {
+      return 0;
+    }
+  }
+  for (i = 0; i < res->headers.count; ++i) {
+    if (math_raw_strcasecmp(res->headers.headers[i].key, "Connection") == 0 &&
+        math_raw_strcasestr_has(res->headers.headers[i].value, "close")) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+/**
+ * @brief Return a live HTTP/1.1 connection to `c->idle_pool`, enforcing LRU
+ * capacity.
+ * @param c Raw transport context.
+ * @param is_https 1 for https://, 0 for http://.
+ * @param host Origin hostname.
+ * @param port Origin TCP port.
+ * @param sock Connected socket descriptor.
+ * @param tls_hooks Active TLS hooks or NULL.
+ * @param tls_sess Active TLS session or NULL.
+ * @return C_ABSTRACT_HTTP_SUCCESS or error enum (closing @p sock on failure).
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_pool_checkin(struct RawCtx *c, int is_https, const char *host, int port,
+                 raw_socket_t sock, const struct HttpRawTlsHooks *tls_hooks,
+                 void *tls_sess) {
+  size_t max_idle =
+      c->config.max_idle_conns > 0 ? c->config.max_idle_conns : 8U;
+  char *hdup = NULL;
+  char *pdup = NULL;
+  struct RawIdleConn *slot;
+  abstract_http_int64_t now_ms = 0;
+  c_abstract_http_error_t rc;
+
+  rc = raw_pool_evict_expired(c, &now_ms);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return raw_close_conn(sock, tls_hooks, tls_sess, rc);
+  }
+  while (c->idle_count >= max_idle) {
+    struct RawIdleConn evicted = c->idle_pool[0];
+    if (c->idle_count > 1U) {
+      memmove(&c->idle_pool[0], &c->idle_pool[1],
+              (c->idle_count - 1U) * sizeof(struct RawIdleConn));
+    }
+    c->idle_count--;
+    rc = raw_pool_close_entry(&evicted);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return raw_close_conn(sock, tls_hooks, tls_sess, rc);
+    }
+  }
+  if (c->idle_count == c->idle_cap) {
+    size_t new_cap = c->idle_cap == 0U ? 4U : c->idle_cap * 2U;
+    struct RawIdleConn *np = (struct RawIdleConn *)realloc(
+        c->idle_pool, new_cap * sizeof(struct RawIdleConn));
+    if (!np) {
+      return raw_close_conn(sock, tls_hooks, tls_sess,
+                            C_ABSTRACT_HTTP_ERR_NOMEM);
+    }
+    c->idle_pool = np;
+    c->idle_cap = new_cap;
+  }
+  rc = c_abstract_http_strdup(host, &hdup);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return raw_close_conn(sock, tls_hooks, tls_sess, rc);
+  }
+  if (c->config.proxy_url) {
+    rc = c_abstract_http_strdup(c->config.proxy_url, &pdup);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(hdup);
+      return raw_close_conn(sock, tls_hooks, tls_sess, rc);
+    }
+  }
+  slot = &c->idle_pool[c->idle_count++];
+  slot->is_https = is_https;
+  slot->host = hdup;
+  slot->port = port;
+  slot->proxy_url = pdup;
+  slot->sock = sock;
+  slot->tls_hooks = tls_hooks;
+  slot->tls_sess = tls_sess;
+  slot->stored_ms = now_ms;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
+ * @brief Dial TCP/proxy socket and complete optional TLS handshake to origin.
+ * @param rctx Raw transport context (may be NULL).
+ * @param host Origin hostname.
+ * @param port Origin TCP port.
+ * @param is_https 1 for https://, 0 for http://.
+ * @param dial_host Immediate TCP dial hostname (origin or proxy).
+ * @param dial_port Immediate TCP dial port.
+ * @param has_proxy Non-zero when dialing through an explicit proxy.
+ * @param socks_mode 0 for none/HTTP, 1 for socks5://, 2 for socks5h://.
+ * @param conn_to Connect/handshake timeout in milliseconds.
+ * @param tls_hooks Active TLS hooks (when @p is_https != 0).
+ * @param out_sock Output connected socket descriptor.
+ * @param out_tls_sess Output TLS session handle (or NULL).
+ * @return C_ABSTRACT_HTTP_SUCCESS or mapped error code.
+ */
+NO_DISCARD static c_abstract_http_error_t
+raw_dial_and_handshake(struct RawCtx *rctx, const char *host, int port,
+                       int is_https, const char *dial_host, int dial_port,
+                       int has_proxy, int socks_mode, long conn_to,
+                       const struct HttpRawTlsHooks *tls_hooks,
+                       raw_socket_t *out_sock, void **out_tls_sess) {
+  raw_socket_t sock = RAW_INVALID_SOCKET;
+  void *tls_sess = NULL;
+  struct sockaddr_in addr;
+  int conn_res = 0;
+  c_abstract_http_error_t rc;
+
+  *out_sock = RAW_INVALID_SOCKET;
+  *out_tls_sess = NULL;
+
+  rc = raw_resolve_addr(dial_host, dial_port, &addr);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
+
+  sock = socket(AF_INET, SOCK_STREAM, 0);
+  if (sock == RAW_INVALID_SOCKET) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+
+  rc = make_socket_nonblocking(sock);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    RAW_CLOSESOCKET(sock);
+    return rc;
+  }
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_connect_fail == 1) {
+    RAW_CLOSESOCKET(sock);
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+
+  conn_res = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_raw_connect_fail == 2) {
+    conn_res = -1;
+#if defined(_WIN32)
+    WSASetLastError(WSAECONNREFUSED);
+#else
+    errno = ECONNREFUSED;
+#endif
+  } else if (g_mock_raw_connect_fail == 3) {
+    conn_res = 0;
+  }
+#endif
+  if (conn_res < 0) {
+#if defined(_WIN32)
+    if (WSAGetLastError() != WSAEWOULDBLOCK)
+#else
+    if (errno != EINPROGRESS)
+#endif
+    {
+      RAW_CLOSESOCKET(sock);
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+  }
+
+  rc = raw_wait_socket(sock, 2, conn_to);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    RAW_CLOSESOCKET(sock);
+    return rc;
+  }
+
+  rc = make_socket_blocking(sock);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    RAW_CLOSESOCKET(sock);
+    return rc;
+  }
+
+  if (socks_mode != 0) {
+    rc = raw_socks5_handshake(rctx, sock, host, port, socks_mode == 2 ? 1 : 0);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      RAW_CLOSESOCKET(sock);
+      return rc;
+    }
+  } else if (is_https && has_proxy) {
+    rc = raw_proxy_connect_tunnel(rctx, sock, host, port);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      RAW_CLOSESOCKET(sock);
+      return rc;
+    }
+  }
+
+  if (is_https) {
+    rc = tls_hooks->open(tls_hooks->provider_data, (int)sock, host,
+                         rctx ? &rctx->config : NULL, &tls_sess);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      RAW_CLOSESOCKET(sock);
+      return rc;
+    }
+    for (;;) {
+      int want = 0;
+      rc = tls_hooks->handshake(tls_sess, &want);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return raw_close_conn(sock, tls_hooks, tls_sess, rc);
+      }
+      if (want == 0) {
+        break;
+      }
+      rc = raw_wait_socket(sock, want, conn_to);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        return raw_close_conn(sock, tls_hooks, tls_sess, rc);
+      }
+    }
+  }
+
+  *out_sock = sock;
+  *out_tls_sess = tls_sess;
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
+/**
  * @brief Execute one single-hop HTTP/1.x transaction (without following
  * redirects).
  * @param rctx Raw transport context (may be NULL).
@@ -1696,23 +2466,24 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
   int is_https = 0;
   char *proxy_host = NULL;
   int proxy_port = 80;
-  char *proxy_path = NULL;
-  int proxy_https = 0;
+  int socks_mode = 0;
+  int has_proxy = 0;
   const char *dial_host;
   int dial_port;
   int use_proxy_abs_uri = 0;
+  int reused = 0;
+  int framing_complete = 0;
   const struct HttpRawTlsHooks *tls_hooks = NULL;
   void *tls_sess = NULL;
-  struct sockaddr_in addr;
   char *request_buf = NULL;
   size_t req_len = 0;
   char recv_buf[8192];
   c_abstract_http_error_t rc;
-  c_abstract_http_error_t rc_send = C_ABSTRACT_HTTP_SUCCESS;
+  c_abstract_http_error_t rc_send;
+  int recv_failed = 0;
   size_t body_len = 0;
   char *body = NULL;
   size_t body_cap = 0;
-  int conn_res = 0;
   long conn_to =
       math_raw_timeout_ms(rctx, rctx ? rctx->config.connect_timeout_ms : 0);
   long write_to =
@@ -1747,24 +2518,24 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
   }
 
   if (rctx && rctx->config.proxy_url) {
-    rc = parse_url(rctx->config.proxy_url, &proxy_host, &proxy_port,
-                   &proxy_path, &proxy_https);
+    rc = raw_parse_proxy_url(rctx->config.proxy_url, &proxy_host, &proxy_port,
+                             &socks_mode);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(proxy_path);
       free(host);
       free(path);
       return rc;
     }
-    free(proxy_path);
+    has_proxy = 1;
     dial_host = proxy_host;
     dial_port = proxy_port;
-    use_proxy_abs_uri = !is_https;
+    use_proxy_abs_uri = (socks_mode == 0 && !is_https) ? 1 : 0;
   } else {
     dial_host = host;
     dial_port = port;
   }
 
-  rc = raw_resolve_addr(dial_host, dial_port, &addr);
+  rc = raw_pool_checkout(rctx, is_https, host, port, &sock, &tls_hooks,
+                         &tls_sess, &reused);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     free(proxy_host);
     free(host);
@@ -1772,138 +2543,72 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
     return rc;
   }
 
-  sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock == RAW_INVALID_SOCKET) {
-    free(proxy_host);
-    free(host);
-    free(path);
-    return C_ABSTRACT_HTTP_ERR_IO;
-  }
-
-  rc = make_socket_nonblocking(sock);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    free(proxy_host);
-    free(host);
-    free(path);
-    RAW_CLOSESOCKET(sock);
-    return rc;
-  }
-
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_raw_connect_fail == 1) {
-    RAW_CLOSESOCKET(sock);
-    free(proxy_host);
-    free(host);
-    free(path);
-    return C_ABSTRACT_HTTP_ERR_IO;
-  }
-#endif
-
-  conn_res = connect(sock, (struct sockaddr *)&addr, sizeof(addr));
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_raw_connect_fail == 2) {
-    conn_res = -1;
-#if defined(_WIN32)
-    WSASetLastError(WSAECONNREFUSED);
-#else
-    errno = ECONNREFUSED;
-#endif
-  } else if (g_mock_raw_connect_fail == 3) {
-    conn_res = 0;
-  }
-#endif
-  if (conn_res < 0) {
-#if defined(_WIN32)
-    if (WSAGetLastError() != WSAEWOULDBLOCK)
-#else
-    if (errno != EINPROGRESS)
-#endif
-    {
-      RAW_CLOSESOCKET(sock);
-      free(proxy_host);
-      free(host);
-      free(path);
-      return C_ABSTRACT_HTTP_ERR_IO;
-    }
-  }
-
-  rc = raw_wait_socket(sock, 2, conn_to);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    RAW_CLOSESOCKET(sock);
-    free(proxy_host);
-    free(host);
-    free(path);
-    return rc;
-  }
-
-  rc = make_socket_blocking(sock);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    RAW_CLOSESOCKET(sock);
-    free(proxy_host);
-    free(host);
-    free(path);
-    return rc;
-  }
-
-  if (is_https && proxy_host) {
-    rc = raw_proxy_connect_tunnel(rctx, sock, host, port);
+  if (!reused) {
+    rc = raw_dial_and_handshake(rctx, host, port, is_https, dial_host,
+                                dial_port, has_proxy, socks_mode, conn_to,
+                                tls_hooks, &sock, &tls_sess);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      RAW_CLOSESOCKET(sock);
       free(proxy_host);
       free(host);
       free(path);
       return rc;
-    }
-  }
-  free(proxy_host);
-  proxy_host = NULL;
-
-  if (is_https) {
-    rc = tls_hooks->open(tls_hooks->provider_data, (int)sock, host,
-                         rctx ? &rctx->config : NULL, &tls_sess);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      RAW_CLOSESOCKET(sock);
-      free(host);
-      free(path);
-      return rc;
-    }
-    for (;;) {
-      int want = 0;
-      rc = tls_hooks->handshake(tls_sess, &want);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(host);
-        free(path);
-        return raw_close_conn(sock, tls_hooks, tls_sess, rc);
-      }
-      if (want == 0) {
-        break;
-      }
-      rc = raw_wait_socket(sock, want, conn_to);
-      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(host);
-        free(path);
-        return raw_close_conn(sock, tls_hooks, tls_sess, rc);
-      }
     }
   }
 
   rc = raw_build_wire_request(rctx, req, host, path, use_proxy_abs_uri,
                               &request_buf, &req_len);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    free(proxy_host);
     free(host);
     free(path);
     return raw_close_conn(sock, tls_hooks, tls_sess, rc);
   }
-  free(host);
   free(path);
+  path = NULL;
 
   rc_send = raw_io_write_all(sock, tls_hooks, tls_sess, request_buf, req_len,
                              write_to);
   if (rc_send != C_ABSTRACT_HTTP_SUCCESS) {
-    free(request_buf);
-    return raw_close_conn(sock, tls_hooks, tls_sess, rc_send);
+    if (!reused) {
+      free(request_buf);
+      free(proxy_host);
+      free(host);
+      return raw_close_conn(sock, tls_hooks, tls_sess, rc_send);
+    }
+    {
+      c_abstract_http_error_t cl_rc =
+          raw_stale_conn_free(sock, tls_hooks, tls_sess);
+      if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        LOG_DEBUG("raw_send_single_hop: stale close returned %d", (int)cl_rc);
+      }
+      reused = 0;
+      rc = raw_dial_and_handshake(rctx, host, port, is_https, dial_host,
+                                  dial_port, has_proxy, socks_mode, conn_to,
+                                  tls_hooks, &sock, &tls_sess);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        free(request_buf);
+        free(proxy_host);
+        free(host);
+        return rc;
+      }
+      {
+        c_abstract_http_error_t retry_rc = raw_io_write_all(
+            sock, tls_hooks, tls_sess, request_buf, req_len, write_to);
+        if (retry_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          free(request_buf);
+          free(proxy_host);
+          free(host);
+          return raw_close_conn(sock, tls_hooks, tls_sess, retry_rc);
+        }
+      }
+    }
   }
-  free(request_buf);
+  if (!reused) {
+    free(request_buf);
+    request_buf = NULL;
+    free(proxy_host);
+    proxy_host = NULL;
+  }
 
   *res = (struct HttpResponse *)calloc(1, sizeof(struct HttpResponse));
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -1913,6 +2618,9 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
   }
 #endif
   if (!*res) {
+    free(request_buf);
+    free(proxy_host);
+    free(host);
     return raw_close_conn(sock, tls_hooks, tls_sess, C_ABSTRACT_HTTP_ERR_NOMEM);
   }
 
@@ -1920,6 +2628,9 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     free(*res);
     *res = NULL;
+    free(request_buf);
+    free(proxy_host);
+    free(host);
     return raw_close_conn(sock, tls_hooks, tls_sess, rc);
   }
 
@@ -1932,6 +2643,9 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
     body = (char *)malloc(body_cap);
   if (!body) {
     c_abstract_http_error_t rch = http_response_free(*res);
+    free(request_buf);
+    free(proxy_host);
+    free(host);
     if (rch != C_ABSTRACT_HTTP_SUCCESS) {
       free(*res);
       *res = NULL;
@@ -1944,6 +2658,7 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
 
   for (;;) {
     size_t nr_bytes = 0;
+    int stale_eof = 0;
 
     if (tls_hooks && tls_sess) {
       int want = 0;
@@ -1951,6 +2666,9 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
                            &want);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         c_abstract_http_error_t rch;
+        free(request_buf);
+        free(proxy_host);
+        free(host);
         free(body);
         rch = http_response_free(*res);
         if (rch != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1966,6 +2684,9 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
         rc = raw_wait_socket(sock, want, read_to);
         if (rc != C_ABSTRACT_HTTP_SUCCESS) {
           c_abstract_http_error_t rch;
+          free(request_buf);
+          free(proxy_host);
+          free(host);
           free(body);
           rch = http_response_free(*res);
           if (rch != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1980,13 +2701,20 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
         continue;
       }
       if (nr_bytes == 0) {
-        break;
+        if (reused && body_len == 0) {
+          stale_eof = 1;
+        } else {
+          break;
+        }
       }
     } else {
       int r_rc;
       rc = raw_wait_socket(sock, 1, read_to);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         c_abstract_http_error_t rch;
+        free(request_buf);
+        free(proxy_host);
+        free(host);
         free(body);
         rch = http_response_free(*res);
         if (rch != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1999,7 +2727,9 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
         return raw_close_conn(sock, tls_hooks, tls_sess, rc);
       }
       r_rc = (int)recv(sock, recv_buf, sizeof(recv_buf), 0);
-      if (r_rc < 0) {
+      if (r_rc <= 0 && reused && body_len == 0) {
+        stale_eof = 1;
+      } else if (r_rc < 0) {
 #if defined(_WIN32)
         int werr = WSAGetLastError();
         if ((werr == WSAECONNRESET || werr == WSAECONNABORTED) &&
@@ -2007,12 +2737,67 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
           break;
         }
 #endif
-        rc_send = C_ABSTRACT_HTTP_ERR_IO;
+        recv_failed = 1;
         break;
       } else if (r_rc == 0) {
         break;
+      } else {
+        nr_bytes = (size_t)r_rc;
       }
-      nr_bytes = (size_t)r_rc;
+    }
+
+    if (stale_eof) {
+      c_abstract_http_error_t cl_rc =
+          raw_stale_conn_free(sock, tls_hooks, tls_sess);
+      if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
+        LOG_DEBUG("raw_send_single_hop: stale eof close returned %d",
+                  (int)cl_rc);
+      }
+      reused = 0;
+      rc = raw_dial_and_handshake(rctx, host, port, is_https, dial_host,
+                                  dial_port, has_proxy, socks_mode, conn_to,
+                                  tls_hooks, &sock, &tls_sess);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        c_abstract_http_error_t rch;
+        free(request_buf);
+        free(proxy_host);
+        free(host);
+        free(body);
+        rch = http_response_free(*res);
+        free(*res);
+        *res = NULL;
+        if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+          return rch;
+        }
+        return rc;
+      }
+      free(proxy_host);
+      proxy_host = NULL;
+      rc = raw_io_write_all(sock, tls_hooks, tls_sess, request_buf, req_len,
+                            write_to);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        c_abstract_http_error_t rch;
+        free(request_buf);
+        free(host);
+        free(body);
+        rch = http_response_free(*res);
+        free(*res);
+        *res = NULL;
+        if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+          return raw_close_conn(sock, tls_hooks, tls_sess, rch);
+        }
+        return raw_close_conn(sock, tls_hooks, tls_sess, rc);
+      }
+      free(request_buf);
+      request_buf = NULL;
+      continue;
+    }
+
+    if (request_buf) {
+      free(request_buf);
+      request_buf = NULL;
+      free(proxy_host);
+      proxy_host = NULL;
     }
 
     if (body_len + nr_bytes + 1 > body_cap
@@ -2029,7 +2814,7 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
 #endif
         new_body = (char *)realloc(body, body_cap);
       if (!new_body) {
-        rc_send = C_ABSTRACT_HTTP_ERR_NOMEM;
+        recv_failed = 2;
         break;
       }
       body = new_body;
@@ -2039,39 +2824,93 @@ raw_send_single_hop(struct RawCtx *rctx, const struct HttpRequest *req,
     body[body_len] = '\0';
 
     if (math_raw_response_complete(body, body_len, req->method)) {
+      framing_complete = 1;
       break;
     }
   }
+  free(request_buf);
+  free(proxy_host);
 
-  rc = raw_close_conn(sock, tls_hooks, tls_sess, rc_send);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    c_abstract_http_error_t rch = http_response_free(*res);
-    free(body);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+  if (!rctx || !rctx->config.keep_alive_enabled || recv_failed) {
+    free(host);
+    rc = raw_close_conn(
+        sock, tls_hooks, tls_sess,
+        recv_failed == 2
+            ? C_ABSTRACT_HTTP_ERR_NOMEM
+            : (recv_failed ? C_ABSTRACT_HTTP_ERR_IO : C_ABSTRACT_HTTP_SUCCESS));
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      c_abstract_http_error_t rch = http_response_free(*res);
+      free(body);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+        free(*res);
+        *res = NULL;
+        return rch;
+      }
       free(*res);
       *res = NULL;
-      return rch;
+      return rc;
     }
-    free(*res);
-    *res = NULL;
-    return rc;
+    rc = raw_parse_wire_response(body, body_len, req, *res);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      c_abstract_http_error_t rch;
+      free(body);
+      rch = http_response_free(*res);
+      if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+        free(*res);
+        *res = NULL;
+        return rch;
+      }
+      free(*res);
+      *res = NULL;
+      return rc;
+    }
+    free(body);
+    return C_ABSTRACT_HTTP_SUCCESS;
   }
 
   rc = raw_parse_wire_response(body, body_len, req, *res);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     c_abstract_http_error_t rch;
     free(body);
+    free(host);
     rch = http_response_free(*res);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
-      free(*res);
-      *res = NULL;
-      return rch;
-    }
     free(*res);
     *res = NULL;
-    return rc;
+    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+      return raw_close_conn(sock, tls_hooks, tls_sess, rch);
+    }
+    return raw_close_conn(sock, tls_hooks, tls_sess, rc);
   }
   free(body);
+
+  if (math_raw_can_keep_alive(rctx, req, *res, framing_complete)) {
+    rc =
+        raw_pool_checkin(rctx, is_https, host, port, sock, tls_hooks, tls_sess);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      c_abstract_http_error_t rch;
+      free(host);
+      rch = http_response_free(*res);
+      free(*res);
+      *res = NULL;
+      if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+        return rch;
+      }
+      return rc;
+    }
+    free(host);
+  } else {
+    free(host);
+    rc = raw_close_conn(sock, tls_hooks, tls_sess, C_ABSTRACT_HTTP_SUCCESS);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      c_abstract_http_error_t rch = http_response_free(*res);
+      free(*res);
+      *res = NULL;
+      if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+        return rch;
+      }
+      return rc;
+    }
+  }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -3005,6 +3844,16 @@ raw_arm_multi_slot(struct RawMultiSlot *slot) {
     slot->batch->first_err = C_ABSTRACT_HTTP_ERR_INVAL;
     return C_ABSTRACT_HTTP_SUCCESS;
   }
+  if (slot->batch->rctx && slot->batch->rctx->config.proxy_url &&
+      strncmp(slot->batch->rctx->config.proxy_url, "socks5", 6) == 0) {
+    struct HttpResponse *sres = NULL;
+    rc = http_raw_send((struct HttpTransportContext *)slot->batch->rctx,
+                       slot->orig_req, &sres);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return raw_sm_finish_slot(slot, NULL, rc);
+    }
+    return raw_sm_finish_slot(slot, sres, C_ABSTRACT_HTTP_SUCCESS);
+  }
   rc = raw_prepare_effective_req(slot->orig_req, &slot->flat_req,
                                  &slot->flattened, &eff);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -3592,6 +4441,13 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_test_raw_edges(int step) {
     }
     free(res_ptr);
     return C_ABSTRACT_HTTP_SUCCESS;
+  }
+
+  if (step == 60) {
+    char *ph = NULL;
+    int pp = 0;
+    int sm = 0;
+    return raw_parse_proxy_url("ftp://x", &ph, &pp, &sm);
   }
 
   rc = http_loop_init(&loop);

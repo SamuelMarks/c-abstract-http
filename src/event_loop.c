@@ -199,36 +199,39 @@ struct ModalityEventLoop {
 #endif
 };
 
-#ifndef CAH_MATH_TIME_DECLARED
-/** @brief Guard macro for math_get_current_time_ms declaration */
-#define CAH_MATH_TIME_DECLARED 1
-/** @brief Return current monotonic/wall time in milliseconds */
-abstract_http_int64_t math_get_current_time_ms(void);
-C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void);
-#ifndef math_get_current_time_ms
-/** @brief Default mapping of math_get_current_time_ms to real implementation */
-#define math_get_current_time_ms real_math_get_current_time_ms
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+real_c_abstract_http_get_time_ms(abstract_http_int64_t *out_ms) {
+#if !defined(_WIN32) && !defined(__MSDOS__) && !defined(__DOS__) &&            \
+    !defined(DOS)
+  struct timeval tv;
 #endif
-#endif
-C_ABSTRACT_HTTP_API abstract_http_int64_t real_math_get_current_time_ms(void) {
-
+  if (!out_ms) {
+    return C_ABSTRACT_HTTP_ERR_INVAL;
+  }
 #if defined(_WIN32)
 #if (defined(_MSC_VER) && _MSC_VER < 1600) ||                                  \
     (defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600)
-  return (abstract_http_int64_t)GetTickCount();
+  *out_ms = (abstract_http_int64_t)GetTickCount();
 #else
-  return (abstract_http_int64_t)GetTickCount64();
+  *out_ms = (abstract_http_int64_t)GetTickCount64();
 #endif
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-  return ((abstract_http_int64_t)clock() * 1000) /
-         (abstract_http_int64_t)CLOCKS_PER_SEC;
+  *out_ms = ((abstract_http_int64_t)clock() * 1000) /
+            (abstract_http_int64_t)CLOCKS_PER_SEC;
 #else
-  struct timeval tv;
   gettimeofday(&tv, NULL);
-  return (abstract_http_int64_t)tv.tv_sec * 1000 +
-         (abstract_http_int64_t)tv.tv_usec / 1000;
+  *out_ms = (abstract_http_int64_t)tv.tv_sec * 1000 +
+            (abstract_http_int64_t)tv.tv_usec / 1000;
 #endif
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
+
+#ifndef c_abstract_http_get_time_ms
+NO_DISCARD C_ABSTRACT_HTTP_API c_abstract_http_error_t
+c_abstract_http_get_time_ms(abstract_http_int64_t *out_ms) {
+  return real_c_abstract_http_get_time_ms(out_ms);
+}
+#endif
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /** @brief Fault-injection countdown for timer heap swap failure tests */
@@ -1023,12 +1026,17 @@ http_loop_add_timer(struct ModalityEventLoop *loop, long timeout_ms,
     loop->timer_capacity = new_cap;
   }
 
-  id = ++loop->next_timer_id;
-  if (out_timer_id)
-    *out_timer_id = id;
-
-  loop->timers[loop->timer_count].expiration =
-      math_get_current_time_ms() + timeout_ms;
+  {
+    abstract_http_int64_t base_ms = 0;
+    rc = c_abstract_http_get_time_ms(&base_ms);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return rc;
+    }
+    id = ++loop->next_timer_id;
+    if (out_timer_id)
+      *out_timer_id = id;
+    loop->timers[loop->timer_count].expiration = base_ms + timeout_ms;
+  }
   loop->timers[loop->timer_count].id = id;
   loop->timers[loop->timer_count].cb = cb;
   loop->timers[loop->timer_count].user_data = user_data;
@@ -1086,10 +1094,13 @@ http_loop_cancel_timer(struct ModalityEventLoop *loop, int timer_id) {
 NO_DISCARD static c_abstract_http_error_t
 process_timers(struct ModalityEventLoop *loop) {
   c_abstract_http_error_t rc;
-  abstract_http_int64_t now;
+  abstract_http_int64_t now = 0;
   struct TimerNode fired;
 
-  now = math_get_current_time_ms();
+  rc = c_abstract_http_get_time_ms(&now);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
+  }
 
   while (loop->timer_count > 0) {
     if (loop->timers[0].expiration > now) {
@@ -1134,15 +1145,24 @@ dispatch_pending_fd_callbacks(struct ModalityEventLoop *loop) {
   for (i = 0; i < loop->fd_count; ++i) {
     if (loop->fds[i].active && loop->fds[i].pending_revents != 0) {
       int revents = loop->fds[i].pending_revents;
-      abstract_http_int64_t start_cb = math_get_current_time_ms();
+      abstract_http_int64_t start_cb = 0;
+      abstract_http_int64_t end_cb = 0;
       c_abstract_http_error_t cb_rc;
+      c_abstract_http_error_t trc = c_abstract_http_get_time_ms(&start_cb);
+      if (trc != C_ABSTRACT_HTTP_SUCCESS) {
+        return trc;
+      }
       loop->fds[i].pending_revents = 0;
       cb_rc = loop->fds[i].cb(loop, loop->fds[i].fd, revents,
                               loop->fds[i].user_data);
       if (cb_rc != C_ABSTRACT_HTTP_SUCCESS) {
         return cb_rc;
       }
-      if (math_get_current_time_ms() - start_cb > 50) {
+      trc = c_abstract_http_get_time_ms(&end_cb);
+      if (trc != C_ABSTRACT_HTTP_SUCCESS) {
+        return trc;
+      }
+      if (end_cb - start_cb > 50) {
         fprintf(stderr, "[WARN] ModalityEventLoop: Blocking CPU task "
                         "detected (callback took >50ms). This breaks "
                         "asynchronous concurrency!\n");
@@ -1693,7 +1713,11 @@ http_loop_run(struct ModalityEventLoop *loop) {
       break;
 
     if (loop->timer_count > 0) {
-      now = math_get_current_time_ms();
+      rc = c_abstract_http_get_time_ms(&now);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        loop->running = 0;
+        return rc;
+      }
       while (loop->timer_count > 0 && !loop->timers[0].active) {
         loop->timers[0] = loop->timers[loop->timer_count - 1];
         loop->timer_count--;

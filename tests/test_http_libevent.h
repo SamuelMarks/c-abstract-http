@@ -1504,6 +1504,126 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
   PASS();
 }
 
+TEST test_libevent_cookies_timeouts_and_expected_len(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpCookieJar jar;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  const char *cval = NULL;
+  struct libevent_TestUploadState up_st;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_set(&jar, "ev_init", "1"));
+
+  cfg.cookie_jar = &jar;
+  cfg.timeout_ms = 0;
+  cfg.connect_timeout_ms = 1500;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)"http://127.0.0.1:80/set-cookie";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
+    !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBEVENT)
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_get(&jar, "ev_sid", &cval));
+  ASSERT_STR_EQ("ev99", cval);
+#else
+  (void)cval;
+#endif
+
+  /* Test read_timeout_ms & write_timeout_ms fallbacks + explicit Cookie +
+   * expected_body_len */
+  cfg.connect_timeout_ms = 0;
+  cfg.read_timeout_ms = 1200;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Cookie", "override=1"));
+  memset(&up_st, 0, sizeof(up_st));
+  up_st.data = "1234";
+  up_st.len = 4;
+  req.method = HTTP_POST;
+  req.read_chunk = libevent_mock_upload_cb;
+  req.read_chunk_user_data = &up_st;
+  req.expected_body_len = 4;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  cfg.read_timeout_ms = 0;
+  cfg.write_timeout_ms = 1200;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Content-Length", "4"));
+  up_st.pos = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  {
+    int step;
+    struct HttpRequest r_oom;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r_oom));
+    r_oom.url = (char *)"http://127.0.0.1:80/set-cookie";
+    g_mock_libevent_buf_add_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_send(ctx, &r_oom, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    g_mock_libevent_buf_add_fail = 0;
+
+    up_st.pos = 0;
+    r_oom.method = HTTP_POST;
+    r_oom.read_chunk = libevent_mock_upload_cb;
+    r_oom.read_chunk_user_data = &up_st;
+    r_oom.expected_body_len = 4;
+    g_mock_libevent_buf_add_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_send(ctx, &r_oom, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    g_mock_libevent_buf_add_fail = 0;
+    r_oom.read_chunk = NULL;
+
+    for (step = 0; step < 48; ++step) {
+      c_abstract_http_error_t orc;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      orc = http_libevent_send(ctx, &r_oom, &res);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+    }
+    r_oom.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r_oom));
+  }
+#endif
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libevent_global_cleanup());
+  PASS();
+}
+
 /** @brief Documented */
 SUITE(http_libevent_suite) {
   RUN_TEST(test_libevent_global_lifecycle);
@@ -1519,6 +1639,7 @@ SUITE(http_libevent_suite) {
   RUN_TEST(test_libevent_methods);
   RUN_TEST(test_http_libevent_url_and_body_branches);
   RUN_TEST(test_libevent_tls_proxy_redirects_parts_and_multi);
+  RUN_TEST(test_libevent_cookies_timeouts_and_expected_len);
 }
 
 #ifdef __cplusplus

@@ -445,6 +445,10 @@ static void mock_libevent_run_one(struct event_base *base,
   }
   p->req->response_code = 200;
   evhttp_add_header(&p->req->input_headers, "Content-Type", "text/plain");
+  if (strstr(p->path, "/set-cookie") != NULL) {
+    evhttp_add_header(&p->req->input_headers, "Set-Cookie",
+                      "ev_sid=ev99; Path=/");
+  }
   if (p->req->cb) {
     p->req->cb(p->req, p->req->cb_arg);
   }

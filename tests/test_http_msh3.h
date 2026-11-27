@@ -28,6 +28,8 @@ extern "C" {
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_msh3.h>
 #include <c_abstract_http/http_types.h>
+#include "../src/crypto_utils.h"
+#include "abstract_http_test_helpers/mock_server.h"
 #include "mock_alloc.h"
 /* clang-format on */
 
@@ -306,6 +308,36 @@ TEST test_msh3_config_application(void) {
   rc = http_msh3_config_apply(ctx, &config);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
 
+  /* Invalid mTLS / CA buffer combinations */
+  config.client_cert_path = (char *)"cert.pem";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_msh3_config_apply(ctx, &config));
+  config.client_cert_path = NULL;
+  config.client_key_path = (char *)"key.pem";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_msh3_config_apply(ctx, &config));
+  config.client_key_path = NULL;
+  config.ca_buffer_len = 4;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_msh3_config_apply(ctx, &config));
+  config.ca_buffer_len = 0;
+
+  /* Version & TLS version & proxy validation */
+  config.version_mask = HTTP_VERSION_1_1;
+  config.http3_fallback = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_msh3_config_apply(ctx, &config));
+  config.http3_fallback = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_config_apply(ctx, &config));
+  config.version_mask = HTTP_VERSION_3;
+
+  config.tls_version_mask = HTTP_TLS_VERSION_1_2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_msh3_config_apply(ctx, &config));
+  config.tls_version_mask = HTTP_TLS_VERSION_1_3;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_config_apply(ctx, &config));
+
+  config.proxy_url = (char *)"http://127.0.0.1:8080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_msh3_config_apply(ctx, &config));
+  config.proxy_url = (char *)"";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_config_apply(ctx, &config));
+  config.proxy_url = NULL;
+
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   g_mock_msh3_extra_events = 1;
   rc = http_msh3_config_apply(ctx, &config);
@@ -317,12 +349,45 @@ TEST test_msh3_config_application(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
   g_mock_msh3_config_open_fail = 0;
 
-  /* OOM on user_agent strdup (2nd allocation: 1st is MsH3ConfigurationOpen) */
-  g_mock_alloc_fail = 1;
-  g_mock_alloc_count = 1;
-  rc = http_msh3_config_apply(ctx, &config);
-  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
-  g_mock_alloc_fail = 0;
+  /* OOM across all duplicated fields in http_msh3_config_apply */
+  {
+    int step;
+    struct HttpConfig full_cfg;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&full_cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("MsH3Full/1.0", &full_cfg.user_agent));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("puser", &full_cfg.proxy_username));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("ppass", &full_cfg.proxy_password));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("ca.pem", &full_cfg.ca_path));
+    full_cfg.ca_buffer = (unsigned char *)malloc(4);
+    memcpy(full_cfg.ca_buffer, "CERT", 4);
+    full_cfg.ca_buffer_len = 4;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("cc.pem", &full_cfg.client_cert_path));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup("ck.pem", &full_cfg.client_key_path));
+    ASSERT_EQ(
+        C_ABSTRACT_HTTP_SUCCESS,
+        c_abstract_http_strdup("sha256//pin=", &full_cfg.cert_pin_sha256));
+
+    for (step = 1; step <= 24; ++step) {
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      rc = http_msh3_config_apply(ctx, &full_cfg);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (rc == C_ABSTRACT_HTTP_SUCCESS) {
+        break;
+      }
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, rc);
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_config_apply(ctx, &full_cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&full_cfg));
+  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_config_apply(ctx, &config));
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&config));
@@ -1002,6 +1067,171 @@ TEST test_msh3_fault_injection_and_multi(void) {
   g_mock_mutex_free_fail = 0;
   PASS();
 }
+
+TEST test_msh3_tls_redirects_clen_and_fallback(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct msh3_chunk_test_state cst;
+  const char *hval = NULL;
+  static const unsigned char k_spki[] = {0x30, 0x0d, 0x30, 0x05, 0x06,
+                                         0x03, 0x2b, 0x65, 0x70, 0x03,
+                                         0x04, 0x00, 0x01, 0x02, 0x03};
+  unsigned char spki_hash[32];
+  char *b64_pin = NULL;
+  size_t b64_len = 0;
+  char pin_str[128];
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sha256_oneshot(k_spki, sizeof(k_spki), spki_hash));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_base64_encode(spki_hash, 32, &b64_pin, &b64_len));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
+#else
+  sprintf(pin_str, "sha256//%s", b64_pin);
+#endif
+  free(b64_pin);
+
+  cfg.cert_pin_sha256 = pin_str;
+  cfg.http3_fallback = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_config_apply(ctx, &cfg));
+  cfg.cert_pin_sha256 = NULL;
+
+  /* Peer CN mismatch */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)"https://sub.bad-cn.invalid/check";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_msh3_send(ctx, &req, &res));
+
+  /* expected_body_len streaming upload */
+  memset(&cst, 0, sizeof(cst));
+  req.method = HTTP_POST;
+  req.url = (char *)"https://127.0.0.1/upload";
+  req.read_chunk = msh3_test_read_cb;
+  req.read_chunk_user_data = &cst;
+  req.expected_body_len = 8;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_send(ctx, &req, &res));
+  ASSERT_EQ(201, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-clen", &hval));
+  ASSERT_STR_EQ("8", hval);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* 301, 307, and redirect loop */
+  req.read_chunk = NULL;
+  req.expected_body_len = 0;
+  req.body = "data";
+  req.body_len = 4;
+  req.url = (char *)"https://127.0.0.1/redir-301";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-method", &hval));
+  ASSERT_STR_EQ("GET", hval);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.method = HTTP_POST;
+  req.body = "data";
+  req.body_len = 4;
+  req.url = (char *)"https://127.0.0.1/redir-307";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_send(ctx, &req, &res));
+  ASSERT_EQ(201, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_get(&res->headers, "x-echo-method", &hval));
+  ASSERT_STR_EQ("POST", hval);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  req.method = HTTP_GET;
+  req.body = NULL;
+  req.body_len = 0;
+  req.url = (char *)"https://127.0.0.1/redir-loop";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_LOOP, http_msh3_send(ctx, &req, &res));
+
+#if !defined(__EMSCRIPTEN__) && !defined(C_ABSTRACT_HTTP_SINGLE_THREADED)
+  /* Automatic http3_fallback from MsH3 QUIC failure to live TCP HTTP/1.1 */
+  {
+    MockServerPtr srv = NULL;
+    struct MockServerRequest srv_req;
+    char fb_url[128];
+    int port;
+    int step;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(srv));
+    port = math_mock_server_get_port(srv);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/fb", port);
+#else
+    sprintf(fb_url, "http://127.0.0.1:%d/fb", port);
+#endif
+    req.url = fb_url;
+    cfg.http3_fallback = 1;
+    cfg.user_agent = (char *)"MsH3Fallback/1.0";
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_config_apply(ctx, &cfg));
+    cfg.user_agent = NULL;
+
+    g_mock_msh3_shutdown_error = 3;
+    for (step = 0; step <= 60; ++step) {
+      c_abstract_http_error_t frc;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      frc = http_msh3_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (frc == C_ABSTRACT_HTTP_SUCCESS) {
+        ASSERT_EQ(200, res->status_code);
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+        memset(&srv_req, 0, sizeof(srv_req));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  mock_server_wait_for_request(srv, &srv_req));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                  mock_server_request_cleanup(&srv_req));
+        break;
+      }
+    }
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv));
+    srv = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_init(&srv));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_start(srv));
+    port = math_mock_server_get_port(srv);
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/fb", port);
+#else
+    sprintf(fb_url, "http://127.0.0.1:%d/fb", port);
+#endif
+    g_mock_config_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_msh3_send(ctx, &req, &res));
+    g_mock_config_free_fail = 0;
+    memset(&srv_req, 0, sizeof(srv_req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              mock_server_wait_for_request(srv, &srv_req));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_request_cleanup(&srv_req));
+    g_mock_msh3_shutdown_error = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv));
+  }
+#endif
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_global_cleanup());
+  PASS();
+}
 #endif
 
 /** @brief Suite definition for MsH3 backend */
@@ -1014,6 +1244,7 @@ SUITE(http_msh3_suite) {
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   RUN_TEST(test_msh3_features_and_streaming);
   RUN_TEST(test_msh3_fault_injection_and_multi);
+  RUN_TEST(test_msh3_tls_redirects_clen_and_fallback);
 #endif
 }
 

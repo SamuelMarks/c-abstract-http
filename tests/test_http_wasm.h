@@ -1101,6 +1101,127 @@ TEST test_wasm_async_timeouts_ua_and_limits(void) {
   PASS();
 }
 
+static c_abstract_http_error_t g_wasm_prog_chunk_rc = C_ABSTRACT_HTTP_SUCCESS;
+NO_DISCARD static c_abstract_http_error_t
+wasm_prog_chunk_cb(void *user_data, const void *chunk, size_t len) {
+  size_t *acc = (size_t *)user_data;
+  (void)chunk;
+  if (acc) {
+    *acc += len;
+  }
+  return g_wasm_prog_chunk_rc;
+}
+
+TEST test_wasm_cookies_and_streaming_progress(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpCookieJar jar;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  struct HttpMultiRequest multi;
+  struct HttpFuture fut;
+  struct HttpFuture *futs[1];
+  const char *cval = NULL;
+  size_t streamed_total = 0;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_set(&jar, "init_k", "init_v"));
+  cfg.cookie_jar = &jar;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_mock_strdup("http://example.com/wasm", &req.url));
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_wasm_headers_len_zero = 3;
+#endif
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_send(ctx, &req, &res));
+  ASSERT(res != NULL);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_mock_wasm_headers_len_zero = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_get(&jar, "wasm_sid", &cval));
+  ASSERT_STR_EQ("xyz123", cval);
+
+  /* OOM on cookie_hdr build / Set-Cookie parse / headers alloc with cookie */
+  {
+    int step;
+    g_mock_wasm_headers_len_zero = 3;
+    for (step = 0; step <= 28; ++step) {
+      c_abstract_http_error_t orc;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      orc = http_wasm_send(ctx, &req, &res);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+    }
+    g_mock_wasm_headers_len_zero = 0;
+  }
+#endif
+
+  /* Explicit Cookie header skips jar header synthesis */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Cookie", "manual=1"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Async send_multi incremental onprogress -> req->on_chunk delivery */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&multi, &req));
+  futs[0] = &fut;
+
+  req.on_chunk = wasm_prog_chunk_cb;
+  req.on_chunk_user_data = &streamed_total;
+  g_wasm_prog_chunk_rc = C_ABSTRACT_HTTP_SUCCESS;
+  memset(&fut, 0, sizeof(fut));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_wasm_send_multi(ctx, NULL, &multi, futs));
+  ASSERT_EQ(1, fut.is_ready);
+  ASSERT(streamed_total > 0);
+  if (fut.response) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(fut.response));
+    free(fut.response);
+  }
+
+  /* Async onprogress chunk callback cancellation (ERR_CANCELED & ERR_NOMEM) */
+#if !defined(__EMSCRIPTEN__) || defined(C_ABSTRACT_HTTP_TEST_OOM)
+  g_wasm_prog_chunk_rc = C_ABSTRACT_HTTP_ERR_CANCELED;
+  memset(&fut, 0, sizeof(fut));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CANCELED,
+            http_wasm_send_multi(ctx, NULL, &multi, futs));
+
+  g_wasm_prog_chunk_rc = C_ABSTRACT_HTTP_ERR_NOMEM;
+  memset(&fut, 0, sizeof(fut));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
+            http_wasm_send_multi(ctx, NULL, &multi, futs));
+  g_wasm_prog_chunk_rc = C_ABSTRACT_HTTP_SUCCESS;
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_wasm_global_cleanup());
+  PASS();
+}
+
 /**
  * @brief Suite definition for wasm backend.
  */
@@ -1114,6 +1235,7 @@ SUITE(http_wasm_suite) {
   RUN_TEST(test_wasm_send_failures);
   RUN_TEST(test_wasm_send_multi);
   RUN_TEST(test_wasm_async_timeouts_ua_and_limits);
+  RUN_TEST(test_wasm_cookies_and_streaming_progress);
 }
 
 #ifdef __cplusplus

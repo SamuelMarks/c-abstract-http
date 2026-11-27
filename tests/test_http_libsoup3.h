@@ -920,6 +920,197 @@ TEST test_libsoup3_send_multi_and_proxy_tls(void) {
   PASS();
 }
 
+TEST test_libsoup3_spki_cookies_and_expected_len(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpCookieJar jar;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  const char *cval = NULL;
+  struct libsoup3_TestUploadState up_st;
+  unsigned char spki_hash[32];
+  char *b64_pin = NULL;
+  size_t b64_len = 0;
+  char pin_hdr[96];
+  static const unsigned char k_soup_spki[] = {0x30, 0x0d, 0x30, 0x05, 0x06,
+                                              0x03, 0x2b, 0x65, 0x70, 0x03,
+                                              0x04, 0x00, 0x01, 0x02, 0x03};
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_init());
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_init(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_set(&jar, "soup_init", "v1"));
+
+  /* Validation of mTLS/CA combinations */
+  cfg.client_cert_path = (char *)"c.pem";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_config_apply(ctx, &cfg));
+  cfg.client_cert_path = NULL;
+  cfg.client_key_path = (char *)"k.pem";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_config_apply(ctx, &cfg));
+  cfg.client_key_path = NULL;
+  cfg.ca_buffer_len = 3;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_config_apply(ctx, &cfg));
+  cfg.ca_buffer_len = 0;
+
+  /* Valid SPKI pin calculation */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_sha256_oneshot(k_soup_spki, sizeof(k_soup_spki),
+                                           spki_hash));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_base64_encode(spki_hash, 32, &b64_pin, &b64_len));
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(pin_hdr, sizeof(pin_hdr), "sha256//%s", b64_pin);
+#else
+  sprintf(pin_hdr, "sha256//%s", b64_pin);
+#endif
+  free(b64_pin);
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup(pin_hdr, &cfg.cert_pin_sha256));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("ca.pem", &cfg.ca_path));
+  cfg.ca_buffer = (unsigned char *)malloc(4);
+  memcpy(cfg.ca_buffer, "CERT", 4);
+  cfg.ca_buffer_len = 4;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("cc.pem", &cfg.client_cert_path));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup("ck.pem", &cfg.client_key_path));
+  cfg.cookie_jar = &jar;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_config_apply(ctx, &cfg));
+
+  /* HTTPS with matching SPKI pin + /set-cookie */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = (char *)"https://example.com:443/set-cookie";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                       \
+    !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBSOUP3)
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_cookie_jar_get(&jar, "soup_sid", &cval));
+  ASSERT_STR_EQ("s42", cval);
+#else
+  (void)cval;
+#endif
+
+  /* HTTPS hostname mismatch & SPKI pin mismatch */
+  req.url = (char *)"https://example.com/bad-cn";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_libsoup3_send(ctx, &req, &res));
+  req.url = (char *)"https://";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_libsoup3_send(ctx, &req, &res));
+  req.url = (char *)"example.com/no-scheme";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  free(cfg.cert_pin_sha256);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            c_abstract_http_strdup(
+                "sha256//AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+                &cfg.cert_pin_sha256));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_config_apply(ctx, &cfg));
+  req.url = (char *)"https://example.com/pin-fail";
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_libsoup3_send(ctx, &req, &res));
+
+  free(cfg.cert_pin_sha256);
+  cfg.cert_pin_sha256 = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_config_apply(ctx, &cfg));
+
+  /* Explicit Cookie + expected_body_len + explicit Content-Length */
+  req.url = (char *)"http://127.0.0.1:8080/upload";
+  req.method = HTTP_POST;
+  memset(&up_st, 0, sizeof(up_st));
+  up_st.data = "data";
+  up_st.len = 4;
+  req.read_chunk = libsoup3_mock_upload_cb;
+  req.read_chunk_user_data = &up_st;
+  req.expected_body_len = 4;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Cookie", "override=1"));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Content-Length", "4"));
+  up_st.pos = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  {
+    int step;
+    struct HttpRequest r_oom;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              c_abstract_http_strdup(pin_hdr, &cfg.cert_pin_sha256));
+    for (step = 0; step < 24; ++step) {
+      c_abstract_http_error_t arc;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      arc = http_libsoup3_config_apply(ctx, &cfg);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (arc == C_ABSTRACT_HTTP_SUCCESS) {
+        break;
+      }
+    }
+    free(cfg.cert_pin_sha256);
+    cfg.cert_pin_sha256 = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_config_apply(ctx, &cfg));
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&r_oom));
+    r_oom.url = (char *)"http://127.0.0.1:8080/set-cookie";
+    for (step = 0; step < 42; ++step) {
+      c_abstract_http_error_t orc;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      orc = http_libsoup3_send(ctx, &r_oom, &res);
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+        break;
+      }
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = step;
+      g_mock_response_free_fail = 1;
+      orc = http_libsoup3_send(ctx, &r_oom, &res);
+      g_mock_response_free_fail = 0;
+      g_mock_alloc_fail = 0;
+      g_mock_alloc_count = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+    }
+
+    r_oom.url = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&r_oom));
+  }
+#endif
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_free(&jar));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_context_free(ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_libsoup3_global_cleanup());
+  PASS();
+}
+
 /** @brief Documented */
 SUITE(http_libsoup3_suite) {
   RUN_TEST(test_libsoup3_global_lifecycle);
@@ -932,6 +1123,7 @@ SUITE(http_libsoup3_suite) {
   RUN_TEST(test_libsoup3_send_faults);
   RUN_TEST(test_libsoup3_methods);
   RUN_TEST(test_libsoup3_send_multi_and_proxy_tls);
+  RUN_TEST(test_libsoup3_spki_cookies_and_expected_len);
 }
 
 #ifdef __cplusplus

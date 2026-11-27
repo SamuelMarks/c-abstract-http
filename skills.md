@@ -21,7 +21,7 @@ Every `.c` and `.h` file is compiled with `-std=c89 -pedantic -Wall -Wextra -Wer
 
 ## 3. Mandatory Enum Error Return & Percolation Policy
 
-Every non-void, non-math function MUST return `c_abstract_http_error_t`, pass outputs via pointer parameters, and percolate errors without `(void)` return discards.
+`NO_DISCARD` is attached directly to the `c_abstract_http_error_t` typedef, and every non-void, non-math function, callback `typedef`, and struct hook pointer MUST return `c_abstract_http_error_t` with `NO_DISCARD` (or `NO_DISCARD_FN_PTR` on function-pointer `typedef`s and struct fields), pass outputs via pointer parameters, and percolate errors without `(void)` return discards.
 
 ### Bad (Forbidden)
 ```c

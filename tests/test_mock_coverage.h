@@ -36,12 +36,22 @@ TEST test_mock_alloc_coverage(void) {
   ASSERT_EQ(-1, c_abstract_http_mock_select(0, NULL, NULL, NULL, NULL));
   g_mock_select_fail = 0;
 
-  g_mock_time_jump = 1;
-  g_mock_time_jump_count = 2;
-  c_abstract_http_mock_math_get_current_time_ms();
-  c_abstract_http_mock_math_get_current_time_ms();
-  c_abstract_http_mock_math_get_current_time_ms();
-  g_mock_time_jump = 0;
+  {
+    abstract_http_int64_t t_ms = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              real_c_abstract_http_get_time_ms(NULL));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
+              c_abstract_http_mock_get_time_ms(NULL));
+    g_mock_time_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_mock_get_time_ms(&t_ms));
+    g_mock_time_fail = 0;
+    g_mock_time_jump = 1;
+    g_mock_time_jump_count = 2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_mock_get_time_ms(&t_ms));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_mock_get_time_ms(&t_ms));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_mock_get_time_ms(&t_ms));
+    g_mock_time_jump = 0;
+  }
 
   PASS();
 }
@@ -70,6 +80,7 @@ TEST test_mock_alloc_more(void) {
   ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(select_error_fds)
   ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(time_jump)
   ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(time_jump_count)
+  ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(time_fail)
   ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(fwrite_fail)
   ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(fclose_fail)
   ABSTRACT_HTTP_TEST_MOCK_INT_GETTER(socket_fail)

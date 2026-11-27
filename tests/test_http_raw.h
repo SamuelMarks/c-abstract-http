@@ -353,9 +353,11 @@ TEST test_http_raw_send_requests(void) {
   req.body = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
 
-  /* 9. HTTPS scheme without TLS provider returns ERR_NOTSUP */
+  /* 9. HTTPS scheme: ERR_NOTSUP without TLS hooks, or TLS handshake error
+   * against plain-HTTP mock_server when OS TLS hooks are built in */
   {
     char https_url[128];
+    c_abstract_http_error_t hrc;
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(https_url, sizeof(https_url), "https://127.0.0.1:%d/test", port);
 #else
@@ -363,7 +365,13 @@ TEST test_http_raw_send_requests(void) {
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     req.url = https_url;
-    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_raw_send(ctx, &req, &res));
+    hrc = http_raw_send(ctx, &req, &res);
+#if !defined(C_ABSTRACT_HTTP_TEST_OOM) &&                                      \
+    (defined(__APPLE__) || defined(_WIN32))
+    ASSERT(hrc != C_ABSTRACT_HTTP_SUCCESS && hrc != C_ABSTRACT_HTTP_ERR_NOTSUP);
+#else
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, hrc);
+#endif
     req.url = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   }
@@ -1089,8 +1097,12 @@ TEST test_http_raw_features_and_coverage(void) {
   cfg.version_mask = HTTP_VERSION_1_0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
 
-  cfg.proxy_url = (char *)"socks5://127.0.0.1:1080";
+  cfg.proxy_url = (char *)"ftp://127.0.0.1:21";
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOTSUP, http_raw_config_apply(ctx, &cfg));
+  cfg.proxy_url = (char *)"socks5://127.0.0.1:1080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  cfg.proxy_url = (char *)"socks5h://127.0.0.1:1080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
   cfg.proxy_url = (char *)"badproxy";
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_raw_config_apply(ctx, &cfg));
   cfg.proxy_url = NULL;
@@ -1969,8 +1981,11 @@ TEST test_http_raw_features_and_coverage(void) {
         ASSERT((int)erc >= -2000 && (int)erc <= 2000);
       }
 
-      /* Cover event_loop.c:952 (kqueue_sync_fd error in http_loop_remove_fd) */
-#if !defined(_WIN32)
+      /* Cover event_loop.c:952 (epoll/kqueue_sync_fd error in
+       * http_loop_remove_fd) */
+#if defined(__linux__) || (defined(__APPLE__) && defined(__MACH__)) ||         \
+    defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) ||     \
+    defined(__DragonFly__)
       {
         struct ModalityEventLoop *kloop = NULL;
         int pfd[2] = {-1, -1};
@@ -1983,6 +1998,8 @@ TEST test_http_raw_features_and_coverage(void) {
           ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                     c_abstract_http_test_set_loop_op_fail(9, 0));
           rm_rc = http_loop_remove_fd(kloop, pfd[0]);
+          ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+                    c_abstract_http_test_set_loop_op_fail(0, 0));
           ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rm_rc);
           close(pfd[0]);
           close(pfd[1]);
@@ -2271,6 +2288,827 @@ TEST test_http_raw_features_and_coverage(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
   PASS();
 }
+TEST test_http_raw_socks5_proxy(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  MockServerPtr srv = NULL;
+  int port = 0;
+  char target_url[128];
+  char socks5_url[128];
+  char socks5h_url[128];
+  char long_host_url[320];
+  char long_cred[270];
+
+  /* Canned binary SOCKS5 + HTTP responses */
+  static const unsigned char s5_noauth_ipv4_ok[] = {
+      0x05, 0x00, 0x05, 0x00, 0x00, 0x01, 127,  0,   0,   1,   0x00,
+      0x50, 'H',  'T',  'T',  'P',  '/',  '1',  '.', '1', ' ', '2',
+      '0',  '0',  ' ',  'O',  'K',  '\r', '\n', 'C', 'o', 'n', 't',
+      'e',  'n',  't',  '-',  'L',  'e',  'n',  'g', 't', 'h', ':',
+      ' ',  '2',  '\r', '\n', '\r', '\n', 'S',  '5'};
+  static const unsigned char s5_auth_ipv6_ok[] = {
+      0x05, 0x02, 0x01, 0x00, 0x05, 0x00, 0x00, 0x04, 0,    0,    0,
+      0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+      0,    1,    0x01, 0xBB, 'H',  'T',  'T',  'P',  '/',  '1',  '.',
+      '1',  ' ',  '2',  '0',  '0',  ' ',  'O',  'K',  '\r', '\n', 'C',
+      'o',  'n',  't',  'e',  'n',  't',  '-',  'L',  'e',  'n',  'g',
+      't',  'h',  ':',  ' ',  '2',  '\r', '\n', '\r', '\n', 'V',  '6'};
+  static const unsigned char s5_auth_dom_ok[] = {
+      0x05, 0x02, 0x01, 0x00, 0x05, 0x00, 0x00, 0x03, 0x04, 't',  'e',
+      's',  't',  0x00, 0x50, 'H',  'T',  'T',  'P',  '/',  '1',  '.',
+      '1',  ' ',  '2',  '0',  '0',  ' ',  'O',  'K',  '\r', '\n', 'C',
+      'o',  'n',  't',  'e',  'n',  't',  '-',  'L',  'e',  'n',  'g',
+      't',  'h',  ':',  ' ',  '2',  '\r', '\n', '\r', '\n', 'D',  'M'};
+  static const unsigned char s5_bad_ver[] = {0x04, 0x00};
+  static const unsigned char s5_method_ff[] = {0x05, 0xFF};
+  static const unsigned char s5_unsolicited_auth[] = {0x05, 0x02};
+  static const unsigned char s5_auth_deny[] = {0x05, 0x02, 0x01, 0x01};
+  static const unsigned char s5_rep_bad_ver[] = {0x05, 0x00, 0x04,
+                                                 0x00, 0x00, 0x01};
+  static const unsigned char s5_rep_02[] = {0x05, 0x00, 0x05, 0x02, 0x00, 0x01};
+  static const unsigned char s5_rep_03[] = {0x05, 0x00, 0x05, 0x03, 0x00, 0x01};
+  static const unsigned char s5_rep_04[] = {0x05, 0x00, 0x05, 0x04, 0x00, 0x01};
+  static const unsigned char s5_rep_05[] = {0x05, 0x00, 0x05, 0x05, 0x00, 0x01};
+  static const unsigned char s5_rep_01[] = {0x05, 0x00, 0x05, 0x01, 0x00, 0x01};
+  static const unsigned char s5_bad_atyp[] = {0x05, 0x00, 0x05,
+                                              0x00, 0x00, 0x09};
+  static const unsigned char s5_dom_trunc[] = {0x05, 0x00, 0x05,
+                                               0x00, 0x00, 0x03};
+
+  ASSERT_EQ(0, mock_server_init(&srv));
+  ASSERT_EQ(0, mock_server_start(srv));
+  port = math_mock_server_get_port(srv);
+
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(target_url, sizeof(target_url), "http://127.0.0.1:%d/s5", port);
+  sprintf_s(socks5_url, sizeof(socks5_url), "socks5://127.0.0.1:%d/p", port);
+  sprintf_s(socks5h_url, sizeof(socks5h_url), "socks5h://127.0.0.1:%d", port);
+#else
+  sprintf(target_url, "http://127.0.0.1:%d/s5", port);
+  sprintf(socks5_url, "socks5://127.0.0.1:%d/p", port);
+  sprintf(socks5h_url, "socks5h://127.0.0.1:%d", port);
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = target_url;
+
+  /* 1. raw_parse_proxy_url malformed cases (bad port, empty host, OOM, default
+   * port/path forms) */
+  cfg.proxy_url = (char *)"socks5://127.0.0.1:99999";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_raw_send(ctx, &req, &res));
+
+  cfg.proxy_url = (char *)"socks5://:1080";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_raw_send(ctx, &req, &res));
+
+  /* Path with ':' after '/' and host without port */
+  cfg.proxy_url = (char *)"socks5://127.0.0.1/foo:bar";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_raw_connect_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+
+  cfg.proxy_url = (char *)"socks5h://127.0.0.1";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_raw_connect_fail = 0;
+
+  /* Corrupt internal proxy_url scheme to hit raw_parse_proxy_url fallback */
+  cfg.proxy_url = socks5_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_alloc_fail = 1;
+  g_mock_alloc_count = 2; /* host + path succeed, proxy_host malloc fails */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_raw_send(ctx, &req, &res));
+  g_mock_alloc_fail = 0;
+
+  /* 2. socks5:// no-auth + IPv4 BND.ADDR success */
+  g_mock_recv_bin = s5_noauth_ipv4_ok;
+  g_mock_recv_bin_len = sizeof(s5_noauth_ipv4_ok);
+  g_mock_recv_bin_eof = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_STR_EQ("S5", res->body);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* 3. socks5h:// RFC 1929 username/password + IPv6 and Domain BND.ADDR +
+   * send_multi */
+  cfg.proxy_url = socks5h_url;
+  cfg.proxy_username = (char *)"alice";
+  cfg.proxy_password = (char *)"secret";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+
+  g_mock_recv_bin = s5_auth_ipv6_ok;
+  g_mock_recv_bin_len = sizeof(s5_auth_ipv6_ok);
+  g_mock_recv_bin_eof = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_STR_EQ("V6", res->body);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* NULL password with non-NULL username + Domain BND.ADDR + send_multi */
+  cfg.proxy_password = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  {
+    struct HttpMultiRequest mm;
+    struct HttpFuture mf;
+    struct HttpFuture *mfs[1];
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_init(&mm));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_add(&mm, &req));
+    memset(&mf, 0, sizeof(mf));
+    mfs[0] = &mf;
+
+    g_mock_recv_bin = s5_auth_dom_ok;
+    g_mock_recv_bin_len = sizeof(s5_auth_dom_ok);
+    g_mock_recv_bin_eof = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_raw_send_multi(ctx, NULL, &mm, mfs));
+    ASSERT(mf.is_ready != 0);
+    ASSERT_EQ(200, mf.response->status_code);
+    ASSERT_STR_EQ("DM", mf.response->body);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(mf.response));
+    free(mf.response);
+    mf.response = NULL;
+
+    /* send_multi error branch over SOCKS5 */
+    g_mock_recv_bin = s5_method_ff;
+    g_mock_recv_bin_len = sizeof(s5_method_ff);
+    g_mock_recv_bin_eof = 1;
+    memset(&mf, 0, sizeof(mf));
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES,
+              http_raw_send_multi(ctx, NULL, &mm, mfs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&mm));
+  }
+
+  /* 4. SOCKS5 protocol error & truncation branches */
+  cfg.proxy_url = socks5_url;
+  cfg.proxy_username = NULL;
+  cfg.proxy_password = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+
+  /* Greeting write fail & CONNECT write fail (2nd write) */
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, c_abstract_http_test_raw_edges(60));
+  g_mock_raw_send_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_raw_send_fail = 11;
+  g_mock_recv_bin = s5_noauth_ipv4_ok;
+  g_mock_recv_bin_len = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_raw_send_fail = 0;
+
+  /* Greeting select fail & EOF */
+  g_mock_select_fail = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_select_fail = 0;
+
+  g_mock_recv_bin = s5_bad_ver;
+  g_mock_recv_bin_len = 0;
+  g_mock_recv_bin_eof = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+
+  /* Bad SOCKS version, 0xFF no acceptable method, unsolicited 0x02 */
+  g_mock_recv_bin = s5_bad_ver;
+  g_mock_recv_bin_len = sizeof(s5_bad_ver);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_method_ff;
+  g_mock_recv_bin_len = sizeof(s5_method_ff);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_unsolicited_auth;
+  g_mock_recv_bin_len = sizeof(s5_unsolicited_auth);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_raw_send(ctx, &req, &res));
+
+  /* RFC 1929 empty/overlong credentials, auth write/read/status failures */
+  cfg.proxy_username = (char *)"";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_recv_bin = s5_unsolicited_auth;
+  g_mock_recv_bin_len = sizeof(s5_unsolicited_auth);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_raw_send(ctx, &req, &res));
+
+  memset(long_cred, 'u', 256);
+  long_cred[256] = '\0';
+  cfg.proxy_username = long_cred;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_recv_bin = s5_unsolicited_auth;
+  g_mock_recv_bin_len = sizeof(s5_unsolicited_auth);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_raw_send(ctx, &req, &res));
+
+  cfg.proxy_username = (char *)"u";
+  cfg.proxy_password = long_cred;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_recv_bin = s5_unsolicited_auth;
+  g_mock_recv_bin_len = sizeof(s5_unsolicited_auth);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_raw_send(ctx, &req, &res));
+
+  cfg.proxy_password = (char *)"p";
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_raw_send_fail = 11;
+  g_mock_recv_bin = s5_unsolicited_auth;
+  g_mock_recv_bin_len = sizeof(s5_unsolicited_auth);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_raw_send_fail = 0;
+  g_mock_recv_bin = s5_auth_deny;
+  g_mock_recv_bin_len = sizeof(s5_auth_deny);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_unsolicited_auth;
+  g_mock_recv_bin_len = sizeof(s5_unsolicited_auth);
+  g_mock_recv_bin_eof = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+
+  /* Overlong target hostname on socks5h:// (> 255 chars) */
+  cfg.proxy_url = socks5h_url;
+  cfg.proxy_username = NULL;
+  cfg.proxy_password = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  memcpy(long_host_url, "http://", 7);
+  memset(long_host_url + 7, 'a', 258);
+  memcpy(long_host_url + 265, "/x", 3);
+  req.url = long_host_url;
+  g_mock_recv_bin = s5_noauth_ipv4_ok;
+  g_mock_recv_bin_len = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_raw_send(ctx, &req, &res));
+  req.url = target_url;
+
+  /* Unresolvable target host on socks5:// (local DNS failure) */
+  cfg.proxy_url = socks5_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  req.url = (char *)"http://invalid.nonexistent.cah.invalid/x";
+  g_mock_recv_bin = s5_noauth_ipv4_ok;
+  g_mock_recv_bin_len = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  req.url = target_url;
+
+  /* CONNECT reply error codes & truncated reply header / domain BND.ADDR */
+  g_mock_recv_bin = s5_noauth_ipv4_ok;
+  g_mock_recv_bin_len = 3;
+  g_mock_recv_bin_eof = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_rep_bad_ver;
+  g_mock_recv_bin_len = sizeof(s5_rep_bad_ver);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_rep_02;
+  g_mock_recv_bin_len = sizeof(s5_rep_02);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_ACCES, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_rep_03;
+  g_mock_recv_bin_len = sizeof(s5_rep_03);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_HOSTUNREACH, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_rep_04;
+  g_mock_recv_bin_len = sizeof(s5_rep_04);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_HOSTUNREACH, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_rep_05;
+  g_mock_recv_bin_len = sizeof(s5_rep_05);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_CONNREFUSED, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_rep_01;
+  g_mock_recv_bin_len = sizeof(s5_rep_01);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_bad_atyp;
+  g_mock_recv_bin_len = sizeof(s5_bad_atyp);
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = s5_dom_trunc;
+  g_mock_recv_bin_len = sizeof(s5_dom_trunc);
+  g_mock_recv_bin_eof = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+
+  g_mock_recv_bin = NULL;
+  g_mock_recv_bin_len = 0;
+  g_mock_recv_bin_eof = 0;
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  cfg.proxy_url = NULL;
+  cfg.proxy_username = NULL;
+  cfg.proxy_password = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
+  PASS();
+}
+
+/** @brief Verify HTTP/1.1 keep-alive connection pooling, eviction, and OOM */
+TEST test_http_raw_keep_alive_pool(void) {
+  struct HttpTransportContext *ctx = NULL;
+  struct HttpConfig cfg;
+  struct HttpRequest req;
+  struct HttpResponse *res = NULL;
+  MockServerPtr srv = NULL;
+  MockServerPtr srv2 = NULL;
+  int port = 0;
+  int port2 = 0;
+  char url1[128];
+  char url2[128];
+  char proxy_url[128];
+  char proxy_url2[128];
+  char https_url1[128];
+  char https_url2[128];
+  static const unsigned char ka_resp[] =
+      "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nKA";
+  static const unsigned char close_resp[] =
+      "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 2\r\n\r\nCL";
+  static const unsigned char eof_resp[] = "HTTP/1.1 200 OK\r\n\r\nEOF";
+  static const unsigned char bad_chunk_resp[] =
+      "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nZZ\r\n\r\n";
+
+  ASSERT_EQ(0, mock_server_init(&srv));
+  ASSERT_EQ(0, mock_server_start(srv));
+  port = math_mock_server_get_port(srv);
+
+  ASSERT_EQ(0, mock_server_init(&srv2));
+  ASSERT_EQ(0, mock_server_start(srv2));
+  port2 = math_mock_server_get_port(srv2);
+
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+  sprintf_s(url1, sizeof(url1), "http://127.0.0.1:%d/ka1", port);
+  sprintf_s(url2, sizeof(url2), "http://127.0.0.1:%d/ka2", port2);
+  sprintf_s(proxy_url, sizeof(proxy_url), "http://127.0.0.1:%d", port);
+  sprintf_s(proxy_url2, sizeof(proxy_url2), "http://127.0.0.1:%d", port2);
+  sprintf_s(https_url1, sizeof(https_url1), "https://127.0.0.1:%d/s1", port);
+  sprintf_s(https_url2, sizeof(https_url2), "https://127.0.0.1:%d/s2", port2);
+#else
+  sprintf(url1, "http://127.0.0.1:%d/ka1", port);
+  sprintf(url2, "http://127.0.0.1:%d/ka2", port2);
+  sprintf(proxy_url, "http://127.0.0.1:%d", port);
+  sprintf(proxy_url2, "http://127.0.0.1:%d", port2);
+  sprintf(https_url1, "https://127.0.0.1:%d/s1", port);
+  sprintf(https_url2, "https://127.0.0.1:%d/s2", port2);
+#endif
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&ctx));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+  cfg.keep_alive_enabled = 1;
+  cfg.keep_alive_idle_ms = 500;
+  cfg.max_idle_conns = 2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = url1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "X-KeepAlive-Test", "1"));
+
+  /* 1. First request parks socket; second request reuses it without connect */
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  g_mock_recv_bin_eof = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_STR_EQ("KA", res->body);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  g_mock_raw_connect_fail = 1;
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_STR_EQ("KA", res->body);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  g_mock_raw_connect_fail = 0;
+
+  /* 2. Park 2nd origin, checkout 1st (non-tail memmove), then LRU evict */
+  req.url = url2;
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Checkout url1 (index 0 while count==2 -> memmove in checkout) */
+  req.url = url1;
+  g_mock_raw_connect_fail = 1;
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  g_mock_raw_connect_fail = 0;
+
+  /* Proxy URL mismatch & match + LRU eviction when max_idle_conns == 2 */
+  cfg.proxy_url = proxy_url;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* Reuse with matching non-NULL proxy_url */
+  g_mock_raw_connect_fail = 1;
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  g_mock_raw_connect_fail = 0;
+
+  /* Different non-NULL proxy_url triggers miss & LRU eviction */
+  cfg.proxy_url = proxy_url2;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* 3. Idle-timeout eviction (partial + full) via mock clock jump */
+  cfg.proxy_url = NULL;
+  cfg.max_idle_conns = 0; /* exercises default 8 capacity + pool growth > 4 */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_time_jump = 1;
+  g_mock_time_jump_count = 0;
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  g_mock_time_jump = 0;
+
+  /* 4. Stale pooled connection recovery on write error & read EOF */
+  /* 4a: stale write fail -> reconnect succeeds */
+  g_mock_raw_send_fail = 10; /* fails 1st send(), succeeds on reconnect */
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  g_mock_raw_send_fail = 0;
+
+  /* 4b: stale write fail -> reconnect dial fails */
+  g_mock_raw_send_fail = 10;
+  g_mock_raw_connect_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_raw_connect_fail = 0;
+  g_mock_raw_send_fail = 0;
+
+  /* Re-seed pool from real mock_server (which sends Content-Length then closes
+   * socket), so the next request gets a real 0-byte EOF on reused socket and
+   * transparently reconnects to mock_server! */
+  g_mock_recv_bin = NULL;
+  g_mock_recv_bin_len = 0;
+  g_mock_recv_bin_eof = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  cfg.keep_alive_enabled = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  cfg.keep_alive_enabled = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(200, res->status_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  /* 4d: stale read EOF -> reconnect dial fails (+ response_free_fail) */
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = 0;
+  g_mock_recv_bin_eof = 1;
+  g_mock_raw_connect_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+
+  /* Repeat with g_mock_response_free_fail = 1 */
+  g_mock_raw_connect_fail = 0;
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  g_mock_recv_bin_eof = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = 0;
+  g_mock_recv_bin_eof = 1;
+  g_mock_raw_connect_fail = 1;
+  g_mock_response_free_fail = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_response_free_fail = 0;
+  g_mock_raw_connect_fail = 0;
+
+  /* 5. Non-keep-alive conditions: Response Connection: close, EOF body,
+   * Request Connection: close, HTTP/1.0, malformed chunked response */
+  g_mock_recv_bin = close_resp;
+  g_mock_recv_bin_len = sizeof(close_resp) - 1;
+  g_mock_recv_bin_eof = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  g_mock_recv_bin = eof_resp;
+  g_mock_recv_bin_len = sizeof(eof_resp) - 1;
+  g_mock_recv_bin_eof = 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+            http_headers_add(&req.headers, "Connection", "close"));
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  g_mock_recv_bin_eof = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
+  req.url = url1;
+  cfg.version_mask = HTTP_VERSION_1_0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_recv_bin = ka_resp;
+  g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(ctx, &req, &res));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+  free(res);
+  res = NULL;
+
+  cfg.version_mask = HTTP_VERSION_DEFAULT;
+  cfg.keep_alive_idle_ms = 0; /* default 30000ms branch */
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+  g_mock_recv_bin = bad_chunk_resp;
+  g_mock_recv_bin_len = sizeof(bad_chunk_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_response_free_fail = 1;
+  g_mock_recv_bin = bad_chunk_resp;
+  g_mock_recv_bin_len = sizeof(bad_chunk_resp) - 1;
+  ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(ctx, &req, &res));
+  g_mock_response_free_fail = 0;
+
+  /* 6. OOM sweep across keep-alive checkin (realloc + host/proxy strdup) */
+  {
+    struct HttpTransportContext *octx = NULL;
+    int k;
+    cfg.proxy_url = proxy_url;
+    for (k = 0; k < 14; ++k) {
+      c_abstract_http_error_t orc;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&octx));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(octx, &cfg));
+      g_mock_recv_bin = ka_resp;
+      g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+      g_mock_alloc_fail = 1;
+      g_mock_alloc_count = k;
+      orc = http_raw_send(octx, &req, &res);
+      g_mock_alloc_fail = 0;
+      if (orc == C_ABSTRACT_HTTP_SUCCESS && res) {
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+        free(res);
+        res = NULL;
+      }
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(octx));
+    }
+    /* Also checkin failure + response_free_fail */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&octx));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(octx, &cfg));
+    g_mock_recv_bin = ka_resp;
+    g_mock_recv_bin_len = sizeof(ka_resp) - 1;
+    g_mock_alloc_fail = 1;
+    g_mock_alloc_count = 8;
+    g_mock_response_free_fail = 1;
+    {
+      c_abstract_http_error_t orc = http_raw_send(octx, &req, &res);
+      ASSERT(orc != C_ABSTRACT_HTTP_SUCCESS);
+    }
+    g_mock_response_free_fail = 0;
+    g_mock_alloc_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(octx));
+    cfg.proxy_url = NULL;
+  }
+
+  /* 7. Pooled TLS hooks close_fail error percolation (evict, LRU, clear,
+   * stale) */
+  {
+    struct HttpTransportContext *tctx = NULL;
+    struct HttpRawTlsHooks thooks;
+    struct raw_mock_tls_cfg tcfg;
+    memset(&tcfg, 0, sizeof(tcfg));
+    tcfg.canned_resp = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK";
+    memset(&thooks, 0, sizeof(thooks));
+    thooks.provider_data = &tcfg;
+    thooks.open = raw_mock_tls_open;
+    thooks.handshake = raw_mock_tls_handshake;
+    thooks.read = raw_mock_tls_read;
+    thooks.write = raw_mock_tls_write;
+    thooks.close = raw_mock_tls_close;
+
+    g_mock_recv_bin = NULL;
+    g_mock_recv_bin_len = 0;
+    g_mock_recv_bin_eof = 0;
+
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&tctx));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_set_tls_hooks(tctx, &thooks));
+    cfg.keep_alive_idle_ms = 500;
+    cfg.max_idle_conns = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(tctx, &cfg));
+
+    /* Park https_url1 with close_fail = 1 -> context_free percolates close err
+     */
+    tcfg.close_fail = 1;
+    req.url = https_url1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_context_free(tctx));
+
+    /* Evict expired close_fail on checkout & checkin + LRU close_fail */
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&tctx));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_set_tls_hooks(tctx, &thooks));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(tctx, &cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+
+    /* LRU eviction on https_url2 with close_fail=1 (+ response_free_fail) */
+    req.url = https_url2;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(tctx, &req, &res));
+
+    req.url = https_url1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    req.url = https_url2;
+    g_mock_response_free_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(tctx, &req, &res));
+    g_mock_response_free_fail = 0;
+
+    /* Stale read EOF on TLS session with close_fail=1 */
+    req.url = https_url1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    tcfg.canned_resp = "";
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(tctx, &req, &res));
+    tcfg.canned_resp = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK";
+
+    /* Re-park https_url1, then jump time so checkout evicts with close_fail=1
+     */
+    req.url = https_url1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    g_mock_time_jump = 1;
+    g_mock_time_jump_count = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(tctx, &req, &res));
+    g_mock_time_jump = 0;
+
+    /* Park https_url1, then jump time ONLY during checkin so checkin evicts
+     * with close_fail=1 */
+    cfg.max_idle_conns = 4;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(tctx, &cfg));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    req.url = https_url2;
+    g_mock_time_jump = 1;
+    g_mock_time_jump_count = 1; /* checkout sees normal time, checkin jumps! */
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(tctx, &req, &res));
+    g_mock_time_jump = 0;
+
+    /* Stale write fail on TLS session with close_fail=1 */
+    req.url = https_url1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    g_mock_raw_send_fail = 10;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    g_mock_raw_send_fail = 0;
+
+    /* 1. Clock fail on raw_pool_evict_expired */
+    g_mock_time_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(tctx, &req, &res));
+    g_mock_time_fail = 0;
+
+    /* 2. Both initial write AND redial retry write fail on reused socket */
+    g_mock_raw_send_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_send(tctx, &req, &res));
+    g_mock_raw_send_fail = 0;
+
+    /* 3. Stale EOF in recv loop on tctx -> redial -> retry write fails */
+    req.url = https_url1;
+    tcfg.close_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    {
+      c_abstract_http_error_t tmp_rc;
+      tcfg.canned_resp = "";
+      g_mock_raw_send_fail = 11; /* 1st write ok (11->10), 2nd write fails! */
+      tmp_rc = http_raw_send(tctx, &req, &res);
+      g_mock_raw_send_fail = 0;
+      tcfg.canned_resp = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK";
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, tmp_rc);
+
+      /* Repeat with g_mock_response_free_fail = 1 */
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+      free(res);
+      res = NULL;
+      tcfg.canned_resp = "";
+      g_mock_raw_send_fail = 11;
+      g_mock_response_free_fail = 1;
+      tmp_rc = http_raw_send(tctx, &req, &res);
+      g_mock_response_free_fail = 0;
+      g_mock_raw_send_fail = 0;
+      tcfg.canned_resp = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK";
+      ASSERT(tmp_rc != C_ABSTRACT_HTTP_SUCCESS);
+    }
+
+    /* 4. Connection: close request on tctx with close_fail + response_free_fail
+     */
+    req.url = https_url1;
+    tcfg.close_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
+              http_headers_add(&req.headers, "Connection", "close"));
+    {
+      c_abstract_http_error_t tmp_rc;
+      g_mock_response_free_fail = 1;
+      tmp_rc = http_raw_send(tctx, &req, &res);
+      g_mock_response_free_fail = 0;
+      tcfg.close_fail = 0;
+      ASSERT(tmp_rc != C_ABSTRACT_HTTP_SUCCESS);
+    }
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_free(&req.headers));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_headers_init(&req.headers));
+
+    /* 5. Non-NULL http_raw_set_tls_hooks when raw_pool_clear fails */
+    tcfg.close_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_set_tls_hooks(tctx, &thooks));
+
+    /* Park again for NULL set_tls_hooks fail */
+    tcfg.close_fail = 1;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_send(tctx, &req, &res));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(res));
+    free(res);
+    res = NULL;
+    ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_raw_set_tls_hooks(tctx, NULL));
+    tcfg.close_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(tctx));
+  }
+
+  /* Disable keep_alive flushes pool */
+  cfg.keep_alive_enabled = 0;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_config_apply(ctx, &cfg));
+
+  req.url = NULL;
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_free(&cfg));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv2));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, mock_server_destroy(srv));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_free(ctx));
+  PASS();
+}
 #endif
 
 SUITE(http_raw_suite) {
@@ -2284,6 +3122,8 @@ SUITE(http_raw_suite) {
   RUN_TEST(test_http_raw_oom_and_mock_failures);
   RUN_TEST(test_http_raw_free_failures);
   RUN_TEST(test_http_raw_features_and_coverage);
+  RUN_TEST(test_http_raw_socks5_proxy);
+  RUN_TEST(test_http_raw_keep_alive_pool);
 #endif
 }
 

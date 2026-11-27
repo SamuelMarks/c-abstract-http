@@ -100,8 +100,11 @@ function(cah_add_test_executable tgt_name)
     elseif(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
         target_compile_options(${tgt_name} PRIVATE
             "-Wall" "-Wextra" "-Werror" "-pedantic"
-            "-Wconversion" "-Wpointer-arith" "-Wdeclaration-after-statement"
-            "-Wnested-externs" "-Wvla"
+            "-Wconversion" "-Wsign-conversion" "-Wshadow"
+            "-Wpointer-arith" "-Wdeclaration-after-statement"
+            "-Wnested-externs" "-Wvla" "-Wstrict-prototypes"
+            "-Wold-style-definition" "-Wformat=2" "-Wformat-security"
+            "-Wundef" "-Wdouble-promotion" "-Winit-self" "-Wcast-align"
         )
     endif()
 
@@ -121,7 +124,7 @@ function(cah_add_test_executable tgt_name)
 
     if(EMSCRIPTEN)
         target_link_options(${tgt_name} PRIVATE
-            "SHELL:-s STACK_SIZE=1048576 -s ASYNCIFY -s EXIT_RUNTIME=1 -s ASSERTIONS=2"
+            "SHELL:-s STACK_SIZE=1048576 -s ALLOW_MEMORY_GROWTH=1 -s ASYNCIFY -s EXIT_RUNTIME=1 -s ASSERTIONS=2"
         )
         add_dependencies(${tgt_name} install_ws)
     endif()

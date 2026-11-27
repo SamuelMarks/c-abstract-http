@@ -29,6 +29,23 @@
 #include <openssl/ssl.h>
 /** @brief Indicator that libevent OpenSSL bufferevent TLS support is enabled */
 #define CAH_LIBEVENT_HAVE_OPENSSL 1
+#elif defined(C_ABSTRACT_HTTP_USE_WOLFSSL)
+#include <wolfssl/options.h>
+#include <wolfssl/openssl/ssl.h>
+#include <event2/bufferevent_ssl.h>
+/** @brief Indicator that libevent wolfSSL OpenSSL-compat bufferevent TLS support is enabled */
+#define CAH_LIBEVENT_HAVE_OPENSSL 1
+#elif defined(C_ABSTRACT_HTTP_USE_MBEDTLS)
+#include <event2/event-config.h>
+#include <event2/bufferevent_ssl.h>
+#include <mbedtls/ssl.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/x509_crt.h>
+#if defined(EVENT__HAVE_MBEDTLS) && defined(LIBEVENT_VERSION_NUMBER) && LIBEVENT_VERSION_NUMBER >= 0x02020000
+/** @brief Indicator that libevent 2.2+ native mbedTLS bufferevent support is enabled */
+#define CAH_LIBEVENT_HAVE_MBEDTLS 1
+#endif
 #endif
 #endif
 
@@ -157,9 +174,13 @@ NO_DISCARD c_abstract_http_error_t http_libevent_config_apply(
     return C_ABSTRACT_HTTP_ERR_INVAL;
   }
   ctx->config.timeout_ms = config->timeout_ms;
+  ctx->config.connect_timeout_ms = config->connect_timeout_ms;
+  ctx->config.read_timeout_ms = config->read_timeout_ms;
+  ctx->config.write_timeout_ms = config->write_timeout_ms;
   ctx->config.verify_peer = config->verify_peer;
   ctx->config.verify_host = config->verify_host;
   ctx->config.follow_redirects = config->follow_redirects;
+  ctx->config.cookie_jar = config->cookie_jar;
   ctx->config.version_mask = config->version_mask;
   ctx->config.tls_version_mask = config->tls_version_mask;
 
@@ -455,8 +476,12 @@ c_abstract_http_test_libevent_add_header_edge(void) {
 }
 #endif
 
+static int math_ev_strcasecmp(const char *a, const char *b);
+
 /** @brief Internal struct libevent_state */
 struct libevent_state {
+  /** @brief Owning transport context */
+  const struct HttpTransportContext *ctx;
   /** @brief Event base */
   struct event_base *base;
   /** @brief evhttp connection */
@@ -569,6 +594,15 @@ http_request_done_impl(struct evhttp_request *req_ev,
           state->error_code = (int)hrc;
           return hrc;
         }
+        if (state->ctx && state->ctx->config.cookie_jar &&
+            math_ev_strcasecmp(in_hdrs->entries[hi].key, "Set-Cookie") == 0) {
+          hrc = http_cookie_jar_parse_set_cookie(state->ctx->config.cookie_jar,
+                                                 in_hdrs->entries[hi].val);
+          if (hrc != C_ABSTRACT_HTTP_SUCCESS) {
+            state->error_code = (int)hrc;
+            return hrc;
+          }
+        }
       }
     }
 #else
@@ -580,6 +614,15 @@ http_request_done_impl(struct evhttp_request *req_ev,
         if (hrc != C_ABSTRACT_HTTP_SUCCESS) {
           state->error_code = (int)hrc;
           return hrc;
+        }
+        if (state->ctx && state->ctx->config.cookie_jar &&
+            math_ev_strcasecmp(kv->key, "Set-Cookie") == 0) {
+          hrc = http_cookie_jar_parse_set_cookie(state->ctx->config.cookie_jar,
+                                                 kv->value);
+          if (hrc != C_ABSTRACT_HTTP_SUCCESS) {
+            state->error_code = (int)hrc;
+            return hrc;
+          }
         }
       }
     }
@@ -893,6 +936,24 @@ ev_open_connection(const struct HttpTransportContext *ctx,
       SSL_CTX_set_verify(
           ssl_ctx, ctx->config.verify_peer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE,
           NULL);
+      if (ctx->config.ca_path) {
+        if (SSL_CTX_load_verify_locations(ssl_ctx, ctx->config.ca_path, NULL) !=
+            1) {
+          SSL_CTX_free(ssl_ctx);
+          return C_ABSTRACT_HTTP_ERR_ACCES;
+        }
+      } else if (ctx->config.verify_peer) {
+        SSL_CTX_set_default_verify_paths(ssl_ctx);
+      }
+      if (ctx->config.client_cert_path && ctx->config.client_key_path) {
+        if (SSL_CTX_use_certificate_chain_file(
+                ssl_ctx, ctx->config.client_cert_path) != 1 ||
+            SSL_CTX_use_PrivateKey_file(ssl_ctx, ctx->config.client_key_path,
+                                        SSL_FILETYPE_PEM) != 1) {
+          SSL_CTX_free(ssl_ctx);
+          return C_ABSTRACT_HTTP_ERR_ACCES;
+        }
+      }
       ssl = SSL_new(ssl_ctx);
       SSL_CTX_free(ssl_ctx);
       if (!ssl) {
@@ -916,6 +977,98 @@ ev_open_connection(const struct HttpTransportContext *ctx,
         return C_ABSTRACT_HTTP_ERR_NOMEM;
       }
     }
+#elif defined(CAH_LIBEVENT_HAVE_MBEDTLS)
+    {
+      mbedtls_ssl_config *mconf =
+          (mbedtls_ssl_config *)calloc(1, sizeof(*mconf));
+      mbedtls_entropy_context *ment =
+          (mbedtls_entropy_context *)calloc(1, sizeof(*ment));
+      mbedtls_ctr_drbg_context *mdrbg =
+          (mbedtls_ctr_drbg_context *)calloc(1, sizeof(*mdrbg));
+      mbedtls_x509_crt *mca = NULL;
+      mbedtls_dyncontext *mdyn;
+      struct bufferevent *bev;
+      if (!mconf || !ment || !mdrbg) {
+        free(mconf);
+        free(ment);
+        free(mdrbg);
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
+      }
+      mbedtls_ssl_config_init(mconf);
+      mbedtls_entropy_init(ment);
+      mbedtls_ctr_drbg_init(mdrbg);
+      if (mbedtls_ctr_drbg_seed(mdrbg, mbedtls_entropy_func, ment, NULL, 0) !=
+              0 ||
+          mbedtls_ssl_config_defaults(mconf, MBEDTLS_SSL_IS_CLIENT,
+                                      MBEDTLS_SSL_TRANSPORT_STREAM,
+                                      MBEDTLS_SSL_PRESET_DEFAULT) != 0) {
+        mbedtls_ctr_drbg_free(mdrbg);
+        mbedtls_entropy_free(ment);
+        mbedtls_ssl_config_free(mconf);
+        free(mdrbg);
+        free(ment);
+        free(mconf);
+        return C_ABSTRACT_HTTP_ERR_IO;
+      }
+      mbedtls_ssl_conf_authmode(mconf, ctx->config.verify_peer
+                                           ? MBEDTLS_SSL_VERIFY_REQUIRED
+                                           : MBEDTLS_SSL_VERIFY_NONE);
+      mbedtls_ssl_conf_rng(mconf, mbedtls_ctr_drbg_random, mdrbg);
+      if (ctx->config.ca_path) {
+        mca = (mbedtls_x509_crt *)calloc(1, sizeof(*mca));
+        if (!mca) {
+          mbedtls_ctr_drbg_free(mdrbg);
+          mbedtls_entropy_free(ment);
+          mbedtls_ssl_config_free(mconf);
+          free(mdrbg);
+          free(ment);
+          free(mconf);
+          return C_ABSTRACT_HTTP_ERR_NOMEM;
+        }
+        mbedtls_x509_crt_init(mca);
+        if (mbedtls_x509_crt_parse_file(mca, ctx->config.ca_path) < 0) {
+          mbedtls_x509_crt_free(mca);
+          free(mca);
+          mbedtls_ctr_drbg_free(mdrbg);
+          mbedtls_entropy_free(ment);
+          mbedtls_ssl_config_free(mconf);
+          free(mdrbg);
+          free(ment);
+          free(mconf);
+          return C_ABSTRACT_HTTP_ERR_ACCES;
+        }
+        mbedtls_ssl_conf_ca_chain(mconf, mca, NULL);
+      }
+      mdyn = bufferevent_mbedtls_dyncontext_new(mconf);
+      if (!mdyn) {
+        if (mca) {
+          mbedtls_x509_crt_free(mca);
+          free(mca);
+        }
+        mbedtls_ctr_drbg_free(mdrbg);
+        mbedtls_entropy_free(ment);
+        mbedtls_ssl_config_free(mconf);
+        free(mdrbg);
+        free(ment);
+        free(mconf);
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
+      }
+      if (sni_host && sni_host[0] != '\0') {
+        mbedtls_ssl_set_hostname(mdyn, sni_host);
+      }
+      bev = bufferevent_mbedtls_socket_new(
+          base, -1, mdyn, BUFFEREVENT_SSL_CONNECTING, BEV_OPT_CLOSE_ON_FREE);
+      if (!bev) {
+        bufferevent_mbedtls_dyncontext_free(mdyn);
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
+      }
+      conn = evhttp_connection_base_bufferevent_new(base, NULL, bev, dial_host,
+                                                    (unsigned short)dial_port);
+      if (!conn) {
+        bufferevent_free(bev);
+        return C_ABSTRACT_HTTP_ERR_NOMEM;
+      }
+    }
 #else
     return C_ABSTRACT_HTTP_ERR_NOTSUP;
 #endif
@@ -927,9 +1080,21 @@ ev_open_connection(const struct HttpTransportContext *ctx,
     }
   }
 
-  if (ctx->config.timeout_ms > 0) {
-    int tsec = (int)((ctx->config.timeout_ms + 999L) / 1000L);
-    evhttp_connection_set_timeout(conn, tsec);
+  {
+    long eff_ms = ctx->config.timeout_ms;
+    if (eff_ms <= 0 && ctx->config.connect_timeout_ms > eff_ms) {
+      eff_ms = ctx->config.connect_timeout_ms;
+    }
+    if (eff_ms <= 0 && ctx->config.read_timeout_ms > eff_ms) {
+      eff_ms = ctx->config.read_timeout_ms;
+    }
+    if (eff_ms <= 0 && ctx->config.write_timeout_ms > eff_ms) {
+      eff_ms = ctx->config.write_timeout_ms;
+    }
+    if (eff_ms > 0) {
+      int tsec = (int)((eff_ms + 999L) / 1000L);
+      evhttp_connection_set_timeout(conn, tsec);
+    }
   }
   *out_conn = conn;
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -965,8 +1130,11 @@ NO_DISCARD static c_abstract_http_error_t ev_submit_request_on_base(
   struct evkeyvalq *output_headers;
   int method_cmd = 0;
   int has_ua = 0;
+  int has_cookie = 0;
+  int has_clen = 0;
   c_abstract_http_error_t rc;
 
+  state->ctx = ctx;
   rc =
       ev_parse_url_parts(req->url, host, sizeof(host), &port, &path, &is_https);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
@@ -1023,6 +1191,12 @@ NO_DISCARD static c_abstract_http_error_t ev_submit_request_on_base(
     for (i = 0; i < req->headers.count; i++) {
       if (math_ev_strcasecmp(req->headers.headers[i].key, "User-Agent") == 0) {
         has_ua = 1;
+      } else if (math_ev_strcasecmp(req->headers.headers[i].key, "Cookie") ==
+                 0) {
+        has_cookie = 1;
+      } else if (math_ev_strcasecmp(req->headers.headers[i].key,
+                                    "Content-Length") == 0) {
+        has_clen = 1;
       }
       if (evhttp_add_header(output_headers, req->headers.headers[i].key,
                             req->headers.headers[i].value) != 0) {
@@ -1034,6 +1208,35 @@ NO_DISCARD static c_abstract_http_error_t ev_submit_request_on_base(
     if (evhttp_add_header(output_headers, "User-Agent",
                           ctx->config.user_agent) != 0) {
       LOG_DEBUG("ev_submit_request_on_base: User-Agent add failed");
+    }
+  }
+  if (!has_cookie && ctx->config.cookie_jar) {
+    char *cookie_hdr = NULL;
+    rc = http_cookie_jar_build_header(ctx->config.cookie_jar, req->url,
+                                      &cookie_hdr);
+    if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      evhttp_request_free(req_ev);
+      evhttp_connection_free(state->conn);
+      state->conn = NULL;
+      return rc;
+    }
+    if (cookie_hdr) {
+      if (evhttp_add_header(output_headers, "Cookie", cookie_hdr) != 0) {
+        LOG_DEBUG("ev_submit_request_on_base: Cookie add failed");
+      }
+      free(cookie_hdr);
+    }
+  }
+  if (!has_clen && req->read_chunk && req->expected_body_len > 0) {
+    char clen_buf[32];
+#if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+    sprintf_s(clen_buf, sizeof(clen_buf), "%lu",
+              (unsigned long)req->expected_body_len);
+#else
+    sprintf(clen_buf, "%lu", (unsigned long)req->expected_body_len);
+#endif
+    if (evhttp_add_header(output_headers, "Content-Length", clen_buf) != 0) {
+      LOG_DEBUG("ev_submit_request_on_base: Content-Length add failed");
     }
   }
   if (ctx->config.proxy_url && ctx->config.proxy_username) {
