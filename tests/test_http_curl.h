@@ -79,7 +79,7 @@ NO_DISCARD static c_abstract_http_error_t setup_request(struct HttpRequest *req,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #else
-  sprintf(url, "http://127.0.0.1:%d/test", port);
+  c89stringutils_snprintf(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #endif
 
   req->url = (c_abstract_http_mock_strdup(url, &_ast_strdup_0) ==
@@ -769,7 +769,8 @@ TEST test_curl_send_write_oom(void) {
   sprintf_s(url_buf, sizeof(url_buf), "http://127.0.0.1:%d",
             math_mock_server_get_port(server));
 #else
-  sprintf(url_buf, "http://127.0.0.1:%d", math_mock_server_get_port(server));
+  c89stringutils_snprintf(url_buf, sizeof(url_buf), "http://127.0.0.1:%d",
+                          math_mock_server_get_port(server));
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_curl_global_init());

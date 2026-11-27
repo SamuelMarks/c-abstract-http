@@ -597,15 +597,15 @@ ws_parser_init(struct ws_parser_ctx *ctx, c_abstract_http_ws_on_message on_msg,
 /** @brief Destroy a WebSocket frame parser context */
 NO_DISCARD c_abstract_http_error_t
 ws_parser_destroy(struct ws_parser_ctx *ctx) {
+  if (ctx) {
+    free(ctx->payload_buffer);
+    free(ctx->reassembly_buffer);
+    memset(ctx, 0, sizeof(*ctx));
+  }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_parser_destroy_fail)
     return C_ABSTRACT_HTTP_ERR_IO;
 #endif
-  if (!ctx)
-    return C_ABSTRACT_HTTP_SUCCESS;
-  free(ctx->payload_buffer);
-  free(ctx->reassembly_buffer);
-  memset(ctx, 0, sizeof(*ctx));
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -983,6 +983,36 @@ ws_sync_upgraded_socket_loop(struct HttpClient *client, struct HttpRequest *req,
                              void *user_data, volatile int *exit_flag);
 
 /* Execute a synchronous WebSocket read loop */
+/**
+ * @brief Destroy sync WebSocket parser and response, propagating cleanup
+ * errors.
+ * @param parser Active WebSocket parser context.
+ * @param res Heap-allocated HTTP response to release.
+ * @param primary_rc Primary status to return when cleanup succeeds.
+ * @return Cleanup error or `primary_rc`.
+ */
+NO_DISCARD static c_abstract_http_error_t
+ws_cleanup_sync_res(struct ws_parser_ctx *parser, struct HttpResponse *res,
+                    c_abstract_http_error_t primary_rc) {
+  c_abstract_http_error_t rch = ws_parser_destroy(parser);
+  if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+    goto free_res;
+  }
+free_res:;
+  {
+    c_abstract_http_error_t rc_tmp = http_response_free(res);
+    if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
+      free(res);
+      return rc_tmp;
+    }
+  }
+  free(res);
+  if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+    return rch;
+  }
+  return primary_rc;
+}
+
 NO_DISCARD c_abstract_http_error_t c_abstract_http_ws_sync_read_loop(
     struct HttpClient *client, struct HttpRequest *req,
     c_abstract_http_ws_on_message on_msg, c_abstract_http_ws_on_error on_err,
@@ -1049,56 +1079,17 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_ws_sync_read_loop(
       if (on_err) {
         c_abstract_http_error_t err_rc = on_err(rc, user_data);
         if (err_rc != C_ABSTRACT_HTTP_SUCCESS) {
-          c_abstract_http_error_t rch;
-          c_abstract_http_error_t rc_tmp;
-          rch = ws_parser_destroy(&parser);
-          if (rch != C_ABSTRACT_HTTP_SUCCESS) {
-            free(res);
-            return rch;
-          }
-          rc_tmp = http_response_free(res);
-          if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
-            free(res);
-            return rc_tmp;
-          }
-          free(res);
-          return err_rc;
+          return ws_cleanup_sync_res(&parser, res, err_rc);
         }
       }
-      {
-        c_abstract_http_error_t rch = ws_parser_destroy(&parser);
-        if (rch != C_ABSTRACT_HTTP_SUCCESS) {
-          free(res);
-          return rch;
-        }
-      }
-      {
-        c_abstract_http_error_t rc_tmp = http_response_free(res);
-        if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
-          free(res);
-          return rc_tmp;
-        }
-      }
-      free(res);
-      return rc;
+      return ws_cleanup_sync_res(&parser, res, rc);
     }
   }
 
-  {
-    c_abstract_http_error_t rch = ws_parser_destroy(&parser);
-    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
-      free(res);
-      return rch;
-    }
+  rc = ws_cleanup_sync_res(&parser, res, C_ABSTRACT_HTTP_SUCCESS);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return rc;
   }
-  {
-    c_abstract_http_error_t rc_tmp = http_response_free(res);
-    if (rc_tmp != C_ABSTRACT_HTTP_SUCCESS) {
-      free(res);
-      return rc_tmp;
-    }
-  }
-  free(res);
 
   if (on_close) {
     c_abstract_http_error_t cls_rc = on_close(200, user_data);
@@ -1654,15 +1645,29 @@ ws_perform_101_handshake(const struct HttpRequest *req,
   if (strcmp(host, "127.0.0.1") == 0) {
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   } else {
+#if defined(_MSC_VER) && _MSC_VER < 1400
     struct hostent *he = gethostbyname(host);
     char *first_addr = NULL;
     if (he && he->h_addr_list) {
-      memcpy(&first_addr, he->h_addr_list, sizeof(first_addr));
+      memcpy(&first_addr, (const void *)he->h_addr_list, sizeof(first_addr));
     }
     if (!first_addr) {
       return C_ABSTRACT_HTTP_ERR_IO;
     }
     memcpy(&addr.sin_addr, first_addr, (size_t)he->h_length);
+#else
+    struct addrinfo hints;
+    struct addrinfo *ai_res = NULL;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(host, NULL, &hints, &ai_res) != 0 || !ai_res) {
+      return C_ABSTRACT_HTTP_ERR_IO;
+    }
+    memcpy(&addr, ai_res->ai_addr, sizeof(struct sockaddr_in));
+    addr.sin_port = math_ws_htons((uint16_t)port);
+    freeaddrinfo(ai_res);
+#endif
   }
 
   sock_fd = (int)socket(AF_INET, SOCK_STREAM, 0);
@@ -1704,8 +1709,9 @@ ws_perform_101_handshake(const struct HttpRequest *req,
   off = sprintf_s(req_buf, sizeof(req_buf),
                   "GET %s HTTP/1.1\r\nHost: %s:%d\r\n", path, host, port);
 #else
-  off =
-      sprintf(req_buf, "GET %s HTTP/1.1\r\nHost: %s:%d\r\n", path, host, port);
+  off = c89stringutils_snprintf(req_buf, sizeof(req_buf),
+                                "GET %s HTTP/1.1\r\nHost: %s:%d\r\n", path,
+                                host, port);
 #endif
   for (i = 0; i < req->headers.count; ++i) {
     size_t klen = strlen(req->headers.headers[i].key);
@@ -1716,8 +1722,9 @@ ws_perform_101_handshake(const struct HttpRequest *req,
           sprintf_s(req_buf + off, sizeof(req_buf) - (size_t)off, "%s: %s\r\n",
                     req->headers.headers[i].key, req->headers.headers[i].value);
 #else
-      off += sprintf(req_buf + off, "%s: %s\r\n", req->headers.headers[i].key,
-                     req->headers.headers[i].value);
+      off += c89stringutils_snprintf(
+          req_buf + off, sizeof(req_buf) - (size_t)off, "%s: %s\r\n",
+          req->headers.headers[i].key, req->headers.headers[i].value);
 #endif
     }
   }

@@ -585,7 +585,8 @@ soup_build_message(const struct HttpTransportContext *ctx,
     sprintf_s(clen_buf, sizeof(clen_buf), "%lu",
               (unsigned long)req->expected_body_len);
 #else
-    sprintf(clen_buf, "%lu", (unsigned long)req->expected_body_len);
+    c89stringutils_snprintf(clen_buf, sizeof(clen_buf), "%lu",
+                            (unsigned long)req->expected_body_len);
 #endif
     soup_message_headers_append(req_headers, "Content-Length", clen_buf);
   }

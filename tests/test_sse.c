@@ -19,6 +19,9 @@
 #include "sse_config.h"
 #include "mock_alloc.h"
 #include <string.h>
+#if defined(__linux__) || defined(__APPLE__)
+#include <signal.h>
+#endif
 /* clang-format on */
 
 /** @brief Documented */
@@ -2638,6 +2641,10 @@ TEST test_sse_incremental_on_chunk_and_async_loop(void) {
   }
 #endif
 
+  if (client.loop) {
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(client.loop));
+    client.loop = NULL;
+  }
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_client_free(&client));
   g_sse_live_tr = NULL;
   PASS();
@@ -2801,6 +2808,9 @@ SUITE(sse_suite) {
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
+#if defined(__linux__) || defined(__APPLE__)
+  signal(SIGPIPE, SIG_IGN);
+#endif
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(sse_suite);
   GREATEST_MAIN_END();

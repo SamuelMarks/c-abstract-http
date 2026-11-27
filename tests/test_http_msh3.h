@@ -299,6 +299,8 @@ TEST test_msh3_config_application(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, rc);
 
   config.verify_peer = 0;
+  free(config.user_agent);
+  config.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("MsH3Agent/1.0", &config.user_agent));
   rc = http_msh3_config_apply(ctx, &config);
@@ -354,6 +356,8 @@ TEST test_msh3_config_application(void) {
     int step;
     struct HttpConfig full_cfg;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&full_cfg));
+    free(full_cfg.user_agent);
+    full_cfg.user_agent = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               c_abstract_http_strdup("MsH3Full/1.0", &full_cfg.user_agent));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -529,6 +533,8 @@ TEST test_msh3_features_and_streaming(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_set(&jar, "k1", "v1"));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_cookie_jar_set(&jar, "k2", "v2"));
   cfg.cookie_jar = &jar;
+  free(cfg.user_agent);
+  cfg.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("CAH-MsH3/2.0", &cfg.user_agent));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_config_apply(ctx, &cfg));
@@ -1021,6 +1027,8 @@ TEST test_msh3_fault_injection_and_multi(void) {
     req2.url = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
               http_msh3_send_multi(ctx, loop, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut2));
 
     /* Restore req2.url and test Phase 2 await failure */
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1029,6 +1037,8 @@ TEST test_msh3_fault_injection_and_multi(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_msh3_send_multi(ctx, loop, &multi, futs));
     g_mock_msh3_send_lock_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&fut2));
 
     /* Loop wakeup failure */
     {
@@ -1094,7 +1104,7 @@ TEST test_msh3_tls_redirects_clen_and_fallback(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
 #else
-  sprintf(pin_str, "sha256//%s", b64_pin);
+  c89stringutils_snprintf(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
 #endif
   free(b64_pin);
 
@@ -1173,10 +1183,12 @@ TEST test_msh3_tls_redirects_clen_and_fallback(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/fb", port);
 #else
-    sprintf(fb_url, "http://127.0.0.1:%d/fb", port);
+    c89stringutils_snprintf(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/fb",
+                            port);
 #endif
     req.url = fb_url;
     cfg.http3_fallback = 1;
+    free(cfg.user_agent);
     cfg.user_agent = (char *)"MsH3Fallback/1.0";
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_msh3_config_apply(ctx, &cfg));
     cfg.user_agent = NULL;
@@ -1211,7 +1223,8 @@ TEST test_msh3_tls_redirects_clen_and_fallback(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/fb", port);
 #else
-    sprintf(fb_url, "http://127.0.0.1:%d/fb", port);
+    c89stringutils_snprintf(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/fb",
+                            port);
 #endif
     g_mock_config_free_fail = 1;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_msh3_send(ctx, &req, &res));

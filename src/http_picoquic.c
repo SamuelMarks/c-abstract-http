@@ -981,10 +981,10 @@ http_picoquic_context_free(struct HttpTransportContext *ctx) {
   free(ctx->proxy_host);
   ctx->proxy_host = NULL;
   rch = http_config_free(&ctx->config);
+  free(ctx);
   if (rch != C_ABSTRACT_HTTP_SUCCESS) {
     return rch;
   }
-  free(ctx);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -1379,7 +1379,8 @@ pq_send_quic_once(struct HttpTransportContext *ctx,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(port_str, sizeof(port_str), "%u", (unsigned int)conn_port);
 #else
-    sprintf(port_str, "%u", (unsigned int)conn_port);
+    c89stringutils_snprintf(port_str, sizeof(port_str), "%u",
+                            (unsigned int)conn_port);
 #endif
     if (getaddrinfo(conn_host, port_str, &hints, &ai) != 0 || !ai) {
       free(host);

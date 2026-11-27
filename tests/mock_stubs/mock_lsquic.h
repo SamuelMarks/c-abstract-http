@@ -22,6 +22,7 @@ extern "C" {
 #include <sys/socket.h>
 #endif
 #include <c_abstract_http/http_types.h>
+#include <c89stringutils_string_extras.h>
 /* clang-format on */
 
 extern int g_mock_alloc_fail;
@@ -566,7 +567,7 @@ static void mock_lsq_build_response(lsquic_stream_t *s) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
       sprintf_s(idx_buf, sizeof(idx_buf), "%d", s->stream_idx);
 #else
-      sprintf(idx_buf, "%d", s->stream_idx);
+      c89stringutils_snprintf(idx_buf, sizeof(idx_buf), "%d", s->stream_idx);
 #endif
       mock_lsq_write_hdr(hblock, &hpos, "x-echo-stream-idx", idx_buf);
     }

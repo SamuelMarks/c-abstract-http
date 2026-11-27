@@ -234,6 +234,7 @@ http_raw_context_free(struct HttpTransportContext *ctx) {
     c_abstract_http_error_t prc;
     c_abstract_http_error_t rc = http_config_free(&c->config);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+      free(c);
       return rc;
     }
     prc = raw_pool_clear(c);
@@ -1069,8 +1070,8 @@ raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
   sprintf_s(request_buf, req_cap, "%s %s %s\r\nHost: %s\r\n%s", method_str,
             target, ver_str, host, conn_hdr);
 #else
-  sprintf(request_buf, "%s %s %s\r\nHost: %s\r\n%s", method_str, target,
-          ver_str, host, conn_hdr);
+  c89stringutils_snprintf(request_buf, req_cap, "%s %s %s\r\nHost: %s\r\n%s",
+                          method_str, target, ver_str, host, conn_hdr);
 #endif
   req_len = strlen(request_buf);
 
@@ -1093,8 +1094,9 @@ raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
     sprintf_s(request_buf + req_len, req_cap - req_len, "%s: %s\r\n",
               req->headers.headers[i].key, req->headers.headers[i].value);
 #else
-    sprintf(request_buf + req_len, "%s: %s\r\n", req->headers.headers[i].key,
-            req->headers.headers[i].value);
+    c89stringutils_snprintf(request_buf + req_len, req_cap - req_len,
+                            "%s: %s\r\n", req->headers.headers[i].key,
+                            req->headers.headers[i].value);
 #endif
     req_len += strlen(request_buf + req_len);
   }
@@ -1110,7 +1112,8 @@ raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
     sprintf_s(request_buf + req_len, req_cap - req_len, "User-Agent: %s\r\n",
               c->config.user_agent);
 #else
-    sprintf(request_buf + req_len, "User-Agent: %s\r\n", c->config.user_agent);
+    c89stringutils_snprintf(request_buf + req_len, req_cap - req_len,
+                            "User-Agent: %s\r\n", c->config.user_agent);
 #endif
     req_len += strlen(request_buf + req_len);
   }
@@ -1144,8 +1147,8 @@ raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
       sprintf_s(shdr, sizeof(shdr), "Content-Length: %lu\r\n\r\n",
                 (unsigned long)req->expected_body_len);
 #else
-      sprintf(shdr, "Content-Length: %lu\r\n\r\n",
-              (unsigned long)req->expected_body_len);
+      c89stringutils_snprintf(shdr, sizeof(shdr), "Content-Length: %lu\r\n\r\n",
+                              (unsigned long)req->expected_body_len);
 #endif
     } else if (use_chunked) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -1195,7 +1198,8 @@ raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
         sprintf_s(chdr, sizeof(chdr), "%lx\r\n", (unsigned long)nread);
 #else
-        sprintf(chdr, "%lx\r\n", (unsigned long)nread);
+        c89stringutils_snprintf(chdr, sizeof(chdr), "%lx\r\n",
+                                (unsigned long)nread);
 #endif
         chlen = strlen(chdr);
         rc = raw_ensure_req_cap(&request_buf, &req_cap, req_len,
@@ -1227,8 +1231,9 @@ raw_build_wire_request(const struct RawCtx *c, const struct HttpRequest *req,
       sprintf_s(len_buf, sizeof(len_buf), "Content-Length: %lu\r\n\r\n",
                 (unsigned long)req->body_len);
 #else
-      sprintf(len_buf, "Content-Length: %lu\r\n\r\n",
-              (unsigned long)req->body_len);
+      c89stringutils_snprintf(len_buf, sizeof(len_buf),
+                              "Content-Length: %lu\r\n\r\n",
+                              (unsigned long)req->body_len);
 #endif
     } else {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -1315,6 +1320,8 @@ raw_io_write_all(raw_socket_t sock, const struct HttpRawTlsHooks *tls_hooks,
       long s_rc;
 #if defined(_WIN32)
       s_rc = (long)send(sock, p, (int)rem, 0);
+#elif defined(MSG_NOSIGNAL)
+      s_rc = (long)send(sock, p, rem, MSG_NOSIGNAL);
 #else
       s_rc = (long)send(sock, p, rem, 0);
 #endif
@@ -1693,8 +1700,9 @@ raw_proxy_connect_tunnel(const struct RawCtx *c, raw_socket_t sock,
             "CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n%s\r\n", host, port, host,
             port, pauth ? pauth : "");
 #else
-  sprintf(req_line, "CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n%s\r\n", host,
-          port, host, port, pauth ? pauth : "");
+  c89stringutils_snprintf(req_line, sizeof(req_line),
+                          "CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n%s\r\n",
+                          host, port, host, port, pauth ? pauth : "");
 #endif
   free(pauth);
 
@@ -3031,8 +3039,9 @@ raw_resolve_redirect_url(const char *cur_url, const char *location,
   sprintf_s(buf, need, "%s://%s:%d%s%s", is_https ? "https" : "http", host,
             port, location[0] == '/' ? "" : "/", location);
 #else
-  sprintf(buf, "%s://%s:%d%s%s", is_https ? "https" : "http", host, port,
-          location[0] == '/' ? "" : "/", location);
+  c89stringutils_snprintf(buf, need, "%s://%s:%d%s%s",
+                          is_https ? "https" : "http", host, port,
+                          location[0] == '/' ? "" : "/", location);
 #endif
   free(host);
   *out_url = buf;
@@ -3589,7 +3598,12 @@ raw_sm_io_cb(struct ModalityEventLoop *loop, int fd, int events,
           return C_ABSTRACT_HTTP_SUCCESS;
         }
 #else
+#if defined(MSG_NOSIGNAL)
+        s_rc = (long)send(slot->sock, slot->tx_buf + slot->tx_off, rem,
+                          MSG_NOSIGNAL);
+#else
         s_rc = (long)send(slot->sock, slot->tx_buf + slot->tx_off, rem, 0);
+#endif
         if (s_rc < 0 && (errno == EAGAIN
 #if defined(EWOULDBLOCK) && (!defined(EAGAIN) || (EWOULDBLOCK != EAGAIN))
                          || errno == EWOULDBLOCK
@@ -4275,6 +4289,13 @@ raw_edge_finish_step(struct RawMultiSlot *slot, struct HttpFuture *fut,
   if (crc != C_ABSTRACT_HTTP_SUCCESS) {
     return raw_edge_close_fds_loop(loop, p0, p1, crc);
   }
+  {
+    c_abstract_http_error_t flat_rc =
+        raw_cleanup_effective_req(&slot->flat_req, slot->flattened);
+    if (flat_rc != C_ABSTRACT_HTTP_SUCCESS) {
+      return raw_edge_close_fds_loop(loop, p0, p1, flat_rc);
+    }
+  }
   return raw_edge_close_fds_loop(loop, p0, p1, primary_rc);
 }
 
@@ -4350,7 +4371,8 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_test_raw_edges(int step) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(big_chunk, sizeof(big_chunk), "5\r\nHello\r\n96\r\n");
 #else
-    sprintf(big_chunk, "5\r\nHello\r\n96\r\n");
+    c89stringutils_snprintf(big_chunk, sizeof(big_chunk),
+                            "5\r\nHello\r\n96\r\n");
 #endif
     out_len = strlen(big_chunk);
     memset(big_chunk + out_len, 'Z', 150);

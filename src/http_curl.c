@@ -24,6 +24,7 @@
 
 #include <c_abstract_http/event_loop.h>
 #include <c_abstract_http/http_curl.h>
+#include <c89stringutils_string_extras.h>
 #include "c_abstract_http/log.h"
 /* clang-format on */
 
@@ -492,7 +493,7 @@ ABSTRACT_HTTP_FORMAT_HEADER(const char *key, const char *value,
   sprintf_s(buf, len, "%s: %s", key, value);
 #else
   /* Standard POSIX / GCC Path */
-  sprintf(buf, "%s: %s", key, value);
+  c89stringutils_snprintf(buf, len, "%s: %s", key, value);
 #endif
   *_out_val = buf;
   return C_ABSTRACT_HTTP_SUCCESS;

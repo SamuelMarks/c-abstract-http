@@ -90,7 +90,7 @@ setup_libuv_request(struct HttpRequest *req, int port) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #else
-  sprintf(url, "http://127.0.0.1:%d/test", port);
+  c89stringutils_snprintf(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #endif
 
   rc = c_abstract_http_strdup(url, &_ast_strdup_0);
@@ -171,6 +171,8 @@ TEST test_libuv_config_application(void) {
   config.timeout_ms = 500;
   config.verify_peer = 0;
   config.follow_redirects = 0;
+  free(config.user_agent);
+  config.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("agent", &_ast_strdup_agent));
   config.user_agent = _ast_strdup_agent;
@@ -724,7 +726,7 @@ TEST test_libuv_send_large_payloads(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(k, sizeof(k), "X-Header-%lu", (unsigned long)i);
 #else
-    sprintf(k, "X-Header-%lu", (unsigned long)i);
+    c89stringutils_snprintf(k, sizeof(k), "X-Header-%lu", (unsigned long)i);
 #endif
     memset(v, 'A', sizeof(v) - 1);
     v[sizeof(v) - 1] = '\0';
@@ -765,6 +767,7 @@ TEST test_libuv_send_large_payloads(void) {
   {
     struct HttpConfig cfg;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+    free(cfg.user_agent);
     cfg.user_agent = (char *)"agent";
     g_mock_libuv_config_init_fail = 1;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libuv_config_apply(ctx, &cfg));
@@ -823,7 +826,7 @@ TEST test_libuv_send_large_payloads(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(k, sizeof(k), "X-Header-%lu", (unsigned long)i);
 #else
-    sprintf(k, "X-Header-%lu", (unsigned long)i);
+    c89stringutils_snprintf(k, sizeof(k), "X-Header-%lu", (unsigned long)i);
 #endif
     memset(v, 'A', sizeof(v) - 1);
     v[sizeof(v) - 1] = '\0';
@@ -1359,6 +1362,8 @@ TEST test_libuv_tls_spki_chunked_redirects_and_multi(void) {
       hrc0 = http_libuv_send_multi(ctx, NULL, &multi, futs);
       g_mock_libuv_addrinfo_fail = 0;
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_HOSTUNREACH, hrc0);
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
       g_mock_libuv_context_init_fail = 6;
       memset(&f1, 0, sizeof(f1));
@@ -1458,6 +1463,8 @@ TEST test_libuv_tls_spki_chunked_redirects_and_multi(void) {
                 c_abstract_http_test_set_loop_op_fail(4, 0));
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
                 http_libuv_send_multi(ctx, NULL, &multi, futs));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
       memset(&f1, 0, sizeof(f1));
       memset(&f2, 0, sizeof(f2));
@@ -1465,6 +1472,8 @@ TEST test_libuv_tls_spki_chunked_redirects_and_multi(void) {
                 c_abstract_http_test_set_loop_op_fail(5, 0));
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
                 http_libuv_send_multi(ctx, NULL, &multi, futs));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
       /* Helper steps 1..16 and response_free_fail countdown 1..10 */
       for (k = 1; k <= 16; ++k) {

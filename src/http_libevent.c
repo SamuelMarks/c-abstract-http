@@ -441,6 +441,14 @@ c_abstract_http_test_libevent_evbuffer(void) {
 
     conn_test.port = 59999;
     event_base_dispatch(&base_test);
+    {
+      size_t hi;
+      for (hi = 0; hi < req_test.input_headers.count; ++hi) {
+        free(req_test.input_headers.entries[hi].key);
+        free(req_test.input_headers.entries[hi].val);
+      }
+    }
+    evbuffer_free_internal(&req_test.input_buffer);
   }
 
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -1233,7 +1241,8 @@ NO_DISCARD static c_abstract_http_error_t ev_submit_request_on_base(
     sprintf_s(clen_buf, sizeof(clen_buf), "%lu",
               (unsigned long)req->expected_body_len);
 #else
-    sprintf(clen_buf, "%lu", (unsigned long)req->expected_body_len);
+    c89stringutils_snprintf(clen_buf, sizeof(clen_buf), "%lu",
+                            (unsigned long)req->expected_body_len);
 #endif
     if (evhttp_add_header(output_headers, "Content-Length", clen_buf) != 0) {
       LOG_DEBUG("ev_submit_request_on_base: Content-Length add failed");
@@ -1393,8 +1402,9 @@ ev_resolve_redirect_url(const char *cur_url, const char *loc, char **out_url) {
   sprintf_s(buf, need, "%s://%s:%d%s%s", is_https ? "https" : "http", host,
             port, loc[0] == '/' ? "" : "/", loc);
 #else
-  sprintf(buf, "%s://%s:%d%s%s", is_https ? "https" : "http", host, port,
-          loc[0] == '/' ? "" : "/", loc);
+  c89stringutils_snprintf(buf, need, "%s://%s:%d%s%s",
+                          is_https ? "https" : "http", host, port,
+                          loc[0] == '/' ? "" : "/", loc);
 #endif
   *out_url = buf;
   return C_ABSTRACT_HTTP_SUCCESS;
@@ -1811,6 +1821,15 @@ NO_DISCARD static c_abstract_http_error_t ev_finish_multi_cleanup(
   c_abstract_http_error_t cleanup_err = C_ABSTRACT_HTTP_SUCCESS;
 
   for (i = 0; i < count; ++i) {
+    if (!slots[i].settled && slots[i].res) {
+      c_abstract_http_error_t rrc = http_response_free(slots[i].res);
+      free(slots[i].res);
+      slots[i].res = NULL;
+      if (rrc != C_ABSTRACT_HTTP_SUCCESS &&
+          cleanup_err == C_ABSTRACT_HTTP_SUCCESS) {
+        cleanup_err = rrc;
+      }
+    }
 #if !defined(C_ABSTRACT_HTTP_HAVE_REAL_LIBEVENT)
     evhttp_request_free(slots[i].req_ev);
 #endif
@@ -1819,21 +1838,23 @@ NO_DISCARD static c_abstract_http_error_t ev_finish_multi_cleanup(
       c_abstract_http_error_t hrc;
       free(slots[i].flat_req.body);
       hrc = http_headers_free(&slots[i].flat_req.headers);
-      if (hrc != C_ABSTRACT_HTTP_SUCCESS) {
-        free(slots);
-        event_base_free(base);
-        if (owned_loop) {
-          c_abstract_http_error_t lrc = http_loop_free(owned_loop);
-          if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
-            return lrc;
-          }
-        }
-        return hrc;
+      if (hrc != C_ABSTRACT_HTTP_SUCCESS &&
+          cleanup_err == C_ABSTRACT_HTTP_SUCCESS) {
+        cleanup_err = hrc;
       }
     }
   }
   free(slots);
   event_base_free(base);
+  if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
+    if (owned_loop) {
+      c_abstract_http_error_t lrc = http_loop_free(owned_loop);
+      if (lrc != C_ABSTRACT_HTTP_SUCCESS) {
+        return lrc;
+      }
+    }
+    return cleanup_err;
+  }
 
   if (owned_loop) {
     cleanup_err = http_loop_free(owned_loop);

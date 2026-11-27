@@ -308,8 +308,8 @@ TEST test_winhttp_send_methods_and_headers(void) {
   sprintf_s(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
 #else
-  sprintf(url_buf, "http://127.0.0.1:%d/test",
-          math_mock_server_get_port(server));
+  c89stringutils_snprintf(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
+                          math_mock_server_get_port(server));
 #endif
 #endif
 
@@ -389,8 +389,8 @@ TEST test_winhttp_send_cookies(void) {
   sprintf_s(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
 #else
-  sprintf(url_buf, "http://127.0.0.1:%d/test",
-          math_mock_server_get_port(server));
+  c89stringutils_snprintf(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
+                          math_mock_server_get_port(server));
 #endif
 #endif
 
@@ -462,8 +462,8 @@ TEST test_winhttp_send_chunked(void) {
   sprintf_s(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
 #else
-  sprintf(url_buf, "http://127.0.0.1:%d/test",
-          math_mock_server_get_port(server));
+  c89stringutils_snprintf(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
+                          math_mock_server_get_port(server));
 #endif
 #endif
   memset(&state, 0, sizeof(state));
@@ -521,8 +521,8 @@ TEST test_winhttp_send_chunked_abort(void) {
   sprintf_s(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
 #else
-  sprintf(url_buf, "http://127.0.0.1:%d/test",
-          math_mock_server_get_port(server));
+  c89stringutils_snprintf(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
+                          math_mock_server_get_port(server));
 #endif
 #endif
   memset(&state, 0, sizeof(state));
@@ -578,8 +578,8 @@ TEST test_winhttp_send_upload_chunked(void) {
   sprintf_s(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
 #else
-  sprintf(url_buf, "http://127.0.0.1:%d/test",
-          math_mock_server_get_port(server));
+  c89stringutils_snprintf(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
+                          math_mock_server_get_port(server));
 #endif
 #endif
   memset(&state, 0, sizeof(state));
@@ -662,8 +662,8 @@ TEST test_winhttp_send_multi(void) {
   sprintf_s(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
             math_mock_server_get_port(server));
 #else
-  sprintf(url_buf, "http://127.0.0.1:%d/test",
-          math_mock_server_get_port(server));
+  c89stringutils_snprintf(url_buf, sizeof(url_buf), "http://127.0.0.1:%d/test",
+                          math_mock_server_get_port(server));
 #endif
 #endif
 
@@ -773,6 +773,8 @@ TEST test_winhttp_send_mock_failures(void) {
   g_mock_winhttp_crack_url_fail = 0;
 
   /* URL without path */
+  free(url_dup);
+  url_dup = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_mock_strdup("http://127.0.0.1:8080", &url_dup));
   req.url = url_dup;
@@ -783,6 +785,8 @@ TEST test_winhttp_send_mock_failures(void) {
     free(res);
     res = NULL;
   }
+  free(url_dup);
+  url_dup = NULL;
   ASSERT_EQ(
       C_ABSTRACT_HTTP_SUCCESS,
       c_abstract_http_mock_strdup("http://127.0.0.1:8080/test", &url_dup));
@@ -1162,6 +1166,9 @@ TEST test_winhttp_coverage_branches(void) {
   g_mock_winhttp_close_fail = 0;
 
   /* 11d. 5-char scheme other than https */
+  free(url_dup);
+  url_dup = NULL;
+  req.url = NULL;
   {
     char *u = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1285,10 +1292,14 @@ TEST test_winhttp_coverage_branches(void) {
 
     rc = http_winhttp_send_multi(ctx, loop, &multi, futures);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
 
+    memset(&f1, 0, sizeof(f1));
     rc = http_winhttp_send_multi(ctx, NULL, &multi, futures);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
 
+    memset(&f1, 0, sizeof(f1));
     g_mock_winhttp_queue_work_item_fail = 1;
     rc = http_winhttp_send_multi(ctx, loop, &multi, futures);
     g_mock_winhttp_queue_work_item_fail = 0;
@@ -1416,6 +1427,8 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_winhttp_send_multi(ctx, loop, &multi, futs));
     g_mock_winhttp_send_request_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
     g_mock_winhttp_receive_response_fail = 1;
     up_st.call_count = 0;
@@ -1424,6 +1437,8 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_winhttp_send_multi(ctx, loop, &multi, futs));
     g_mock_winhttp_receive_response_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
     g_mock_winhttp_query_headers_fail = 1;
     up_st.call_count = 0;
@@ -1432,6 +1447,8 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_winhttp_send_multi(ctx, loop, &multi, futs));
     g_mock_winhttp_query_headers_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
     g_mock_winhttp_query_data_available_fail = 1;
     up_st.call_count = 0;
@@ -1440,6 +1457,8 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_winhttp_send_multi(ctx, loop, &multi, futs));
     g_mock_winhttp_query_data_available_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
     g_mock_winhttp_read_data_fail = 1;
     g_mock_winhttp_read_chunks = 1;
@@ -1450,6 +1469,8 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
               http_winhttp_send_multi(ctx, loop, &multi, futs));
     g_mock_winhttp_read_data_fail = 0;
     g_mock_winhttp_read_chunks = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
     cfg.verify_peer = 0;
     cfg.follow_redirects = 0;
@@ -1480,6 +1501,8 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               http_winhttp_send_multi(ctx, loop, &multi, futs));
     g_mock_winhttp_write_data_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
     {
       struct HttpResponse *sres = NULL;
@@ -1671,6 +1694,8 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
                 http_winhttp_send_multi(ctx, loop, &multi, futs));
       g_mock_winhttp_read_data_fail = 0;
       g_mock_winhttp_read_chunks = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
       /* async second QueryDataAvailable fail after read */
       memset(&f1, 0, sizeof(f1));
@@ -1682,6 +1707,8 @@ TEST test_winhttp_protocol_user_agent_and_async_callback(void) {
                 http_winhttp_send_multi(ctx, loop, &multi, futs));
       g_mock_winhttp_query_data_available_fail = 0;
       g_mock_winhttp_read_chunks = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
       /* async read_chunk abort & on_chunk abort */
       memset(&cb_st, 0, sizeof(cb_st));
@@ -1832,6 +1859,7 @@ TEST test_winhttp_utf8_and_async_timeouts(void) {
     cfg.proxy_url = "http://127.0.0.1:8888";
     cfg.proxy_username = "u";
     cfg.proxy_password = "p";
+    free(cfg.user_agent);
     cfg.user_agent = "custom-winhttp/2.0";
     for (cd = 1; cd <= 5; ++cd) {
       c_abstract_http_error_t crc;

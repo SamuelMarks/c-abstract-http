@@ -2371,6 +2371,7 @@ TEST test_http_types_complete_coverage(void) {
   g_mock_headers_init_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
             http_request_add_part(&req, "part1", NULL, NULL, "d", 1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_request_init(&req));
   g_mock_headers_init_fail = 0;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req));
@@ -3943,6 +3944,7 @@ TEST test_modalities_future_and_context_lifecycle(void) {
   ASSERT_EQ((int)C_ABSTRACT_HTTP_ERR_TIMEOUT, f2.error_code);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
   free(f1.response);
+  f1.response = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -3997,8 +3999,10 @@ TEST test_modalities_future_and_context_lifecycle(void) {
   ASSERT(f1.response != NULL && f2.response != NULL);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
   free(f1.response);
+  f1.response = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f2.response));
   free(f2.response);
+  f2.response = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
@@ -4066,6 +4070,7 @@ TEST test_modalities_future_and_context_lifecycle(void) {
     ASSERT_EQ((int)C_ABSTRACT_HTTP_ERR_TIMEOUT, f2.error_code);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_response_free(f1.response));
     free(f1.response);
+    f1.response = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 

@@ -1285,6 +1285,9 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_test_wasm_helpers(void);
 NO_DISCARD static c_abstract_http_error_t
 wasm_helper_close_ret(emscripten_fetch_t *f,
                       c_abstract_http_error_t primary_rc) {
+  if (f && f->data) {
+    free((void *)(size_t)f->data);
+  }
   free(f);
   return primary_rc;
 }

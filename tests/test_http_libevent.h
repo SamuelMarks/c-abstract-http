@@ -79,7 +79,7 @@ setup_libevent_request(struct HttpRequest *req, int port) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #else
-  sprintf(url, "http://127.0.0.1:%d/test", port);
+  c89stringutils_snprintf(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #endif
 
   rc = c_abstract_http_strdup(url, &_ast_strdup_0);
@@ -159,6 +159,8 @@ TEST test_libevent_config_application(void) {
   config.timeout_ms = 500;
   config.verify_peer = 0;
   config.follow_redirects = 0;
+  free(config.user_agent);
+  config.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("agent", &_ast_strdup_agent));
   config.user_agent = _ast_strdup_agent;
@@ -189,6 +191,7 @@ TEST test_libevent_config_application(void) {
   {
     struct HttpConfig cfg;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+    free(cfg.user_agent);
     cfg.user_agent = (char *)"agent";
     g_mock_libevent_config_init_fail = 1;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libevent_config_apply(ctx, &cfg));
@@ -1180,6 +1183,7 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
         c2 = NULL;
 
         /* config_apply user_agent strdup OOM */
+        free(cfg.user_agent);
         cfg.user_agent = (char *)"ua-test";
         g_mock_alloc_count = 0;
         g_mock_alloc_fail = 1;
@@ -1204,6 +1208,7 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
                   http_libevent_send(ctx, &rp, &res));
         rp.method = HTTP_GET;
 
+        free(cfg.proxy_url);
         cfg.proxy_url = (char *)"";
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                   http_libevent_config_apply(ctx, &cfg));
@@ -1477,6 +1482,8 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
                   c_abstract_http_test_set_loop_op_fail(4, 0));
         ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
                   http_libevent_send_multi(ctx, NULL, &multi, futs));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
         memset(&f1, 0, sizeof(f1));
         memset(&f2, 0, sizeof(f2));
@@ -1484,6 +1491,8 @@ TEST test_libevent_tls_proxy_redirects_parts_and_multi(void) {
                   c_abstract_http_test_set_loop_op_fail(5, 0));
         ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
                   http_libevent_send_multi(ctx, NULL, &multi, futs));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+        ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
         rp.url = NULL;
         ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&rp));

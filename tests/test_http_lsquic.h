@@ -117,7 +117,6 @@ TEST test_lsquic_global_and_context_lifecycle(void) {
   g_mock_config_free_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_lsquic_context_free(ctx));
   g_mock_config_free_fail = 0;
-  free(ctx);
   ctx = NULL;
 
   {
@@ -498,6 +497,8 @@ TEST test_lsquic_fallback_proxy_and_parts(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_lsquic_config_apply(ctx, &cfg));
   cfg.proxy_url = NULL;
 
+  free(cfg.user_agent);
+  cfg.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("LsqAgent/3.0", &cfg.user_agent));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -622,7 +623,8 @@ TEST test_lsquic_fallback_proxy_and_parts(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/trunc-flen", port);
 #else
-    sprintf(fb_url, "http://127.0.0.1:%d/trunc-flen", port);
+    c89stringutils_snprintf(fb_url, sizeof(fb_url),
+                            "http://127.0.0.1:%d/trunc-flen", port);
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -674,7 +676,8 @@ TEST test_lsquic_fallback_proxy_and_parts(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/trunc-flen", port);
 #else
-    sprintf(fb_url, "http://127.0.0.1:%d/trunc-flen", port);
+    c89stringutils_snprintf(fb_url, sizeof(fb_url),
+                            "http://127.0.0.1:%d/trunc-flen", port);
 #endif
     free(req.url);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -804,7 +807,7 @@ TEST test_lsquic_tls_redirects_clen_and_multiplexing(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
 #else
-  sprintf(pin_str, "sha256//%s", b64_pin);
+  c89stringutils_snprintf(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
 #endif
   free(b64_pin);
   cfg.cert_pin_sha256 = pin_str;

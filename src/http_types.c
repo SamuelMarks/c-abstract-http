@@ -190,24 +190,30 @@ NO_DISCARD c_abstract_http_error_t
 http_headers_free(struct HttpHeaders *headers) {
   size_t i;
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_headers_free_fail < 0 && ++g_mock_headers_free_fail == 0)
-    return C_ABSTRACT_HTTP_ERR_IO;
-  if (g_mock_headers_free_fail > 0)
-    return C_ABSTRACT_HTTP_ERR_IO;
-#endif
-  if (!headers)
-    return C_ABSTRACT_HTTP_SUCCESS;
-
-  if (headers->headers) {
-    for (i = 0; i < headers->count; ++i) {
-      free(headers->headers[i].key);
-      free(headers->headers[i].value);
-    }
-    free(headers->headers);
-    headers->headers = NULL;
+  int fail_now = 0;
+  if (g_mock_headers_free_fail < 0 && ++g_mock_headers_free_fail == 0) {
+    fail_now = 1;
+  } else if (g_mock_headers_free_fail > 0) {
+    fail_now = 1;
   }
-  headers->count = 0;
-  headers->capacity = 0;
+#endif
+  if (headers) {
+    if (headers->headers) {
+      for (i = 0; i < headers->count; ++i) {
+        free(headers->headers[i].key);
+        free(headers->headers[i].value);
+      }
+      free(headers->headers);
+      headers->headers = NULL;
+    }
+    headers->count = 0;
+    headers->capacity = 0;
+  }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (fail_now) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 #undef c_abstract_http_strdup
@@ -373,37 +379,37 @@ NO_DISCARD c_abstract_http_error_t http_parts_init(struct HttpParts *parts) {
 /** @brief Free a multipart parts collection */
 NO_DISCARD c_abstract_http_error_t http_parts_free(struct HttpParts *parts) {
   size_t i;
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_parts_free_fail)
-    return C_ABSTRACT_HTTP_ERR_IO;
-#endif
-  if (!parts)
-    return C_ABSTRACT_HTTP_SUCCESS;
-  if (parts->parts) {
-    for (i = 0; i < parts->count; ++i) {
-      free(parts->parts[i].name);
-      parts->parts[i].name = NULL;
-      free(parts->parts[i].filename);
-      parts->parts[i].filename = NULL;
-      free(parts->parts[i].content_type);
-      parts->parts[i].content_type = NULL;
-      {
-        c_abstract_http_error_t rc =
-            http_headers_free(&parts->parts[i].headers);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS)
-          return rc;
+  c_abstract_http_error_t first_err = C_ABSTRACT_HTTP_SUCCESS;
+  if (parts) {
+    if (parts->parts) {
+      for (i = 0; i < parts->count; ++i) {
+        free(parts->parts[i].name);
+        parts->parts[i].name = NULL;
+        free(parts->parts[i].filename);
+        parts->parts[i].filename = NULL;
+        free(parts->parts[i].content_type);
+        parts->parts[i].content_type = NULL;
+        {
+          c_abstract_http_error_t rc =
+              http_headers_free(&parts->parts[i].headers);
+          if (rc != C_ABSTRACT_HTTP_SUCCESS &&
+              first_err == C_ABSTRACT_HTTP_SUCCESS) {
+            first_err = rc;
+          }
+        }
       }
-      /* data ownership is typically external references for efficiency,
-         but for safety in this generator we assume data pointers are managed
-         by the source (e.g. read_to_file or literal).
-         The generic part struct doesn't own data memory. */
+      free(parts->parts);
+      parts->parts = NULL;
     }
-    free(parts->parts);
-    parts->parts = NULL;
+    parts->count = 0;
+    parts->capacity = 0;
   }
-  parts->count = 0;
-  parts->capacity = 0;
-  return C_ABSTRACT_HTTP_SUCCESS;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_parts_free_fail) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
+  return first_err;
 }
 
 NO_DISCARD c_abstract_http_error_t http_request_add_part(
@@ -515,7 +521,8 @@ http_request_flatten_parts(struct HttpRequest *req) {
             rand());
 #else
   /* Standard POSIX / GCC Path */
-  sprintf(boundary, "------------------------cddbound%08x", rand());
+  c89stringutils_snprintf(boundary, sizeof(boundary),
+                          "------------------------cddbound%08x", rand());
 #endif
 
   /* 2. Calculate Size */
@@ -680,7 +687,8 @@ http_request_flatten_parts(struct HttpRequest *req) {
     sprintf_s(ct, sizeof(ct), "multipart/form-data; boundary=%s", boundary);
 #else
     /* Standard POSIX / GCC Path */
-    sprintf(ct, "multipart/form-data; boundary=%s", boundary);
+    c89stringutils_snprintf(ct, sizeof(ct), "multipart/form-data; boundary=%s",
+                            boundary);
 #endif
     /* If header exists, this adds a duplicate. Typically client code shouldn't
      * set CT if using parts. */
@@ -1248,39 +1256,40 @@ NO_DISCARD c_abstract_http_error_t http_config_init(struct HttpConfig *config) {
 
 /** @brief Free an HTTP configuration structure */
 NO_DISCARD c_abstract_http_error_t http_config_free(struct HttpConfig *config) {
+  if (config) {
+    if (config->user_agent) {
+      free(config->user_agent);
+      config->user_agent = NULL;
+    }
+    if (config->proxy_url) {
+      free(config->proxy_url);
+      config->proxy_url = NULL;
+    }
+    if (config->proxy_username) {
+      free(config->proxy_username);
+      config->proxy_username = NULL;
+    }
+    if (config->proxy_password) {
+      free(config->proxy_password);
+      config->proxy_password = NULL;
+    }
+    free(config->ca_path);
+    config->ca_path = NULL;
+    free(config->ca_buffer);
+    config->ca_buffer = NULL;
+    config->ca_buffer_len = 0;
+    free(config->client_cert_path);
+    config->client_cert_path = NULL;
+    free(config->client_key_path);
+    config->client_key_path = NULL;
+    free(config->cert_pin_sha256);
+    config->cert_pin_sha256 = NULL;
+  }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_config_free_fail)
+  if (g_mock_config_free_fail) {
     return C_ABSTRACT_HTTP_ERR_IO;
+  }
 #endif
-  if (!config)
-    return C_ABSTRACT_HTTP_SUCCESS;
-  if (config->user_agent) {
-    free(config->user_agent);
-    config->user_agent = NULL;
-  }
-  if (config->proxy_url) {
-    free(config->proxy_url);
-    config->proxy_url = NULL;
-  }
-  if (config->proxy_username) {
-    free(config->proxy_username);
-    config->proxy_username = NULL;
-  }
-  if (config->proxy_password) {
-    free(config->proxy_password);
-    config->proxy_password = NULL;
-  }
-  free(config->ca_path);
-  config->ca_path = NULL;
-  free(config->ca_buffer);
-  config->ca_buffer = NULL;
-  config->ca_buffer_len = 0;
-  free(config->client_cert_path);
-  config->client_cert_path = NULL;
-  free(config->client_key_path);
-  config->client_key_path = NULL;
-  free(config->cert_pin_sha256);
-  config->cert_pin_sha256 = NULL;
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -1571,8 +1580,15 @@ NO_DISCARD c_abstract_http_error_t http_future_init(struct HttpFuture *future) {
 /** @brief Free an asynchronous HTTP future */
 NO_DISCARD c_abstract_http_error_t http_future_free(struct HttpFuture *future) {
   struct HttpFutureState *st = NULL;
+  c_abstract_http_error_t rrc = C_ABSTRACT_HTTP_SUCCESS;
   if (!future)
     return C_ABSTRACT_HTTP_SUCCESS;
+  if (future->response) {
+    struct HttpResponse *r = future->response;
+    future->response = NULL;
+    rrc = http_response_free(r);
+    free(r);
+  }
   if (math_find_future_state(future->internal_state, &st)) {
     struct HttpFutureState **pp = &g_active_future_states;
     c_abstract_http_error_t rc;
@@ -1584,18 +1600,15 @@ NO_DISCARD c_abstract_http_error_t http_future_free(struct HttpFuture *future) {
       pp = &(*pp)->next;
     }
     future->internal_state = NULL;
-    future->response = NULL;
     rc = sync_pair_free(st->cond, st->mutex);
+    free(st);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      free(st);
       return rc;
     }
-    free(st);
-    return C_ABSTRACT_HTTP_SUCCESS;
+    return rrc;
   }
   future->internal_state = NULL;
-  future->response = NULL;
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return rrc;
 }
 
 /** @brief Wait for a deferred HttpFuture to complete */
@@ -1667,19 +1680,20 @@ http_multi_request_init(struct HttpMultiRequest *multi) {
 /** @brief Free a multi-request batch */
 NO_DISCARD c_abstract_http_error_t
 http_multi_request_free(struct HttpMultiRequest *multi) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_multi_free_fail)
-    return C_ABSTRACT_HTTP_ERR_IO;
-#endif
-  if (!multi)
-    return C_ABSTRACT_HTTP_SUCCESS;
-  if (multi->requests) {
-    /* Does not free the actual HttpRequest objects, just the array */
-    free(multi->requests);
-    multi->requests = NULL;
+  if (multi) {
+    if (multi->requests) {
+      /* Does not free the actual HttpRequest objects, just the array */
+      free(multi->requests);
+      multi->requests = NULL;
+    }
+    multi->count = 0;
+    multi->capacity = 0;
   }
-  multi->count = 0;
-  multi->capacity = 0;
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_multi_free_fail) {
+    return C_ABSTRACT_HTTP_ERR_IO;
+  }
+#endif
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -1723,7 +1737,7 @@ http_request_set_auth_bearer(struct HttpRequest *req, const char *token) {
   sprintf_s(val, len, "Bearer %s", token);
 #else
   /* Standard POSIX / GCC Path */
-  sprintf(val, "Bearer %s", token);
+  c89stringutils_snprintf(val, len, "Bearer %s", token);
 #endif
 
   rc = http_headers_add(&req->headers, "Authorization", val);
@@ -1756,7 +1770,7 @@ http_request_set_auth_basic(struct HttpRequest *req, const char *token) {
   sprintf_s(val, len, "Basic %s", token);
 #else
   /* Standard POSIX / GCC Path */
-  sprintf(val, "Basic %s", token);
+  c89stringutils_snprintf(val, len, "Basic %s", token);
 #endif
 
   rc = http_headers_add(&req->headers, "Authorization", val);
@@ -1834,7 +1848,7 @@ NO_DISCARD c_abstract_http_error_t http_request_set_auth_basic_userpwd(
   sprintf_s(raw, len, "%s:%s", username, password);
 #else
   /* Standard POSIX / GCC Path */
-  sprintf(raw, "%s:%s", username, password);
+  c89stringutils_snprintf(raw, len, "%s:%s", username, password);
 #endif
 
   rc = http_types_base64_encode((const unsigned char *)raw, len - 1, &encoded);
@@ -3238,6 +3252,9 @@ NO_DISCARD c_abstract_http_error_t http_oauth2_localhost_intercept(
     if (html_response) {
 #if defined(_WIN32)
       send(cli_sock, html_response, (int)strlen(html_response), 0);
+#elif defined(MSG_NOSIGNAL)
+      send(cli_sock, html_response, (size_t)strlen(html_response),
+           MSG_NOSIGNAL);
 #else
       send(cli_sock, html_response, (size_t)strlen(html_response), 0);
 #endif

@@ -2411,7 +2411,7 @@ NO_DISCARD c_abstract_http_error_t
 http_apple_context_free(struct HttpTransportContext *ctx) {
   if (ctx) {
     c_abstract_http_error_t rch;
-    c_abstract_http_error_t trc;
+    c_abstract_http_error_t trc = C_ABSTRACT_HTTP_SUCCESS;
 #if C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM
     pthread_mutex_lock(&ctx->cf_worker_lock);
     while (ctx->active_cf_workers > 0) {
@@ -2421,17 +2421,24 @@ http_apple_context_free(struct HttpTransportContext *ctx) {
 #endif
     rch = http_config_free(&ctx->config);
     if (rch != C_ABSTRACT_HTTP_SUCCESS) {
-      return rch;
+      goto finish_apple_free;
     }
     trc = apple_release_tls_handles(ctx);
     if (trc != C_ABSTRACT_HTTP_SUCCESS) {
-      return trc;
+      goto finish_apple_free;
     }
+  finish_apple_free:;
 #if C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM
     pthread_cond_destroy(&ctx->cf_worker_cond);
     pthread_mutex_destroy(&ctx->cf_worker_lock);
 #endif
     free(ctx);
+    if (rch != C_ABSTRACT_HTTP_SUCCESS) {
+      return rch;
+    }
+    if (trc != C_ABSTRACT_HTTP_SUCCESS) {
+      return trc;
+    }
   }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
@@ -2840,7 +2847,10 @@ apple_finish_send(struct HttpRequest *flat_req, int flattened,
   if (cl_rc != C_ABSTRACT_HTTP_SUCCESS) {
     return apple_cleanup_failed_res(res, cl_rc);
   }
-  return orig_rc;
+  if (orig_rc != C_ABSTRACT_HTTP_SUCCESS) {
+    return apple_cleanup_failed_res(res, orig_rc);
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 NO_DISCARD c_abstract_http_error_t

@@ -298,8 +298,11 @@ NO_DISCARD c_abstract_http_error_t mock_server_init(MockServerPtr *out) {
   mutex_init(&s->lock);
   cond_init(&s->cond_req_ready);
 
-  if (out)
+  if (out) {
     *out = s;
+  } else {
+    return mock_server_destroy((MockServerPtr)s);
+  }
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 

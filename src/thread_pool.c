@@ -111,14 +111,14 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
 
 NO_DISCARD c_abstract_http_error_t
 abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_mutex_free_fail)
-    return C_ABSTRACT_HTTP_ERR_IO;
-#endif
   if (mutex) {
     DeleteCriticalSection(&mutex->cs);
     free(mutex);
   }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_mutex_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -208,10 +208,6 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
 
 NO_DISCARD c_abstract_http_error_t
 abstract_http_cond_free(struct AbstractHttpCond *cond) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_cond_free_fail)
-    return C_ABSTRACT_HTTP_ERR_IO;
-#endif
   if (cond) {
 #if (defined(_MSC_VER) && _MSC_VER < 1600) ||                                  \
     (defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0600)
@@ -221,6 +217,10 @@ abstract_http_cond_free(struct AbstractHttpCond *cond) {
 #endif
     free(cond);
   }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_cond_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -297,11 +297,11 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
 }
 NO_DISCARD c_abstract_http_error_t
 abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
+  free(mutex);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_mutex_free_fail)
     return C_ABSTRACT_HTTP_ERR_IO;
 #endif
-  free(mutex);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -336,11 +336,11 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
 }
 NO_DISCARD c_abstract_http_error_t
 abstract_http_cond_free(struct AbstractHttpCond *cond) {
+  free(cond);
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_cond_free_fail)
     return C_ABSTRACT_HTTP_ERR_IO;
 #endif
-  free(cond);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -441,14 +441,14 @@ abstract_http_mutex_unlock(struct AbstractHttpMutex *mutex) {
 
 NO_DISCARD c_abstract_http_error_t
 abstract_http_mutex_free(struct AbstractHttpMutex *mutex) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_mutex_free_fail)
-    return C_ABSTRACT_HTTP_ERR_IO;
-#endif
   if (mutex) {
     pthread_mutex_destroy(&mutex->mtx);
     free(mutex);
   }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_mutex_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -512,14 +512,14 @@ ABSTRACT_HTTP_COND_BROADCAST(struct AbstractHttpCond *cond) {
 
 NO_DISCARD c_abstract_http_error_t
 abstract_http_cond_free(struct AbstractHttpCond *cond) {
-#if defined(C_ABSTRACT_HTTP_TEST_OOM)
-  if (g_mock_cond_free_fail)
-    return C_ABSTRACT_HTTP_ERR_IO;
-#endif
   if (cond) {
     pthread_cond_destroy(&cond->cond);
     free(cond);
   }
+#if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  if (g_mock_cond_free_fail)
+    return C_ABSTRACT_HTTP_ERR_IO;
+#endif
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -780,22 +780,16 @@ NO_DISCARD c_abstract_http_error_t abstract_http_thread_pool_init(
       }
       {
         c_abstract_http_error_t rc = abstract_http_cond_free(p->cond);
+        c_abstract_http_error_t m_rc = abstract_http_mutex_free(p->lock);
+        free(p->threads);
+        free(p);
         if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-          free(p->threads);
-          free(p);
           return rc;
         }
-      }
-      {
-        c_abstract_http_error_t rc = abstract_http_mutex_free(p->lock);
-        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-          free(p->threads);
-          free(p);
-          return rc;
+        if (m_rc != C_ABSTRACT_HTTP_SUCCESS) {
+          return m_rc;
         }
       }
-      free(p->threads);
-      free(p);
       if (cleanup_err != C_ABSTRACT_HTTP_SUCCESS) {
         return cleanup_err;
       }
@@ -972,16 +966,14 @@ abstract_http_thread_pool_free(struct AbstractHttpThreadPool *pool) {
 
   {
     c_abstract_http_error_t rc = abstract_http_cond_free(pool->cond);
+    c_abstract_http_error_t m_rc = abstract_http_mutex_free(pool->lock);
+    free(pool->threads);
+    free(pool);
     if (rc != C_ABSTRACT_HTTP_SUCCESS)
       return rc;
+    if (m_rc != C_ABSTRACT_HTTP_SUCCESS)
+      return m_rc;
   }
-  {
-    c_abstract_http_error_t rc = abstract_http_mutex_free(pool->lock);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
-  free(pool->threads);
-  free(pool);
   LOG_DEBUG("abstract_http_thread_pool_free: Exiting");
   return join_err;
 }

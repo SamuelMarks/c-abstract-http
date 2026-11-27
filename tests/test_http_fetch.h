@@ -211,6 +211,8 @@ TEST test_fetch_config_application(void) {
             c_abstract_http_mock_strdup("http://proxy.local:8080",
                                         &_ast_strdup_proxy));
   config.proxy_url = _ast_strdup_proxy;
+  free(config.user_agent);
+  config.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_mock_strdup("CustomAgent/1.0", &_ast_strdup_user));
   config.user_agent = _ast_strdup_user;
@@ -226,6 +228,8 @@ TEST test_fetch_config_application(void) {
             c_abstract_http_mock_strdup("http://proxy2.local:8080",
                                         &_ast_strdup_proxy));
   config.proxy_url = _ast_strdup_proxy;
+  free(config.user_agent);
+  config.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_mock_strdup("CustomAgent2/1.0", &_ast_strdup_user));
   config.user_agent = _ast_strdup_user;
@@ -441,6 +445,8 @@ TEST test_fetch_send_success_and_failures(void) {
             c_abstract_http_mock_strdup("http://proxy.test:8080",
                                         &_ast_strdup_proxy));
   cfg.proxy_url = _ast_strdup_proxy;
+  free(cfg.user_agent);
+  cfg.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_mock_strdup("TestAgent/2.0", &_ast_strdup_agent));
   cfg.user_agent = _ast_strdup_agent;
@@ -1189,7 +1195,7 @@ TEST test_fetch_cookies_tls_headers_and_status(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(pin_hdr, sizeof(pin_hdr), "sha256//%s", b64_pin);
 #else
-  sprintf(pin_hdr, "sha256//%s", b64_pin);
+  c89stringutils_snprintf(pin_hdr, sizeof(pin_hdr), "sha256//%s", b64_pin);
 #endif
   free(b64_pin);
 
@@ -1400,6 +1406,8 @@ TEST test_fetch_nonblocking_pipe_multiplexing(void) {
     req2.url = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
               http_fetch_send_multi(ctx, NULL, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
     req2.url = (char *)"http://127.0.0.1:8080/nb2";
 
     memset(&f1, 0, sizeof(f1));

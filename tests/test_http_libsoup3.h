@@ -108,7 +108,7 @@ setup_libsoup3_request(struct HttpRequest *req, int port) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #else
-  sprintf(url, "http://127.0.0.1:%d/test", port);
+  c89stringutils_snprintf(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #endif
 
   rc = c_abstract_http_strdup(url, &_ast_strdup_0);
@@ -195,6 +195,8 @@ TEST test_libsoup3_config_application(void) {
   config.timeout_ms = 500;
   config.verify_peer = 0;
   config.follow_redirects = 0;
+  free(config.user_agent);
+  config.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("agent", &_ast_strdup_agent));
   config.user_agent = _ast_strdup_agent;
@@ -238,6 +240,7 @@ TEST test_libsoup3_config_application(void) {
   {
     struct HttpConfig cfg;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_config_init(&cfg));
+    free(cfg.user_agent);
     cfg.user_agent = (char *)"agent";
     g_mock_libsoup3_config_init_fail = 1;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM, http_libsoup3_config_apply(ctx, &cfg));
@@ -963,7 +966,7 @@ TEST test_libsoup3_spki_cookies_and_expected_len(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(pin_hdr, sizeof(pin_hdr), "sha256//%s", b64_pin);
 #else
-  sprintf(pin_hdr, "sha256//%s", b64_pin);
+  c89stringutils_snprintf(pin_hdr, sizeof(pin_hdr), "sha256//%s", b64_pin);
 #endif
   free(b64_pin);
 

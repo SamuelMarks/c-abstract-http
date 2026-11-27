@@ -166,18 +166,20 @@ extern int g_mock_cond_free_fail; /* just repurposing a mock flag for test */
 /** @brief Destroy an SSE stream parser context */
 NO_DISCARD c_abstract_http_error_t
 sse_parser_destroy(struct sse_parser_ctx *ctx) {
+  if (ctx) {
+    int async_owner = ctx->has_async_owner;
+    free(ctx->line_buffer);
+    free(ctx->current_event);
+    free(ctx->current_data);
+    free(ctx->last_event_id);
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->has_async_owner = async_owner;
+  }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
   if (g_mock_cond_free_fail) {
     return C_ABSTRACT_HTTP_ERR_IO;
   }
 #endif
-  if (!ctx)
-    return C_ABSTRACT_HTTP_SUCCESS;
-  free(ctx->line_buffer);
-  free(ctx->current_event);
-  free(ctx->current_data);
-  free(ctx->last_event_id);
-  memset(ctx, 0, sizeof(*ctx));
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -1329,14 +1331,6 @@ c_abstract_http_sse_free(struct HttpRequest *req) {
         lctx->req->on_chunk_user_data = lctx->prev_user_data;
         lctx->chunk_hooked = 0;
       }
-      if (lctx->timer_id > 0 && lctx->client && lctx->client->loop) {
-        int tid = lctx->timer_id;
-        lctx->timer_id = 0;
-        crc = http_loop_cancel_timer(lctx->client->loop, tid);
-        if (crc != C_ABSTRACT_HTTP_SUCCESS) {
-          goto finish_free;
-        }
-      }
       if (lctx->future_active) {
         if (lctx->future.response) {
           struct HttpResponse *fres = lctx->future.response;
@@ -1350,6 +1344,14 @@ c_abstract_http_sse_free(struct HttpRequest *req) {
         lctx->future_active = 0;
         frc = http_future_free(&lctx->future);
         if (frc != C_ABSTRACT_HTTP_SUCCESS) {
+          goto finish_free;
+        }
+      }
+      if (lctx->timer_id > 0 && lctx->client && lctx->client->loop) {
+        int tid = lctx->timer_id;
+        lctx->timer_id = 0;
+        crc = http_loop_cancel_timer(lctx->client->loop, tid);
+        if (crc != C_ABSTRACT_HTTP_SUCCESS) {
           goto finish_free;
         }
       }

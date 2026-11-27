@@ -1193,7 +1193,11 @@ struct cah_mbed_tls_session {
  */
 static int cah_mbed_bio_send(void *ctx, const unsigned char *buf, size_t len) {
   int fd = *(int *)ctx;
+#ifdef MSG_NOSIGNAL
+  long rv = (long)send(fd, (const char *)buf, (int)len, MSG_NOSIGNAL);
+#else
   long rv = (long)send(fd, (const char *)buf, (int)len, 0);
+#endif
   if (rv < 0) {
     return MBEDTLS_ERR_SSL_WANT_WRITE;
   }
@@ -1827,7 +1831,11 @@ static OSStatus cah_st_io_read(const void *conn, void *data, size_t *data_len) {
       continue;
     }
     *data_len = total;
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    if (errno == EAGAIN
+#if defined(EWOULDBLOCK) && (!defined(EAGAIN) || (EWOULDBLOCK != EAGAIN))
+        || errno == EWOULDBLOCK
+#endif
+    ) {
       s->last_want = 1;
       return (OSStatus)-9803;
     }
@@ -1853,8 +1861,13 @@ static OSStatus cah_st_io_write(const void *conn, const void *data,
 
   memcpy(&s, &cs, sizeof(s));
   while (total < req_len) {
+#ifdef MSG_NOSIGNAL
+    ssize_t nw = send(s->sock_fd, (const char *)data + total, req_len - total,
+                      MSG_NOSIGNAL);
+#else
     ssize_t nw =
         send(s->sock_fd, (const char *)data + total, req_len - total, 0);
+#endif
     if (nw > 0) {
       total += (size_t)nw;
       continue;
@@ -1863,7 +1876,11 @@ static OSStatus cah_st_io_write(const void *conn, const void *data,
       continue;
     }
     *data_len = total;
-    if (nw < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+    if (nw < 0 && (errno == EAGAIN
+#if defined(EWOULDBLOCK) && (!defined(EAGAIN) || (EWOULDBLOCK != EAGAIN))
+                   || errno == EWOULDBLOCK
+#endif
+                   )) {
       s->last_want = 2;
       return (OSStatus)-9803;
     }
@@ -3396,7 +3413,8 @@ int math_c_abstract_http_format_clen(const struct HttpRequest *req,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(out_buf, 32, "%lu", (unsigned long)req->expected_body_len);
 #else
-  sprintf(out_buf, "%lu", (unsigned long)req->expected_body_len);
+  c89stringutils_snprintf(out_buf, 32, "%lu",
+                          (unsigned long)req->expected_body_len);
 #endif
   return 1;
 }

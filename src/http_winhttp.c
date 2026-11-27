@@ -1125,8 +1125,9 @@ http_winhttp_send(struct HttpTransportContext *ctx,
                 ctx->cookie_jar->cookies[i].name,
                 ctx->cookie_jar->cookies[i].value);
 #else
-      sprintf(cbuf, "Cookie: %s=%s\r\n", ctx->cookie_jar->cookies[i].name,
-              ctx->cookie_jar->cookies[i].value);
+      c89stringutils_snprintf(cbuf, sizeof(cbuf), "Cookie: %s=%s\r\n",
+                              ctx->cookie_jar->cookies[i].name,
+                              ctx->cookie_jar->cookies[i].value);
 #endif
       rc = ascii_to_wide(cbuf, wcbuf, 4096, &written);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {

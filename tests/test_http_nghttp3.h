@@ -107,7 +107,6 @@ TEST test_nghttp3_global_and_context_lifecycle(void) {
   g_mock_config_free_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_nghttp3_context_free(ctx));
   g_mock_config_free_fail = 0;
-  free(ctx);
   ctx = NULL;
 
   {
@@ -472,6 +471,8 @@ TEST test_nghttp3_fallback_proxy_and_parts(void) {
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_nghttp3_config_apply(ctx, &cfg));
   cfg.proxy_url = NULL;
 
+  free(cfg.user_agent);
+  cfg.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("Ng3Agent/3.0", &cfg.user_agent));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -607,7 +608,8 @@ TEST test_nghttp3_fallback_proxy_and_parts(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/net-err", port);
 #else
-    sprintf(fb_url, "http://127.0.0.1:%d/net-err", port);
+    c89stringutils_snprintf(fb_url, sizeof(fb_url),
+                            "http://127.0.0.1:%d/net-err", port);
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -659,7 +661,8 @@ TEST test_nghttp3_fallback_proxy_and_parts(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/net-err", port);
 #else
-    sprintf(fb_url, "http://127.0.0.1:%d/net-err", port);
+    c89stringutils_snprintf(fb_url, sizeof(fb_url),
+                            "http://127.0.0.1:%d/net-err", port);
 #endif
     free(req.url);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -717,7 +720,7 @@ TEST test_nghttp3_tls_redirects_clen_and_multiplexing(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
 #else
-  sprintf(pin_str, "sha256//%s", b64_pin);
+  c89stringutils_snprintf(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
 #endif
   free(b64_pin);
   cfg.cert_pin_sha256 = pin_str;
@@ -940,13 +943,21 @@ TEST test_nghttp3_tls_redirects_clen_and_multiplexing(void) {
               http_nghttp3_send_multi(ctx, NULL, &multi, futs));
     req1.url = (char *)"https://example.com/mux-1";
     req2.url = (char *)"badurl";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL,
               http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
     req2.url = (char *)"https://example.com:59998/open-bidi-fail";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
     g_mock_response_free_fail = 1;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_nghttp3_send_multi(ctx, NULL, &multi, futs));
     g_mock_response_free_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
     /* Failing slot 0 inside multi when slot 1 was also queued */
     req1.url = (char *)"https://example.com/net-err";
@@ -955,12 +966,18 @@ TEST test_nghttp3_tls_redirects_clen_and_multiplexing(void) {
     memset(&f2, 0, sizeof(f2));
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_nghttp3_send_multi(ctx, NULL, &multi, futs));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
     req1.url = (char *)"https://example.com/mux-1";
+    memset(&f1, 0, sizeof(f1));
+    memset(&f2, 0, sizeof(f2));
     g_mock_headers_init_fail = 1;
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
               http_nghttp3_send_multi(ctx, NULL, &multi, futs));
     g_mock_headers_init_fail = 0;
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
     {
       struct ModalityEventLoop *ext_l = NULL;
@@ -968,18 +985,26 @@ TEST test_nghttp3_tls_redirects_clen_and_multiplexing(void) {
       memset(&ext_h, 0, sizeof(ext_h));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 http_loop_init_external(&ext_l, &ext_h));
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = 1;
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_NOMEM,
                 http_nghttp3_send_multi(ctx, ext_l, &multi, futs));
       g_mock_alloc_fail = 0;
       g_mock_alloc_count = 0;
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
+      memset(&f1, 0, sizeof(f1));
+      memset(&f2, 0, sizeof(f2));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 c_abstract_http_test_set_loop_op_fail(4, 1));
       ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
                 http_nghttp3_send_multi(ctx, ext_l, &multi, futs));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 c_abstract_http_test_set_loop_op_fail(0, 0));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+      ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_free(ext_l));
     }
 

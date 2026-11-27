@@ -334,7 +334,7 @@ TEST test_apple_send_mock_server(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/echo", port);
 #else
-  sprintf(url, "http://127.0.0.1:%d/echo", port);
+  c89stringutils_snprintf(url, sizeof(url), "http://127.0.0.1:%d/echo", port);
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
@@ -643,7 +643,7 @@ TEST test_apple_send_multi(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/echo", port);
 #else
-  sprintf(url, "http://127.0.0.1:%d/echo", port);
+  c89stringutils_snprintf(url, sizeof(url), "http://127.0.0.1:%d/echo", port);
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_apple_context_init(&ctx));
@@ -838,6 +838,7 @@ TEST test_apple_send_multi_branches(void) {
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(loop));
   }
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, future1->error_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(future1));
   free(future1);
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
 
@@ -1109,6 +1110,7 @@ TEST test_apple_send_multi_branches(void) {
               http_apple_send_multi(ctx, fail_loop, &multi, futures));
     g_mock_pthread_create_sync = 0;
 
+    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(future1));
     free(future1);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_free(&req1));
@@ -1127,8 +1129,9 @@ TEST test_apple_send_multi_branches(void) {
               "http://127.0.0.1:%d/fail_extract_response",
               math_mock_server_get_port(srv_ext));
 #else
-    sprintf(ext_url, "http://127.0.0.1:%d/fail_extract_response",
-            math_mock_server_get_port(srv_ext));
+    c89stringutils_snprintf(ext_url, sizeof(ext_url),
+                            "http://127.0.0.1:%d/fail_extract_response",
+                            math_mock_server_get_port(srv_ext));
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1273,10 +1276,14 @@ TEST test_apple_nsurlsession_bridge(void) {
   sprintf_s(url_large, sizeof(url_large), "http://127.0.0.1:%d/large", port);
   sprintf_s(url_slow, sizeof(url_slow), "http://127.0.0.1:%d/slow", port);
 #else
-  sprintf(url_ok, "http://127.0.0.1:%d/ok", port);
-  sprintf(url_empty, "http://127.0.0.1:%d/empty", port);
-  sprintf(url_large, "http://127.0.0.1:%d/large", port);
-  sprintf(url_slow, "http://127.0.0.1:%d/slow", port);
+  c89stringutils_snprintf(url_ok, sizeof(url_ok), "http://127.0.0.1:%d/ok",
+                          port);
+  c89stringutils_snprintf(url_empty, sizeof(url_empty),
+                          "http://127.0.0.1:%d/empty", port);
+  c89stringutils_snprintf(url_large, sizeof(url_large),
+                          "http://127.0.0.1:%d/large", port);
+  c89stringutils_snprintf(url_slow, sizeof(url_slow),
+                          "http://127.0.0.1:%d/slow", port);
 #endif
 
   srv.stop = 0;
@@ -1548,6 +1555,8 @@ TEST test_apple_nsurlsession_bridge(void) {
     cfg.proxy_url = (char *)"badproxy";
     ASSERT_EQ(C_ABSTRACT_HTTP_ERR_INVAL, http_apple_config_apply(ctx, &cfg));
     cfg.proxy_url = NULL;
+    free(cfg.user_agent);
+    cfg.user_agent = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               c_abstract_http_strdup("AppleBot/1.0", &cfg.user_agent));
     {
@@ -1555,7 +1564,7 @@ TEST test_apple_nsurlsession_bridge(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
       sprintf_s(pbuf, sizeof(pbuf), "http://127.0.0.1:%d", port);
 #else
-      sprintf(pbuf, "http://127.0.0.1:%d", port);
+      c89stringutils_snprintf(pbuf, sizeof(pbuf), "http://127.0.0.1:%d", port);
 #endif
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 c_abstract_http_strdup(pbuf, &cfg.proxy_url));

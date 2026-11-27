@@ -1379,7 +1379,12 @@ fetch_multi_fd_cb(struct ModalityEventLoop *loop, int fd, int events,
       slot->raw_buf[slot->raw_len] = '\0';
       continue;
     }
-    if (nr < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) &&
+    if (nr < 0 &&
+        (errno == EAGAIN
+#if defined(EWOULDBLOCK) && (!defined(EAGAIN) || (EWOULDBLOCK != EAGAIN))
+         || errno == EWOULDBLOCK
+#endif
+         ) &&
         !(events & HTTP_LOOP_ERROR)) {
       return C_ABSTRACT_HTTP_SUCCESS;
     }

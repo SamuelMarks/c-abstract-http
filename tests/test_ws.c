@@ -31,6 +31,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 #endif
+#if defined(__linux__) || defined(__APPLE__)
+#include <signal.h>
+#endif
 /* clang-format on */
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
@@ -2586,6 +2589,8 @@ NO_DISCARD static c_abstract_http_error_t ws_test_srv_task(void *arg) {
     const char *bad = "HTTP/1.1 400 Bad Request\r\n\r\n";
 #if defined(_WIN32)
     send((SOCKET)cli_fd, bad, (int)strlen(bad), 0);
+#elif defined(MSG_NOSIGNAL)
+    send(cli_fd, bad, strlen(bad), MSG_NOSIGNAL);
 #else
     send(cli_fd, bad, strlen(bad), 0);
 #endif
@@ -2596,6 +2601,8 @@ NO_DISCARD static c_abstract_http_error_t ws_test_srv_task(void *arg) {
         "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\r\n";
 #if defined(_WIN32)
     send((SOCKET)cli_fd, no_acc, (int)strlen(no_acc), 0);
+#elif defined(MSG_NOSIGNAL)
+    send(cli_fd, no_acc, strlen(no_acc), MSG_NOSIGNAL);
 #else
     send(cli_fd, no_acc, strlen(no_acc), 0);
 #endif
@@ -2604,6 +2611,8 @@ NO_DISCARD static c_abstract_http_error_t ws_test_srv_task(void *arg) {
                           "Sec-WebSocket-Accept: invalidaccept==\r\n\r\n";
 #if defined(_WIN32)
     send((SOCKET)cli_fd, bad_acc, (int)strlen(bad_acc), 0);
+#elif defined(MSG_NOSIGNAL)
+    send(cli_fd, bad_acc, strlen(bad_acc), MSG_NOSIGNAL);
 #else
     send(cli_fd, bad_acc, strlen(bad_acc), 0);
 #endif
@@ -2640,12 +2649,12 @@ NO_DISCARD static c_abstract_http_error_t ws_test_srv_task(void *arg) {
                      "Sec-WebSocket-Accept: %s\r\n\r\n",
                      accept_val);
 #else
-    roff = sprintf(resp,
-                   "HTTP/1.1 101 Switching Protocols\r\n"
-                   "Upgrade: websocket\r\n"
-                   "Connection: Upgrade\r\n"
-                   "Sec-WebSocket-Accept: %s\r\n\r\n",
-                   accept_val);
+    roff = c89stringutils_snprintf(resp, sizeof(resp),
+                                   "HTTP/1.1 101 Switching Protocols\r\n"
+                                   "Upgrade: websocket\r\n"
+                                   "Connection: Upgrade\r\n"
+                                   "Sec-WebSocket-Accept: %s\r\n\r\n",
+                                   accept_val);
 #endif
     if (cfg->mode == 4) {
       ((unsigned char *)resp)[roff++] = 0x81U;
@@ -2663,6 +2672,8 @@ NO_DISCARD static c_abstract_http_error_t ws_test_srv_task(void *arg) {
     }
 #if defined(_WIN32)
     send((SOCKET)cli_fd, resp, roff, 0);
+#elif defined(MSG_NOSIGNAL)
+    send(cli_fd, resp, (size_t)roff, MSG_NOSIGNAL);
 #else
     send(cli_fd, resp, (size_t)roff, 0);
 #endif
@@ -2675,6 +2686,9 @@ NO_DISCARD static c_abstract_http_error_t ws_test_srv_task(void *arg) {
 #if defined(_WIN32)
       send((SOCKET)cli_fd, (const char *)ping_f, 3, 0);
       rn = (int)recv((SOCKET)cli_fd, (char *)rx_f, (int)sizeof(rx_f), 0);
+#elif defined(MSG_NOSIGNAL)
+      send(cli_fd, (const char *)ping_f, 3, MSG_NOSIGNAL);
+      rn = (int)recv(cli_fd, (char *)rx_f, sizeof(rx_f), 0);
 #else
       send(cli_fd, (const char *)ping_f, 3, 0);
       rn = (int)recv(cli_fd, (char *)rx_f, sizeof(rx_f), 0);
@@ -2689,7 +2703,11 @@ NO_DISCARD static c_abstract_http_error_t ws_test_srv_task(void *arg) {
       while (recv((SOCKET)cli_fd, (char *)rx_f, (int)sizeof(rx_f), 0) > 0) {
       }
 #else
+#if defined(MSG_NOSIGNAL)
+      send(cli_fd, (const char *)close_f, 4, MSG_NOSIGNAL);
+#else
       send(cli_fd, (const char *)close_f, 4, 0);
+#endif
       shutdown(cli_fd, SHUT_WR);
       while (recv(cli_fd, (char *)rx_f, sizeof(rx_f), 0) > 0) {
       }
@@ -2702,7 +2720,11 @@ NO_DISCARD static c_abstract_http_error_t ws_test_srv_task(void *arg) {
       send((SOCKET)cli_fd, (const char *)bad_f, 2, 0);
 #else
       recv(cli_fd, (char *)rx_f, sizeof(rx_f), 0);
+#if defined(MSG_NOSIGNAL)
+      send(cli_fd, (const char *)bad_f, 2, MSG_NOSIGNAL);
+#else
       send(cli_fd, (const char *)bad_f, 2, 0);
+#endif
 #endif
     } else if (cfg->mode == 10) {
       unsigned char rx_f[64];
@@ -2948,10 +2970,10 @@ TEST test_ws_upgraded_socket_event_loop(void) {
                            : "http://localhost:%d/chat",
               port);
 #else
-    sprintf(url,
-            (m % 2 == 0) ? "ws://127.0.0.1:%d/chat"
-                         : "http://localhost:%d/chat",
-            port);
+    c89stringutils_snprintf(url, sizeof(url),
+                            (m % 2 == 0) ? "ws://127.0.0.1:%d/chat"
+                                         : "http://localhost:%d/chat",
+                            port);
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
     req.url = dup_url;
@@ -3042,7 +3064,7 @@ TEST test_ws_upgraded_socket_event_loop(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(url, sizeof(url), "ws://127.0.0.1:%d/chat", port);
 #else
-    sprintf(url, "ws://127.0.0.1:%d/chat", port);
+    c89stringutils_snprintf(url, sizeof(url), "ws://127.0.0.1:%d/chat", port);
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
     req.url = dup_url;
@@ -3118,7 +3140,7 @@ TEST test_ws_upgraded_socket_event_loop(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(url, sizeof(url), "ws://127.0.0.1:%d/chat", port);
 #else
-    sprintf(url, "ws://127.0.0.1:%d/chat", port);
+    c89stringutils_snprintf(url, sizeof(url), "ws://127.0.0.1:%d/chat", port);
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, c_abstract_http_strdup(url, &dup_url));
     req.url = dup_url;
@@ -3400,9 +3422,11 @@ TEST test_ws_rfc6455_framing_edge_cases(void) {
   memset(&parser, 0, sizeof(parser));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
             ws_parser_feed(&parser, big_ping, sizeof(big_ping)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_parser_destroy(&parser));
   memset(&parser, 0, sizeof(parser));
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_WS_FRAMING,
             ws_parser_feed(&parser, orphan_cont, sizeof(orphan_cont)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_parser_destroy(&parser));
   memset(&parser, 0, sizeof(parser));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             ws_parser_feed(&parser, frag_start, sizeof(frag_start)));
@@ -3414,10 +3438,12 @@ TEST test_ws_rfc6455_framing_edge_cases(void) {
   parser.on_error = test_ws_on_error_abort;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
             ws_parser_feed(&parser, big_ping, sizeof(big_ping)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_parser_destroy(&parser));
   memset(&parser, 0, sizeof(parser));
   parser.on_error = test_ws_on_error_abort;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO,
             ws_parser_feed(&parser, orphan_cont, sizeof(orphan_cont)));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, ws_parser_destroy(&parser));
   memset(&parser, 0, sizeof(parser));
   parser.on_error = test_ws_on_error_abort;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -3515,6 +3541,8 @@ ws_mock_tls_write(void *session, const void *buf, size_t len, size_t *out_n,
   }
 #if defined(_WIN32)
   n = send((SOCKET)s->fd, (const char *)buf, (int)len, 0);
+#elif defined(MSG_NOSIGNAL)
+  n = (int)send(s->fd, buf, len, MSG_NOSIGNAL);
 #else
   n = (int)send(s->fd, buf, len, 0);
 #endif
@@ -3730,8 +3758,10 @@ TEST test_ws_wss_tls_and_sync_upgraded_loop(void) {
   strcpy_s(wss_def_url, sizeof(wss_def_url), "wss://127.0.0.1/chat");
   strcpy_s(https_def_url, sizeof(https_def_url), "https://127.0.0.1/chat");
 #else
-  sprintf(wss_url, "wss://127.0.0.1:%d/chat", port);
-  sprintf(https_url, "https://127.0.0.1:%d/chat", port);
+  c89stringutils_snprintf(wss_url, sizeof(wss_url), "wss://127.0.0.1:%d/chat",
+                          port);
+  c89stringutils_snprintf(https_url, sizeof(https_url),
+                          "https://127.0.0.1:%d/chat", port);
   strcpy(wss_def_url, "wss://127.0.0.1/chat");
   strcpy(https_def_url, "https://127.0.0.1/chat");
 #endif
@@ -4478,6 +4508,9 @@ SUITE(ws_suite) {
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
+#if defined(__linux__) || defined(__APPLE__)
+  signal(SIGPIPE, SIG_IGN);
+#endif
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(ws_suite);
   GREATEST_MAIN_END();

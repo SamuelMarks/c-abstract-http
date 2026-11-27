@@ -142,7 +142,7 @@ TEST test_http_raw_send_requests(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #else
-  sprintf(url, "http://127.0.0.1:%d/test", port);
+  c89stringutils_snprintf(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #endif
   req.url = url;
   req.method = HTTP_GET;
@@ -222,7 +222,8 @@ TEST test_http_raw_send_requests(void) {
     sprintf_s(url_localhost, sizeof(url_localhost), "http://localhost:%d/test",
               port);
 #else
-    sprintf(url_localhost, "http://localhost:%d/test", port);
+    c89stringutils_snprintf(url_localhost, sizeof(url_localhost),
+                            "http://localhost:%d/test", port);
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req_lh));
     req_lh.url = url_localhost;
@@ -240,7 +241,8 @@ TEST test_http_raw_send_requests(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(url_no_path, sizeof(url_no_path), "http://127.0.0.1:%d", port);
 #else
-    sprintf(url_no_path, "http://127.0.0.1:%d", port);
+    c89stringutils_snprintf(url_no_path, sizeof(url_no_path),
+                            "http://127.0.0.1:%d", port);
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     req.url = url_no_path;
@@ -261,7 +263,8 @@ TEST test_http_raw_send_requests(void) {
     sprintf_s(url_colon_path, sizeof(url_colon_path),
               "http://127.0.0.1:%d/path:with:colons", port);
 #else
-    sprintf(url_colon_path, "http://127.0.0.1:%d/path:with:colons", port);
+    c89stringutils_snprintf(url_colon_path, sizeof(url_colon_path),
+                            "http://127.0.0.1:%d/path:with:colons", port);
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     req.url = url_colon_path;
@@ -329,9 +332,11 @@ TEST test_http_raw_send_requests(void) {
                 "Value-%lu-abcdefghijklmnopqrstuvwxyz0123456789",
                 (unsigned long)h);
 #else
-      sprintf(key, "X-Header-%lu", (unsigned long)h);
-      sprintf(val, "Value-%lu-abcdefghijklmnopqrstuvwxyz0123456789",
-              (unsigned long)h);
+      c89stringutils_snprintf(key, sizeof(key), "X-Header-%lu",
+                              (unsigned long)h);
+      c89stringutils_snprintf(val, sizeof(val),
+                              "Value-%lu-abcdefghijklmnopqrstuvwxyz0123456789",
+                              (unsigned long)h);
 #endif
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 http_headers_add(&req.headers, key, val));
@@ -361,7 +366,8 @@ TEST test_http_raw_send_requests(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(https_url, sizeof(https_url), "https://127.0.0.1:%d/test", port);
 #else
-    sprintf(https_url, "https://127.0.0.1:%d/test", port);
+    c89stringutils_snprintf(https_url, sizeof(https_url),
+                            "https://127.0.0.1:%d/test", port);
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     req.url = https_url;
@@ -480,7 +486,7 @@ TEST test_http_raw_multi_requests(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #else
-  sprintf(url, "http://127.0.0.1:%d/test", port);
+  c89stringutils_snprintf(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req1));
@@ -516,6 +522,8 @@ TEST test_http_raw_multi_requests(void) {
             http_raw_send_multi(ctx, NULL, &multi, futures));
   ASSERT_EQ(1, f1.is_ready);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, f1.error_code);
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f1));
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_future_free(&f2));
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_multi_request_free(&multi));
   req1.url = NULL;
@@ -542,7 +550,7 @@ TEST test_http_raw_oom_and_mock_failures(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #else
-  sprintf(url, "http://127.0.0.1:%d/test", port);
+  c89stringutils_snprintf(url, sizeof(url), "http://127.0.0.1:%d/test", port);
 #endif
 
   /* 1. Context init alloc failure */
@@ -678,12 +686,13 @@ TEST test_http_raw_oom_and_mock_failures(void) {
                 "23456789",
                 (unsigned long)h);
 #else
-      sprintf(key, "X-Hdr-%lu", (unsigned long)h);
-      sprintf(val,
-              "Val-%lu-"
-              "0123456789012345678901234567890123456789012345678901234567890123"
-              "456789",
-              (unsigned long)h);
+      c89stringutils_snprintf(key, sizeof(key), "X-Hdr-%lu", (unsigned long)h);
+      c89stringutils_snprintf(
+          val, sizeof(val),
+          "Val-%lu-"
+          "0123456789012345678901234567890123456789012345678901234567890123"
+          "456789",
+          (unsigned long)h);
 #endif
       ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
                 http_headers_add(&req.headers, key, val));
@@ -862,8 +871,7 @@ TEST test_http_raw_free_failures(void) {
   rc = http_raw_context_free(ctx);
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, rc);
   g_mock_config_free_fail = 0;
-  rc = http_raw_context_free(ctx);
-  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, rc);
+  ctx = NULL;
   PASS();
 }
 #endif
@@ -1084,8 +1092,9 @@ TEST test_http_raw_features_and_coverage(void) {
   sprintf_s(url, sizeof(url), "http://127.0.0.1:%d/feat", port);
   sprintf_s(https_url, sizeof(https_url), "https://127.0.0.1:%d/feat", port);
 #else
-  sprintf(url, "http://127.0.0.1:%d/feat", port);
-  sprintf(https_url, "https://127.0.0.1:%d/feat", port);
+  c89stringutils_snprintf(url, sizeof(url), "http://127.0.0.1:%d/feat", port);
+  c89stringutils_snprintf(https_url, sizeof(https_url),
+                          "https://127.0.0.1:%d/feat", port);
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&ctx));
@@ -1351,7 +1360,8 @@ TEST test_http_raw_features_and_coverage(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(proxy_str, sizeof(proxy_str), "http://127.0.0.1:%d", port);
 #else
-    sprintf(proxy_str, "http://127.0.0.1:%d", port);
+    c89stringutils_snprintf(proxy_str, sizeof(proxy_str), "http://127.0.0.1:%d",
+                            port);
 #endif
     cfg.proxy_url = proxy_str;
     cfg.proxy_username = (char *)"puser";
@@ -1553,8 +1563,11 @@ TEST test_http_raw_features_and_coverage(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(proxy_str, sizeof(proxy_str), "http://127.0.0.1:%d", port);
 #else
-    sprintf(proxy_str, "http://127.0.0.1:%d", port);
+    c89stringutils_snprintf(proxy_str, sizeof(proxy_str), "http://127.0.0.1:%d",
+                            port);
 #endif
+    free(ocfg.user_agent);
+    ocfg.user_agent = NULL;
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
               c_abstract_http_strdup("OomAgent/1.0", &ocfg.user_agent));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -1609,7 +1622,8 @@ TEST test_http_raw_features_and_coverage(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
       sprintf_s(long_url, sizeof(long_url), "http://127.0.0.1:%d/", port);
 #else
-      sprintf(long_url, "http://127.0.0.1:%d/", port);
+      c89stringutils_snprintf(long_url, sizeof(long_url),
+                              "http://127.0.0.1:%d/", port);
 #endif
       k = strlen(long_url);
       while (k + 2 < sizeof(long_url)) {
@@ -2017,6 +2031,9 @@ TEST test_http_raw_features_and_coverage(void) {
         g_mock_alloc_count = 0;
         ASSERT((int)erc >= -2000 && (int)erc <= 2000);
       }
+      g_mock_headers_free_fail = 1;
+      ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, c_abstract_http_test_raw_edges(57));
+      g_mock_headers_free_fail = 0;
 
       /* Negative g_mock_headers_free_fail (-1 and -2) on step 39 -> covers
        * 2255-2258 */
@@ -2346,9 +2363,12 @@ TEST test_http_raw_socks5_proxy(void) {
   sprintf_s(socks5_url, sizeof(socks5_url), "socks5://127.0.0.1:%d/p", port);
   sprintf_s(socks5h_url, sizeof(socks5h_url), "socks5h://127.0.0.1:%d", port);
 #else
-  sprintf(target_url, "http://127.0.0.1:%d/s5", port);
-  sprintf(socks5_url, "socks5://127.0.0.1:%d/p", port);
-  sprintf(socks5h_url, "socks5h://127.0.0.1:%d", port);
+  c89stringutils_snprintf(target_url, sizeof(target_url),
+                          "http://127.0.0.1:%d/s5", port);
+  c89stringutils_snprintf(socks5_url, sizeof(socks5_url),
+                          "socks5://127.0.0.1:%d/p", port);
+  c89stringutils_snprintf(socks5h_url, sizeof(socks5h_url),
+                          "socks5h://127.0.0.1:%d", port);
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&ctx));
@@ -2641,12 +2661,16 @@ TEST test_http_raw_keep_alive_pool(void) {
   sprintf_s(https_url1, sizeof(https_url1), "https://127.0.0.1:%d/s1", port);
   sprintf_s(https_url2, sizeof(https_url2), "https://127.0.0.1:%d/s2", port2);
 #else
-  sprintf(url1, "http://127.0.0.1:%d/ka1", port);
-  sprintf(url2, "http://127.0.0.1:%d/ka2", port2);
-  sprintf(proxy_url, "http://127.0.0.1:%d", port);
-  sprintf(proxy_url2, "http://127.0.0.1:%d", port2);
-  sprintf(https_url1, "https://127.0.0.1:%d/s1", port);
-  sprintf(https_url2, "https://127.0.0.1:%d/s2", port2);
+  c89stringutils_snprintf(url1, sizeof(url1), "http://127.0.0.1:%d/ka1", port);
+  c89stringutils_snprintf(url2, sizeof(url2), "http://127.0.0.1:%d/ka2", port2);
+  c89stringutils_snprintf(proxy_url, sizeof(proxy_url), "http://127.0.0.1:%d",
+                          port);
+  c89stringutils_snprintf(proxy_url2, sizeof(proxy_url2), "http://127.0.0.1:%d",
+                          port2);
+  c89stringutils_snprintf(https_url1, sizeof(https_url1),
+                          "https://127.0.0.1:%d/s1", port);
+  c89stringutils_snprintf(https_url2, sizeof(https_url2),
+                          "https://127.0.0.1:%d/s2", port2);
 #endif
 
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_raw_context_init(&ctx));

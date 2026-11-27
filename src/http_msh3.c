@@ -1525,7 +1525,8 @@ msh3_open_slot(struct HttpTransportContext *ctx, const struct HttpRequest *req,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(authority, sizeof(authority), "%s:%s", slot->host, slot->port_str);
 #else
-  sprintf(authority, "%s:%s", slot->host, slot->port_str);
+  c89stringutils_snprintf(authority, sizeof(authority), "%s:%s", slot->host,
+                          slot->port_str);
 #endif
 
   rc = msh3_method_str(eff_req->method, &method_str);

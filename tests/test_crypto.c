@@ -17,6 +17,9 @@
 #include <string.h>
 
 #include "mock_alloc.h"
+#if defined(__linux__) || defined(__APPLE__)
+#include <signal.h>
+#endif
 /* clang-format on */
 
 TEST test_sha1_empty_string(void) {
@@ -956,9 +959,9 @@ TEST test_x509_pem_der_and_spki_helpers(void) {
             "-----BEGIN CERTIFICATE-----\r\n%s\r\n-----END CERTIFICATE-----\n",
             b64);
 #else
-  sprintf(pem_buf,
-          "-----BEGIN CERTIFICATE-----\r\n%s\r\n-----END CERTIFICATE-----\n",
-          b64);
+  c89stringutils_snprintf(
+      pem_buf, sizeof(pem_buf),
+      "-----BEGIN CERTIFICATE-----\r\n%s\r\n-----END CERTIFICATE-----\n", b64);
 #endif
   free(b64);
 
@@ -1090,6 +1093,9 @@ SUITE(crypto_suite) {
 GREATEST_MAIN_DEFS();
 
 int main(int argc, char **argv) {
+#if defined(__linux__) || defined(__APPLE__)
+  signal(SIGPIPE, SIG_IGN);
+#endif
   GREATEST_MAIN_BEGIN();
   RUN_SUITE(crypto_suite);
   GREATEST_MAIN_END();

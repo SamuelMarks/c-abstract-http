@@ -741,10 +741,10 @@ http_nghttp3_context_free(struct HttpTransportContext *ctx) {
   free(ctx->proxy_host);
   ctx->proxy_host = NULL;
   rch = http_config_free(&ctx->config);
+  free(ctx);
   if (rch != C_ABSTRACT_HTTP_SUCCESS) {
     return rch;
   }
-  free(ctx);
   return C_ABSTRACT_HTTP_SUCCESS;
 }
 
@@ -1773,7 +1773,11 @@ ngh3_real_io_nonblock(struct ngh3_real_udp_sess *s, int h3_ready,
       }
       return C_ABSTRACT_HTTP_ERR_CONNREFUSED;
 #else
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (errno == EAGAIN
+#if defined(EWOULDBLOCK) && (!defined(EAGAIN) || (EWOULDBLOCK != EAGAIN))
+          || errno == EWOULDBLOCK
+#endif
+      ) {
         break;
       }
       if (errno == EINTR) {
@@ -1872,7 +1876,11 @@ ngh3_real_io_nonblock(struct ngh3_real_udp_sess *s, int h3_ready,
 #if defined(_WIN32)
       if (WSAGetLastError() != WSAEWOULDBLOCK)
 #else
-      if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+      if (errno != EAGAIN
+#if defined(EWOULDBLOCK) && (!defined(EAGAIN) || (EWOULDBLOCK != EAGAIN))
+          && errno != EWOULDBLOCK
+#endif
+          && errno != EINTR)
 #endif
       {
         return C_ABSTRACT_HTTP_ERR_CONNREFUSED;
@@ -2012,7 +2020,8 @@ ngh3_open_h3_session(struct HttpTransportContext *ctx, const char *conn_host,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(port_str, sizeof(port_str), "%u", (unsigned int)conn_port);
 #else
-    sprintf(port_str, "%u", (unsigned int)conn_port);
+    c89stringutils_snprintf(port_str, sizeof(port_str), "%u",
+                            (unsigned int)conn_port);
 #endif
     if (getaddrinfo(conn_host, port_str, &hints, &ai) != 0 || !ai) {
       return C_ABSTRACT_HTTP_ERR_HOSTUNREACH;

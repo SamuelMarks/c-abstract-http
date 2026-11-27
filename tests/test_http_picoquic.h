@@ -104,7 +104,6 @@ TEST test_picoquic_context_lifecycle(void) {
   g_mock_config_free_fail = 1;
   ASSERT_EQ(C_ABSTRACT_HTTP_ERR_IO, http_picoquic_context_free(ctx));
   g_mock_config_free_fail = 0;
-  free(ctx);
   ctx = NULL;
 
   g_mock_picoquic_config_init_fail = 1;
@@ -569,6 +568,8 @@ TEST test_picoquic_fallback_proxy_and_parts(void) {
   cfg.proxy_url = NULL;
 
   /* Configure MASQUE proxy + credentials + User-Agent + OOM sweep on apply */
+  free(cfg.user_agent);
+  cfg.user_agent = NULL;
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
             c_abstract_http_strdup("PicoAgent/3.0", &cfg.user_agent));
   ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -711,7 +712,8 @@ TEST test_picoquic_fallback_proxy_and_parts(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/net-close", port);
 #else
-    sprintf(fb_url, "http://127.0.0.1:%d/net-close", port);
+    c89stringutils_snprintf(fb_url, sizeof(fb_url),
+                            "http://127.0.0.1:%d/net-close", port);
 #endif
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_request_init(&req));
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -768,7 +770,8 @@ TEST test_picoquic_fallback_proxy_and_parts(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
     sprintf_s(fb_url, sizeof(fb_url), "http://127.0.0.1:%d/net-close", port);
 #else
-    sprintf(fb_url, "http://127.0.0.1:%d/net-close", port);
+    c89stringutils_snprintf(fb_url, sizeof(fb_url),
+                            "http://127.0.0.1:%d/net-close", port);
 #endif
     free(req.url);
     ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS,
@@ -844,7 +847,7 @@ TEST test_picoquic_tls_redirects_and_streaming_clen(void) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
 #else
-  sprintf(pin_str, "sha256//%s", b64_pin);
+  c89stringutils_snprintf(pin_str, sizeof(pin_str), "sha256//%s", b64_pin);
 #endif
   free(b64_pin);
   cfg.cert_pin_sha256 = pin_str;

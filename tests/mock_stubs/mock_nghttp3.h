@@ -16,6 +16,7 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 #include <c_abstract_http/http_types.h>
+#include <c89stringutils_string_extras.h>
 /* clang-format on */
 
 extern int g_mock_alloc_fail;
@@ -391,7 +392,8 @@ static int mock_nghttp3_drive_loopback(nghttp3_conn *conn, ngtcp2_conn *qconn) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
       sprintf_s(sid_buf, sizeof(sid_buf), "%ld", (long)st->stream_id);
 #else
-      sprintf(sid_buf, "%ld", (long)st->stream_id);
+      c89stringutils_snprintf(sid_buf, sizeof(sid_buf), "%ld",
+                              (long)st->stream_id);
 #endif
       if (mock_ngh3_emit_hdr(conn, st, "x-echo-stream-id", sid_buf) != 0) {
         return -1;

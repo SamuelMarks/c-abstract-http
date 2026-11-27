@@ -82,6 +82,12 @@ function(cah_add_test_executable tgt_name)
         cah_greatest
     )
 
+    if(TARGET c89stringutils)
+        target_link_libraries(${tgt_name} PRIVATE c89stringutils)
+    elseif(TARGET c89stringutils::c89stringutils)
+        target_link_libraries(${tgt_name} PRIVATE c89stringutils::c89stringutils)
+    endif()
+
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         target_link_libraries(${tgt_name} PRIVATE Threads::Threads)
     endif()

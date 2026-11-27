@@ -2367,7 +2367,7 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
   sprintf_s(port_str, sizeof(port_str), "%d", dial_port);
 #else
-  sprintf(port_str, "%d", dial_port);
+  c89stringutils_snprintf(port_str, sizeof(port_str), "%d", dial_port);
 #endif
 
   rc = get_method_str(req->method, &method_str);
@@ -2413,9 +2413,9 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
       state->req_buf, req_cap, "%s %s HTTP/1.1\r\nHost: %s:%d\r\n%s",
       method_str, req_target, host, port, conn_hdr);
 #else
-  state->req_len =
-      (size_t)sprintf(state->req_buf, "%s %s HTTP/1.1\r\nHost: %s:%d\r\n%s",
-                      method_str, req_target, host, port, conn_hdr);
+  state->req_len = (size_t)c89stringutils_snprintf(
+      state->req_buf, req_cap, "%s %s HTTP/1.1\r\nHost: %s:%d\r\n%s",
+      method_str, req_target, host, port, conn_hdr);
 #endif
 
   {
@@ -2454,9 +2454,10 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
           "%s: %s\r\n", req->headers.headers[i].key,
           req->headers.headers[i].value);
 #else
-      state->req_len += (size_t)sprintf(
-          state->req_buf + state->req_len, "%s: %s\r\n",
-          req->headers.headers[i].key, req->headers.headers[i].value);
+      state->req_len += (size_t)c89stringutils_snprintf(
+          state->req_buf + state->req_len, req_cap - state->req_len,
+          "%s: %s\r\n", req->headers.headers[i].key,
+          req->headers.headers[i].value);
 #endif
     }
 
@@ -2494,8 +2495,9 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
                                             req_cap - state->req_len,
                                             "Cookie: %s\r\n", cookie_hdr);
 #else
-        state->req_len += (size_t)sprintf(state->req_buf + state->req_len,
-                                          "Cookie: %s\r\n", cookie_hdr);
+        state->req_len += (size_t)c89stringutils_snprintf(
+            state->req_buf + state->req_len, req_cap - state->req_len,
+            "Cookie: %s\r\n", cookie_hdr);
 #endif
         free(cookie_hdr);
       }
@@ -2508,9 +2510,9 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
         state->req_buf + state->req_len, req_cap - state->req_len,
         "Content-Length: %lu\r\n", (unsigned long)req->expected_body_len);
 #else
-    state->req_len += (size_t)sprintf(state->req_buf + state->req_len,
-                                      "Content-Length: %lu\r\n",
-                                      (unsigned long)req->expected_body_len);
+    state->req_len += (size_t)c89stringutils_snprintf(
+        state->req_buf + state->req_len, req_cap - state->req_len,
+        "Content-Length: %lu\r\n", (unsigned long)req->expected_body_len);
 #endif
   } else if (req->body_len > 0) {
 #if defined(_MSC_VER) && !defined(__INTEL_COMPILER)
@@ -2518,9 +2520,9 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
         state->req_buf + state->req_len, req_cap - state->req_len,
         "Content-Length: %lu\r\n", (unsigned long)req->body_len);
 #else
-    state->req_len += (size_t)sprintf(state->req_buf + state->req_len,
-                                      "Content-Length: %lu\r\n",
-                                      (unsigned long)req->body_len);
+    state->req_len += (size_t)c89stringutils_snprintf(
+        state->req_buf + state->req_len, req_cap - state->req_len,
+        "Content-Length: %lu\r\n", (unsigned long)req->body_len);
 #endif
   }
 
@@ -2528,7 +2530,8 @@ uv_arm_state_on_loop(struct HttpTransportContext *ctx, uv_loop_t *target_loop,
   state->req_len += (size_t)sprintf_s(state->req_buf + state->req_len,
                                       req_cap - state->req_len, "\r\n");
 #else
-  state->req_len += (size_t)sprintf(state->req_buf + state->req_len, "\r\n");
+  state->req_len += (size_t)c89stringutils_snprintf(
+      state->req_buf + state->req_len, req_cap - state->req_len, "\r\n");
 #endif
 
   if (req->body && req->body_len > 0) {
@@ -2702,8 +2705,9 @@ uv_resolve_redirect_url(const char *cur_url, const char *loc, char **out_url) {
   sprintf_s(buf, need, "%s://%s:%d%s%s", is_https ? "https" : "http", host,
             port, loc[0] == '/' ? "" : "/", loc);
 #else
-  sprintf(buf, "%s://%s:%d%s%s", is_https ? "https" : "http", host, port,
-          loc[0] == '/' ? "" : "/", loc);
+  c89stringutils_snprintf(buf, need, "%s://%s:%d%s%s",
+                          is_https ? "https" : "http", host, port,
+                          loc[0] == '/' ? "" : "/", loc);
 #endif
   free(host);
   *out_url = buf;
@@ -2771,6 +2775,8 @@ uv_send_single_hop(struct HttpTransportContext *ctx,
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         uv_run(&pconn->loop, UV_RUN_DEFAULT);
         uv_loop_close(&pconn->loop);
+        free(state.req_buf);
+        free(state.res_buf);
         free(pconn);
         free(ka_host);
         return rc;
@@ -2851,7 +2857,10 @@ uv_send_single_hop(struct HttpTransportContext *ctx,
 
   rc = uv_arm_state_on_loop(ctx, &state.loop, 1, NULL, 0, req, res, &state);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    uv_run(&state.loop, UV_RUN_DEFAULT);
     uv_loop_close(&state.loop);
+    free(state.req_buf);
+    free(state.res_buf);
     return rc;
   }
 
@@ -3134,6 +3143,12 @@ NO_DISCARD static c_abstract_http_error_t uv_finish_multi_cleanup(
 
   uv_loop_close(&batch->uv_loop);
   for (i = 0; i < count; ++i) {
+    if (!slots[i].settled && slots[i].res) {
+      c_abstract_http_error_t rrc = http_response_free(slots[i].res);
+      free(slots[i].res);
+      slots[i].res = NULL;
+      primary_rc = (primary_rc != C_ABSTRACT_HTTP_SUCCESS) ? primary_rc : rrc;
+    }
     free(slots[i].st.req_buf);
     free(slots[i].st.res_buf);
   }

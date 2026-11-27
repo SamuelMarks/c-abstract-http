@@ -305,128 +305,52 @@ transport_factory_init_client(struct HttpClient *client) {
 /* Cleanup a client's active transport context. */
 NO_DISCARD c_abstract_http_error_t
 transport_factory_cleanup_client(struct HttpClient *client) {
+  struct HttpTransportContext *t;
   if (!client || !client->transport) {
     return C_ABSTRACT_HTTP_SUCCESS;
   }
+  t = client->transport;
+  client->transport = NULL;
 
 #if defined(C_ABSTRACT_HTTP_USE_PICOQUIC)
-  {
-    c_abstract_http_error_t rc = http_picoquic_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_picoquic_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_MSH3)
-  {
-    c_abstract_http_error_t rc = http_msh3_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_msh3_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_XQUIC)
-  {
-    c_abstract_http_error_t rc = http_xquic_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_xquic_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_LSQUIC)
-  {
-    c_abstract_http_error_t rc = http_lsquic_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_lsquic_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_NGHTTP3)
-  {
-    c_abstract_http_error_t rc = http_nghttp3_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_nghttp3_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBSOUP3)
-  {
-    c_abstract_http_error_t rc = http_libsoup3_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_libsoup3_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBUV)
-  {
-    c_abstract_http_error_t rc = http_libuv_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_libuv_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBEVENT)
-  {
-    c_abstract_http_error_t rc = http_libevent_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_libevent_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_LIBFETCH)
-  {
-    c_abstract_http_error_t rc = http_fetch_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_fetch_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_RAW_SOCKETS)
-  {
-    c_abstract_http_error_t rc = http_raw_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_raw_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_WININET)
-  {
-    c_abstract_http_error_t rc = http_wininet_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_wininet_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_WINHTTP)
-  {
-    c_abstract_http_error_t rc = http_winhttp_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_winhttp_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_APPLE)
-  {
-    c_abstract_http_error_t rc = http_apple_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_apple_context_free(t);
 #elif defined(C_ABSTRACT_HTTP_USE_WASM) || defined(__EMSCRIPTEN__)
-  {
-    c_abstract_http_error_t rc = http_wasm_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_wasm_context_free(t);
 #elif defined(_WIN32) || defined(__WIN32__) || defined(__WINDOWS__)
 #if defined(_MSC_VER) && _MSC_VER < 1600
-  {
-    c_abstract_http_error_t rc = http_wininet_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_wininet_context_free(t);
 #else
-  {
-    c_abstract_http_error_t rc = http_winhttp_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_winhttp_context_free(t);
 #endif
 #elif defined(__APPLE__) && defined(__clang__)
-  {
-    c_abstract_http_error_t rc = http_apple_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_apple_context_free(t);
 #elif defined(__MSDOS__) || defined(__DOS__) || defined(DOS)
-  {
-    c_abstract_http_error_t rc = http_raw_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_raw_context_free(t);
 #else
-  {
-    c_abstract_http_error_t rc = http_curl_context_free(client->transport);
-    if (rc != C_ABSTRACT_HTTP_SUCCESS)
-      return rc;
-  }
+  return http_curl_context_free(t);
 #endif
-
-  client->transport = NULL;
-  return C_ABSTRACT_HTTP_SUCCESS;
 }

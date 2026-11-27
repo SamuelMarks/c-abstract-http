@@ -10,6 +10,7 @@
 /* clang-format off */
 #include <c_abstract_http/http_raw.h>
 #include <c_abstract_http/http_types.h>
+#include <c89stringutils_string_extras.h>
 #include <stddef.h>
 /* clang-format on */
 

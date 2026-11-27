@@ -44,6 +44,7 @@
 #include <stdio.h>
 #include <c_abstract_http/http_types.h>
 #include <c_abstract_http/event_loop.h>
+#include <c89stringutils_string_extras.h>
 /* clang-format on */
 
 #ifdef __cplusplus
