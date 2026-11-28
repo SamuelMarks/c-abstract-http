@@ -89,7 +89,6 @@ static DWORD dwTlsIndex = TLS_OUT_OF_INDEXES;
 /**
  * @brief Win32 Fiber start trampoline executing the coroutine body.
  * @param lpParameter Pointer to struct AbstractHttpCoroutine.
- * @return None.
  */
 static void WINAPI fiber_entry(LPVOID lpParameter) {
   struct AbstractHttpCoroutine *co =

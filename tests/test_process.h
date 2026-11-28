@@ -1002,6 +1002,11 @@ TEST test_process_deserialize_oom(void) {
   size_t zero = 0;
   size_t one = 1;
 
+  memset(&req, 0, sizeof(req));
+  memset(&res, 0, sizeof(res));
+  memset(req_buf, 0, sizeof(req_buf));
+  memset(res_buf, 0, sizeof(res_buf));
+
   p = req_buf;
   memcpy(p, &method, sizeof(int));
   p += sizeof(int);

@@ -105,6 +105,7 @@ typedef struct _CAH_CERT_CHAIN_PARA {
 } CAH_CERT_CHAIN_PARA;
 
 #if defined(_WIN32)
+/** @cond INTERNAL */
 __declspec(dllimport) void *__stdcall CertOpenStore(
     const char *lpszStoreProvider, DWORD dwEncodingType, size_t hCryptProv,
     DWORD dwFlags, const void *pvPara);
@@ -129,6 +130,7 @@ __declspec(dllimport) BOOL __stdcall CertGetCertificateChain(
     DWORD dwFlags, void *pvReserved, CAH_CERT_CHAIN_CONTEXT **ppChainContext);
 __declspec(dllimport) void __stdcall CertFreeCertificateChain(
     CAH_CERT_CHAIN_CONTEXT *pChainContext);
+/** @endcond */
 #endif
 
 #ifdef __cplusplus

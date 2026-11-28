@@ -918,7 +918,7 @@ static int xq_real_stream_read_notify(xqc_stream_t *stream, void *user_data) {
           xq_buf_append(ctx->active_rx, rbuf, (size_t)n);
       if (rc != C_ABSTRACT_HTTP_SUCCESS) {
         ctx->active_err = rc;
-        return -1;
+        return (int)rc;
       }
     }
     if (fin) {

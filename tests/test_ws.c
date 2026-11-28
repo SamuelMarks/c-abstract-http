@@ -2809,12 +2809,12 @@ ws_bind_ephemeral_listener(int *out_sock, int *out_port) {
   setsockopt((SOCKET)s, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt,
              sizeof(opt));
   bind((SOCKET)s, (struct sockaddr *)&addr, sizeof(addr));
-  listen((SOCKET)s, 4);
+  listen((SOCKET)s, 64);
   getsockname((SOCKET)s, (struct sockaddr *)&addr, &alen);
 #else
   setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt));
   bind(s, (struct sockaddr *)&addr, sizeof(addr));
-  listen(s, 4);
+  listen(s, 64);
   getsockname(s, (struct sockaddr *)&addr, &alen);
 #endif
   *out_sock = s;
@@ -3668,6 +3668,12 @@ NO_DISCARD static c_abstract_http_error_t ws_delayed_exit_task(void *arg) {
     return rc;
   }
   for (;;) {
+#if !defined(_WIN32)
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 2000;
+    select(0, NULL, NULL, NULL, &tv);
+#endif
     rc = real_c_abstract_http_get_time_ms(&t1);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       return rc;
@@ -3936,9 +3942,7 @@ TEST test_ws_wss_tls_and_sync_upgraded_loop(void) {
             c_abstract_http_ws_async_connect(&client, &req, ws_trace_on_msg,
                                              ws_trace_on_err, ws_trace_on_close,
                                              &tr));
-  while (((struct ws_stream_ctx *)req.ws_ctx)->has_upgraded_fd) {
-    ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_tick(client.loop));
-  }
+  ASSERT_EQ(C_ABSTRACT_HTTP_SUCCESS, http_loop_run(client.loop));
   ASSERT_EQ(1, tr.msg_count);
   ASSERT_STR_EQ("hi", tr.text);
   ASSERT_EQ(1000, tr.close_code);

@@ -1097,16 +1097,16 @@ NO_DISCARD static c_abstract_http_error_t ABSTRACT_HTTP_FINISH_CURL_REQUEST(
   *out_res = new_res;
 
 cleanup:
+  curl_slist_free_all(headers);
+  free(write_ctx->chunk.memory);
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     if (new_res) {
       c_abstract_http_error_t rch = http_response_free(new_res);
+      free(new_res);
       if (rch != C_ABSTRACT_HTTP_SUCCESS)
         return rch;
-      free(new_res);
     }
   }
-  curl_slist_free_all(headers);
-  free(write_ctx->chunk.memory);
 
   if (rc == C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("ABSTRACT_HTTP_FINISH_CURL_REQUEST: Success");

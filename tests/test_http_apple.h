@@ -2384,7 +2384,7 @@ TEST test_apple_tls_ca_mtls_and_spki_pinning(void) {
   /* 6. OOM sweep across http_apple_config_apply & release_tls_fail */
   {
     int step;
-    for (step = 0; step < 18; ++step) {
+    for (step = 0; step < 22; ++step) {
       c_abstract_http_error_t orc;
       g_mock_alloc_fail = 1;
       g_mock_alloc_count = step;

@@ -1972,22 +1972,21 @@ NO_DISCARD c_abstract_http_error_t c_abstract_http_ws_async_connect(
 #endif
 }
 
+#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 /**
  * @brief Timer callback waking `ws_sync_upgraded_socket_loop` to poll
  * cooperative `exit_flag`.
  * @param loop Active sync event loop.
  * @param timer_id Fired timer ID.
  * @param user_data Unused context.
- * @return C_ABSTRACT_HTTP_SUCCESS.
+ * @return C_ABSTRACT_HTTP_SUCCESS or `http_loop_stop` error enum.
  */
-#if !defined(__MSDOS__) && !defined(__DOS__) && !defined(DOS)
 NO_DISCARD static c_abstract_http_error_t
 ws_sync_exit_poll_timer_cb(struct ModalityEventLoop *loop, int timer_id,
                            void *user_data) {
-  (void)loop;
   (void)timer_id;
   (void)user_data;
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return http_loop_stop(loop);
 }
 #endif
 
@@ -2073,7 +2072,7 @@ ws_sync_upgraded_socket_loop(struct HttpClient *client, struct HttpRequest *req,
         goto finish_sync_ws;
       }
     }
-    rc = http_loop_tick(sync_loop);
+    rc = http_loop_run(sync_loop);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
       goto finish_sync_ws;
     }

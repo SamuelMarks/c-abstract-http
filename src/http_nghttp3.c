@@ -1131,6 +1131,31 @@ ngh3_real_set_nonblock(ngh3_udp_sock_t fd) {
 #endif
 }
 
+/** @brief Dispatch an enum-returning helper inside a void ngtcp2 callback */
+#define NGH3_VOID_CB_DISPATCH(expr)                                            \
+  do {                                                                         \
+    c_abstract_http_error_t _ngh3_rc = (expr);                                 \
+    if (_ngh3_rc != C_ABSTRACT_HTTP_SUCCESS) {                                 \
+      LOG_DEBUG("ngh3_cb: helper returned %d", (int)_ngh3_rc);                 \
+    }                                                                          \
+  } while (0)
+
+/**
+ * @brief Fill @p dest with CSPRNG bytes or deterministic fallback bytes.
+ * @param dest Destination buffer.
+ * @param destlen Requested byte length.
+ * @return C_ABSTRACT_HTTP_SUCCESS or RNG error enum.
+ */
+NO_DISCARD static c_abstract_http_error_t ngh3_real_rand_impl(uint8_t *dest,
+                                                              size_t destlen) {
+  c_abstract_http_error_t rc = c_abstract_http_random_bytes(dest, destlen);
+  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+    memset(dest, 0x42, destlen);
+    return rc;
+  }
+  return C_ABSTRACT_HTTP_SUCCESS;
+}
+
 /**
  * @brief Populate random bytes requested by ngtcp2 callbacks.
  * @param dest Destination buffer.
@@ -1139,13 +1164,9 @@ ngh3_real_set_nonblock(ngh3_udp_sock_t fd) {
  */
 static void ngh3_real_rand_cb(uint8_t *dest, size_t destlen,
                               const ngtcp2_rand_ctx *rand_ctx) {
-  c_abstract_http_error_t rc;
   if (rand_ctx) {
   }
-  rc = c_abstract_http_random_bytes(dest, destlen);
-  if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-    memset(dest, 0x42, destlen);
-  }
+  NGH3_VOID_CB_DISPATCH(ngh3_real_rand_impl(dest, destlen));
 }
 
 #if defined(NGTCP2_VERSION_NUM) && NGTCP2_VERSION_NUM >= 0x011600
@@ -2818,8 +2839,10 @@ ngh3_real_mux_io_cb(struct ModalityEventLoop *loop, int fd, int events,
   if (fd || events) {
   }
   if (drv->timer_id >= 0) {
-    c_abstract_http_error_t crc = http_loop_cancel_timer(loop, drv->timer_id);
+    int tid = drv->timer_id;
+    c_abstract_http_error_t crc;
     drv->timer_id = -1;
+    crc = http_loop_cancel_timer(loop, tid);
     if (crc != C_ABSTRACT_HTTP_SUCCESS) {
       return crc;
     }

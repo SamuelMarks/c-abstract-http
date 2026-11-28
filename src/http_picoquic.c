@@ -1464,6 +1464,8 @@ pq_send_quic_once(struct HttpTransportContext *ctx,
       struct timeval tv;
       int sel;
 
+      memset(&peer_to, 0, sizeof(peer_to));
+      memset(&local_from, 0, sizeof(local_from));
       now_us = picoquic_current_time();
       while (picoquic_prepare_next_packet(
                  ctx->quic, now_us, send_buf, sizeof(send_buf), &send_len,

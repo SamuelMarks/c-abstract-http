@@ -70,6 +70,7 @@ typedef const struct __SecIdentity *CahSecIdentityRef;
 /** @brief Opaque Apple Security.framework trust evaluation handle */
 typedef struct __SecTrust *CahSecTrustRef;
 
+/** @cond INTERNAL */
 extern CahSecCertificateRef SecCertificateCreateWithData(CFAllocatorRef alloc,
                                                          CFDataRef data);
 extern CFDataRef SecCertificateCopyData(CahSecCertificateRef certificate);
@@ -98,6 +99,7 @@ extern const CFStringRef kSecAttrKeyClass;
 extern const CFStringRef kSecAttrKeyClassPrivate;
 extern const CFStringRef kSecImportExportPassphrase;
 extern const CFStringRef kSecImportItemIdentity;
+/** @endcond */
 
 /** @brief ABI-compatible Apple Objective-C completionHandler block layout */
 struct CahObjcAuthBlock {
@@ -748,22 +750,32 @@ cah_finalize_slot_payload(struct AppleURLSessionState *st) {
 }
 
 /**
- * @brief Atomically decrement `batch->remaining` and report whether it hit `0`.
- * @param batch Owning batch.
- * @param out_is_last Receives `1` if final task in batch, else `0`.
- * @param out_sync_wait Receives `batch->sync_wait` when `remaining == 0`.
+ * @brief Record `slot_rc`, atomically decrement `batch->remaining`, and
+ * finalize the batch if this was the final task.
+ * @param st Completed task state belonging to `st->batch`.
+ * @param session Shared `NSURLSession` to invalidate when `remaining == 0`.
+ * @param slot_rc Slot completion status enum.
+ * @return C_ABSTRACT_HTTP_SUCCESS or cleanup/wakeup error enum.
  */
-static void apple_decrement_batch_remaining(struct AppleURLSessionBatch *batch,
-                                            int *out_is_last,
-                                            int *out_sync_wait) {
-  *out_is_last = 0;
+NO_DISCARD static c_abstract_http_error_t
+apple_decrement_batch_remaining(struct AppleURLSessionState *st, id session,
+                                c_abstract_http_error_t slot_rc) {
+  struct AppleURLSessionBatch *batch = st->batch;
+  int is_last = 0;
+  int sync_wait = 0;
+
+  st->error = slot_rc;
   pthread_mutex_lock(&batch->mtx);
   batch->remaining--;
   if (batch->remaining == 0) {
-    *out_is_last = 1;
-    *out_sync_wait = batch->sync_wait;
+    is_last = 1;
+    sync_wait = batch->sync_wait;
   }
   pthread_mutex_unlock(&batch->mtx);
+  if (is_last) {
+    return apple_publish_and_finish_batch(batch, session, sync_wait, slot_rc);
+  }
+  return slot_rc;
 }
 
 /**
@@ -775,28 +787,11 @@ static void apple_decrement_batch_remaining(struct AppleURLSessionBatch *batch,
  */
 NO_DISCARD static c_abstract_http_error_t
 cah_urlsession_finish_batch_slot(struct AppleURLSessionState *st, id session) {
-  struct AppleURLSessionBatch *batch = st->batch;
-  c_abstract_http_error_t slot_rc;
-  int is_last = 0;
-  int sync_wait = 0;
-
-  slot_rc = cah_finalize_slot_payload(st);
+  c_abstract_http_error_t slot_rc = cah_finalize_slot_payload(st);
   if (slot_rc != C_ABSTRACT_HTTP_SUCCESS) {
-    st->error = slot_rc;
-    apple_decrement_batch_remaining(batch, &is_last, &sync_wait);
-    if (is_last) {
-      return apple_publish_and_finish_batch(batch, session, sync_wait, slot_rc);
-    }
-    return slot_rc;
+    return apple_decrement_batch_remaining(st, session, slot_rc);
   }
-
-  st->error = C_ABSTRACT_HTTP_SUCCESS;
-  apple_decrement_batch_remaining(batch, &is_last, &sync_wait);
-  if (is_last) {
-    return apple_publish_and_finish_batch(batch, session, sync_wait,
-                                          C_ABSTRACT_HTTP_SUCCESS);
-  }
-  return C_ABSTRACT_HTTP_SUCCESS;
+  return apple_decrement_batch_remaining(st, session, C_ABSTRACT_HTTP_SUCCESS);
 }
 
 /**
@@ -892,17 +887,23 @@ apple_verify_cert_der_pin(const unsigned char *der, size_t der_len,
 }
 
 /**
- * @brief Release up to two optional CoreFoundation handles safely.
+ * @brief Release up to two optional CoreFoundation handles safely and return
+ * `ret_rc`.
  * @param a First optional `CFTypeRef` handle.
  * @param b Second optional `CFTypeRef` handle.
+ * @param ret_rc Status enum to return after releasing handles.
+ * @return @p ret_rc unchanged.
  */
-static void apple_release_cf_pair(CFTypeRef a, CFTypeRef b) {
+NO_DISCARD static c_abstract_http_error_t
+apple_release_cf_pair(CFTypeRef a, CFTypeRef b,
+                      c_abstract_http_error_t ret_rc) {
   if (a) {
     CFRelease(a);
   }
   if (b) {
     CFRelease(b);
   }
+  return ret_rc;
 }
 
 /**
@@ -923,14 +924,11 @@ apple_verify_key_ext_spki_pin(CahSecTrustRef trust, const char *pin_str,
     c_abstract_http_error_t rc = c_abstract_http_verify_spki_pin_sha256(
         CFDataGetBytePtr(key_ext), (size_t)CFDataGetLength(key_ext), pin_str);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      apple_release_cf_pair(key_ext, pub_key);
-      return rc;
+      return apple_release_cf_pair(key_ext, pub_key, rc);
     }
-    apple_release_cf_pair(key_ext, pub_key);
-    return C_ABSTRACT_HTTP_SUCCESS;
+    return apple_release_cf_pair(key_ext, pub_key, C_ABSTRACT_HTTP_SUCCESS);
   }
-  apple_release_cf_pair(key_ext, pub_key);
-  return fallback_rc;
+  return apple_release_cf_pair(key_ext, pub_key, fallback_rc);
 }
 
 /**
@@ -952,15 +950,14 @@ apple_verify_trust_spki_pin(CahSecTrustRef trust, const char *pin_str) {
         apple_verify_cert_der_pin(CFDataGetBytePtr(cert_data),
                                   (size_t)CFDataGetLength(cert_data), pin_str);
     if (rc != C_ABSTRACT_HTTP_SUCCESS) {
-      apple_release_cf_pair(cert_data, chain);
-      return apple_verify_key_ext_spki_pin(trust, pin_str, rc);
+      return apple_verify_key_ext_spki_pin(
+          trust, pin_str, apple_release_cf_pair(cert_data, chain, rc));
     }
-    apple_release_cf_pair(cert_data, chain);
-    return C_ABSTRACT_HTTP_SUCCESS;
+    return apple_release_cf_pair(cert_data, chain, C_ABSTRACT_HTTP_SUCCESS);
   }
-  apple_release_cf_pair(cert_data, chain);
-  return apple_verify_key_ext_spki_pin(trust, pin_str,
-                                       C_ABSTRACT_HTTP_ERR_ACCES);
+  return apple_verify_key_ext_spki_pin(
+      trust, pin_str,
+      apple_release_cf_pair(cert_data, chain, C_ABSTRACT_HTTP_ERR_ACCES));
 }
 
 /**
@@ -1348,7 +1345,9 @@ apple_multi_pipe_cb(struct ModalityEventLoop *loop, int fd, int revents,
 }
 
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+/** @brief Fault-injection flag for pthread creation failure */
 extern int g_mock_pthread_fail;
+/** @brief Fault-injection flag for synchronous pthread execution */
 extern int g_mock_pthread_create_sync;
 #endif
 
@@ -2493,21 +2492,34 @@ apple_append_ca_anchor(CFMutableArrayRef arr, const unsigned char *raw,
 }
 
 /**
- * @brief Try importing a PKCS#12 `.p12`/`.pfx` archive using @p pass_cstr.
+ * @brief Probe importing a PKCS#12 `.p12`/`.pfx` archive using @p pass_bytes.
  * @param pfx_data Raw PKCS#12 archive `CFDataRef`.
- * @param pass_cstr UTF-8 passphrase string.
- * @param out_id Receives retained `SecIdentityRef` on success, else NULL.
+ * @param pass_bytes UTF-8 passphrase byte slice.
+ * @param pass_len Byte length of @p pass_bytes.
+ * @param out_id Receives retained `SecIdentityRef` on match, else NULL.
+ * @return C_ABSTRACT_HTTP_SUCCESS or C_ABSTRACT_HTTP_ERR_NOMEM.
  */
-static void apple_try_p12_import(CFDataRef pfx_data, const char *pass_cstr,
-                                 CahSecIdentityRef *out_id) {
+NO_DISCARD static c_abstract_http_error_t
+apple_try_p12_import(CFDataRef pfx_data, const char *pass_bytes,
+                     size_t pass_len, CahSecIdentityRef *out_id) {
+  char *pw_copy;
   CFMutableDictionaryRef opts;
   CFStringRef pw_cf;
   CFArrayRef items = NULL;
   OSStatus st;
 
   *out_id = NULL;
-  pw_cf = CFStringCreateWithCString(kCFAllocatorDefault, pass_cstr,
+  pw_copy = (char *)malloc(pass_len + 1U);
+  if (!pw_copy) {
+    return C_ABSTRACT_HTTP_ERR_NOMEM;
+  }
+  if (pass_len > 0U) {
+    memcpy(pw_copy, pass_bytes, pass_len);
+  }
+  pw_copy[pass_len] = '\0';
+  pw_cf = CFStringCreateWithCString(kCFAllocatorDefault, pw_copy,
                                     kCFStringEncodingUTF8);
+  free(pw_copy);
   if (pw_cf) {
     opts = CFDictionaryCreateMutable(kCFAllocatorDefault, 1,
                                      &kCFTypeDictionaryKeyCallBacks,
@@ -2529,6 +2541,7 @@ static void apple_try_p12_import(CFDataRef pfx_data, const char *pass_cstr,
       CFRelease(items);
     }
   }
+  return C_ABSTRACT_HTTP_SUCCESS;
 }
 
 /**
@@ -2667,17 +2680,27 @@ apple_apply_tls_materials(struct HttpTransportContext *ctx,
 
     pfx_cf = CFDataCreate(kCFAllocatorDefault, cbuf, (CFIndex)clen);
     {
-      char pw_buf[128];
-      size_t pw_len = klen < sizeof(pw_buf) - 1U ? klen : sizeof(pw_buf) - 1U;
-      memcpy(pw_buf, kbuf, pw_len);
+      size_t pw_len = klen;
       while (pw_len > 0U &&
-             (pw_buf[pw_len - 1U] == '\n' || pw_buf[pw_len - 1U] == '\r')) {
+             (kbuf[pw_len - 1U] == '\n' || kbuf[pw_len - 1U] == '\r')) {
         --pw_len;
       }
-      pw_buf[pw_len] = '\0';
-      apple_try_p12_import(pfx_cf, pw_buf, &ctx->client_identity);
+      rc = apple_try_p12_import(pfx_cf, (const char *)kbuf, pw_len,
+                                &ctx->client_identity);
+      if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+        CFRelease(pfx_cf);
+        free(cbuf);
+        free(kbuf);
+        return rc;
+      }
       if (!ctx->client_identity) {
-        apple_try_p12_import(pfx_cf, "", &ctx->client_identity);
+        rc = apple_try_p12_import(pfx_cf, "", 0U, &ctx->client_identity);
+        if (rc != C_ABSTRACT_HTTP_SUCCESS) {
+          CFRelease(pfx_cf);
+          free(cbuf);
+          free(kbuf);
+          return rc;
+        }
       }
     }
     CFRelease(pfx_cf);
@@ -2890,6 +2913,24 @@ http_apple_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
 
 #if C_ABSTRACT_HTTP_APPLE_HAVE_CFSTREAM
 /**
+ * @brief Decrement active CFStream worker count and percolate worker status.
+ * @param parent_ctx Owning Apple transport context.
+ * @param rc Worker status enum.
+ * @return @p rc unchanged.
+ */
+NO_DISCARD static c_abstract_http_error_t
+apple_multi_worker_finish(struct HttpTransportContext *parent_ctx,
+                          c_abstract_http_error_t rc) {
+  pthread_mutex_lock(&parent_ctx->cf_worker_lock);
+  parent_ctx->active_cf_workers--;
+  if (parent_ctx->active_cf_workers == 0) {
+    pthread_cond_broadcast(&parent_ctx->cf_worker_cond);
+  }
+  pthread_mutex_unlock(&parent_ctx->cf_worker_lock);
+  return rc;
+}
+
+/**
  * @brief Background worker entry point dispatching legacy CFStream batch.
  * @param arg Pointer to struct AppleMultiWorkerCtx.
  * @return NULL.
@@ -2897,13 +2938,8 @@ http_apple_send(struct HttpTransportContext *ctx, const struct HttpRequest *req,
 static void *apple_multi_worker(void *arg) {
   struct AppleMultiWorkerCtx *wctx = (struct AppleMultiWorkerCtx *)arg;
   struct HttpTransportContext *parent_ctx = wctx->ctx;
-  c_abstract_http_error_t rc = apple_cfstream_multi_worker_impl(wctx);
-  pthread_mutex_lock(&parent_ctx->cf_worker_lock);
-  parent_ctx->active_cf_workers--;
-  if (parent_ctx->active_cf_workers == 0) {
-    pthread_cond_broadcast(&parent_ctx->cf_worker_cond);
-  }
-  pthread_mutex_unlock(&parent_ctx->cf_worker_lock);
+  c_abstract_http_error_t rc = apple_multi_worker_finish(
+      parent_ctx, apple_cfstream_multi_worker_impl(wctx));
   if (rc != C_ABSTRACT_HTTP_SUCCESS) {
     LOG_DEBUG("apple_multi_worker: completed with %d", (int)rc);
     return (void *)((size_t)(int)rc * 0);
@@ -2976,10 +3012,12 @@ NO_DISCARD c_abstract_http_error_t http_apple_send_multi(
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
 /** @brief Opaque Apple Security.framework policy handle */
 typedef struct __SecPolicy *CahSecPolicyRef;
+/** @cond INTERNAL */
 extern CahSecPolicyRef SecPolicyCreateBasicX509(void);
 extern OSStatus SecTrustCreateWithCertificates(CFTypeRef certificates,
                                                CFTypeRef policies,
                                                CahSecTrustRef *trust);
+/** @endcond */
 
 /** @brief Associated-object key for mock challenge authentication method */
 static char g_cah_mock_auth_method_key = 0;

@@ -1012,6 +1012,8 @@ TEST test_curl_send_cookies(void) {
     res = NULL;
   }
 #if defined(C_ABSTRACT_HTTP_TEST_OOM)
+  curl_slist_free_all(cookies);
+  cookies = NULL;
   g_mock_curl_cookies = NULL;
   ASSERT_EQ_FMT(C_ABSTRACT_HTTP_SUCCESS, http_curl_send(ctx, &req, &res), "%d");
   if (res) {
